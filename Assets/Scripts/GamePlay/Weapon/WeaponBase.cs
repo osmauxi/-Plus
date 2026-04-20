@@ -139,6 +139,16 @@ public class WeaponBase : NetworkBehaviour
         // ==========================================
         float startAngle = -spread / 2f;
         float angleStep = bulletCount > 1 ? spread / (bulletCount - 1) : 0f;
+      
+        if (CameraShakeManager.Instance != null)
+        {
+            // 算出后坐力方向：枪口正前方 (firePoint.forward) 的反方向
+            Vector3 recoilDirection = -firePoint.forward;
+
+            // 触发震动！这里的 1.5f 是震动强度，你可以根据基础伤害来动态计算
+            // 比如：float shakeForce = stats.GetStatValue(StatType.Damage) * 0.1f;
+            CameraShakeManager.Instance.ShakeRecoil(recoilDirection, 1.5f);
+        }
 
         for (int i = 0; i < bulletCount; i++)
         {

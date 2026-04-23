@@ -4,9 +4,9 @@ using UnityEngine;
 using System.Linq;
 
 //网络调试与展示中心，包含连接信息、延迟模拟、同步模式、踢人、帧同步参数、Desync测试等。
-public class GameDebugManager : NetworkBehaviour
+public class PlayerManager : NetworkBehaviour
 {
-    public static GameDebugManager Instance;
+    public static PlayerManager Instance;
     public List<PlayerController> AllPlayers = new List<PlayerController>();
 
     public float GlobalSimulatedLatency { get; private set; } = 0f;//全局延迟变量
@@ -67,6 +67,28 @@ public class GameDebugManager : NetworkBehaviour
             AllPlayers.Remove(playerToRemove);
             Debug.Log($"玩家移除列表: {clientId}");
         }
+    }
+
+    /// <summary>
+    /// AI 专用的公有方法库：获取距离最近的玩家
+    /// </summary>
+    public Transform GetNearestPlayer(Vector3 searchPosition)
+    {
+        if (AllPlayers.Count == 0) return null;
+
+        Transform nearestPlayer = null;
+        float minDistance = float.MaxValue;
+
+        foreach (var player in AllPlayers)
+        {
+            float dist = Vector3.SqrMagnitude(player.transform.position - searchPosition); // SqrMagnitude 比 Distance 快，因为它不计算平方根
+            if (dist < minDistance)
+            {
+                minDistance = dist;
+                nearestPlayer = player.transform;
+            }
+        }
+        return nearestPlayer;
     }
 
 }

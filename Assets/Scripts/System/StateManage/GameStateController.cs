@@ -88,7 +88,7 @@ public class GameStateController : NetworkBehaviour
         }
         private void HandleMapSpawnState()
         {
-        foreach (var con in GameDebugManager.Instance.AllPlayers)
+        foreach (var con in PlayerManager.Instance.AllPlayers)
         {
             con.DisableGravity();
         }
@@ -98,7 +98,7 @@ public class GameStateController : NetworkBehaviour
         {
             if(IsServer)
                 NetEventCenter.Instance.Send<GamePlayStartStruct>(new GamePlayStartStruct());
-            foreach (var con in GameDebugManager.Instance.AllPlayers)
+            foreach (var con in PlayerManager.Instance.AllPlayers)
             {
                 con.EnableGravity();
             }

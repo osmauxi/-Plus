@@ -55,3 +55,17 @@ public interface IUpgradeableEffect
 {
     public void Upgrade();
 }
+
+/// <summary>
+/// 基础 AI 模块接口
+/// </summary>
+public interface IAIModule
+{
+    // 每个模块每一帧都要执行自己的逻辑，必须把黑板传给它！
+    void ExecuteTick(AIBlackboard blackboard);
+}
+
+// 细分三大职责，语义更明确
+public interface ITargetingModule : IAIModule { } // 负责找目标
+public interface IMovementModule : IAIModule { }  // 负责寻路和走位
+public interface IAttackModule : IAIModule { }    // 负责扣动扳机和播动画

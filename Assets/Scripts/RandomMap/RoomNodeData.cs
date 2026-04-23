@@ -26,3 +26,9 @@ public class RoomVisualCache
     public GameObject UpObj;
     public GameObject DownObj;
 }
+
+public class RoomNodeData : MonoBehaviour
+{
+    public Transform[] SpawnNodes;
+    public Transform[] TreasurePos;
+}

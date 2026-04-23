@@ -1,13 +1,23 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI; // 引入寻路命名空间
 
 public class HitStopManager : MonoBehaviour
 {
     public static HitStopManager Instance { get; private set; }
 
-    // 记录每个 Animator 对应的“解冻时间戳”
-    private Dictionary<Animator, float> frozenAnimators = new Dictionary<Animator, float>();
+    // 用一个内部类来保存被冻结对象的所有状态
+    private class FrozenData
+    {
+        public float unfreezeTime;
+        public Animator animator;
+        public Rigidbody rb;
+        public Vector3 savedVelocity; // 保存冻结前的惯性
+        public NavMeshAgent agent;
+        public bool wasAgentStopped;
+    }
+
+    private Dictionary<GameObject, FrozenData> frozenEntities = new Dictionary<GameObject, FrozenData>();
 
     private void Awake()
     {
@@ -17,60 +27,94 @@ public class HitStopManager : MonoBehaviour
 
     private void Update()
     {
-        // 每一帧检查是否有怪物该解冻了
-        if (frozenAnimators.Count == 0) return;
+        if (frozenEntities.Count == 0) return;
 
-        // 使用临时列表存储需要解冻的键，避免在遍历字典时修改字典引发报错
-        List<Animator> toUnfreeze = new List<Animator>();
-        float currentTime = Time.unscaledTime; // 必须使用不受 Time.timeScale 影响的时间
+        List<GameObject> toUnfreeze = new List<GameObject>();
+        float currentTime = Time.unscaledTime;
 
-        foreach (var kvp in frozenAnimators)
+        foreach (var kvp in frozenEntities)
         {
-            if (currentTime >= kvp.Value)
+            if (currentTime >= kvp.Value.unfreezeTime)
             {
                 toUnfreeze.Add(kvp.Key);
             }
         }
 
-        foreach (var anim in toUnfreeze)
+        foreach (var entity in toUnfreeze)
         {
-            Unfreeze(anim);
+            Unfreeze(entity);
         }
     }
 
     /// <summary>
-    /// 触发局部顿帧
+    /// 全面冻结实体（动画、物理、寻路）
     /// </summary>
-    /// <param name="animator">需要定格的动画机</param>
-    /// <param name="duration">定格时间（秒）</param>
-    public void Freeze(Animator animator, float duration)
+    public void Freeze(GameObject target, float duration)
     {
-        if (animator == null) return;
+        if (target == null) return;
 
-        float unfreezeTime = Time.unscaledTime + duration;
+        float targetUnfreezeTime = Time.unscaledTime + duration;
 
-        // 如果怪物已经在顿帧状态中，比较并保留更晚的解冻时间（防连击Bug）
-        if (frozenAnimators.ContainsKey(animator))
+        if (frozenEntities.TryGetValue(target, out FrozenData data))
         {
-            if (unfreezeTime > frozenAnimators[animator])
+            // 防连击 Bug：刷新最长的冻结时间
+            if (targetUnfreezeTime > data.unfreezeTime)
             {
-                frozenAnimators[animator] = unfreezeTime;
+                data.unfreezeTime = targetUnfreezeTime;
             }
         }
         else
         {
-            // 第一次进入顿帧，记录时间并暂停动画
-            frozenAnimators.Add(animator, unfreezeTime);
-            animator.speed = 0f;
+            // 第一次冻结，抓取所有组件并保存状态
+            FrozenData newData = new FrozenData();
+            newData.unfreezeTime = targetUnfreezeTime;
+            newData.animator = target.GetComponentInChildren<Animator>();
+            newData.rb = target.GetComponent<Rigidbody>();
+            newData.agent = target.GetComponent<NavMeshAgent>();
+
+            // 1. 冻结动画
+            if (newData.animator != null) newData.animator.speed = 0f;
+
+            // 2. 冻结物理（保存速度，并暂时剥夺物理控制权）
+            if (newData.rb != null)
+            {
+                newData.savedVelocity = newData.rb.velocity;
+                newData.rb.velocity = Vector3.zero;
+                newData.rb.isKinematic = true; // 开启运动学，像钉子一样钉在原地
+            }
+
+            // 3. 冻结寻路（如果是怪物）
+            if (newData.agent != null && newData.agent.isActiveAndEnabled)
+            {
+                newData.wasAgentStopped = newData.agent.isStopped;
+                newData.agent.isStopped = true;
+            }
+
+            frozenEntities.Add(target, newData);
         }
     }
 
-    private void Unfreeze(Animator animator)
+    private void Unfreeze(GameObject target)
     {
-        if (animator != null)
+        if (frozenEntities.TryGetValue(target, out FrozenData data))
         {
-            animator.speed = 1f; // 恢复正常播放速度
+            // 1. 恢复动画
+            if (data.animator != null) data.animator.speed = 1f;
+
+            // 2. 恢复物理
+            if (data.rb != null)
+            {
+                data.rb.isKinematic = false;
+                data.rb.velocity = data.savedVelocity; // 把冻结前的惯性还给它
+            }
+
+            // 3. 恢复寻路
+            if (data.agent != null && data.agent.isActiveAndEnabled)
+            {
+                data.agent.isStopped = data.wasAgentStopped;
+            }
+
+            frozenEntities.Remove(target);
         }
-        frozenAnimators.Remove(animator);
     }
 }

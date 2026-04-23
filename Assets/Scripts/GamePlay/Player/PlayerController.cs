@@ -44,14 +44,14 @@ public class PlayerController : NetworkBehaviour
             this.enabled = false;
             return;
         }
-        if(GameDebugManager.Instance != null)
-            GameDebugManager.Instance.RegisterPlayer(this);
+        if(PlayerManager.Instance != null)
+            PlayerManager.Instance.RegisterPlayer(this);
     }
 
     public override void OnNetworkDespawn()
     {
-        if (GameDebugManager.Instance != null)
-            GameDebugManager.Instance.UnregisterPlayer(this);
+        if (PlayerManager.Instance != null)
+            PlayerManager.Instance.UnregisterPlayer(this);
     }
 
     private void Update()

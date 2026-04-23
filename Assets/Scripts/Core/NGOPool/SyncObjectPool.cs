@@ -66,6 +66,31 @@ public class SyncObjectPool : NetworkBehaviour
             }
         }
     }
+    public void RegisterDynamicPrefab(string id, NetworkObject netPrefab, int iniAmount)
+    {
+        if (string.IsNullOrEmpty(id) || netPrefab == null) return;
+
+        if (pool.ContainsKey(id))
+        {
+            Debug.LogWarning($"[对象池] ID {id} 已存在，跳过动态注册。");
+            return;
+        }
+
+        var newPool = new ObjectPool<NetworkObject>(
+            createFunc: () => Instantiate(netPrefab),
+            actionOnGet: (obj) => obj.gameObject.SetActive(true),
+            actionOnRelease: (obj) => obj.gameObject.SetActive(false),
+            actionOnDestroy: (obj) => Destroy(obj.gameObject),
+            defaultCapacity: iniAmount
+        );
+
+        PooledPrefabInstanceHandler handler = new PooledPrefabInstanceHandler(netPrefab, newPool);
+        NetworkManager.Singleton.PrefabHandler.AddHandler(netPrefab.gameObject, handler);
+
+        pool.Add(id, newPool);
+        Debug.Log($"[对象池] 成功动态注册外部管线对象: {id}");
+    }
+
     public NetworkObject GetT(string id, Vector3 pos, Quaternion rot)
     {
         if (!IsServer)

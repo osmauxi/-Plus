@@ -74,11 +74,11 @@ public class RoomManager : NetworkBehaviour
     private void CheckPlayerPositions()
     {
         // 遍历你的全局玩家列表
-        foreach (var player in GameDebugManager.Instance.AllPlayers)
+        foreach (var player in PlayerManager.Instance.AllPlayers)
         {
             if (player == null) continue;
 
-            // 核心奥义：不走物理碰撞，用纯数学瞬间算出玩家所在的逻辑网格坐标！
+            // 不走物理碰撞，用纯数学瞬间算出玩家所在的逻辑网格坐标！
             int gridX = Mathf.RoundToInt(player.transform.position.x / roomSize);
             int gridY = Mathf.RoundToInt(player.transform.position.z / roomSize);
             Vector2Int playerGrid = new Vector2Int(gridX, gridY);
@@ -97,15 +97,20 @@ public class RoomManager : NetworkBehaviour
 
     private void HandlePlayerEnterNewRoom(PlayerController enteringPlayer, Vector2Int newRoomGrid, RoomData roomData)
     {
-        // 1. 更新当前全局房间
         CurrentActiveRoom.Value = newRoomGrid;
 
-        // 2. 如果这是个未清理的怪物房或Boss房
         if (!roomData.IsCleared)
         {
             PullOtherPlayers(enteringPlayer);
 
-            // TODO: 服务器开始在这个新房间里生成怪物
+            if (AllVisuals.TryGetValue(newRoomGrid, out RoomVisualCache cache))
+            {
+                // 获取房间的数据点
+                RoomNodeData nodeData = cache.RoomObj.GetComponent<RoomNodeData>();
+
+                // 把数据点传给全局战斗管理器去执行！完美解耦！
+                BattleManager.Instance.StartRoomBattle(newRoomGrid, nodeData);
+            }
         }
     }
 
@@ -113,7 +118,7 @@ public class RoomManager : NetworkBehaviour
     {
         Vector3 enterPos = enteringPlayer.transform.position;
 
-        foreach (var player in GameDebugManager.Instance.AllPlayers)
+        foreach (var player in PlayerManager.Instance.AllPlayers)
         {
             // 找到没进门的倒霉蛋队友
             if (player != enteringPlayer)
@@ -135,7 +140,7 @@ public class RoomManager : NetworkBehaviour
     private void ForceTeleportClientRpc(Vector3 targetPos, ClientRpcParams rpcParams = default)
     {
         // 收到指令的本地玩家执行强制位移
-        foreach (var player in GameDebugManager.Instance.AllPlayers)
+        foreach (var player in PlayerManager.Instance.AllPlayers)
         {
             if (player.IsOwner)
             {

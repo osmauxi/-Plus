@@ -62,7 +62,7 @@ public class GlobalLocalVFXPool : MonoBehaviour
     /// <summary>
     /// 【极度高频被调用的接口】在指定位置播放特效
     /// </summary>
-    public void PlayVFX(string id, Vector3 position, Quaternion rotation = default)
+    public void GetVFX(string id, Vector3 position, Quaternion rotation = default)
     {
         if (vfxPools.TryGetValue(id, out var pool))
         {

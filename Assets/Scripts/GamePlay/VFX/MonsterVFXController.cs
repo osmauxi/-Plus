@@ -77,9 +77,17 @@ public class MonsterVFXController : NetworkBehaviour
 
     public void BroadcastVFX(string eventId)
     {
-        if (IsServer) TriggerVFXClientRpc(eventId);
+        if (IsServer) 
+            TriggerVFXClientRpc(eventId);
+        else
+            TriggerVFXServerRpc(eventId);
     }
 
+    [ServerRpc]
+    private void TriggerVFXServerRpc(string eventId) 
+    {
+        TriggerVFXClientRpc(eventId);
+    }
     [ClientRpc]
     private void TriggerVFXClientRpc(string eventId)
     {

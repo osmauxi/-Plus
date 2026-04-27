@@ -1,6 +1,9 @@
 using System;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UI;
+using static Codice.Client.Commands.WkTree.WorkspaceTreeNode;
+using static UnityEditor.PlayerSettings;
 
 /// <summary>
 /// 全局通用的网络生命值组件 (挂载在玩家、怪物、可破坏物体的根节点)
@@ -24,7 +27,15 @@ public class Health : NetworkBehaviour
     /// <summary> 当死亡时触发 </summary>
     public event Action OnDied;
 
+    [Header("战斗手感设置")]
+    [Tooltip("受击后的无敌帧时长 (秒)")]
+    public float iFrameDuration = 0.2f;
+    private float lastHitTime = -999f;
+
     public bool isDead = false;
+
+    private EntityFXManager fXManager;
+    private MonsterEntity monsterEntity;
 
     public override void OnNetworkSpawn()
     {
@@ -50,25 +61,60 @@ public class Health : NetworkBehaviour
         maxHealth.Value = maxHp;
         currentHealth.Value = maxHp;
         isDead = false;
+        lastHitTime = -999f;
+        fXManager = GetComponent<EntityFXManager>();
+        monsterEntity = GetComponent<MonsterEntity>();
     }
 
-    /// <param name="amount">伤害量</param>
+    /// <param name="rawDamage">伤害量</param>
     /// <param name="hitPoint">受击点的精确三维坐标</param>
     /// <param name="hitDirection">攻击打来的方向 (用于特效旋转和击退计算)</param>
-    public void TakeDamage(float amount, Vector3 hitPoint, Vector3 hitDirection)
+    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection)
     {
         if (!IsServer || isDead) return;
 
+        if (Time.time < lastHitTime + iFrameDuration)
+            return;
         // 这里可以做减伤计算，比如读取 CharacterStatCollection 里的护甲值
 
-        currentHealth.Value -= amount;
+        lastHitTime = Time.time;
+        float defense = 0;
+        if (monsterEntity != null && monsterEntity.Config != null)
+        {
+            // 怪物读取 SO 里的基础防御并应用倍率
+            defense = monsterEntity.Config.baseDefense * GameDirector.Instance.GetCurrentDifficultyMultiplier();
+        }
+
+
+        float damageReduction = 100f / (100f + defense);
+        float finalDamage = rawDamage * damageReduction;
+        finalDamage = Mathf.Max(1f, finalDamage);
+
+        currentHealth.Value -= finalDamage;
+
+        TriggerHitFeedbackClientRpc(hitPoint, hitDirection);
+
 
         if (currentHealth.Value <= 0f)
         {
             currentHealth.Value = 0f;
             isDead = true;
+            TriggerBloodBurstClientRpc(hitPoint, hitDirection);
             OnDied?.Invoke(); // 通知同物体上的其他脚本 (比如 AI 脚本准备播死亡动画)
         }
+    }
+
+    [ClientRpc]
+    private void TriggerHitFeedbackClientRpc(Vector3 pos, Vector3 dir)
+    {
+        GlobalLocalVFXPool.Instance.GetVFX("HitBlood", pos, Quaternion.LookRotation(-dir));
+        fXManager.PlayHitFlash();
+    }
+
+    [ClientRpc]
+    private void TriggerBloodBurstClientRpc(Vector3 pos, Vector3 dir)
+    {
+        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(dir));
     }
 
     // ==========================================

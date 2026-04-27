@@ -15,6 +15,8 @@ public class WeaponBase : NetworkBehaviour
     private bool isReloading = false;
     private float lastFireTime;
 
+    private MonsterVFXController vfxController;
+
     // 当前武器携带的所有肉鸽效果器（雷电、弹射等）
     public List<IWeaponEffect> activeEffects = new List<IWeaponEffect>();
 
@@ -22,6 +24,7 @@ public class WeaponBase : NetworkBehaviour
     {
         // 初始弹匣加满
         currentAmmo = (int)stats.GetStatValue(StatType.MagSize);
+        vfxController = GetComponentInParent<MonsterVFXController>();
     }
 
     private void Update()
@@ -119,7 +122,7 @@ public class WeaponBase : NetworkBehaviour
         {
             exactAimPoint = ray.GetPoint(rayDistance);
         }
-
+        vfxController.BroadcastVFX("Shoot");
         // 算出枪口到鼠标的绝对精准方向
         Vector3 baseFireDirection = (exactAimPoint - firePoint.position).normalized;
         Quaternion baseRotation = Quaternion.LookRotation(baseFireDirection);

@@ -18,17 +18,35 @@ public class RoomData
     }
 }
 
-public class RoomVisualCache
-{
-    public GameObject RoomObj;
-    public GameObject RightObj;
-    public GameObject LeftObj;
-    public GameObject UpObj;
-    public GameObject DownObj;
-}
-
 public class RoomNodeData : MonoBehaviour
 {
+    [Header("战斗生成数据")]
     public Transform[] SpawnNodes;
     public Transform[] TreasurePos;
+
+    [Header("运行时表现缓存 (程序自动分配)")]
+    [HideInInspector] public GameObject RightDoor;
+    [HideInInspector] public GameObject LeftDoor;
+    [HideInInspector] public GameObject UpDoor;
+    [HideInInspector] public GameObject DownDoor;
+
+    /// <summary>
+    /// 自治方法：打开并回收所有的门
+    /// </summary>
+    public void OpenDoors()
+    {
+        if (RightDoor != null) { LocalObjectPool.instance.RetToPool(RightDoor); RightDoor = null; }
+        if (LeftDoor != null) { LocalObjectPool.instance.RetToPool(LeftDoor); LeftDoor = null; }
+        if (UpDoor != null) { LocalObjectPool.instance.RetToPool(UpDoor); UpDoor = null; }
+        if (DownDoor != null) { LocalObjectPool.instance.RetToPool(DownDoor); DownDoor = null; }
+    }
+
+    /// <summary>
+    /// 自治方法：清空关卡时的彻底回收
+    /// </summary>
+    public void RecycleAll()
+    {
+        OpenDoors(); // 必须先还门
+        LocalObjectPool.instance.RetToPool(this.gameObject); // 再把自己还给池子
+    }
 }

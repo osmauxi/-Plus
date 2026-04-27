@@ -55,16 +55,17 @@ public class SceneManager : MonoBehaviour// 保留SceneManagerGlobal作为全局
 
             GameObject playerInstance = Instantiate(playerPrefab);
             NetworkObject netObj = playerInstance.GetComponent<NetworkObject>();
+            Rigidbody rb = playerInstance.GetComponent<Rigidbody>();
+            rb.interpolation = RigidbodyInterpolation.None;
             playerInstance.transform.position = new Vector3(0, 10, 0);
             netObj.SpawnAsPlayerObject(client.ClientId, true);
-            Debug.Log(playerInstance.transform.position);
             //生成后，将玩家对象移入 UIScene
             var playerObj = client.PlayerObject;
             if (playerObj != null)
             {
                 UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(playerObj.gameObject, uiScene);
             }
-            Debug.Log(playerInstance.transform.position);
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
         }
     }
     public void LoadPanelOn()

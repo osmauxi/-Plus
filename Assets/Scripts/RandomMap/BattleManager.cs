@@ -32,14 +32,21 @@ public class BattleManager : NetworkBehaviour
     public void StartRoomBattle(Vector2Int roomGrid, RoomNodeData roomData)
     {
         if (!IsServer || isBattleActive) return;
-
+        int roomType = RoomManager.Instance.AllRoomsData[roomGrid].RoomType;
+        bool isMutated;
+        float difficultyFactor = GameDirector.Instance.GetRoomDifficultyFactor(roomType, out isMutated);
+        if (isMutated)
+        {
+            Debug.LogWarning($"<color=red>[警告] 房间 {roomGrid} 发生异变！难度倍率：{difficultyFactor}</color>");
+            // TODO: 这里可以触发一个 ClientRpc 播放异变音效或改变房间灯光
+        }
         currentBattleRoomGrid = roomGrid;
         currentSpawnNodes = roomData.SpawnNodes;
         isBattleActive = true;
         aliveMonsterCount = 0;
 
         // 1. 向发牌员申请兵力！
-        pendingMonsters = GameDirector.Instance.AllocateMonstersForRoom();
+        pendingMonsters = GameDirector.Instance.AllocateMonstersForRoom(difficultyFactor);
 
         // 2. 开始波次生成流程
         StartCoroutine(WaveSpawnRoutine());
@@ -67,12 +74,15 @@ public class BattleManager : NetworkBehaviour
                 Transform spawnPoint = currentSpawnNodes[Random.Range(0, currentSpawnNodes.Length)];
 
                 // 从对象池生成，并同步到所有客户端
-                GameObject monsterObj = LocalObjectPool.instance.GetT(monsterPoolId, spawnPoint.position, null);
-
+                NetworkObject monsterObj = SyncObjectPool.instance.GetT(monsterPoolId, spawnPoint.position,Quaternion.identity);
                 // 重置状态与注入难度
                 MonsterEntity monsterBase = monsterObj.GetComponent<MonsterEntity>();
+                MonsterDataSO dataSO = GameDirector.Instance.monsterCatalog.Find(x => x.poolId == monsterPoolId);
+                monsterBase.InitializeEntity(dataSO);
+
                 monsterBase.ResetEntity();
                 monsterBase.SetupDifficulty(GameDirector.Instance.GetCurrentDifficultyMultiplier());
+                monsterBase.GetComponent<MonsterBrain>().enabled = true; // 激活 AI
 
                 // 监听这只怪物的死亡
                 Health monsterHealth = monsterObj.GetComponent<Health>();
@@ -105,7 +115,6 @@ public class BattleManager : NetworkBehaviour
     private void HandleMonsterDied()
     {
         aliveMonsterCount--;
-
         // 可以在这里统一处理怪物死亡的额外逻辑，比如掉落金币等
     }
 }

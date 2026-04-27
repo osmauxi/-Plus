@@ -108,15 +108,25 @@ public class SyncObjectPool : NetworkBehaviour
         Debug.LogError($"找不到 ID 为 '{id}' 的对象池！请检查 Inspector 配置。");
         return null;
     }
-    public void RetToPool(NetworkObject obj)
+    public void RetToPool(NetworkObject obj, string poolId)
     {
         if (!IsServer)
             return;
 
-        //Despawn会自动触发Handler的Destroy自动放回池子
-        if (obj.IsSpawned) 
+        if (obj.IsSpawned)
         {
             obj.Despawn(false);
+        }
+
+        // 2. 【核心修复】：Server 必须手动将物体放回自己的池子！
+        if (pool.TryGetValue(poolId, out var _pool))
+        {
+            _pool.Release(obj); // 这会触发 actionOnRelease，执行 SetActive(false)
+        }
+        else
+        {
+            Debug.LogError($"[对象池错误] Server 找不到 ID 为 '{poolId}' 的对象池，只能强制销毁！");
+            Destroy(obj.gameObject); // 兜底处理
         }
     }
 }

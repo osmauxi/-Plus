@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -18,8 +19,8 @@ public class RoomManager : NetworkBehaviour
     // 本地维护的纯数据字典（服务器和客户端各自算完地图后都会塞满这个字典）
     public Dictionary<Vector2Int, RoomData> AllRoomsData = new Dictionary<Vector2Int, RoomData>();
 
-    private Dictionary<Vector2Int, RoomVisualCache> AllVisuals = new Dictionary<Vector2Int, RoomVisualCache>();
-
+    private Dictionary<Vector2Int, RoomNodeData> SpawnedRooms = new Dictionary<Vector2Int, RoomNodeData>(); 
+    
     [Header("小地图配置")]
     public Transform MiniNodeParent; // 挂载的父节点
 
@@ -103,13 +104,51 @@ public class RoomManager : NetworkBehaviour
         {
             PullOtherPlayers(enteringPlayer);
 
-            if (AllVisuals.TryGetValue(newRoomGrid, out RoomVisualCache cache))
-            {
-                // 获取房间的数据点
-                RoomNodeData nodeData = cache.RoomObj.GetComponent<RoomNodeData>();
+            //通知所有客户端立刻生成门，锁死这间房
+            LockDoorsClientRpc(newRoomGrid);
 
-                // 把数据点传给全局战斗管理器去执行！完美解耦！
+            if (SpawnedRooms.TryGetValue(newRoomGrid, out RoomNodeData nodeData))
+            {
                 BattleManager.Instance.StartRoomBattle(newRoomGrid, nodeData);
+            }
+        }
+    }
+    [ClientRpc]
+    private void LockDoorsClientRpc(Vector2Int grid)
+    {
+        if (!SpawnedRooms.TryGetValue(grid, out RoomNodeData nodeData)) return;
+        if (!AllRoomsData.TryGetValue(grid, out RoomData data)) return;
+
+        // 兜底安全校验：如果意外被清空了，不锁门
+        if (data.IsCleared) return;
+
+        // 先确保旧门被清理（防止因为各种诡异重入导致的门重叠叠加）
+        nodeData.OpenDoors();
+
+        var directions = new (Vector2Int gridOffset, Vector3 localPos, float yRot, System.Action<GameObject> AssignDoor)[]
+        {
+            (Vector2Int.right, new Vector3(roomSize / 2f, 0, 0),   90f, (obj) => nodeData.RightDoor = obj),
+            (Vector2Int.left,  new Vector3(-roomSize / 2f, 0, 0), -90f, (obj) => nodeData.LeftDoor = obj),
+            (Vector2Int.up,    new Vector3(0, 0, roomSize / 2f),    0f, (obj) => nodeData.UpDoor = obj),
+            (Vector2Int.down,  new Vector3(0, 0, -roomSize / 2f), 180f, (obj) => nodeData.DownDoor = obj)
+        };
+
+        foreach (var dir in directions)
+        {
+            Vector2Int neighborGrid = grid + dir.gridOffset;
+
+            // 只要外部有连接的邻居房间，就在这个通道口生成一扇门锁死！
+            if (AllRoomsData.ContainsKey(neighborGrid))
+            {
+                Vector3 spawnPos = nodeData.transform.position + dir.localPos;
+                Quaternion spawnRot = Quaternion.Euler(0, dir.yRot, 0);
+
+                // 从池子里拔出一扇门
+                GameObject doorObj = LocalObjectPool.instance.GetT("Door", spawnPos, nodeData.transform);
+                doorObj.transform.rotation = spawnRot;
+
+                // 录入管家记录册，打完怪后由管家回收
+                dir.AssignDoor(doorObj);
             }
         }
     }
@@ -145,14 +184,20 @@ public class RoomManager : NetworkBehaviour
             if (player.IsOwner)
             {
                 var rb = player.GetComponent<Rigidbody>();
-                if (rb != null) rb.velocity = Vector3.zero;
+                rb.velocity = Vector3.zero;
+                rb.interpolation = RigidbodyInterpolation.None;
 
-                player.transform.position = targetPos;
+                rb.position = targetPos;
+                StartCoroutine(RestoreInterpolation(rb));
                 Debug.Log("【系统】已传送到队友所在的房间！");
             }
         }
     }
-
+    private IEnumerator RestoreInterpolation(Rigidbody rb)
+    {
+        yield return new WaitForFixedUpdate(); // 等待物理引擎结算完毕
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+    }
     // ==================== 客户端/全端逻辑：视觉更新与对象池 ====================
 
     private void OnRoomChanged(Vector2Int oldRoom, Vector2Int newRoom)
@@ -164,34 +209,18 @@ public class RoomManager : NetworkBehaviour
 
     private void UpdateLocalVisuals(Vector2Int centerRoom)
     {
-        // 1. 确定视野范围（当前 + 上下左右）
         HashSet<Vector2Int> activeGrids = new HashSet<Vector2Int>
         {
-            centerRoom,
-            centerRoom + Vector2Int.up,
-            centerRoom + Vector2Int.down,
-            centerRoom + Vector2Int.left,
-            centerRoom + Vector2Int.right
+            centerRoom, centerRoom + Vector2Int.up, centerRoom + Vector2Int.down,
+            centerRoom + Vector2Int.left, centerRoom + Vector2Int.right
         };
 
-        // 2. 遍历账本，不在视野的直接 SetActive(false)
-        foreach (var kvp in AllVisuals)
+        foreach (var kvp in SpawnedRooms)
         {
             bool shouldBeActive = activeGrids.Contains(kvp.Key);
-
-            // 因为门和墙都是房间的子物体，隐藏父物体就能全部隐藏，极度省性能
-            if (kvp.Value.RoomObj.activeSelf != shouldBeActive)
+            if (kvp.Value.gameObject.activeSelf != shouldBeActive)
             {
-                kvp.Value.RoomObj.SetActive(shouldBeActive);
-            }
-        }
-
-        // 3. 生成还没建档的房间
-        foreach (var grid in activeGrids)
-        {
-            if (AllRoomsData.TryGetValue(grid, out RoomData data) && !AllVisuals.ContainsKey(grid))
-            {
-                SpawnLocalRoomVisual(data);
+                kvp.Value.gameObject.SetActive(shouldBeActive);
             }
         }
     }
@@ -199,21 +228,23 @@ public class RoomManager : NetworkBehaviour
     private void SpawnLocalRoomVisual(RoomData data)
     {
         Vector3 worldPos = new Vector3(data.GridPos.x * roomSize, 0, data.GridPos.y * roomSize);
-        string poolId = "Room_" + data.RoomType;
 
-        // 1. 获取房间实体
         GameObject roomObj = LocalObjectPool.instance.GetT(data.PoolId, worldPos, this.transform);
 
-        // 2. 创建账本
-        RoomVisualCache cache = new RoomVisualCache { RoomObj = roomObj };
-
-        // 3. 数学计算门和墙
-        var directions = new (Vector2Int gridOffset, Vector3 localPos, float yRotation, System.Action<GameObject> AssignCache)[]
+        // 核心改变：直接抓取房间自带的大管家！
+        RoomNodeData nodeData = roomObj.GetComponent<RoomNodeData>();
+        if (nodeData == null)
         {
-            (Vector2Int.right, new Vector3(roomSize / 2f, 0, 0),   90f, (obj) => cache.RightObj = obj),
-            (Vector2Int.left,  new Vector3(-roomSize / 2f, 0, 0), -90f, (obj) => cache.LeftObj = obj),
-            (Vector2Int.up,    new Vector3(0, 0, roomSize / 2f),    0f, (obj) => cache.UpObj = obj),
-            (Vector2Int.down,  new Vector3(0, 0, -roomSize / 2f), 180f, (obj) => cache.DownObj = obj)
+            Debug.LogError($"[架构警告] 预制件 {data.PoolId} 根节点缺失 RoomNodeData 组件！");
+            return;
+        }
+
+        var directions = new (Vector2Int gridOffset, Vector3 localPos, float yRot, System.Action<GameObject> AssignDoor)[]
+        {
+            (Vector2Int.right, new Vector3(roomSize / 2f, 0, 0),   90f, (obj) => nodeData.RightDoor = obj),
+            (Vector2Int.left,  new Vector3(-roomSize / 2f, 0, 0), -90f, (obj) => nodeData.LeftDoor = obj),
+            (Vector2Int.up,    new Vector3(0, 0, roomSize / 2f),    0f, (obj) => nodeData.UpDoor = obj),
+            (Vector2Int.down,  new Vector3(0, 0, -roomSize / 2f), 180f, (obj) => nodeData.DownDoor = obj)
         };
 
         foreach (var dir in directions)
@@ -221,24 +252,21 @@ public class RoomManager : NetworkBehaviour
             Vector2Int neighborGrid = data.GridPos + dir.gridOffset;
             bool hasNeighbor = AllRoomsData.ContainsKey(neighborGrid);
 
-            // 如果这个方向有相连的房间且当前房间未通关，则生成门；否则生成墙
-            string borderPoolId = "Door";
-
-            // 绝妙细节：如果是已通关的房间（例如初始房），且有邻居，我们连门都不生成，直接畅通无阻！
-            if (hasNeighbor && data.IsCleared) continue;
-
             Vector3 spawnPos = roomObj.transform.position + dir.localPos;
-            Quaternion spawnRot = Quaternion.Euler(0, dir.yRotation, 0);
+            Quaternion spawnRot = Quaternion.Euler(0, dir.yRot, 0);
 
-            GameObject borderObj = LocalObjectPool.instance.GetT(borderPoolId, spawnPos, roomObj.transform);
-            borderObj.transform.rotation = spawnRot;
+            // 情况 A：如果没有邻居，生成实心墙。
+            if (!hasNeighbor)
+            {
+                GameObject wallObj = LocalObjectPool.instance.GetT("Door", spawnPos, roomObj.transform);
+                wallObj.transform.rotation = spawnRot;
+            }
 
-            // 记入账本
-            dir.AssignCache(borderObj);
         }
 
-        // 4. 存入全局字典
-        AllVisuals.Add(data.GridPos, cache);
+        // 存入全新的强类型字典
+        SpawnedRooms.Add(data.GridPos, nodeData);
+        roomObj.SetActive(false);
     }
 
     public void NotifyRoomCleared()
@@ -257,63 +285,42 @@ public class RoomManager : NetworkBehaviour
     [ClientRpc]
     private void UnlockDoorsClientRpc(Vector2Int grid)
     {
-        if (AllVisuals.TryGetValue(grid, out RoomVisualCache cache))
+        if (SpawnedRooms.TryGetValue(grid, out RoomNodeData nodeData))
         {
-            // 精准回收：如果是门（对面有房间），并且在账本里有记录，直接还给池子！
-            if (AllRoomsData.ContainsKey(grid + Vector2Int.right) && cache.RightObj != null)
-            {
-                LocalObjectPool.instance.RetToPool(cache.RightObj);
-                cache.RightObj = null;
-            }
-            if (AllRoomsData.ContainsKey(grid + Vector2Int.left) && cache.LeftObj != null)
-            {
-                LocalObjectPool.instance.RetToPool(cache.LeftObj);
-                cache.LeftObj = null;
-            }
-            if (AllRoomsData.ContainsKey(grid + Vector2Int.up) && cache.UpObj != null)
-            {
-                LocalObjectPool.instance.RetToPool(cache.UpObj);
-                cache.UpObj = null;
-            }
-            if (AllRoomsData.ContainsKey(grid + Vector2Int.down) && cache.DownObj != null)
-            {
-                LocalObjectPool.instance.RetToPool(cache.DownObj);
-                cache.DownObj = null;
-            }
+            nodeData.OpenDoors();
         }
     }
 
     // 加载下一关卡时调用，一键清空所有数据！
     public void ClearAllLevelVisuals()
     {
-        foreach (var kvp in AllVisuals)
+        foreach (var kvp in SpawnedRooms)
         {
-            var cache = kvp.Value;
-            // 先还门和墙
-            if (cache.RightObj != null) LocalObjectPool.instance.RetToPool(cache.RightObj);
-            if (cache.LeftObj != null) LocalObjectPool.instance.RetToPool(cache.LeftObj);
-            if (cache.UpObj != null) LocalObjectPool.instance.RetToPool(cache.UpObj);
-            if (cache.DownObj != null) LocalObjectPool.instance.RetToPool(cache.DownObj);
-
-            // 最后还房间本体
-            if (cache.RoomObj != null) LocalObjectPool.instance.RetToPool(cache.RoomObj);
+            kvp.Value.RecycleAll(); // 一键彻底回收（包含门和房间本体）
         }
-
-        AllVisuals.Clear();
+        SpawnedRooms.Clear();
         AllRoomsData.Clear();
     }
 
     public void ForceInitVisuals()
     {
+        foreach (var kvp in AllRoomsData)
+        {
+            if (!SpawnedRooms.ContainsKey(kvp.Key))
+            {
+                SpawnLocalRoomVisual(kvp.Value);
+            }
+        }
+
+        //根据视野逻辑，只激活当前房间和相邻房间 (SetActive true)
         UpdateLocalVisuals(CurrentActiveRoom.Value);
 
-        // 1. 生成整张小地图的节点（纯本地生成，没有网络同步开销）
+        //生成整张小地图的节点
         GenerateMinimapIcons();
 
-        // 2. 更新视野迷雾
+        //更新视野迷雾
         UpdateMinimapFog(CurrentActiveRoom.Value);
 
-        // 3. 让小地图摄像机瞬间归位
         if (MinimapCamera.Instance != null)
         {
             MinimapCamera.Instance.SnapToRoom(CurrentActiveRoom.Value);

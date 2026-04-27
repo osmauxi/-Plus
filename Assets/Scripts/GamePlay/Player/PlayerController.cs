@@ -15,6 +15,7 @@ public class PlayerController : NetworkBehaviour
     [Range(0.1f, 1f)]
     public float backwardSpeedMultiplier = 0.6f;  // 后退时的速度惩罚 (60%移速)
     public float rotateSmoothTime = 0.05f;        // 转身平滑时间（给鼠标瞄准一点微小的缓冲，不要太生硬）
+    private float targetAimAngle;
 
     [Header("环境检测")]
     public LayerMask groundLayer;                 // 鼠标射线检测的地面层
@@ -59,53 +60,57 @@ public class PlayerController : NetworkBehaviour
         // 收集输入（Update里收集输入最准，FixedUpdate里执行物理）
         CollectInput();
 
-        // 鼠标瞄准逻辑可以在Update里直接做，不涉及物理碰撞
-        HandleAiming();
+        HandleAimingCalculation();
     }
 
     private void FixedUpdate()
     {
         // 执行运动学物理移动
         HandleMovement();
+        ApplyRotation();
     }
-
-    private void CollectInput()
+    private void HandleAimingCalculation()
     {
-        float h = Input.GetAxisRaw("Horizontal");
-        float v = Input.GetAxisRaw("Vertical");
-
-        // 假设你依然有摄像机方向管理器。如果没有，直接用 new Vector3(h, 0, v)
-        Vector3 camForward = CameraViewManager.instance.CurrentCameraForward;
-        Vector3 camRight = CameraViewManager.instance.CurrentCameraRight;
-
-        // 抹平Y轴，确保纯2D平面移动
-        camForward.y = 0;
-        camRight.y = 0;
-
-        currentMoveInput = (camForward.normalized * v + camRight.normalized * h).normalized;
-    }
-
-    private void HandleAiming()
-    {
-        // 经典的鼠标射线检测地面，精准瞄准
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        Plane groundPlane = new Plane(Vector3.up, transform.position); // 以角色当前脚底高度建立虚拟平面
+        Plane groundPlane = new Plane(Vector3.up, transform.position);
 
         if (groundPlane.Raycast(ray, out float rayDistance))
         {
             Vector3 aimPoint = ray.GetPoint(rayDistance);
             Vector3 targetDir = aimPoint - transform.position;
-            //targetDir.y = 0f; // 强制水平
 
             if (targetDir.sqrMagnitude > 0.01f)
             {
-                // 计算目标角度
-                float targetAngle = Quaternion.LookRotation(targetDir).eulerAngles.y;
-                // 平滑旋转（Mathf.SmoothDampAngle比直接Slerp手感更顺滑）
-                float smoothedAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref currentYVelocity, rotateSmoothTime);
-                transform.rotation = Quaternion.Euler(0f, smoothedAngle, 0f);
+                // 只算出目标角度，存起来
+                targetAimAngle = Quaternion.LookRotation(targetDir).eulerAngles.y;
             }
         }
+    }
+    private void ApplyRotation()
+    {
+        // 在 FixedUpdate 里平滑并应用旋转
+        float smoothedAngle = Mathf.SmoothDampAngle(rb.rotation.eulerAngles.y, targetAimAngle, ref currentYVelocity, rotateSmoothTime);
+
+        // 必须使用 rb.MoveRotation！这不会打断 Interpolate！
+        rb.MoveRotation(Quaternion.Euler(0f, smoothedAngle, 0f));
+    }
+    private void CollectInput()
+    {
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        if (Mathf.Abs(scroll) > 0.01f && CameraViewManager.instance != null)
+        {
+            CameraViewManager.instance.AdjustZoom(scroll);
+        }
+
+        Vector3 camForward = CameraViewManager.instance.CurrentCameraForward;
+        Vector3 camRight = CameraViewManager.instance.CurrentCameraRight;
+
+        camRight.y = 0;
+
+        currentMoveInput = (camForward.normalized * v + camRight.normalized * h).normalized;
     }
 
     private void HandleMovement()

@@ -55,6 +55,7 @@ public class GameStateController : NetworkBehaviour
         {
             // 触发转场至地图生成
             ChangeState(GameState.MapGenerating);
+            GameDirector.Instance.AdvanceToNextLayer(CurrentLevel.Value);
         }
     }
     public override void OnNetworkDespawn()
@@ -88,12 +89,12 @@ public class GameStateController : NetworkBehaviour
         }
         private void HandleMapSpawnState()
         {
-        foreach (var con in PlayerManager.Instance.AllPlayers)
-        {
-            con.DisableGravity();
+            foreach (var con in PlayerManager.Instance.AllPlayers)
+            {
+                con.DisableGravity();
+            }
+            StartCoroutine(MapGenerator.instance.PreGenerateMap());
         }
-        StartCoroutine(MapGenerator.instance.PreGenerateMap());
-    }
         private void HandlePlayState() 
         {
             if(IsServer)

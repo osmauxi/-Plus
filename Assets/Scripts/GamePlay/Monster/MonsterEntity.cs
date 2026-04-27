@@ -37,37 +37,35 @@ public class MonsterEntity : NetworkBehaviour
         health.OnDied -= HandleDeath;
         health.OnHealthChanged -= HandleWoundedFeedback;
     }
-    public void InitializeEntity(MonsterDataSO data, float difficultyMultiplier)
+    public void InitializeEntity(MonsterDataSO data)
     {
         if (!IsServer) return;
-
         Config = data; // 拿到自己的档案
-
-        // 1. 初始化血量
-        health.InitializeHealth(Config.baseMaxHealth * difficultyMultiplier);
-
-        // 2. 初始化速度 (物理/AI重置时也会用到这个速度)
-        if (agent != null)
-        {
-            agent.speed = Config.baseSpeed * (1 + (difficultyMultiplier - 1) * 0.1f);
-        }
     }
 
-    // ResetEntity() 方法基本不变，但如果需要恢复基础速度，请使用 Config.baseSpeed
     public void ResetEntity()
     {
         var rb = GetComponent<Rigidbody>();
-        rb.velocity = Vector3.zero; 
-        rb.isKinematic = false; 
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.isKinematic = false;
+        }
 
-        anim.speed = 1f; anim.Play("Idle", 0, 0f);
-        agent.enabled = true; agent.isStopped = false;
+        anim.speed = 1f;
+        anim.Play("Idle", 0, 0f);
 
-        //只修改自己的碰撞体，不包括子物体的伤害判定
-        GetComponent<Collider>().enabled = true;
+        agent.enabled = false;
+        agent.enabled = true;
 
-        // 速度恢复为档案里的速度
-        agent.speed = Config.baseSpeed;
+        if (agent.isOnNavMesh)
+        {
+            agent.isStopped = false;
+        }
+        else
+        {
+            Debug.LogWarning($"[导航警告] 怪物 {gameObject.name} 的生成点不在 NavMesh 上！请检查 SpawnNode 的高度。");
+        }
 
         blackboard.ClearBlackboard();
     }
@@ -78,13 +76,16 @@ public class MonsterEntity : NetworkBehaviour
     // ==========================================
     public void SetupDifficulty(float difficultyMultiplier)
     {
-        if (!IsServer) return;
+        if (!IsServer || Config == null) return;
 
-        // 【关键】：在这里把基础数值派发给干活的组件！
+        // 1. 初始化血量上限和当前血量
         health.InitializeHealth(Config.baseMaxHealth * difficultyMultiplier);
 
+        // 2. 初始化最终移速
         if (agent != null)
+        {
             agent.speed = Config.baseSpeed * (1 + (difficultyMultiplier - 1) * 0.1f);
+        }
     }
 
     // ==========================================
@@ -107,10 +108,9 @@ public class MonsterEntity : NetworkBehaviour
 
         // 告诉大脑停工（让模块不再执行）
         var brain = GetComponent<MonsterBrain>();
-        if (brain != null) brain.enabled = false;
-        if (agent != null && agent.isActiveAndEnabled) agent.isStopped = true;
-
+        brain.enabled = false;
+        if (agent.isActiveAndEnabled) agent.isStopped = true;
         // 回收对象
-        SyncObjectPool.instance.RetToPool(GetComponent<NetworkObject>());
+        SyncObjectPool.instance.RetToPool(GetComponent<NetworkObject>(), Config.poolId);
     }
 }

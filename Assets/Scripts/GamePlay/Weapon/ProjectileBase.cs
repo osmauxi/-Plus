@@ -80,13 +80,20 @@ public class ProjectileBase : MonoBehaviour
         // 防御性编程：不打自己人
         if (other.gameObject == owner) return;
 
-        bool hitEnemy = other.CompareTag("Enemy");
+        bool hitTarget = other.CompareTag(targetTag);
         bool hitWall = other.CompareTag("Wall");
 
-        if (hitEnemy)
+        if (hitTarget)
         {
-            // 1. 造成基础伤害 (这里调用你未来的血量系统)
-            // other.GetComponent<Health>().TakeDamage(baseDamage);
+            Health targetHealth = other.GetComponentInParent<Health>();
+            if (!targetHealth.isDead)
+            {
+                // hitPoint: 获取子弹和目标碰撞体的表面最近接触点，让飙血特效完美贴合在肉体表面！
+                Vector3 hitPoint = other.ClosestPoint(transform.position);
+
+                // hitDirection: 子弹当前的飞行方向，用于计算击退和血迹喷溅角度！
+                targetHealth.TakeDamage(baseDamage, hitPoint, transform.forward);
+            }
 
             // 2. 触发所有特效的 "击中" 钩子 (比如爆出一团火、引雷)
             foreach (var effect in activeEffects)

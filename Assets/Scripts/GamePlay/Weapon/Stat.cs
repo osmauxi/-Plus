@@ -27,6 +27,8 @@ public class StatModifier
 public class Stat
 {
     public float BaseValue; // 武器或角色的天生白字面板
+    public float MinValue;
+    public float MaxValue;
 
     protected bool isDirty = true; // 是否需要重新计算
     protected float _value;        // 缓存的最终计算结果
@@ -35,9 +37,11 @@ public class Stat
     // 存放所有施加在这个属性上的词条修饰器
     protected readonly List<StatModifier> statModifiers;
 
-    public Stat(float baseValue = 0f)
+    public Stat(float baseValue = 0f, float minValue = 0f, float maxValue = float.MaxValue)
     {
         BaseValue = baseValue;
+        MinValue = minValue;
+        MaxValue = maxValue;
         statModifiers = new List<StatModifier>();
     }
 
@@ -122,7 +126,7 @@ public class Stat
         }
 
         // 保证属性不为负数（比如装弹时间不能是负数）
-        return (float)Math.Round(Math.Max(0, finalValue), 4);
+        return (float)System.Math.Round(Mathf.Clamp(finalValue, MinValue, MaxValue), 4);
     }
 
     private int CompareModifierOrder(StatModifier a, StatModifier b)

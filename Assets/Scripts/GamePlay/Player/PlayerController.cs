@@ -71,6 +71,8 @@ public class PlayerController : NetworkBehaviour
     }
     private void HandleAimingCalculation()
     {
+        if (InputManager.Instance.CurrentState != InputState.Gameplay) 
+            return;
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
         Plane groundPlane = new Plane(Vector3.up, transform.position);
 
@@ -96,10 +98,10 @@ public class PlayerController : NetworkBehaviour
     }
     private void CollectInput()
     {
-        float h = Input.GetAxisRaw("Horizontal");
-        float v = Input.GetAxisRaw("Vertical");
+        float h = InputManager.Instance.MoveHorizontal;
+        float v = InputManager.Instance.MoveVertical;
 
-        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        float scroll = InputManager.Instance.ScrollWheel;
         if (Mathf.Abs(scroll) > 0.01f && CameraViewManager.instance != null)
         {
             CameraViewManager.instance.AdjustZoom(scroll);
@@ -109,6 +111,7 @@ public class PlayerController : NetworkBehaviour
         Vector3 camRight = CameraViewManager.instance.CurrentCameraRight;
 
         camRight.y = 0;
+        transform.position = new Vector3(transform.position.x, 1, transform.position.z);
 
         currentMoveInput = (camForward.normalized * v + camRight.normalized * h).normalized;
     }
@@ -153,13 +156,4 @@ public class PlayerController : NetworkBehaviour
         rb.velocity = new Vector3(targetVelocity.x, rb.velocity.y, targetVelocity.z);
     }
 
-    public void DisableGravity() 
-    {
-        rb.useGravity = false;
-    }
-
-    public void EnableGravity() 
-    {
-        rb.useGravity = true;
-    }
 }

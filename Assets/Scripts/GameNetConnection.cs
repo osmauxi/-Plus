@@ -21,6 +21,7 @@ public class GameNetConnection : NetworkBehaviour
     [Tooltip("可选：显示主机 IP 供他人连接")]
     [SerializeField] private TextMeshProUGUI hostIPHintText;
 
+    private bool isSolo = false;
     #endregion
     #region 连接状态
 
@@ -37,7 +38,6 @@ public class GameNetConnection : NetworkBehaviour
 
     private ConnectionStatus _status = ConnectionStatus.Disconnected;
     private string _lastStatusMessage = "";
-    public bool IsSoloMode = false;
     /// <summary> 当前连接状态 </summary>
     public ConnectionStatus Status => _status;
 
@@ -89,9 +89,9 @@ public class GameNetConnection : NetworkBehaviour
     #region UI 按钮回调
     public void OnStartSoloB()
     {
-        IsSoloMode = true;
+        isSolo = true; 
         // 单人模式：启动 Host 即可，不等待他人连接
-        StartGame(true, "127.0.0.1");
+        StartGame(true, "127.0.0.1",true);
     }
     public void OnStartHostB()
     {
@@ -119,7 +119,7 @@ public class GameNetConnection : NetworkBehaviour
     #endregion
     #region 网络启动
 
-    public void StartGame(bool isHost, string targetIP)
+    public void StartGame(bool isHost, string targetIP,bool isSolo = false)
     {
         if (NetworkManager.Singleton == null)
         {
@@ -143,6 +143,8 @@ public class GameNetConnection : NetworkBehaviour
                 Debug.Log("Host Started");
             else
                 SetStatus(ConnectionStatus.Failed, "主机启动失败");
+            if(isSolo)
+                GameStateController.instance.isSolo.Value = true;
         }
         else
         {
@@ -173,7 +175,7 @@ public class GameNetConnection : NetworkBehaviour
         // 我们在这里通知 SceneManager 开始初始场景加载
         if (NetworkManager.Singleton.IsHost)
         {
-            if (IsSoloMode)
+            if (isSolo || GameStateController.instance.isSolo.Value)
             {
                 // 先进入加载流程：UIScene -> GameScene
                 SceneManager.Instance.TransitionToGameScene();

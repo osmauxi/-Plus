@@ -85,6 +85,7 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
     /// </summary>
     private void PerformHitDetection(AIBlackboard bb, HashSet<GameObject> alreadyHit)
     {
+        Debug.Log(545);
         if (hitboxRef == null) return;
 
         // 获取 Box 的世界坐标、旋转和真实大小
@@ -105,8 +106,8 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
                 alreadyHit.Add(targetObj);
 
                 // 获取玩家血量组件并造成伤害
-                Health targetHealth = targetObj.GetComponent<Health>();
-                if (targetHealth != null && !targetHealth.isDead)
+                Health targetHealth = targetObj.GetComponentInParent<Health>();
+                if (!targetHealth.isDead)
                 {
                     // 从黑板拿到配置库里的攻击力，发起攻击！
                     float damage = bb.EntityConfig.Config.baseDamage;

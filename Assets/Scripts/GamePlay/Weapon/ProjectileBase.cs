@@ -16,6 +16,7 @@ public class ProjectileBase : MonoBehaviour
     // 谁发射的？（用于区分敌我，防止痛击队友）
     private GameObject owner;
     private string targetTag;
+    private Vector3 initialScale;
 
     // 发射者的属性快照（用于特效读取，比如爆炸伤害随玩家基础伤害提升）
     private CharacterStatCollection snapshotStats;
@@ -28,6 +29,8 @@ public class ProjectileBase : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+
+        initialScale = transform.localScale;
     }
 
     // 【核心管线】：由 WeaponBase 实例化子弹后瞬间调用
@@ -52,6 +55,11 @@ public class ProjectileBase : MonoBehaviour
         {
             targetTag = "Untagged"; // 兜底防错
         }
+
+        float sizeMod = stats.GetStatValue(StatType.ProjectileSize);
+        // 使用原始大小乘以缩放倍率，绝对安全，不会被对象池污染
+        transform.localScale = initialScale * sizeMod;
+
         // 浅拷贝特效列表
         this.activeEffects = new List<IWeaponEffect>(effects);
 
@@ -90,9 +98,19 @@ public class ProjectileBase : MonoBehaviour
             {
                 // hitPoint: 获取子弹和目标碰撞体的表面最近接触点，让飙血特效完美贴合在肉体表面！
                 Vector3 hitPoint = other.ClosestPoint(transform.position);
-
+                //Debug.Log(other.transform.position - hitPoint);
                 // hitDirection: 子弹当前的飞行方向，用于计算击退和血迹喷溅角度！
-                targetHealth.TakeDamage(baseDamage, hitPoint, transform.forward);
+
+                // 1. 获取子弹现在的物理大小倍率
+                float sizeBonus = snapshotStats.GetStatValue(StatType.ProjectileSize);
+
+                // 2. 伤害附加值 (直接线性映射)：基础伤害10点时倍率是1，伤害30点时倍率就是3！
+                float damageBonus = baseDamage / 10f;
+
+                // 3. 最终综合权值：直接让大小和伤害相乘，上限依然保护在 20 倍防崩溃
+                float hitWeight = Mathf.Clamp(sizeBonus * damageBonus, 0.5f, 20.0f);
+                targetHealth.TakeDamage(baseDamage, hitPoint, transform.forward,hitWeight);
+                GlobalLocalVFXPool.Instance.GetVFX("HitBlood", hitPoint, Quaternion.LookRotation(-transform.forward), hitWeight);
             }
 
             // 2. 触发所有特效的 "击中" 钩子 (比如爆出一团火、引雷)

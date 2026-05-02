@@ -22,7 +22,8 @@ public class RoomNodeData : MonoBehaviour
 {
     [Header("战斗生成数据")]
     public Transform[] SpawnNodes;
-    public Transform[] TreasurePos;
+    public Transform[] ChestPos;
+
 
     [Header("运行时表现缓存 (程序自动分配)")]
     [HideInInspector] public GameObject RightDoor;

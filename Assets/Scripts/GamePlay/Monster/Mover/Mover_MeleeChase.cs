@@ -43,6 +43,7 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
             if (faceTargetWhenStopped) FaceTarget(bb);
             return;
         }
+        bb.Rb.velocity = Vector3.zero;
 
         // 4. 距离判定：到达攻击范围了吗？
         if (dist <= stopDistance)

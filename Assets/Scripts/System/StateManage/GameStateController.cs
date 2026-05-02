@@ -17,7 +17,10 @@ public class GameStateController : NetworkBehaviour
     public static GameStateController instance;
 
     public NetworkVariable<GameState> currentNetState = new NetworkVariable<GameState>(GameState.GameLoading);
+    public NetworkVariable<bool> isSolo = new NetworkVariable<bool>(false);
     public NetworkVariable<int> CurrentLevel = new NetworkVariable<int>(1);
+
+
 
     private void Awake()
     {
@@ -89,20 +92,12 @@ public class GameStateController : NetworkBehaviour
         }
         private void HandleMapSpawnState()
         {
-            foreach (var con in PlayerManager.Instance.AllPlayers)
-            {
-                con.DisableGravity();
-            }
             StartCoroutine(MapGenerator.instance.PreGenerateMap());
         }
         private void HandlePlayState() 
         {
             if(IsServer)
                 NetEventCenter.Instance.Send<GamePlayStartStruct>(new GamePlayStartStruct());
-            foreach (var con in PlayerManager.Instance.AllPlayers)
-            {
-                con.EnableGravity();
-            }
         }
         public void OnGameStart(GamePlayStartStruct evt,ulong sendeId) 
         {

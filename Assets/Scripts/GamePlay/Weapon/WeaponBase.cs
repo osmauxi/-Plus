@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -17,6 +18,9 @@ public class WeaponBase : NetworkBehaviour
 
     private MonsterVFXController vfxController;
 
+    public event Action<int, int> OnAmmoChanged;
+    public event Action<float> OnReloadStart;
+
     // 当前武器携带的所有肉鸽效果器（雷电、弹射等）
     public List<IWeaponEffect> activeEffects = new List<IWeaponEffect>();
 
@@ -25,6 +29,7 @@ public class WeaponBase : NetworkBehaviour
         // 初始弹匣加满
         currentAmmo = (int)stats.GetStatValue(StatType.MagSize);
         vfxController = GetComponentInParent<MonsterVFXController>();
+        OnAmmoChanged?.Invoke(currentAmmo, (int)stats.GetStatValue(StatType.MagSize));
     }
 
     private void Update()
@@ -103,6 +108,7 @@ public class WeaponBase : NetworkBehaviour
     {
         lastFireTime = Time.time;
         currentAmmo--;
+        OnAmmoChanged?.Invoke(currentAmmo, (int)stats.GetStatValue(StatType.MagSize));
 
         int bulletCount = Mathf.Max(1, (int)stats.GetStatValue(StatType.ProjectileCount));
         float spread = stats.GetStatValue(StatType.SpreadAngle);
@@ -127,9 +133,6 @@ public class WeaponBase : NetworkBehaviour
         Vector3 baseFireDirection = (exactAimPoint - firePoint.position).normalized;
         Quaternion baseRotation = Quaternion.LookRotation(baseFireDirection);
 
-        // ==========================================
-        // 修复 2：获取玩家当前惯性
-        // ==========================================
         Vector3 playerVelocity = Vector3.zero;
         // 假设武器挂在玩家子节点，通过 transform.root 往上找玩家的 Rigidbody
         if (transform.root.TryGetComponent<Rigidbody>(out Rigidbody playerRb))
@@ -137,12 +140,14 @@ public class WeaponBase : NetworkBehaviour
             playerVelocity = playerRb.velocity;
         }
 
-        // ==========================================
-        // 修复 3：扇形弹道均匀散布
-        // ==========================================
         float startAngle = -spread / 2f;
+
         float angleStep = bulletCount > 1 ? spread / (bulletCount - 1) : 0f;
-      
+
+        float baseDmg = stats.GetStatValue(StatType.Damage);
+        float fireWeight = Mathf.Clamp(1f + Mathf.Log10(baseDmg / 10f + 1f), 0.5f, 4.0f);
+        // 霰弹枪额外后坐力加成：每多一发弹片，震动额外增加 10%
+        fireWeight *= (1f + (bulletCount - 1) * 0.1f);
         if (CameraShakeManager.Instance != null)
         {
             // 算出后坐力方向：枪口正前方 (firePoint.forward) 的反方向
@@ -150,17 +155,20 @@ public class WeaponBase : NetworkBehaviour
 
             // 触发震动！这里的 1.5f 是震动强度，你可以根据基础伤害来动态计算
             // 比如：float shakeForce = stats.GetStatValue(StatType.Damage) * 0.1f;
-            CameraShakeManager.Instance.ShakeRecoil(recoilDirection, 1.5f);
+            CameraShakeManager.Instance.ShakeRecoil(recoilDirection, 1.5f * fireWeight);
         }
+
+        float halfSpread = spread / 2f; // 计算出左右最大偏移角度
 
         for (int i = 0; i < bulletCount; i++)
         {
-            float currentAngle = startAngle + (angleStep * i);
+            // 在散布锥形范围内，随机挑选一个角度
+            float randomOffsetAngle = UnityEngine.Random.Range(-halfSpread, halfSpread);
 
-            // 在精准方向的基础上，加上扇形偏移角度
-            Quaternion bulletRotation = baseRotation * Quaternion.Euler(0, currentAngle, 0);
+            // 如果是单发子弹且极其精准（比如狙击枪 spread == 0），则偏移角度就是 0
+            Quaternion bulletRotation = baseRotation * Quaternion.Euler(0, randomOffsetAngle, 0);
 
-            // 发送 RPC，把玩家当前的惯性也传过去！
+            // 发送 RPC
             FireProjectileServerRpc(firePoint.position, bulletRotation, playerVelocity);
         }
     }
@@ -178,7 +186,7 @@ public class WeaponBase : NetworkBehaviour
         ProjectileBase projectile = bulletObj.GetComponent<ProjectileBase>();
 
         float finalDmg = stats.GetStatValue(StatType.Damage);
-        bool isCrit = Random.value < stats.GetStatValue(StatType.CritChance);
+        bool isCrit = UnityEngine.Random.value < stats.GetStatValue(StatType.CritChance);
         if (isCrit) finalDmg *= stats.GetStatValue(StatType.CritDamage);
 
         projectile.Init(
@@ -198,14 +206,26 @@ public class WeaponBase : NetworkBehaviour
         isReloading = true;
         Debug.Log("正在换弹...");
 
+        vfxController.BroadcastVFX("Loading");
+
+        float reloadTime = stats.GetStatValue(StatType.ReloadTime);
+        OnReloadStart?.Invoke(reloadTime);
         // 读取属性系统中的换弹时间
         yield return new WaitForSeconds(stats.GetStatValue(StatType.ReloadTime));
 
-        currentAmmo = (int)stats.GetStatValue(StatType.MagSize);
+        int maxAmmo = (int)stats.GetStatValue(StatType.MagSize);
+        currentAmmo = maxAmmo;
         isReloading = false;
+        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
         Debug.Log("换弹完成！");
-    }
 
+    }
+    public void ForceInstantReload()
+    {
+        int maxAmmo = (int)stats.GetStatValue(StatType.MagSize);
+        currentAmmo = maxAmmo;
+        OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
+    }
     // 拾取/升级词条的接口
     public void AddOrUpgradeEffect(IWeaponEffect newEffect)
     {
@@ -216,8 +236,9 @@ public class WeaponBase : NetworkBehaviour
         }
         else
         {
+            Debug.Log(newEffect);
             activeEffects.Add(newEffect);
-            newEffect.OnEquip(this.gameObject, stats);
+            newEffect.OnEquip(this.gameObject, stats); 
         }
     }
 }

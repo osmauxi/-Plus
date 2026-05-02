@@ -23,7 +23,9 @@ public enum StatType
     MaxHealth,          // 最大生命值
     Armor,              // 护甲减伤
     MoveSpeed,          // 移动速度
-    DodgeChance         // 闪避率
+    DodgeChance,   // 闪避率
+
+    ProjectileSize,     // 子弹体积缩放倍率 (默认 1)
 }
 
 public class CharacterStatCollection : MonoBehaviour
@@ -35,25 +37,26 @@ public class CharacterStatCollection : MonoBehaviour
     {
         Stats = new Dictionary<StatType, Stat>
         {
-            { StatType.Damage, new Stat(10f) },
-            { StatType.FireRate, new Stat(5f) },
-            { StatType.ReloadTime, new Stat(2f) },
-            { StatType.MagSize, new Stat(30f) },
-            { StatType.CritChance, new Stat(0.05f) },
-            { StatType.CritDamage, new Stat(1.5f) },  
+            { StatType.Damage, new Stat(10f,1f) },
+            { StatType.FireRate, new Stat(5f, 1f) },
+            { StatType.ReloadTime, new Stat(2f,0.1f,10f) },
+            { StatType.MagSize, new Stat(30f,1f) },
+            { StatType.CritChance, new Stat(0.05f,0f,1f) },
+            { StatType.CritDamage, new Stat(1.5f,0f) },  
 
             // 子弹物理默认值
-            { StatType.ProjectileSpeed, new Stat(25f) }, // 默认子弹速度
+            { StatType.ProjectileSpeed, new Stat(25f,25f,100f) }, // 默认子弹速度
             { StatType.ProjectileCount, new Stat(1f) },  // 默认单发
-            { StatType.SpreadAngle, new Stat(0f) },      // 默认指哪打哪
+            { StatType.SpreadAngle, new Stat(0f,0f,90f) },      // 默认指哪打哪
             { StatType.BounceCount, new Stat(0f) },      // 默认不弹射
             { StatType.PierceCount, new Stat(0f) },      // 默认不穿透
+            { StatType.ProjectileSize, new Stat(1f, 0.1f, 10f) },
 
             // 角色生存默认值
             { StatType.MaxHealth, new Stat(100f) },
             { StatType.Armor, new Stat(0f) },
-            { StatType.MoveSpeed, new Stat(8f) },
-            { StatType.DodgeChance, new Stat(0f) }
+            { StatType.MoveSpeed, new Stat(8f,1f,25f) },
+            { StatType.DodgeChance, new Stat(0f,0f,0.75f) }
         };
     }
 

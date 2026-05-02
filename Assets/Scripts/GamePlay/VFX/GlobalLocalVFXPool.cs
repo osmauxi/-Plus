@@ -62,7 +62,7 @@ public class GlobalLocalVFXPool : MonoBehaviour
     /// <summary>
     /// 【极度高频被调用的接口】在指定位置播放特效
     /// </summary>
-    public void GetVFX(string id, Vector3 position, Quaternion rotation = default)
+    public void GetVFX(string id, Vector3 position, Quaternion rotation = default, float weight = 1f)
     {
         if (vfxPools.TryGetValue(id, out var pool))
         {
@@ -72,8 +72,15 @@ public class GlobalLocalVFXPool : MonoBehaviour
             // 如果传入了旋转就用传入的，否则保持预制件的默认旋转
             if (rotation != default) vfxObj.transform.rotation = rotation;
 
-            // 特效的粒子播放 (如果有 ParticleSystem，通常在 OnEnable 时会自动 Play，
-            // 如果你的特效没勾选 Play On Awake，可以在这里 GetComponent<ParticleSystem>().Play())
+            if (vfxObj.TryGetComponent<VFXImpactScaler>(out var scaler))
+            {
+                scaler.SetImpactWeight(weight);
+            }
+            else
+            {
+                // 如果这个特效没挂脚本，就用最原始的缩放兼容一下
+                vfxObj.transform.localScale = Vector3.one * weight;
+            }
         }
         else
         {
@@ -88,6 +95,7 @@ public class GlobalLocalVFXPool : MonoBehaviour
     {
         if (vfxPools.TryGetValue(id, out var pool))
         {
+            vfxObj.transform.localScale = Vector3.one;
             pool.Release(vfxObj);
         }
     }

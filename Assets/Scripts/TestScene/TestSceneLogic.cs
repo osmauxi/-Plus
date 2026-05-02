@@ -14,7 +14,6 @@ public class TestSceneLogic : NetworkBehaviour
     void Start()
     {
         NetworkManager.Singleton.StartHost();
-        controller.DisableGravity();
         StartCoroutine(GameStart());
     }
 
@@ -22,7 +21,6 @@ public class TestSceneLogic : NetworkBehaviour
     {
         yield return StartCoroutine(MapGenerator.instance.PreGenerateMap());
         CameraViewManager.instance.CameraInitialize(controller.transform);
-        controller.EnableGravity();
     }
     // Update is called once per frame
     void Update()

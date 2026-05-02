@@ -86,6 +86,7 @@ public class BattleManager : NetworkBehaviour
 
                 // 监听这只怪物的死亡
                 Health monsterHealth = monsterObj.GetComponent<Health>();
+                monsterHealth.OnDied -= HandleMonsterDied;
                 monsterHealth.OnDied += HandleMonsterDied;
 
                 aliveMonsterCount++;
@@ -108,10 +109,60 @@ public class BattleManager : NetworkBehaviour
         isBattleActive = false;
         RoomManager.Instance.NotifyRoomCleared(); // 通知开门
 
-        // TODO: 通知掉落系统在这个房间生成战利品/词条三选一
+        SpawnRoomRewards();
         Debug.Log($"[BattleManager] 房间 {currentBattleRoomGrid} 战斗结束，已通关！");
     }
+    private void SpawnRoomRewards()
+    {
+        if (!IsServer) return; // 生成逻辑只在 Server 执行
 
+        // 1. 拿到当前房间的数据
+        int roomType = RoomManager.Instance.AllRoomsData[currentBattleRoomGrid].RoomType;
+
+        // 2. 找到当前房间预留的战利品生成点 (我们在 RoomNodeData 里预留了 TreasurePos 数组)
+        if (RoomManager.Instance.SpawnedRooms.TryGetValue(currentBattleRoomGrid, out RoomNodeData nodeData))
+        {
+            if (nodeData.ChestPos.Length > 0)
+            {
+                // 默认拿第一个点生成
+                Transform spawnPoint = nodeData.ChestPos[0];
+
+                // 3. 决定生成哪种箱子 (根据异变状态和房间类型)
+                bool isMutated;
+                GameDirector.Instance.GetRoomDifficultyFactor(roomType, out isMutated);
+
+                string chestPrefabId = "Chest_Standard"; // 你的同步对象池里注册的普通宝箱ID
+                TreasureChest.ChestType expectedType = TreasureChest.ChestType.Standard;
+
+                // 如果是 Boss 房或异变房，给异变宝箱
+                if (roomType == -2 || isMutated)
+                {
+                    //chestPrefabId = "Chest_Mutation"; // 异变宝箱预制体ID
+                    expectedType = TreasureChest.ChestType.Mutation;
+                }
+
+                // 如果是特殊房 (比如祭坛房)
+                if (roomType == 3)
+                {
+                    //chestPrefabId = "Altar_Chaos"; // 鲜血祭坛预制体ID
+                    expectedType = TreasureChest.ChestType.ChaosAltar;
+                }
+
+                // 4. 从你的 SyncObjectPool 生成带有 NetworkObject 的宝箱！
+                NetworkObject chestObj = SyncObjectPool.instance.GetT(chestPrefabId, spawnPoint.position, spawnPoint.rotation);
+
+                // 强行塞入类型配置 (以防预制体配错了)
+                if (chestObj != null && chestObj.TryGetComponent<TreasureChest>(out var chestComp))
+                {
+                    chestComp.currentChestType = expectedType;
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[战利品] 房间 {currentBattleRoomGrid} 没有配置 TreasurePos 生成点！");
+            }
+        }
+    }
     private void HandleMonsterDied()
     {
         aliveMonsterCount--;

@@ -51,7 +51,6 @@ public class LocalEventCenter
         public void EventTrigger<T>(T info)
         {
             Type type = typeof(T);
-            Debug.Log(_typeEventDic[type]);
             if (_typeEventDic.TryGetValue(type, out var infoObj) && infoObj is EventInfo<T> eventInfo)
             {
                 eventInfo.actions?.Invoke(info);

@@ -19,7 +19,7 @@ public class RoomManager : NetworkBehaviour
     // 本地维护的纯数据字典（服务器和客户端各自算完地图后都会塞满这个字典）
     public Dictionary<Vector2Int, RoomData> AllRoomsData = new Dictionary<Vector2Int, RoomData>();
 
-    private Dictionary<Vector2Int, RoomNodeData> SpawnedRooms = new Dictionary<Vector2Int, RoomNodeData>(); 
+    public Dictionary<Vector2Int, RoomNodeData> SpawnedRooms = new Dictionary<Vector2Int, RoomNodeData>(); 
     
     [Header("小地图配置")]
     public Transform MiniNodeParent; // 挂载的父节点

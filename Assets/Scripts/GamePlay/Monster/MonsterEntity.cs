@@ -1,6 +1,7 @@
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.VFX;
 
 /// <summary>
 /// 怪物实体外壳 (Facade / Config)
@@ -10,6 +11,7 @@ using UnityEngine.AI;
 public class MonsterEntity : NetworkBehaviour
 {
     [HideInInspector] public MonsterDataSO Config;
+    private EntityFXManager fXManager;
 
     [Header("动态表现")]
     public float woundedSpeedMultiplier = 0.5f;
@@ -25,7 +27,7 @@ public class MonsterEntity : NetworkBehaviour
         agent = GetComponent<NavMeshAgent>();
         blackboard = GetComponent<AIBlackboard>();
         anim = GetComponentInChildren<Animator>();
-
+        fXManager = GetComponent<EntityFXManager>();
         blackboard.EntityConfig = this;
 
         health.OnDied += HandleDeath;
@@ -51,6 +53,7 @@ public class MonsterEntity : NetworkBehaviour
             rb.velocity = Vector3.zero;
             rb.isKinematic = false;
         }
+        fXManager.ResetAllRenderers();
 
         anim.speed = 1f;
         anim.Play("Idle", 0, 0f);

@@ -2,8 +2,6 @@ using System;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
-using static Codice.Client.Commands.WkTree.WorkspaceTreeNode;
-using static UnityEditor.PlayerSettings;
 
 /// <summary>
 /// 全局通用的网络生命值组件 (挂载在玩家、怪物、可破坏物体的根节点)
@@ -34,7 +32,7 @@ public class Health : NetworkBehaviour
 
     public bool isDead = false;
 
-    private EntityFXManager fXManager;
+    public EntityFXManager fXManager;
     private MonsterEntity monsterEntity;
 
     public override void OnNetworkSpawn()
@@ -62,14 +60,14 @@ public class Health : NetworkBehaviour
         currentHealth.Value = maxHp;
         isDead = false;
         lastHitTime = -999f;
-        fXManager = GetComponent<EntityFXManager>();
         monsterEntity = GetComponent<MonsterEntity>();
+        fXManager = GetComponent<EntityFXManager>();
     }
 
     /// <param name="rawDamage">伤害量</param>
     /// <param name="hitPoint">受击点的精确三维坐标</param>
     /// <param name="hitDirection">攻击打来的方向 (用于特效旋转和击退计算)</param>
-    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection)
+    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection, float hitWeight = 1f)
     {
         if (!IsServer || isDead) return;
 
@@ -99,7 +97,7 @@ public class Health : NetworkBehaviour
         {
             currentHealth.Value = 0f;
             isDead = true;
-            TriggerBloodBurstClientRpc(hitPoint, hitDirection);
+            TriggerBloodBurstClientRpc(hitPoint, hitDirection,hitWeight);
             OnDied?.Invoke(); // 通知同物体上的其他脚本 (比如 AI 脚本准备播死亡动画)
         }
     }
@@ -107,14 +105,13 @@ public class Health : NetworkBehaviour
     [ClientRpc]
     private void TriggerHitFeedbackClientRpc(Vector3 pos, Vector3 dir)
     {
-        GlobalLocalVFXPool.Instance.GetVFX("HitBlood", pos, Quaternion.LookRotation(-dir));
         fXManager.PlayHitFlash();
     }
 
     [ClientRpc]
-    private void TriggerBloodBurstClientRpc(Vector3 pos, Vector3 dir)
+    private void TriggerBloodBurstClientRpc(Vector3 pos, Vector3 dir, float hitWeight)
     {
-        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(dir));
+        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(dir), hitWeight);
     }
 
     // ==========================================

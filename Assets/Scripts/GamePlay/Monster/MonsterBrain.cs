@@ -32,8 +32,8 @@ public class MonsterBrain : NetworkBehaviour
         if (!IsServer) return;
 
         // 严格按照：看(找人) -> 走(寻路) -> 打(攻击) 的顺序执行
-        if (targeter != null) targeter.ExecuteTick(blackboard);
-        if (mover != null) mover.ExecuteTick(blackboard);
-        if (attacker != null) attacker.ExecuteTick(blackboard);
+        targeter.ExecuteTick(blackboard);
+        mover.ExecuteTick(blackboard);
+        attacker.ExecuteTick(blackboard);
     }
 }

@@ -29,8 +29,7 @@ public class NetEventCenter : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (NetworkManager.Singleton != null)
-            NetworkManager.Singleton.CustomMessagingManager.UnregisterNamedMessageHandler("NetEvent");
+         NetworkManager.Singleton.CustomMessagingManager.UnregisterNamedMessageHandler("NetEvent");
         _messageHandlers.Clear();
     }
 

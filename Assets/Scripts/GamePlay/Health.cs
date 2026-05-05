@@ -45,7 +45,11 @@ public class Health : NetworkBehaviour
     {
         currentHealth.OnValueChanged -= HandleHealthChange;
     }
-
+    private void Awake()
+    {
+        monsterEntity = GetComponent<MonsterEntity>();
+        fXManager = GetComponent<EntityFXManager>();
+    }
     // ==========================================
     // 服务器专用的初始化与扣血逻辑
     // ==========================================
@@ -60,8 +64,6 @@ public class Health : NetworkBehaviour
         currentHealth.Value = maxHp;
         isDead = false;
         lastHitTime = -999f;
-        monsterEntity = GetComponent<MonsterEntity>();
-        fXManager = GetComponent<EntityFXManager>();
     }
 
     /// <param name="rawDamage">伤害量</param>

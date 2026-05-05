@@ -85,7 +85,6 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
     /// </summary>
     private void PerformHitDetection(AIBlackboard bb, HashSet<GameObject> alreadyHit)
     {
-        Debug.Log(545);
         if (hitboxRef == null) return;
 
         // 获取 Box 的世界坐标、旋转和真实大小

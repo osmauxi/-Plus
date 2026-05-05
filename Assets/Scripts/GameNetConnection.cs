@@ -1,295 +1,240 @@
+using DG.Tweening; // 引入 DOTween
 using System;
 using System.Net;
 using System.Net.Sockets;
+using TMPro;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
-using TMPro;
 
-/// <summary>
-/// 局域网联机总控脚本，负责 Host/Client 启动、IP 输入与连接状态展示。
-/// </summary>
 public class GameNetConnection : NetworkBehaviour
 {
     private const ushort DefaultPort = 7777;
 
-    #region Inspector
+    [Header("创建房间 UI (Host)")]
+    public CanvasGroup hostPanelGroup;
+    public TextMeshProUGUI hostStatusText;
+    [Tooltip("预留接口：用于后续展示多人联机时的玩家模型")]
+    public Transform multiplayerModelShowcaseAnchor;
 
-    [Header("UI 引用")]
-    [SerializeField] private GameObject IpSetUI;
-    [SerializeField] private TextMeshProUGUI statusText;
-    [Tooltip("可选：显示主机 IP 供他人连接")]
-    [SerializeField] private TextMeshProUGUI hostIPHintText;
+    [Header("加入房间 UI (Client)")]
+    public CanvasGroup joinPanelGroup;
+    public TextMeshProUGUI joinStatusText; // 实时状态反馈
 
     private bool isSolo = false;
-    #endregion
-    #region 连接状态
-
-    public enum ConnectionStatus
-    {
-        Disconnected,   // 未连接
-        StartingHost,   // 正在启动主机
-        StartingClient, // 正在连接
-        HostRunning,    // 主机运行中
-        ClientConnected,// 客户端已连接
-        Disconnecting,  // 正在断开
-        Failed         // 连接失败
-    }
-
-    private ConnectionStatus _status = ConnectionStatus.Disconnected;
-    private string _lastStatusMessage = "";
-    /// <summary> 当前连接状态 </summary>
-    public ConnectionStatus Status => _status;
-
-    /// <summary> 可显示给用户的完整状态文本 </summary>
-    public string StatusDisplayText => BuildStatusText();
-
-    /// <summary> 状态变更时触发，便于 UI 订阅更新 </summary>
-    public event Action<ConnectionStatus, string> OnStatusChanged;
-
-    #endregion
 
     private void Awake()
     {
-        if (IpSetUI != null)
-            IpSetUI.SetActive(false);
-        RefreshStatusDisplay();
+        // 初始隐藏两个面板
+        if (hostPanelGroup != null) hostPanelGroup.gameObject.SetActive(false);
+        if (joinPanelGroup != null) joinPanelGroup.gameObject.SetActive(false);
     }
 
     private void Start()
     {
-        NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-        NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         NetworkManager.Singleton.OnServerStarted += OnServerStarted;
         NetworkManager.Singleton.OnServerStopped += OnServerStopped;
         NetworkManager.Singleton.OnClientStarted += OnClientStarted;
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
+        NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         NetworkManager.Singleton.OnTransportFailure += OnTransportFailure;
-        NetworkManager.Singleton.OnClientConnectedCallback += OnPlayerJoined;
     }
 
     private void OnDisable()
     {
-        NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
-        NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
-        NetworkManager.Singleton.OnServerStarted -= OnServerStarted;
-        NetworkManager.Singleton.OnServerStopped -= OnServerStopped;
-        NetworkManager.Singleton.OnClientStarted -= OnClientStarted;
-        NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
-        NetworkManager.Singleton.OnTransportFailure -= OnTransportFailure;
-        NetworkManager.Singleton.OnClientConnectedCallback -= OnPlayerJoined;
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnServerStarted -= OnServerStarted;
+            NetworkManager.Singleton.OnServerStopped -= OnServerStopped;
+            NetworkManager.Singleton.OnClientStarted -= OnClientStarted;
+            NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+            NetworkManager.Singleton.OnTransportFailure -= OnTransportFailure;
+        }
     }
 
-    private void Update()
+    #region 按钮交互逻辑
+
+    /// <summary> 点击：单人游戏 </summary>
+    public void OnStartSoloClicked()
     {
-        if (_status == ConnectionStatus.HostRunning || _status == ConnectionStatus.ClientConnected)
-            RefreshStatusDisplay();
+        isSolo = true;
+        StartNetwork(true, "127.0.0.1");
     }
 
-    #region UI 按钮回调
-    public void OnStartSoloB()
+    /// <summary> 点击：创建房间 </summary>
+    public void OnCreateRoomClicked()
     {
-        isSolo = true; 
-        // 单人模式：启动 Host 即可，不等待他人连接
-        StartGame(true, "127.0.0.1",true);
-    }
-    public void OnStartHostB()
-    {
-        StartGame(true, "127.0.0.1");
+        isSolo = false;
+        OpenPanelWithAnim(hostPanelGroup);
+        hostStatusText.text = "正在启动房间...";
+        StartNetwork(true, "0.0.0.0");
     }
 
-    public void OnStartClientB()
+    /// <summary> 点击：打开加入房间面板 </summary>
+    public void OnOpenJoinPanelClicked()
     {
-        if (IpSetUI != null)
-            IpSetUI.SetActive(true);
+        OpenPanelWithAnim(joinPanelGroup);
+        joinStatusText.text = "请输入主机 IP 地址";
     }
 
-    public void GetIPInput(string ip)
+    /// <summary> 点击：确认加入房间 (在 Join 面板内) </summary>
+    public void OnInputConfirm(string inputIP)
     {
-        string cleanIP = (ip ?? string.Empty).Trim().Replace("\u200B", "");
-        StartGame(false, cleanIP);
+        string cleanIP = inputIP.Trim().Replace("\u200B", "");
+        if (string.IsNullOrWhiteSpace(cleanIP))
+        {
+            joinStatusText.text = "<color=red>IP 不能为空！</color>";
+            return;
+        }
+
+        joinStatusText.text = $"正在连接 {cleanIP} ...";
+        StartNetwork(false, cleanIP);
     }
 
-    public void OnShutdownNetworkB()
+    /// <summary> 点击：取消创建房间 (在 Host 面板内) </summary>
+    public void OnCancelHostClicked()
     {
-        SetStatus(ConnectionStatus.Disconnecting, "正在断开连接...");
+        ClosePanelWithAnim(hostPanelGroup);
+        NetworkManager.Singleton?.Shutdown();
+    }
+
+    /// <summary> 点击：取消加入房间 (在 Join 面板内) </summary>
+    public void OnCancelJoinClicked()
+    {
+        ClosePanelWithAnim(joinPanelGroup);
         NetworkManager.Singleton?.Shutdown();
     }
 
     #endregion
-    #region 网络启动
 
-    public void StartGame(bool isHost, string targetIP,bool isSolo = false)
+    #region 核心网络启动逻辑
+
+    private void StartNetwork(bool isHost, string ip)
     {
-        if (NetworkManager.Singleton == null)
-        {
-            SetStatus(ConnectionStatus.Failed, "NetworkManager 未找到");
-            Debug.LogWarning("NetworkManager.Singleton is null.");
-            return;
-        }
-
         var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-        if (transport == null)
-        {
-            SetStatus(ConnectionStatus.Failed, "UnityTransport 未找到");
-            return;
-        }
+        transport.SetConnectionData(ip, DefaultPort);
 
         if (isHost)
         {
-            SetStatus(ConnectionStatus.StartingHost, "正在启动主机...");
-            transport.SetConnectionData("0.0.0.0", DefaultPort);
-            if (NetworkManager.Singleton.StartHost())
-                Debug.Log("Host Started");
-            else
-                SetStatus(ConnectionStatus.Failed, "主机启动失败");
-            if(isSolo)
-                GameStateController.instance.isSolo.Value = true;
+            if (isSolo) GameStateController.instance.isSolo.Value = true;
+            NetworkManager.Singleton.StartHost();
         }
         else
         {
-            if (string.IsNullOrWhiteSpace(targetIP))
-            {
-                SetStatus(ConnectionStatus.Failed, "请输入 Host 的 IP 地址");
-                return;
-            }
-
-            SetStatus(ConnectionStatus.StartingClient, $"正在连接 {targetIP}:{DefaultPort}...");
-            transport.SetConnectionData(targetIP, DefaultPort);
-            if (NetworkManager.Singleton.StartClient())
-                Debug.Log("Client Started - 等待服务器切换场景...");
-            else
-                SetStatus(ConnectionStatus.Failed, "客户端启动失败");
+            NetworkManager.Singleton.StartClient();
         }
     }
 
     #endregion
-    #region 网络事件
+
+    #region 网络事件回调
 
     private void OnServerStarted()
     {
-        string localIP = GetLocalIPAddress();
-        SetStatus(ConnectionStatus.HostRunning, $"主机已启动 | 本机IP: {localIP}");
-
-        // 如果是单人模式或者双人联机的创建者
-        // 我们在这里通知 SceneManager 开始初始场景加载
-        if (NetworkManager.Singleton.IsHost)
+        if (isSolo || GameStateController.instance.isSolo.Value)
         {
-            if (isSolo || GameStateController.instance.isSolo.Value)
-            {
-                // 先进入加载流程：UIScene -> GameScene
-                SceneManager.Instance.TransitionToGameScene();
-            }
-        }
-    }
-    private void OnPlayerJoined(ulong clientId)
-    {
-        if (!IsServer) return;
-
-        // 如果当前在“等待”状态，且人数达到了 2 人（Host + Client）
-        if (NetworkManager.Singleton.ConnectedClientsList.Count == 2)
-        {
-            Debug.Log("队友已就位，开始加载游戏关卡...");
-            // 由主机发起，所有人同步加载 GameScene
+            // 单人模式，直接转场
             SceneManager.Instance.TransitionToGameScene();
         }
-    }
-    private void OnServerStopped(bool _)
-    {
-        SetStatus(ConnectionStatus.Disconnected, "主机已关闭");
-        UpdateHostIPHint("");
-    }
-
-    private void OnClientStarted()
-    {
-        if (!NetworkManager.Singleton.IsHost)
-            SetStatus(ConnectionStatus.StartingClient, "正在连接服务器...");
-    }
-
-    private void OnClientStopped(bool wasHost)
-    {
-        var reason = NetworkManager.Singleton?.DisconnectReason ?? "";
-        string msg = string.IsNullOrEmpty(reason) ? "已断开连接" : $"断开: {reason}";
-        SetStatus(ConnectionStatus.Disconnected, msg);
-
-        if (!wasHost && IpSetUI != null)
-            IpSetUI.SetActive(true);
+        else
+        {
+            // 多人模式：更新 UI，等待玩家加入
+            string localIP = GetLocalIPAddress();
+            hostStatusText.text = $"房间已创建\n你的IP: <color=green>{localIP}</color>\n等待队友加入 (1/2)...";
+        }
     }
 
     private void OnClientConnected(ulong clientId)
     {
-        if (clientId == NetworkManager.Singleton.LocalClientId)
+        if (NetworkManager.Singleton.IsServer)
         {
-            SetStatus(ConnectionStatus.ClientConnected, "已连接服务器");
-            if (IpSetUI != null)
-                IpSetUI.SetActive(false);
+            // 只要人数达到2，直接发车加载场景
+            if (NetworkManager.Singleton.ConnectedClientsList.Count == 2)
+            {
+                hostStatusText.text = "队友已就位，正在进入游戏...";
+                SceneManager.Instance.TransitionToGameScene();
+            }
         }
-        else if (NetworkManager.Singleton.IsServer)
+        else if (clientId == NetworkManager.Singleton.LocalClientId)
         {
-            RefreshStatusDisplay();
+            // 我是客户端，且我成功连上了
+            joinStatusText.text = "<color=green>连接成功！等待主机开始游戏...</color>";
         }
     }
 
-    private void OnClientDisconnected(ulong clientId)
+    private void OnClientStarted()
     {
-        if (NetworkManager.Singleton.IsServer)
-            RefreshStatusDisplay();
+        if (!NetworkManager.Singleton.IsServer)
+            joinStatusText.text = "正在尝试连接...";
+    }
+
+    private void OnClientStopped(bool wasHost)
+    {
+        var reason = NetworkManager.Singleton.DisconnectReason;
+        string errorMsg = string.IsNullOrEmpty(reason) ? "连接被断开" : reason;
+
+        if (wasHost && hostPanelGroup.gameObject.activeSelf)
+        {
+            hostStatusText.text = $"房间已关闭: {errorMsg}";
+        }
+        else if (!wasHost && joinPanelGroup.gameObject.activeSelf)
+        {
+            joinStatusText.text = $"<color=red>连接失败: {errorMsg}</color>";
+        }
+    }
+
+    private void OnServerStopped(bool _)
+    {
+        if (hostPanelGroup.gameObject.activeSelf)
+            hostStatusText.text = "服务器已关闭";
     }
 
     private void OnTransportFailure()
     {
-        SetStatus(ConnectionStatus.Failed, "网络传输失败，请检查 IP 和端口");
-        if (IpSetUI != null)
-            IpSetUI.SetActive(true);
+        if (joinPanelGroup.gameObject.activeSelf)
+            joinStatusText.text = "<color=red>网络错误，请检查IP或端口</color>";
     }
 
     #endregion
-    #region 状态与显示
 
-    private void SetStatus(ConnectionStatus status, string message)
+    #region DOTween UI 动效封装
+
+    private void OpenPanelWithAnim(CanvasGroup cg)
     {
-        if (_status == status && _lastStatusMessage == message) return;
+        if (cg == null) return;
 
-        _status = status;
-        _lastStatusMessage = message;
-        RefreshStatusDisplay();
-        OnStatusChanged?.Invoke(status, message);
+        // 停掉可能正在播放的动画
+        cg.DOKill();
+        cg.transform.DOKill();
+
+        cg.gameObject.SetActive(true);
+        cg.alpha = 0f;
+        cg.transform.localScale = Vector3.one * 0.8f; // 从 80% 大小开始放大
+
+        // 渐隐渐现 + 果冻弹出效果
+        cg.DOFade(1f, 0.3f);
+        cg.transform.DOScale(1f, 0.4f).SetEase(Ease.OutBack);
     }
 
-    private string BuildStatusText()
+    private void ClosePanelWithAnim(CanvasGroup cg)
     {
-        var nm = NetworkManager.Singleton;
-        if (nm == null) return _lastStatusMessage;
+        if (cg == null) return;
 
-        if (_status == ConnectionStatus.HostRunning && nm.IsServer)
+        cg.DOKill();
+        cg.transform.DOKill();
+
+        // 缩小并变透明，完成后关闭节点
+        cg.DOFade(0f, 0.2f);
+        cg.transform.DOScale(0.8f, 0.2f).SetEase(Ease.InBack).OnComplete(() =>
         {
-            int count = nm.ConnectedClients?.Count ?? 0;
-            return $"{_lastStatusMessage}\n当前人数: {count}/2";
-        }
-
-        if (_status == ConnectionStatus.ClientConnected && nm.IsClient)
-        {
-            return $"{_lastStatusMessage}\n你的 ID: {nm.LocalClientId}";
-        }
-
-        return _lastStatusMessage;
+            cg.gameObject.SetActive(false);
+        });
     }
 
-    private void RefreshStatusDisplay()
-    {
-        string text = BuildStatusText();
-        if (statusText != null)
-            statusText.text = text;
-    }
+    #endregion
 
-    private void UpdateHostIPHint(string ip)
-    {
-        if (hostIPHintText == null) return;
-        hostIPHintText.text = string.IsNullOrEmpty(ip) ? "" : $"其他玩家请连接: {ip}";
-    }
-
-    /// <summary> 获取本机局域网 IP </summary>
-    public static string GetLocalIPAddress()
+    private string GetLocalIPAddress()
     {
         try
         {
@@ -300,12 +245,7 @@ public class GameNetConnection : NetworkBehaviour
                     return ip.ToString();
             }
         }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"获取本机 IP 失败: {e.Message}");
-        }
+        catch { }
         return "未知";
     }
-
-    #endregion
 }

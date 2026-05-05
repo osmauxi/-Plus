@@ -57,7 +57,7 @@ public class SceneManager : MonoBehaviour// 保留SceneManagerGlobal作为全局
             NetworkObject netObj = playerInstance.GetComponent<NetworkObject>();
             Rigidbody rb = playerInstance.GetComponent<Rigidbody>();
             rb.interpolation = RigidbodyInterpolation.None;
-            playerInstance.transform.position = new Vector3(0, 10, 0);
+            playerInstance.transform.position = new Vector3(0, 1, 0);
             netObj.SpawnAsPlayerObject(client.ClientId, true);
             //生成后，将玩家对象移入 UIScene
             var playerObj = client.PlayerObject;

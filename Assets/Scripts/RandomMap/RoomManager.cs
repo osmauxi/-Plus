@@ -71,9 +71,11 @@ public class RoomManager : NetworkBehaviour
 
         CheckPlayerPositions();
     }
-
+    private float lastRoomChangeTime = 0f;
     private void CheckPlayerPositions()
     {
+        if (Time.time - lastRoomChangeTime < 1.0f) 
+            return;
         // 遍历你的全局玩家列表
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {
@@ -90,7 +92,10 @@ public class RoomManager : NetworkBehaviour
                 // 如果这不是当前的战斗房间
                 if (playerGrid != CurrentActiveRoom.Value)
                 {
+
                     HandlePlayerEnterNewRoom(player, playerGrid, roomData);
+                    lastRoomChangeTime = Time.time;
+                    break;
                 }
             }
         }

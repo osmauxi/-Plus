@@ -167,7 +167,8 @@ public class WeaponBase : NetworkBehaviour
 
             // 如果是单发子弹且极其精准（比如狙击枪 spread == 0），则偏移角度就是 0
             Quaternion bulletRotation = baseRotation * Quaternion.Euler(0, randomOffsetAngle, 0);
-
+            // 本地生成子弹
+            SpawnProjectile(firePoint.position, bulletRotation, playerVelocity);
             // 发送 RPC
             FireProjectileServerRpc(firePoint.position, bulletRotation, playerVelocity);
         }
@@ -175,6 +176,15 @@ public class WeaponBase : NetworkBehaviour
     [ServerRpc]
     private void FireProjectileServerRpc(Vector3 pos, Quaternion rot, Vector3 inheritedVelocity)
     {
+        FireProjectileClientRpc(pos, rot, inheritedVelocity);
+    }
+    [ClientRpc]
+    private void FireProjectileClientRpc(Vector3 pos, Quaternion rot, Vector3 inheritedVelocity)
+    {
+        //因为开枪的人本地已经生成过了，必须跳过开枪者，防止他本地射出两发子弹重叠
+        if (IsOwner) return;
+
+        // 其他所有人本地生成这颗子弹
         SpawnProjectile(pos, rot, inheritedVelocity);
     }
 

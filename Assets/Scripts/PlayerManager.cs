@@ -91,4 +91,33 @@ public class PlayerManager : NetworkBehaviour
         return nearestPlayer;
     }
 
+
+    [ServerRpc(RequireOwnership = false)]
+    public void CheckTeamWipeServerRpc()
+    {
+        // 1. 如果是单人模式，一个人死了直接结束
+        if (GameStateController.instance.isSolo.Value)
+        {
+            GameStateController.instance.ChangeState(GameState.GameOver);
+            return;
+        }
+
+        // 2. 双人模式下，检查是否所有人都处于 Dead 状态
+        bool isTeamWipe = true;
+        foreach (var player in AllPlayers)
+        {
+            if (player.currentNetState.Value != PlayerStateType.dead)
+            {
+                isTeamWipe = false;
+                break;
+            }
+        }
+
+        if (isTeamWipe)
+        {
+            Debug.Log("双人全部倒地，游戏结束！");
+            GameStateController.instance.ChangeState(GameState.GameOver);
+        }
+    }
+
 }

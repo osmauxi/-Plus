@@ -83,8 +83,11 @@ public class GameStateController : NetworkBehaviour
                     break;
                 case GameState.MapExchanging:
                     break;
-       
-            }
+                case GameState.GameOver:
+                    HandleGameOver();
+                    break;
+
+        }
         
         }
         private void HandleWaitingToStartState()
@@ -94,16 +97,20 @@ public class GameStateController : NetworkBehaviour
         {
             StartCoroutine(MapGenerator.instance.PreGenerateMap());
         }
-        private void HandlePlayState() 
+        private void HandleGameOver() 
+        {
+            Debug.Log("Dead");
+        }
+    private void HandlePlayState() 
         {
             if(IsServer)
-                NetEventCenter.Instance.Send<GamePlayStartStruct>(new GamePlayStartStruct());
+                NetEventCenter.Instance.Send(new GamePlayStartStruct());
         }
         public void OnGameStart(GamePlayStartStruct evt,ulong sendeId) 
         {
-        if (!NetUtils.Filter<GamePlayStartStruct>(evt, sendeId, true)) 
-            {
-                return;
+            if (!NetUtils.Filter(evt, sendeId, true))
+            { 
+               return;
             }
             LocalEventCenter.Instance.EventTrigger(evt);
         }

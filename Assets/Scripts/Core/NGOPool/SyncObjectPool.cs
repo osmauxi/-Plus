@@ -52,8 +52,8 @@ public class SyncObjectPool : NetworkBehaviour
                 //defaultCapacity:初始容量;
                 var newPool = new ObjectPool<NetworkObject>(
                     createFunc: () => Instantiate(netPrefab),
-                    actionOnGet: (obj) => obj.gameObject.SetActive(true),
-                    actionOnRelease: (obj) => obj.gameObject.SetActive(false),
+                    actionOnGet: (obj) => { obj.gameObject.SetActive(true);obj.transform.SetParent(null); },
+                    actionOnRelease: (obj) => { obj.gameObject.SetActive(false); obj.transform.SetParent(this.transform); },
                     actionOnDestroy: (obj) => Destroy(obj.gameObject),
                     defaultCapacity: item.iniAmount
                 );

@@ -75,7 +75,7 @@ public class LocalObjectPool : MonoBehaviour
                         _instanceIdToPoolMap[obj.GetInstanceID()] = newPool;
                         return obj;
                     },
-                    actionOnGet: (obj) => obj.gameObject.SetActive(true),
+                    actionOnGet: (obj) => { obj.transform.SetParent(null); },
                     actionOnRelease: (obj) => {
                         obj.gameObject.SetActive(false);
                         obj.transform.SetParent(transform);
@@ -85,6 +85,15 @@ public class LocalObjectPool : MonoBehaviour
                 );
 
                 pool.Add(item.ID, newPool);
+                var prewarmList = new List<GameObject>();
+                for (int i = 0; i < item.iniAmount; i++)
+                {
+                    prewarmList.Add(newPool.Get());
+                }
+                foreach (var obj in prewarmList)
+                {
+                    newPool.Release(obj);
+                }
             }
         }
     }
@@ -99,6 +108,7 @@ public class LocalObjectPool : MonoBehaviour
             obj.transform.position = position;
             if (parent != null)
                 obj.transform.SetParent(parent);
+            obj.gameObject.SetActive(true);
             return obj;
         }
 

@@ -52,8 +52,8 @@ public class SyncObjectPool : NetworkBehaviour
                 //defaultCapacity:初始容量;
                 var newPool = new ObjectPool<NetworkObject>(
                     createFunc: () => Instantiate(netPrefab),
-                    actionOnGet: (obj) => { obj.gameObject.SetActive(true);obj.transform.SetParent(null); },
-                    actionOnRelease: (obj) => { obj.gameObject.SetActive(false); obj.transform.SetParent(this.transform); },
+                    actionOnGet: (obj) => { obj.gameObject.SetActive(true);},
+                    actionOnRelease: (obj) => { obj.gameObject.SetActive(false);},
                     actionOnDestroy: (obj) => Destroy(obj.gameObject),
                     defaultCapacity: item.iniAmount
                 );
@@ -63,6 +63,18 @@ public class SyncObjectPool : NetworkBehaviour
                 NetworkManager.Singleton.PrefabHandler.AddHandler(item.prefab, handler);
 
                 pool.Add(item.ID, newPool);
+
+                var prewarmList = new List<NetworkObject>();
+                for (int i = 0; i < item.iniAmount; i++)
+                {
+                    // 强行生成并拿到本地实例 (此时不会触发网络 Spawn)
+                    prewarmList.Add(newPool.Get());
+                }
+                foreach (var obj in prewarmList)
+                {
+                    // 立刻塞回池子，完成物理预生成
+                    newPool.Release(obj);
+                }
             }
         }
     }

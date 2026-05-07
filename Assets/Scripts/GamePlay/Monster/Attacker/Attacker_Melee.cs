@@ -4,10 +4,17 @@ using UnityEngine;
 
 public class Attacker_Melee : MonoBehaviour, IAttackModule
 {
+    [Header("多技能拓展 (伏笔)")]
+    [Tooltip("怪物拥有的所有攻击动作名称。普通怪只填一个 Attack，精英怪可以填 Attack_1, Attack_2 等")]
+    public string[] attackTriggers = { "Attack" };
+
     [Header("战斗参数")]
     public float attackCooldown = 3.0f;
-    public float prepareTime = 0.5f;
+    [Tooltip("攻击前摇：从触发动画开始，到真正扑出去/产生伤害判定的等待时间")]
+    public float windUpTime = 0.5f;
+    [Tooltip("伤害判定持续时间 (猛扑持续时间)")]
     public float lungeTime = 0.3f;
+    [Tooltip("收招僵直：扑完之后原地罚站的时间")]
     public float recoverTime = 0.7f;
 
     [Header("伤害判定配置")]
@@ -28,8 +35,6 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
     private void Awake()
     {
         vfxController = GetComponent<MonsterVFXController>();
-
-        // 剥夺 BoxCollider 的物理权利，只留它的尸体（参数）
         if (hitboxRef != null) hitboxRef.enabled = false;
     }
 
@@ -46,33 +51,49 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
 
     private IEnumerator AttackSequence(AIBlackboard bb)
     {
-        // === 1. 蓄力预警 ===
+        // 锁定 AI 状态，让司机 (Mover) 踩刹车
         bb.IsAttacking = true;
-        bb.Anim.SetTrigger("Prepare");
-        vfxController.BroadcastVFX("EyeGlow");
         FaceTarget(bb);
-        yield return new WaitForSeconds(prepareTime);
+
+        // ==========================================
+        // 【伏笔】：多技能随机抽选系统
+        // 如果数组里配了多个技能，这里会随机挑一个放
+        // ==========================================
+        string selectedAttack = attackTriggers[0];
+        if (attackTriggers.Length > 1)
+        {
+            selectedAttack = attackTriggers[Random.Range(0, attackTriggers.Length)];
+        }
+
+        // === 1. 触发动画与前摇 ===
+        // 立刻播放攻击动画
+        if (bb.Anim != null) bb.Anim.SetTrigger(selectedAttack);
+        if (vfxController != null) vfxController.BroadcastVFX("EyeGlow");
+
+        // 等待怪物把手举起来（前摇）
+        yield return new WaitForSeconds(windUpTime);
 
         // === 2. 猛扑与【主动帧伤害判定】 ===
-        bb.Anim.SetTrigger("Attack");
-        vfxController.BroadcastVFX("DashTrail");
+        if (vfxController != null) vfxController.BroadcastVFX("DashTrail");
 
-        bb.Rb.AddForce(transform.forward * lungeForce, ForceMode.VelocityChange);
+        // 如果想让怪物原地挥击，把 lungeForce 设为 0 即可
+        if (lungeForce > 0)
+        {
+            bb.Rb.AddForce(transform.forward * lungeForce, ForceMode.VelocityChange);
+        }
 
-        // 【名册建立】：记录这次攻击已经打过的人，防止一秒十刀
         HashSet<GameObject> alreadyHitTargets = new HashSet<GameObject>();
         float timer = 0f;
 
-        // 持续判定循环：在突进的每一帧中主动投射
         while (timer < lungeTime)
         {
             PerformHitDetection(bb, alreadyHitTargets);
             timer += Time.deltaTime;
-            yield return null; // 等待下一帧继续扫
+            yield return null;
         }
 
         // === 3. 收招僵直 ===
-        bb.Rb.velocity = Vector3.zero;
+        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0); // 保留 Y 轴防穿地，清空 XZ 轴
         yield return new WaitForSeconds(recoverTime);
 
         // === 4. 解锁 ===
@@ -80,39 +101,29 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
         nextAttackTime = Time.time + attackCooldown;
     }
 
-    /// <summary>
-    /// 主动形状扫描与伤害结算
-    /// </summary>
     private void PerformHitDetection(AIBlackboard bb, HashSet<GameObject> alreadyHit)
     {
         if (hitboxRef == null) return;
 
-        // 获取 Box 的世界坐标、旋转和真实大小
         Vector3 boxCenter = hitboxRef.transform.TransformPoint(hitboxRef.center);
         Vector3 boxHalfExtents = Vector3.Scale(hitboxRef.size, hitboxRef.transform.lossyScale) * 0.5f;
         Quaternion boxRotation = hitboxRef.transform.rotation;
 
-        // 不会产生内存碎片的物理扫描
         int hitCount = Physics.OverlapBoxNonAlloc(boxCenter, boxHalfExtents, hitResults, boxRotation, targetLayer);
 
         for (int i = 0; i < hitCount; i++)
         {
             GameObject targetObj = hitResults[i].gameObject;
 
-            // 如果这个人还没被打过
             if (!alreadyHit.Contains(targetObj))
             {
                 alreadyHit.Add(targetObj);
 
-                // 获取玩家血量组件并造成伤害
                 Health targetHealth = targetObj.GetComponentInParent<Health>();
-                if (!targetHealth.isDead)
+                if (targetHealth != null && !targetHealth.isDead)
                 {
-                    // 从黑板拿到配置库里的攻击力，发起攻击！
                     float damage = bb.EntityConfig.Config.baseDamage;
                     targetHealth.TakeDamage(damage, transform.position, transform.forward);
-
-                    Debug.Log($"[伤害判定] 怪物打中了 {targetObj.name}，造成了 {damage} 点伤害！");
                 }
             }
         }

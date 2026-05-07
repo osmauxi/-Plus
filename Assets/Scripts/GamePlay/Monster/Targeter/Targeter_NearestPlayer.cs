@@ -23,7 +23,6 @@ public class Targeter_NearestPlayer : MonoBehaviour, ITargetingModule
         {
             float dist = Vector3.Distance(transform.position, bb.CurrentTarget.position);
 
-            // TODO: 未来如果玩家身上有 Health 组件，这里还要加上 bb.CurrentTarget.GetComponent<Health>().isDead 的判断
             if (dist > loseTargetRange && bb.CurrentTarget.GetComponent<Health>().isDead)
             {
                 // 目标跑太远，丢掉目标

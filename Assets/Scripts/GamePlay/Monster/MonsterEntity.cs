@@ -17,7 +17,7 @@ public class MonsterEntity : NetworkBehaviour
     public float woundedSpeedMultiplier = 0.5f;
 
     private Health health;
-    private NavMeshAgent agent;
+    public NavMeshAgent agent;
     private AIBlackboard blackboard;
     private Animator anim;
 
@@ -96,7 +96,7 @@ public class MonsterEntity : NetworkBehaviour
     // ==========================================
     private void HandleWoundedFeedback(float currentHp, float maxHp)
     {
-        if (health.currentHealth.Value <= 0) 
+        if (!IsServer || health.currentHealth.Value <= 0) 
             return; // 死了就不管蹒跚了
 
         if (currentHp / maxHp <= 0.4f && agent != null)

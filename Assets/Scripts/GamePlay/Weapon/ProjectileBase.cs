@@ -110,6 +110,9 @@ public class ProjectileBase : MonoBehaviour
                 // 3. 最终综合权值：直接让大小和伤害相乘，上限依然保护在 20 倍防崩溃
                 float hitWeight = Mathf.Clamp(sizeBonus * damageBonus, 0.5f, 20.0f);
                 targetHealth.TakeDamage(baseDamage, hitPoint, transform.forward,hitWeight);
+                //Debug.Log(targetHealth.transform.position);
+                //Debug.Log(hitPoint);
+                //Debug.Log(targetHealth.transform.position - hitPoint);
                 GlobalLocalVFXPool.Instance.GetVFX("HitBlood", hitPoint, Quaternion.LookRotation(-transform.forward), hitWeight);
             }
 

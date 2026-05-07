@@ -12,15 +12,14 @@ public class GlobalLocalVFXPool : MonoBehaviour
     [System.Serializable]
     public struct VFXRegistry
     {
-        public string id;             // 比如 "BloodSplash", "BulletHitMetal"
-        public GameObject prefab;     // 注意：必须挂载了 VFXAutoReturn 脚本！
-        public int defaultCapacity;   // 默认池子大小，比如子弹火花建议 20，爆血建议 10
+        public string id;
+        public GameObject prefab;
+        public int defaultCapacity;
     }
 
     [Header("本地特效注册表")]
     public List<VFXRegistry> registries = new List<VFXRegistry>();
 
-    // 核心数据结构：一个大字典，里面装满了各种特效的独立对象池
     private Dictionary<string, ObjectPool<GameObject>> vfxPools = new Dictionary<string, ObjectPool<GameObject>>();
 
     private void Awake()
@@ -37,25 +36,42 @@ public class GlobalLocalVFXPool : MonoBehaviour
         {
             if (string.IsNullOrEmpty(reg.id) || reg.prefab == null) continue;
 
-            // 创建 Unity 原生的 ObjectPool
             var pool = new ObjectPool<GameObject>(
                 createFunc: () =>
                 {
                     GameObject obj = Instantiate(reg.prefab, this.transform);
-                    // 确保预制件上挂了回收脚本，并且 ID 填对了
                     var autoReturn = obj.GetComponent<VFXAutoReturn>();
                     if (autoReturn == null) Debug.LogError($"特效 {reg.id} 缺少 VFXAutoReturn 脚本！");
                     else autoReturn.vfxId = reg.id;
                     return obj;
                 },
-                actionOnGet: (obj) => obj.SetActive(true),
-                actionOnRelease: (obj) => obj.SetActive(false),
+                actionOnGet: (obj) => {
+                    obj.transform.SetParent(null);
+                },
+                actionOnRelease: (obj) => {
+                    obj.SetActive(false);
+                    // 【修复 1】：放回池子时统一挂回父节点，保证 Hierarchy 面板整洁
+                    obj.transform.SetParent(this.transform);
+                },
                 actionOnDestroy: (obj) => Destroy(obj),
                 defaultCapacity: reg.defaultCapacity,
-                maxSize: 100 // 防止池子无限膨胀
+                maxSize: 100
             );
 
             vfxPools.Add(reg.id, pool);
+
+            // ==========================================
+            // 【核心修复 2】：强行预热池子 (Pre-warm)
+            // ==========================================
+            var prewarmList = new List<GameObject>();
+            for (int i = 0; i < reg.defaultCapacity; i++)
+            {
+                prewarmList.Add(pool.Get()); // 强行生成
+            }
+            foreach (var obj in prewarmList)
+            {
+                pool.Release(obj); // 立刻塞回去
+            }
         }
     }
 
@@ -67,18 +83,46 @@ public class GlobalLocalVFXPool : MonoBehaviour
         if (vfxPools.TryGetValue(id, out var pool))
         {
             GameObject vfxObj = pool.Get();
-            vfxObj.transform.position = position;
 
-            // 如果传入了旋转就用传入的，否则保持预制件的默认旋转
+            // ==========================================
+            // 【核心修复 3】：状态清洗与严格的生命周期顺序
+            // ==========================================
+
+            // 第一步：先摆正位置和朝向（绝对不能先 SetActive）
+            vfxObj.transform.position = position;
             if (rotation != default) vfxObj.transform.rotation = rotation;
 
+            // 第二步：清洗残留的物理状态（防止掉入地下！）
+            if (vfxObj.TryGetComponent<Rigidbody>(out var rb))
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+
+            // 第三步：激活物体
+            vfxObj.SetActive(true);
+
+            // 第四步：清理拖尾和粒子残影（防止空间瞬移产生一条长长的尾迹）
+            var trails = vfxObj.GetComponentsInChildren<TrailRenderer>();
+            foreach (var trail in trails)
+            {
+                trail.Clear();
+            }
+
+            var pss = vfxObj.GetComponentsInChildren<ParticleSystem>();
+            foreach (var ps in pss)
+            {
+                // 如果没有开启 PlayOnAwake，就手动播一下
+                if (!ps.main.playOnAwake) ps.Play();
+            }
+
+            // 第五步：处理尺寸和权重
             if (vfxObj.TryGetComponent<VFXImpactScaler>(out var scaler))
             {
                 scaler.SetImpactWeight(weight);
             }
             else
             {
-                // 如果这个特效没挂脚本，就用最原始的缩放兼容一下
                 vfxObj.transform.localScale = Vector3.one * weight;
             }
         }
@@ -88,9 +132,6 @@ public class GlobalLocalVFXPool : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 回收接口：通常由特效身上的 VFXAutoReturn 自动调用
-    /// </summary>
     public void ReturnVFX(string id, GameObject vfxObj)
     {
         if (vfxPools.TryGetValue(id, out var pool))

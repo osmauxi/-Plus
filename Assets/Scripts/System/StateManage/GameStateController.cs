@@ -58,7 +58,6 @@ public class GameStateController : NetworkBehaviour
         {
             // 触发转场至地图生成
             ChangeState(GameState.MapGenerating);
-            GameDirector.Instance.AdvanceToNextLayer(CurrentLevel.Value);
         }
     }
     public override void OnNetworkDespawn()

@@ -1,17 +1,17 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using Cinemachine;
 
 public class CameraShakeManager : MonoBehaviour
 {
     public static CameraShakeManager Instance { get; private set; }
 
-    [Header("Õğ¶¯Ô´²ÛÎ»")]
+    [Header("éœ‡åŠ¨æºæ§½ä½")]
     public CinemachineImpulseSource recoilSource; 
     public CinemachineImpulseSource explosionSource; 
     public CinemachineImpulseSource lightHitSource; 
 
-    [Header("·À³é´¤ÀäÈ´ (Ãë)")]
-    public float recoilCooldown = 0.05f; // ÏŞÖÆ×î¶àÃ¿ÃëÕğ 20 ´Î
+    [Header("é˜²æŠ½æå†·å´ (ç§’)")]
+    public float recoilCooldown = 0.05f; // é™åˆ¶æœ€å¤šæ¯ç§’éœ‡ 20 æ¬¡
     private float lastRecoilTime;
 
     private void Awake()
@@ -24,7 +24,7 @@ public class CameraShakeManager : MonoBehaviour
     {
         if (recoilSource == null) return; 
 
-        // ÀäÈ´À¹½Ø£¬·ÀÖ¹ö±µ¯Ç¹Ë²¼ä¶à´Îµ÷ÓÃµ¼ÖÂÕğ¶¯·ç±©
+        // å†·å´æ‹¦æˆªï¼Œé˜²æ­¢éœ°å¼¹æªç¬é—´å¤šæ¬¡è°ƒç”¨å¯¼è‡´éœ‡åŠ¨é£æš´
         if (Time.time - lastRecoilTime < recoilCooldown) return;
         lastRecoilTime = Time.time;
 

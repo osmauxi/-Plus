@@ -1,63 +1,62 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 /// <summary>
-/// Ñ°µĞ²å¼ş£ºÓÀÔ¶Ëø¶¨¾àÀë×î½üµÄÍæ¼Ò
+/// å¯»æ•Œæ’ä»¶ï¼šæ°¸è¿œé”å®šè·ç¦»æœ€è¿‘çš„ç©å®¶
 /// </summary>
 public class Targeter_NearestPlayer : MonoBehaviour, ITargetingModule
 {
-    [Header("¸ĞÖª²ÎÊı")]
-    public float visionRange = 20f;      // ÊÓÒ°·¶Î§
-    public float loseTargetRange = 25f;  // ¶ªÊ§Ä¿±êµÄ·¶Î§£¨ÉÔÎ¢´óÒ»µã£¬·ÀÖ¹ÔÚ±ß½ç·´¸´ºáÌø£©
-    public float searchInterval = 0.5f;  // Ñ°µĞÆµÂÊ£¨²»ÒªÃ¿Ö¡¶¼ÕÒ£¬Ê¡ĞÔÄÜ£©
+    [Header("æ„ŸçŸ¥å‚æ•°")]
+    public float visionRange = 20f;      // è§†é‡èŒƒå›´
+    public float loseTargetRange = 25f;  // ä¸¢å¤±ç›®æ ‡çš„èŒƒå›´ï¼ˆç¨å¾®å¤§ä¸€ç‚¹ï¼Œé˜²æ­¢åœ¨è¾¹ç•Œåå¤æ¨ªè·³ï¼‰
+    public float searchInterval = 0.5f;  // å¯»æ•Œé¢‘ç‡ï¼ˆä¸è¦æ¯å¸§éƒ½æ‰¾ï¼Œçœæ€§èƒ½ï¼‰
 
     private float nextSearchTime;
 
     public void ExecuteTick(AIBlackboard bb)
     {
-        // ÓÅ»¯£º²»ĞèÒªÃ¿Ò»Ö¡¶¼È¥±éÀúËùÓĞÍæ¼Ò¼ÆËã¾àÀë£¬0.5Ãë²éÒ»´Î×ã¹»ÁË
+        // ä¼˜åŒ–ï¼šä¸éœ€è¦æ¯ä¸€å¸§éƒ½å»éå†æ‰€æœ‰ç©å®¶è®¡ç®—è·ç¦»ï¼Œ0.5ç§’æŸ¥ä¸€æ¬¡è¶³å¤Ÿäº†
         if (Time.time < nextSearchTime) return;
         nextSearchTime = Time.time + searchInterval;
 
-        // Èç¹ûÎÒÃÇ±¾À´¾ÍÓĞÄ¿±ê£¬ÏÈ¼ì²éËûÓĞÃ»ÓĞÅÜÌ«Ô¶»òÕßËÀµô
+        // å¦‚æœæˆ‘ä»¬æœ¬æ¥å°±æœ‰ç›®æ ‡ï¼Œå…ˆæ£€æŸ¥ä»–æœ‰æ²¡æœ‰è·‘å¤ªè¿œæˆ–è€…æ­»æ‰
         if (bb.HasTarget)
         {
             float dist = Vector3.Distance(transform.position, bb.CurrentTarget.position);
 
-            if (dist > loseTargetRange && bb.CurrentTarget.GetComponent<Health>().isDead)
+            if (dist > loseTargetRange || bb.CurrentTarget.GetComponent<Health>().isDead)
             {
-                // Ä¿±êÅÜÌ«Ô¶£¬¶ªµôÄ¿±ê
+                // ç›®æ ‡è·‘å¤ªè¿œï¼Œä¸¢æ‰ç›®æ ‡
                 bb.CurrentTarget = null;
             }
             else
             {
-                // Ä¿±ê»¹ÔÚ£¬Ë³ÊÖ¸üĞÂÒ»ÏÂÄ¿±ê×îºóµÄÎ»ÖÃ
+                // ç›®æ ‡è¿˜åœ¨ï¼Œé¡ºæ‰‹æ›´æ–°ä¸€ä¸‹ç›®æ ‡æœ€åçš„ä½ç½®
                 bb.TargetPosition = bb.CurrentTarget.position;
             }
         }
 
-        // Èç¹ûµ±Ç°Ã»Ä¿±ê£¬¿ªÊ¼ÕÒ£¡
+        // å¦‚æœå½“å‰æ²¡ç›®æ ‡ï¼Œå¼€å§‹æ‰¾ï¼
         if (!bb.HasTarget)
         {
-            // µ÷ÓÃÎÒÃÇÖ®Ç°Éè¼ÆµÄ PlayerManager ¹¤¾ß¿â
+            // è°ƒç”¨æˆ‘ä»¬ä¹‹å‰è®¾è®¡çš„ PlayerManager å·¥å…·åº“
             Transform nearest = PlayerManager.Instance.GetNearestPlayer(transform.position);
 
             if (nearest != null)
             {
                 float dist = Vector3.Distance(transform.position, nearest.position);
-                // Ö»ÓĞÔÚÊÓÒ°·¶Î§ÄÚ²ÅËø¶¨
+                // åªæœ‰åœ¨è§†é‡èŒƒå›´å†…æ‰é”å®š
                 if (dist <= visionRange)
                 {
-                    // ¡¾¹Ø¼ü²½Öè£ºÍùºÚ°åÉÏĞ´×Ö£¡¡¿
                     bb.CurrentTarget = nearest;
                     bb.TargetPosition = nearest.position;
                 }
             }
         }
 
-        // ÊÓÏßÕÚµ²¼ì²â (¿ÉÑ¡µÄ¸ß¼¶Âß¼­)£º
-        // Èç¹ûÏë×ö¡°ÑÚÌåÏµÍ³¡±£¬ÕâÀï¿ÉÒÔ´Ó¹ÖÎï·¢ÉäÒ»ÌõÉäÏß(Raycast)µ½Íæ¼Ò¡£
-        // Èç¹û´òÖĞÇ½±Ú£¬¾Í°Ñ bb.CanSeeTarget ÉèÎª false£¬·ñÔòÉèÎª true¡£
-        // ÕâÀïÎªÁË¼òµ¥£¬ÎÒÃÇ¼ÙÉèÖ»ÒªÓĞÄ¿±ê¾ÍÄÜ¿´µ½¡£
+        // è§†çº¿é®æŒ¡æ£€æµ‹ (å¯é€‰çš„é«˜çº§é€»è¾‘)ï¼š
+        // å¦‚æœæƒ³åšâ€œæ©ä½“ç³»ç»Ÿâ€ï¼Œè¿™é‡Œå¯ä»¥ä»æ€ªç‰©å‘å°„ä¸€æ¡å°„çº¿(Raycast)åˆ°ç©å®¶ã€‚
+        // å¦‚æœæ‰“ä¸­å¢™å£ï¼Œå°±æŠŠ bb.CanSeeTarget è®¾ä¸º falseï¼Œå¦åˆ™è®¾ä¸º trueã€‚
+        // è¿™é‡Œä¸ºäº†ç®€å•ï¼Œæˆ‘ä»¬å‡è®¾åªè¦æœ‰ç›®æ ‡å°±èƒ½çœ‹åˆ°ã€‚
         bb.CanSeeTarget = bb.HasTarget;
     }
 }

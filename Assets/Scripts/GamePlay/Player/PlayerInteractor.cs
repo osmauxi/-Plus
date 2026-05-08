@@ -1,27 +1,27 @@
-using Unity.Netcode;
+ï»¿using Unity.Netcode;
 using UnityEngine;
 
 public class PlayerInteractor : NetworkBehaviour
 {
-    [Header("½»»¥ÉèÖÃ")]
-    public float interactRadius = 2.0f;          // Ê°È¡/½»»¥·¶Î§
-    public LayerMask interactableLayer;          // ×¨ÃÅ¸ø±¦Ïä¡¢¿ØÖÆÌ¨½¨Ò»¸ö Layer£¬±ÈÈç½Ğ "Interactable"
+    [Header("äº¤äº’è®¾ç½®")]
+    public float interactRadius = 2.0f;          // æ‹¾å–/äº¤äº’èŒƒå›´
+    public LayerMask interactableLayer;          // ä¸“é—¨ç»™å®ç®±ã€æ§åˆ¶å°å»ºä¸€ä¸ª Layerï¼Œæ¯”å¦‚å« "Interactable"
 
-    // 0 GC ÎïÀíÉ¨ÃèÊı×é
+    // 0 GC ç‰©ç†æ‰«ææ•°ç»„
     private Collider[] overlapResults = new Collider[5];
 
     public override void OnNetworkSpawn()
     {
-        // Ö»ÓĞ±¾µØÍæ¼Ò²ÅĞèÒª´¦ÀíÊäÈëºÍÌ½²â
+        // åªæœ‰æœ¬åœ°ç©å®¶æ‰éœ€è¦å¤„ç†è¾“å…¥å’Œæ¢æµ‹
         if (!IsOwner) this.enabled = false;
     }
 
     private void Update()
     {
-        // 1. Èç¹ûÔÚ¿´ UI£¬²»ÔÊĞí½»»¥
+        // 1. å¦‚æœåœ¨çœ‹ UIï¼Œä¸å…è®¸äº¤äº’
         if (InputManager.Instance.CurrentState != InputState.Gameplay) return;
 
-        // 2. Ö»ÓĞÔÚ°´ÏÂ F ¼üµÄÕâÒ»Ö¡£¬²Å½øĞĞ¸ß´ú¼ÛµÄÎïÀíÉ¨Ãè£¡
+        // 2. åªæœ‰åœ¨æŒ‰ä¸‹ F é”®çš„è¿™ä¸€å¸§ï¼Œæ‰è¿›è¡Œé«˜ä»£ä»·çš„ç‰©ç†æ‰«æï¼
         if (InputManager.Instance.InteractPressed)
         {
             TryInteract();
@@ -30,16 +30,16 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void TryInteract()
     {
-        // ²»²úÉúÄÚ´æËéÆ¬µÄÇòĞÎÉ¨Ãè
+        // ä¸äº§ç”Ÿå†…å­˜ç¢ç‰‡çš„çƒå½¢æ‰«æ
         int hitCount = Physics.OverlapSphereNonAlloc(transform.position, interactRadius, overlapResults, interactableLayer);
 
         IInteractable nearestInteractable = null;
         float minDistance = float.MaxValue;
 
-        // ±éÀúÉ¨µ½µÄËùÓĞÎïÌå£¬ÕÒ³öÀëÍæ¼Ò×î½üµÄÄÇÒ»¸ö£¨·ÀÖ¹ÖÜÎ§ÓĞÈı¸öÏä×ÓÊ±²»ÖªµÀ¿ªÄÄ¸ö£©
+        // éå†æ‰«åˆ°çš„æ‰€æœ‰ç‰©ä½“ï¼Œæ‰¾å‡ºç¦»ç©å®¶æœ€è¿‘çš„é‚£ä¸€ä¸ªï¼ˆé˜²æ­¢å‘¨å›´æœ‰ä¸‰ä¸ªç®±å­æ—¶ä¸çŸ¥é“å¼€å“ªä¸ªï¼‰
         for (int i = 0; i < hitCount; i++)
         {
-            // Ê¹ÓÃ GetComponentInParent ÊÇÎªÁË·ÀÖ¹Åö×²Ìå¹ÒÔÚ×Ó½ÚµãÉÏ
+            // ä½¿ç”¨ GetComponentInParent æ˜¯ä¸ºäº†é˜²æ­¢ç¢°æ’ä½“æŒ‚åœ¨å­èŠ‚ç‚¹ä¸Š
             IInteractable interactable = overlapResults[i].GetComponentInParent<IInteractable>();
 
             if (interactable != null && interactable.IsInteractable)
@@ -53,7 +53,7 @@ public class PlayerInteractor : NetworkBehaviour
             }
         }
 
-        // Èç¹ûÕÒµ½ÁËºÏ·¨µÄ¿É½»»¥Îï£¬Ö±½Óµ÷ÓÃËüµÄ½Ó¿Ú£¡
+        // å¦‚æœæ‰¾åˆ°äº†åˆæ³•çš„å¯äº¤äº’ç‰©ï¼Œç›´æ¥è°ƒç”¨å®ƒçš„æ¥å£ï¼
         if (nearestInteractable != null)
         {
             nearestInteractable.OnInteract(this.gameObject);

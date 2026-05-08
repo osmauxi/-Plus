@@ -1,19 +1,19 @@
-using System.Collections;
+ï»¿using System.Collections;
 using UnityEngine;
 
 public class Attacker_StationaryMelee : MonoBehaviour, IAttackModule
 {
-    [Header("¶à¼¼ÄÜÍØÕ¹ (·ü±Ê)")]
+    [Header("å¤šæŠ€èƒ½æ‹“å±• (ä¼ç¬”)")]
     public string[] attackTriggers = { "Attack" };
 
-    [Header("Õ½¶·½Ú×àÅäÖÃ")]
+    [Header("æˆ˜æ–—èŠ‚å¥é…ç½®")]
     public float attackCooldown = 2.0f;
-    [Tooltip("Ç°Ò¡£º´Ó¶¯»­¿ªÊ¼µ½¡¾Ôì³ÉÉËº¦¡¿µÄµÈ´ıÊ±¼ä")]
+    [Tooltip("å‰æ‘‡ï¼šä»åŠ¨ç”»å¼€å§‹åˆ°ã€é€ æˆä¼¤å®³ã€‘çš„ç­‰å¾…æ—¶é—´")]
     public float windUpTime = 0.5f;
-    [Tooltip("ºóÒ¡£ºÔì³ÉÉËº¦ºó£¬Ô­µØ±£³Ö·£Õ¾×´Ì¬µÄÊ±¼ä")]
+    [Tooltip("åæ‘‡ï¼šé€ æˆä¼¤å®³åï¼ŒåŸåœ°ä¿æŒç½šç«™çŠ¶æ€çš„æ—¶é—´")]
     public float recoverTime = 0.8f;
 
-    [Header("ÉËº¦ÅĞ¶¨ÅäÖÃ")]
+    [Header("ä¼¤å®³åˆ¤å®šé…ç½®")]
     public BoxCollider hitboxRef;
     public LayerMask targetLayer;
 
@@ -21,7 +21,6 @@ public class Attacker_StationaryMelee : MonoBehaviour, IAttackModule
     private Coroutine attackRoutine;
     private MonsterVFXController vfxController;
 
-    // ÎŞ GC ÄÚ´æÉ¨ÃèÊı×é
     private Collider[] hitResults = new Collider[10];
 
     private void Awake()
@@ -41,11 +40,28 @@ public class Attacker_StationaryMelee : MonoBehaviour, IAttackModule
         }
     }
 
+    private IEnumerator PausableWait(MonsterBrain brain, float duration)
+    {
+        float timer = 0f;
+        while (timer < duration)
+        {
+            if (brain != null && brain.IsHitStopped)
+            {
+                yield return null;
+                continue;
+            }
+            timer += Time.deltaTime;
+            yield return null;
+        }
+    }
+
     private IEnumerator AttackSequence(AIBlackboard bb)
     {
-        // === 0. Ëø¶¨×´Ì¬£¬ÎïÀíÉ²³µ ===
+        MonsterBrain brain = bb.GetComponent<MonsterBrain>();
+
+        // === 0. é”å®šçŠ¶æ€ï¼Œç‰©ç†åˆ¹è½¦ ===
         bb.IsAttacking = true;
-        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0); // ¾ø¶Ô½ûÖ¹»¬²½
+        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0); // ç»å¯¹ç¦æ­¢æ»‘æ­¥
         FaceTarget(bb);
 
         string selectedAttack = attackTriggers[0];
@@ -54,27 +70,23 @@ public class Attacker_StationaryMelee : MonoBehaviour, IAttackModule
             selectedAttack = attackTriggers[Random.Range(0, attackTriggers.Length)];
         }
 
-        // === 1. ´¥·¢¶¯»­£¬½øÈë¡¾Ç°Ò¡¡¿ ===
+        // === 1. è§¦å‘åŠ¨ç”»ï¼Œè¿›å…¥ã€å‰æ‘‡ã€‘ ===
         if (bb.Anim != null) bb.Anim.SetTrigger(selectedAttack);
         if (vfxController != null) vfxController.BroadcastVFX("EyeGlow");
 
-        yield return new WaitForSeconds(windUpTime);
+        yield return StartCoroutine(PausableWait(brain, windUpTime));
 
-        // === 2. Ë²¼ä±¬·¢£¡¡¾µ¥´ÎÉËº¦ÅĞ¶¨¡¿ ===
-        // Ïà±ÈÃÍÆËÄ£¿é£¬ÕâÀï²»ÔÙÊ¹ÓÃ while Ñ­»·ºÍ HashSet£¬Ö»ÔÚÕâÒ»Ö¡³é¼ìÒ»´Î
+        // === 2. ç¬é—´çˆ†å‘ï¼ã€å•æ¬¡ä¼¤å®³åˆ¤å®šã€‘ ===
         PerformSingleHitDetection(bb);
 
-        // === 3. ½øÈë¡¾ºóÒ¡¡¿·£Õ¾ ===
-        yield return new WaitForSeconds(recoverTime);
+        // === 3. è¿›å…¥ã€åæ‘‡ã€‘ç½šç«™ ===
+        yield return StartCoroutine(PausableWait(brain, recoverTime));
 
-        // === 4. ³¹µ×½áÊø£¬½âËø AI ===
+        // === 4. å½»åº•ç»“æŸï¼Œè§£é” AI ===
         bb.IsAttacking = false;
         nextAttackTime = Time.time + attackCooldown;
     }
 
-    /// <summary>
-    /// µ¥Ö¡Ë²·¢ÉËº¦ÅĞ¶¨
-    /// </summary>
     private void PerformSingleHitDetection(AIBlackboard bb)
     {
         if (hitboxRef == null) return;
@@ -93,7 +105,6 @@ public class Attacker_StationaryMelee : MonoBehaviour, IAttackModule
             if (targetHealth != null && !targetHealth.isDead)
             {
                 float damage = bb.EntityConfig.Config.baseDamage;
-                // ½«µ±Ç°¹ÖÎïµÄ×ø±êºÍÕıÇ°·½´«µİ¹ıÈ¥£¬ÓÃÓÚ¼ÆËã»÷ÍË»òì­Ñª·½Ïò
                 targetHealth.TakeDamage(damage, transform.position, transform.forward);
             }
         }

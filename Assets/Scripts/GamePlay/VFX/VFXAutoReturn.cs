@@ -1,20 +1,20 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 /// <summary>
-/// ¹ÒÔÚÌØĞ§ Prefab ÉÏµÄ×Ô¶¯»ØÊÕÆ÷
-/// Ö°Ôğ£º¼àÌıÌØĞ§²¥·Å½áÊø£¬×Ô¶¯°Ñ×Ô¼º»¹¸øÈ«¾ÖÌØĞ§³Ø
+/// æŒ‚åœ¨ç‰¹æ•ˆ Prefab ä¸Šçš„è‡ªåŠ¨å›æ”¶å™¨
+/// èŒè´£ï¼šç›‘å¬ç‰¹æ•ˆæ’­æ”¾ç»“æŸï¼Œè‡ªåŠ¨æŠŠè‡ªå·±è¿˜ç»™å…¨å±€ç‰¹æ•ˆæ± 
 /// </summary>
 public class VFXAutoReturn : MonoBehaviour
 {
-    [Tooltip("ÌØĞ§³ØÖĞµÄÎ¨Ò» ID£¬±ØĞëÓë GlobalLocalVFXPool ÖĞµÄ×¢²áÒ»ÖÂ")]
+    [Tooltip("ç‰¹æ•ˆæ± ä¸­çš„å”¯ä¸€ IDï¼Œå¿…é¡»ä¸ GlobalLocalVFXPool ä¸­çš„æ³¨å†Œä¸€è‡´")]
     public string vfxId;
 
-    [Tooltip("ÌØĞ§³ÖĞøÊ±¼ä¡£Èç¹ûÊÇÁ£×Ó£¬½¨ÒéÉèÎªÁ£×ÓµÄ Duration")]
+    [Tooltip("ç‰¹æ•ˆæŒç»­æ—¶é—´ã€‚å¦‚æœæ˜¯ç²’å­ï¼Œå»ºè®®è®¾ä¸ºç²’å­çš„ Duration")]
     public float lifetime = 1.0f;
 
     private float timer;
 
-    // µ±ÌØĞ§´Ó¶ÔÏó³ØÀï±»ÄÃ³öÀ´£¨SetActive(true)£©Ê±£¬»á×Ô¶¯´¥·¢ OnEnable
+    // å½“ç‰¹æ•ˆä»å¯¹è±¡æ± é‡Œè¢«æ‹¿å‡ºæ¥ï¼ˆSetActive(true)ï¼‰æ—¶ï¼Œä¼šè‡ªåŠ¨è§¦å‘ OnEnable
     private void OnEnable()
     {
         timer = lifetime;
@@ -37,7 +37,7 @@ public class VFXAutoReturn : MonoBehaviour
         }
         else
         {
-            // ¶µµ×£ºÈç¹û³Ø×Ó±»»ÙÁË£¨±ÈÈçÇĞ³¡¾°£©£¬¾ÍÖ±½ÓÏú»Ù
+            // å…œåº•ï¼šå¦‚æœæ± å­è¢«æ¯äº†ï¼ˆæ¯”å¦‚åˆ‡åœºæ™¯ï¼‰ï¼Œå°±ç›´æ¥é”€æ¯
             Destroy(gameObject);
         }
     }

@@ -1,35 +1,29 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Attacker_Melee : MonoBehaviour, IAttackModule
+public class Attacker_CullMelee : MonoBehaviour, IAttackModule
 {
-    [Header("¶à¼¼ÄÜÍØÕ¹ (·ü±Ê)")]
-    [Tooltip("¹ÖÎïÓµÓĞµÄËùÓĞ¹¥»÷¶¯×÷Ãû³Æ¡£ÆÕÍ¨¹ÖÖ»ÌîÒ»¸ö Attack£¬¾«Ó¢¹Ö¿ÉÒÔÌî Attack_1, Attack_2 µÈ")]
+    [Header("å¤šæŠ€èƒ½æ‹“å±• (ä¼ç¬”)")]
     public string[] attackTriggers = { "Attack" };
 
-    [Header("Õ½¶·²ÎÊı")]
+    [Header("æˆ˜æ–—å‚æ•°")]
     public float attackCooldown = 3.0f;
-    [Tooltip("¹¥»÷Ç°Ò¡£º´Ó´¥·¢¶¯»­¿ªÊ¼£¬µ½ÕæÕıÆË³öÈ¥/²úÉúÉËº¦ÅĞ¶¨µÄµÈ´ıÊ±¼ä")]
     public float windUpTime = 0.5f;
-    [Tooltip("ÉËº¦ÅĞ¶¨³ÖĞøÊ±¼ä (ÃÍÆË³ÖĞøÊ±¼ä)")]
     public float lungeTime = 0.3f;
-    [Tooltip("ÊÕÕĞ½©Ö±£ºÆËÍêÖ®ºóÔ­µØ·£Õ¾µÄÊ±¼ä")]
     public float recoverTime = 0.7f;
 
-    [Header("ÉËº¦ÅĞ¶¨ÅäÖÃ")]
-    [Tooltip("½ö½ö×÷ÎªÒ»¸ö¿ÉÊÓ»¯µÄ·¶Î§²Î¿¼£¬ËüµÄ enabled ÓÀÔ¶ÊÇ false")]
+    [Header("ä¼¤å®³åˆ¤å®šé…ç½®")]
     public BoxCollider hitboxRef;
-    public LayerMask targetLayer;       // ¹´Ñ¡ Player µÄ Layer
+    public LayerMask targetLayer;
 
-    [Header("ÎïÀí²ÎÊı")]
+    [Header("ç‰©ç†å‚æ•°")]
     public float lungeForce = 15f;
 
     private float nextAttackTime;
     private Coroutine attackRoutine;
     private MonsterVFXController vfxController;
 
-    // ¡¾ºËĞÄºÚ¿Æ¼¼¡¿£ºÎŞ GC ÄÚ´æÉ¨ÃèÊı×é£¨Ô¤·ÖÅäÄÚ´æ£¬×î´óÉ¨ 10 ¸öÄ¿±ê£©
     private Collider[] hitResults = new Collider[10];
 
     private void Awake()
@@ -49,34 +43,41 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
         }
     }
 
+    private IEnumerator PausableWait(MonsterBrain brain, float duration)
+    {
+        float timer = 0f;
+        while (timer < duration)
+        {
+            if (brain != null && brain.IsHitStopped)
+            {
+                yield return null;
+                continue;
+            }
+            timer += Time.deltaTime;
+            yield return null;
+        }
+    }
+
     private IEnumerator AttackSequence(AIBlackboard bb)
     {
-        // Ëø¶¨ AI ×´Ì¬£¬ÈÃË¾»ú (Mover) ²ÈÉ²³µ
+        MonsterBrain brain = bb.GetComponent<MonsterBrain>();
+
         bb.IsAttacking = true;
         FaceTarget(bb);
 
-        // ==========================================
-        // ¡¾·ü±Ê¡¿£º¶à¼¼ÄÜËæ»ú³éÑ¡ÏµÍ³
-        // Èç¹ûÊı×éÀïÅäÁË¶à¸ö¼¼ÄÜ£¬ÕâÀï»áËæ»úÌôÒ»¸ö·Å
-        // ==========================================
         string selectedAttack = attackTriggers[0];
         if (attackTriggers.Length > 1)
         {
             selectedAttack = attackTriggers[Random.Range(0, attackTriggers.Length)];
         }
 
-        // === 1. ´¥·¢¶¯»­ÓëÇ°Ò¡ ===
-        // Á¢¿Ì²¥·Å¹¥»÷¶¯»­
         if (bb.Anim != null) bb.Anim.SetTrigger(selectedAttack);
         if (vfxController != null) vfxController.BroadcastVFX("EyeGlow");
 
-        // µÈ´ı¹ÖÎï°ÑÊÖ¾ÙÆğÀ´£¨Ç°Ò¡£©
-        yield return new WaitForSeconds(windUpTime);
+        yield return StartCoroutine(PausableWait(brain, windUpTime));
 
-        // === 2. ÃÍÆËÓë¡¾Ö÷¶¯Ö¡ÉËº¦ÅĞ¶¨¡¿ ===
         if (vfxController != null) vfxController.BroadcastVFX("DashTrail");
 
-        // Èç¹ûÏëÈÃ¹ÖÎïÔ­µØ»Ó»÷£¬°Ñ lungeForce ÉèÎª 0 ¼´¿É
         if (lungeForce > 0)
         {
             bb.Rb.AddForce(transform.forward * lungeForce, ForceMode.VelocityChange);
@@ -87,16 +88,21 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
 
         while (timer < lungeTime)
         {
+            if (brain != null && brain.IsHitStopped)
+            {
+                yield return null;
+                continue;
+            }
+
             PerformHitDetection(bb, alreadyHitTargets);
             timer += Time.deltaTime;
             yield return null;
         }
 
-        // === 3. ÊÕÕĞ½©Ö± ===
-        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0); // ±£Áô Y Öá·À´©µØ£¬Çå¿Õ XZ Öá
-        yield return new WaitForSeconds(recoverTime);
+        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0);
 
-        // === 4. ½âËø ===
+        yield return StartCoroutine(PausableWait(brain, recoverTime));
+
         bb.IsAttacking = false;
         nextAttackTime = Time.time + attackCooldown;
     }

@@ -1,11 +1,11 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System;
 
 public class ModifierUICard : MonoBehaviour
 {
-    [Header("UI °ó¶¨")]
+    [Header("UI ç»‘å®š")]
     public TextMeshProUGUI nameText;
     public TextMeshProUGUI descriptionText;
     public TextMeshProUGUI tagsText;
@@ -16,14 +16,14 @@ public class ModifierUICard : MonoBehaviour
     private Action<string> onSelectedCallback;
 
     /// <summary>
-    /// ³õÊ¼»¯ÕâÕÅ¿¨ÅÆµÄÊı¾İ
+    /// åˆå§‹åŒ–è¿™å¼ å¡ç‰Œçš„æ•°æ®
     /// </summary>
     public void SetupCard(ModifierDataSO data, Action<string> callback)
     {
         currentModifierId = data.modifierId;
         onSelectedCallback = callback;
 
-        // Ìî³äÊÓ¾õ±íÏÖ
+        // å¡«å……è§†è§‰è¡¨ç°
         nameText.text = data.modifierName;
         descriptionText.text = data.description;
 
@@ -37,7 +37,7 @@ public class ModifierUICard : MonoBehaviour
             iconImage.enabled = false;
         }
 
-        // °Ñ Tags Æ´³ÉÒ»¸öºÃ¿´µÄ×Ö·û´®£¬±ÈÈç "[Rapid] [Fire]"
+        // æŠŠ Tags æ‹¼æˆä¸€ä¸ªå¥½çœ‹çš„å­—ç¬¦ä¸²ï¼Œæ¯”å¦‚ "[Rapid] [Fire]"
         if (data.tags != null && data.tags.Count > 0)
         {
             tagsText.text = "[" + string.Join("] [", data.tags) + "]";
@@ -47,14 +47,14 @@ public class ModifierUICard : MonoBehaviour
             tagsText.text = "";
         }
 
-        // °ó¶¨µã»÷ÊÂ¼ş (ÏÈÇå¿Õ·ÀÖØ¸´°ó¶¨)
+        // ç»‘å®šç‚¹å‡»äº‹ä»¶ (å…ˆæ¸…ç©ºé˜²é‡å¤ç»‘å®š)
         cardButton.onClick.RemoveAllListeners();
         cardButton.onClick.AddListener(OnCardClicked);
     }
 
     private void OnCardClicked()
     {
-        // ´¥·¢»Øµ÷£¬°Ñ×Ô¼ºµÄ ID ´«³öÈ¥
+        // è§¦å‘å›è°ƒï¼ŒæŠŠè‡ªå·±çš„ ID ä¼ å‡ºå»
         onSelectedCallback?.Invoke(currentModifierId);
     }
 }

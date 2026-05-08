@@ -1,13 +1,13 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.AI;
 
 public class Mover_MeleeChase : MonoBehaviour, IMovementModule
 {
-    [Header("ÒÆ¶¯²ÎÊıÅäÖÃ")]
+    [Header("ç§»åŠ¨å‚æ•°é…ç½®")]
     public float stopDistance = 2.0f;
     public float pathUpdateInterval = 0.2f;
 
-    [Header("×ªÏòÅäÖÃ")]
+    [Header("è½¬å‘é…ç½®")]
     public bool faceTargetWhenStopped = true;
     public float rotationSpeed = 8f;
 
@@ -15,22 +15,26 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
 
     public void ExecuteTick(AIBlackboard bb)
     {
+        if (bb.Brain != null && bb.Brain.IsHitStopped) return;
+
+        // --- ä»¥ä¸‹ä¸ºä½ åŸæœ¬çš„é€»è¾‘ ---
+
         if (!bb.HasTarget)
         {
             StopAgent(bb);
-            UpdateAnimatorSpeed(bb, 0f); // Ã»Ä¿±ê£¬ËÙ¶ÈÓ²ÉèÎª 0
+            UpdateAnimatorSpeed(bb, 0f); // æ²¡ç›®æ ‡ï¼Œé€Ÿåº¦ç¡¬è®¾ä¸º 0
             return;
         }
 
         float dist = Vector3.Distance(transform.position, bb.CurrentTarget.position);
         bb.DistanceToTarget = dist;
 
-        // À¹½ØÆ÷£ºÈç¹ûÕıÔÚ¹¥»÷£¬¾ø¶Ô²»ÔÊĞíÒÆ¶¯£¡
+        // æ‹¦æˆªå™¨ï¼šå¦‚æœæ­£åœ¨æ”»å‡»ï¼Œç»å¯¹ä¸å…è®¸ç§»åŠ¨ï¼
         if (bb.IsAttacking)
         {
             StopAgent(bb);
             if (faceTargetWhenStopped) FaceTarget(bb);
-            UpdateAnimatorSpeed(bb, 0f); // ¹¥»÷ÖĞ£¬²½·¥¶¯»­Ç¿ÖÆ¹éÁã
+            UpdateAnimatorSpeed(bb, 0f); // æ”»å‡»ä¸­ï¼Œæ­¥ä¼åŠ¨ç”»å¼ºåˆ¶å½’é›¶
             return;
         }
 
@@ -41,7 +45,7 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
             StopAgent(bb);
             if (faceTargetWhenStopped) FaceTarget(bb);
             bb.IsTargetInAttackRange = true;
-            UpdateAnimatorSpeed(bb, 0f); // ²ÈÉ²³µ£¬²½·¥¶¯»­¹éÁã
+            UpdateAnimatorSpeed(bb, 0f); // è¸©åˆ¹è½¦ï¼Œæ­¥ä¼åŠ¨ç”»å½’é›¶
         }
         else
         {
@@ -58,7 +62,7 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
                 }
             }
 
-            // Õı³£×·»÷Ê±£¬¶ÁÈ¡ÕæÊµËÙ¶È¸ø¶¯»­»ú
+            // æ­£å¸¸è¿½å‡»æ—¶ï¼Œè¯»å–çœŸå®é€Ÿåº¦ç»™åŠ¨ç”»æœº
             UpdateAnimatorSpeed(bb, bb.Agent.velocity.magnitude);
         }
     }
@@ -67,7 +71,7 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
     {
         if (bb.Anim != null)
         {
-            bb.Anim.SetFloat("MoveSpeed", speed);
+            bb.Anim.SetFloat("MoveSpeed", speed, 0.1f, Time.deltaTime);
         }
     }
 

@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 
@@ -11,11 +11,11 @@ public class PlayerReviveUI : MonoBehaviour
     public RectTransform buttonIcon;
     public RectTransform surgeRing;
 
-    private Tween currentSurgeTween;   // Í³¹Üµ±Ç°ÕıÔÚ²¥·ÅµÄ¶¯»­
+    private Tween currentSurgeTween;   // ç»Ÿç®¡å½“å‰æ­£åœ¨æ’­æ”¾çš„åŠ¨ç”»
     private float visualProgress = 0f;
     private Transform mainCameraTransform;
 
-    // ¼ÇÂ¼µ±Ç°µÄ¶¯»­×´Ì¬£¬·ÀÖ¹Ã¿Ö¡ÖØ¸´´¥·¢
+    // è®°å½•å½“å‰çš„åŠ¨ç”»çŠ¶æ€ï¼Œé˜²æ­¢æ¯å¸§é‡å¤è§¦å‘
     private bool isCurrentlyReviving = false;
 
     private void Awake()
@@ -37,7 +37,7 @@ public class PlayerReviveUI : MonoBehaviour
 
         bool isReviving = player.isBeingRevived.Value;
 
-        // 1. ´¦Àí½ø¶ÈÌõµÄÊıÖµÔö¼õ
+        // 1. å¤„ç†è¿›åº¦æ¡çš„æ•°å€¼å¢å‡
         if (isReviving)
         {
             visualProgress += Time.deltaTime;
@@ -48,7 +48,7 @@ public class PlayerReviveUI : MonoBehaviour
         }
         ringFill.fillAmount = visualProgress / player.maxReviveTime;
 
-        // 2. ×´Ì¬¼àÌı£ºÖ»ÓĞµ±¾ÈÔ®×´Ì¬·¢Éú±ä»¯Ê±£¬²ÅÇĞ»»¶¯»­
+        // 2. çŠ¶æ€ç›‘å¬ï¼šåªæœ‰å½“æ•‘æ´çŠ¶æ€å‘ç”Ÿå˜åŒ–æ—¶ï¼Œæ‰åˆ‡æ¢åŠ¨ç”»
         if (isReviving != isCurrentlyReviving)
         {
             isCurrentlyReviving = isReviving;
@@ -67,7 +67,7 @@ public class PlayerReviveUI : MonoBehaviour
         canvasGroup.DOFade(1f, 0.3f);
 
         buttonIcon.localScale = Vector3.zero;
-        // µ¯³ö¶¯»­½áÊøºó£¬Á¢¿Ì½øÈë¡°ÏĞÖÃĞÄÌø¡±×´Ì¬
+        // å¼¹å‡ºåŠ¨ç”»ç»“æŸåï¼Œç«‹åˆ»è¿›å…¥â€œé—²ç½®å¿ƒè·³â€çŠ¶æ€
         buttonIcon.DOScale(1f, 0.5f).SetEase(Ease.OutBack).OnComplete(() =>
         {
             SwitchSurgeAnimation(false);
@@ -81,11 +81,11 @@ public class PlayerReviveUI : MonoBehaviour
     }
 
     /// <summary>
-    /// ºËĞÄ¶¯»­ÇĞ»»Âß¼­
+    /// æ ¸å¿ƒåŠ¨ç”»åˆ‡æ¢é€»è¾‘
     /// </summary>
     private void SwitchSurgeAnimation(bool isActiveRescue)
     {
-        // Æş¶Ï¾É¶¯»­£¬²¢½«Ëõ·Å±ÈÀı°²È«¹éÎ»
+        // ææ–­æ—§åŠ¨ç”»ï¼Œå¹¶å°†ç¼©æ”¾æ¯”ä¾‹å®‰å…¨å½’ä½
         if (currentSurgeTween != null)
         {
             currentSurgeTween.Kill();
@@ -94,26 +94,26 @@ public class PlayerReviveUI : MonoBehaviour
 
         if (isActiveRescue)
         {
-            // ¡¾×´Ì¬ A£ºÕıÔÚ±»¾È¡¿¡ª¡ª ¼±´Ù¡¢Á¬ĞøµÄÎü¹ÜÓ¿¶¯
+            // ã€çŠ¶æ€ Aï¼šæ­£åœ¨è¢«æ•‘ã€‘â€”â€” æ€¥ä¿ƒã€è¿ç»­çš„å¸ç®¡æ¶ŒåŠ¨
             currentSurgeTween = surgeRing.DOScale(1.15f, 0.2f)
                 .SetLoops(-1, LoopType.Yoyo)
                 .SetEase(Ease.InOutSine);
 
-            // °´Å¥Í¼±ê±ä°ëÍ¸Ã÷£¬°µÊ¾¡°°´¼üÕıÔÚÉúĞ§¡±
+            // æŒ‰é’®å›¾æ ‡å˜åŠé€æ˜ï¼Œæš—ç¤ºâ€œæŒ‰é”®æ­£åœ¨ç”Ÿæ•ˆâ€
             buttonIcon.GetComponent<Image>().DOFade(0.5f, 0.2f);
         }
         else
         {
-            // ¡¾×´Ì¬ B£ºÎŞÈË¾ÈÔ®¡¿¡ª¡ª ÖÜÆÚĞÔµÄÏĞÖÃĞÄÌø (ÌøÒ»ÏÂ -> Í£¶Ù -> ÔÙÌø)
+            // ã€çŠ¶æ€ Bï¼šæ— äººæ•‘æ´ã€‘â€”â€” å‘¨æœŸæ€§çš„é—²ç½®å¿ƒè·³ (è·³ä¸€ä¸‹ -> åœé¡¿ -> å†è·³)
             Sequence idleSeq = DOTween.Sequence();
-            idleSeq.Append(surgeRing.DOScale(1.1f, 0.15f).SetEase(Ease.OutQuad)) // ¿ìËÙ·Å´ó
-                   .Append(surgeRing.DOScale(1f, 0.15f).SetEase(Ease.InQuad))  // ¿ìËÙ»Øµ¯
-                   .AppendInterval(1.5f) // ºËĞÄ£ºÍ£¶Ù 1.5 Ãë
-                   .SetLoops(-1, LoopType.Restart); // ÎŞÏŞÑ­»·Õû¸öĞòÁĞ
+            idleSeq.Append(surgeRing.DOScale(1.1f, 0.15f).SetEase(Ease.OutQuad)) // å¿«é€Ÿæ”¾å¤§
+                   .Append(surgeRing.DOScale(1f, 0.15f).SetEase(Ease.InQuad))  // å¿«é€Ÿå›å¼¹
+                   .AppendInterval(1.5f) // æ ¸å¿ƒï¼šåœé¡¿ 1.5 ç§’
+                   .SetLoops(-1, LoopType.Restart); // æ— é™å¾ªç¯æ•´ä¸ªåºåˆ—
 
             currentSurgeTween = idleSeq;
 
-            // °´Å¥Í¼±ê»Ö¸´ÊµĞÄ£¬ÌáÊ¾Íæ¼Ò¡°¿ìÀ´°´ÎÒ¡±
+            // æŒ‰é’®å›¾æ ‡æ¢å¤å®å¿ƒï¼Œæç¤ºç©å®¶â€œå¿«æ¥æŒ‰æˆ‘â€
             buttonIcon.GetComponent<Image>().DOFade(1f, 0.2f);
         }
     }

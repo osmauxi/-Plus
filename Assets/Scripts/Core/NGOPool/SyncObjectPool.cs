@@ -90,7 +90,7 @@ public class SyncObjectPool : NetworkBehaviour
 
         var newPool = new ObjectPool<NetworkObject>(
             createFunc: () => Instantiate(netPrefab),
-            actionOnGet: (obj) => obj.gameObject.SetActive(true),
+            actionOnGet: (obj) => { },
             actionOnRelease: (obj) => obj.gameObject.SetActive(false),
             actionOnDestroy: (obj) => Destroy(obj.gameObject),
             defaultCapacity: iniAmount
@@ -100,6 +100,16 @@ public class SyncObjectPool : NetworkBehaviour
         NetworkManager.Singleton.PrefabHandler.AddHandler(netPrefab.gameObject, handler);
 
         pool.Add(id, newPool);
+
+        var prewarmList = new List<NetworkObject>();
+        for (int i = 0; i < iniAmount; i++)
+        {
+            prewarmList.Add(newPool.Get());
+        }
+        foreach (var obj in prewarmList)
+        {
+            newPool.Release(obj);
+        }
         Debug.Log($"[对象池] 成功动态注册外部管线对象: {id}");
     }
 
@@ -113,6 +123,7 @@ public class SyncObjectPool : NetworkBehaviour
             var obj = _pool.Get();
             obj.transform.position = pos;
             obj.transform.rotation = rot;
+            obj.gameObject.SetActive(true);
             obj.Spawn(true);
             return obj;
         }
@@ -160,6 +171,7 @@ public class PooledPrefabInstanceHandler : INetworkPrefabInstanceHandler
         var obj = _pool.Get();
         obj.transform.position = position;
         obj.transform.rotation = rotation;
+        obj.gameObject.SetActive(true);
         return obj;
     }
 

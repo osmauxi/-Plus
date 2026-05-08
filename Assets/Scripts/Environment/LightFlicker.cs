@@ -1,11 +1,11 @@
-using UnityEngine;
+锘縰sing UnityEngine;
 
 public class LightFlicker : MonoBehaviour
 {
     private Light torchLight;
-    public float baseIntensity = 2f;    // 基础亮度
-    public float flickerSpeed = 10f;    // 闪烁速度
-    public float flickerAmount = 0.5f;  // 闪烁幅度
+    public float baseIntensity = 2f;    // 鍩虹浜害
+    public float flickerSpeed = 10f;    // 闂儊閫熷害
+    public float flickerAmount = 0.5f;  // 闂儊骞呭害
 
     private void Awake()
     {
@@ -14,7 +14,7 @@ public class LightFlicker : MonoBehaviour
 
     private void Update()
     {
-        // 用柏林噪声生成平滑且随机的闪烁感
+        // 鐢ㄦ煆鏋楀櫔澹扮敓鎴愬钩婊戜笖闅忔満鐨勯棯鐑佹劅
         float noise = Mathf.PerlinNoise(Time.time * flickerSpeed, 0f);
         torchLight.intensity = baseIntensity + (noise * flickerAmount);
     }

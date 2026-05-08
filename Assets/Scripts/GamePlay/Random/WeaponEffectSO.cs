@@ -1,9 +1,9 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
-// ËùÓĞ»úÖÆÌØĞ§¶¼±ØĞë¼Ì³ĞÕâ¸öÀà
+// æ‰€æœ‰æœºåˆ¶ç‰¹æ•ˆéƒ½å¿…é¡»ç»§æ‰¿è¿™ä¸ªç±»
 public abstract class WeaponEffectSO : ScriptableObject, IWeaponEffect
 {
-    // Ìá¹©Ä¬ÈÏµÄ¿ÕÊµÏÖ£¬·µ»Ø true ±íÊ¾ÔÊĞíÕı³£¿ª»ğ
+    // æä¾›é»˜è®¤çš„ç©ºå®ç°ï¼Œè¿”å› true è¡¨ç¤ºå…è®¸æ­£å¸¸å¼€ç«
     public virtual bool OnBeforeFire(WeaponBase weapon, CharacterStatCollection stats) { return true; }
 
     public virtual void OnEquip(GameObject weaponObj, CharacterStatCollection stats) { }

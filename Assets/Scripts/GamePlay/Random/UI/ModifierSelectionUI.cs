@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using System;
@@ -7,11 +7,11 @@ public class ModifierSelectionUI : MonoBehaviour
 {
     public static ModifierSelectionUI Instance { get; private set; }
 
-    [Header("UI ÒıÓÃ")]
-    public GameObject rootPanel; // Õû¸öºÚÉ«°ëÍ¸Ã÷ÕÚÕÖ±³¾°
-    public TextMeshProUGUI titleText; // ¶¥²¿µÄ "³£¹æÎä×°Ïä" »ò "Òì±äºËĞÄÌáÈ¡"
+    [Header("UI å¼•ç”¨")]
+    public GameObject rootPanel; // æ•´ä¸ªé»‘è‰²åŠé€æ˜é®ç½©èƒŒæ™¯
+    public TextMeshProUGUI titleText; // é¡¶éƒ¨çš„ "å¸¸è§„æ­¦è£…ç®±" æˆ– "å¼‚å˜æ ¸å¿ƒæå–"
 
-    [Tooltip("°´Ë³ĞòÍÏÈë×ó¡¢ÖĞ¡¢ÓÒÈıÕÅ¿¨ÅÆ")]
+    [Tooltip("æŒ‰é¡ºåºæ‹–å…¥å·¦ã€ä¸­ã€å³ä¸‰å¼ å¡ç‰Œ")]
     public ModifierUICard[] uiCards;
 
     private void Awake()
@@ -19,40 +19,40 @@ public class ModifierSelectionUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // ÓÎÏ·¿ªÊ¼Ê±Ä¬ÈÏÒş²Ø
+        // æ¸¸æˆå¼€å§‹æ—¶é»˜è®¤éšè—
         rootPanel.SetActive(false);
     }
 
     /// <summary>
-    /// ºô³öÈıÑ¡Ò»Ãæ°å
+    /// å‘¼å‡ºä¸‰é€‰ä¸€é¢æ¿
     /// </summary>
     public void ShowPanel(List<ModifierDataSO> choices, Action<string> onCardSelected)
     {
         InputManager.Instance.ChangeState(InputState.UI);
-        // 1. ½âËøÊó±ê (ÒòÎªÄãÃÇÊÇÉä»÷ÓÎÏ·£¬Æ½Ê±Êó±ê¿ÉÄÜÊÇÒş²ØËø¶¨µÄ)
+        // 1. è§£é”é¼ æ ‡ (å› ä¸ºä½ ä»¬æ˜¯å°„å‡»æ¸¸æˆï¼Œå¹³æ—¶é¼ æ ‡å¯èƒ½æ˜¯éšè—é”å®šçš„)
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
         //titleText.text = title;
         rootPanel.SetActive(true);
         Debug.Log(choices.Count);
-        // 2. ±éÀú·ÖÅäÊı¾İ
+        // 2. éå†åˆ†é…æ•°æ®
         for (int i = 0; i < uiCards.Length; i++)
         {
             if (i < choices.Count)
             {
                 uiCards[i].gameObject.SetActive(true);
 
-                // ¸ø¿¨ÅÆÈûÊı¾İ£¬²¢¶¨Òåµã»÷ºóµÄ±Õ»·ĞĞÎª
+                // ç»™å¡ç‰Œå¡æ•°æ®ï¼Œå¹¶å®šä¹‰ç‚¹å‡»åçš„é—­ç¯è¡Œä¸º
                 uiCards[i].SetupCard(choices[i], (selectedId) =>
                 {
-                    ClosePanel(); // µãÍêÁ¢Âí¹Ø UI
-                    onCardSelected?.Invoke(selectedId); // ¸æËß PlayerModifierHandler Ñ¡ÁËÄÄ¸ö
+                    ClosePanel(); // ç‚¹å®Œç«‹é©¬å…³ UI
+                    onCardSelected?.Invoke(selectedId); // å‘Šè¯‰ PlayerModifierHandler é€‰äº†å“ªä¸ª
                 });
             }
             else
             {
-                // Èç¹û³é³öÀ´µÄ´ÊÌõ²»×ã 3 ¸ö£¨¿¨³Ø¿ì¿ÕÁË£©£¬¾ÍÒş²Ø¶àÓàµÄ¿¨ÅÆ
+                // å¦‚æœæŠ½å‡ºæ¥çš„è¯æ¡ä¸è¶³ 3 ä¸ªï¼ˆå¡æ± å¿«ç©ºäº†ï¼‰ï¼Œå°±éšè—å¤šä½™çš„å¡ç‰Œ
                 uiCards[i].gameObject.SetActive(false);
             }
         }
@@ -62,7 +62,7 @@ public class ModifierSelectionUI : MonoBehaviour
     {
         rootPanel.SetActive(false);
         InputManager.Instance.ChangeState(InputState.Gameplay);
-        // »Ö¸´Êó±êËø¶¨ (Çë¸ù¾İÄãÃÇÏîÄ¿µÄÊµ¼ÊÊäÈëÏµÍ³Âß¼­½øĞĞµ÷Õû)
+        // æ¢å¤é¼ æ ‡é”å®š (è¯·æ ¹æ®ä½ ä»¬é¡¹ç›®çš„å®é™…è¾“å…¥ç³»ç»Ÿé€»è¾‘è¿›è¡Œè°ƒæ•´)
         // Cursor.visible = false;
         // Cursor.lockState = CursorLockMode.Locked;
     }

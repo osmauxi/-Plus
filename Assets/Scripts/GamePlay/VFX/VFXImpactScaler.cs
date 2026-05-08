@@ -1,16 +1,16 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 [RequireComponent(typeof(ParticleSystem))]
 public class VFXImpactScaler : MonoBehaviour
 {
-    [Header("±íÏÖ¿äÕÅÏµÊı (µ÷½ÚË¬¸Ğ)")]
-    [Tooltip("Èç¹ûÄã¾õµÃÈ¨Öµ´øÀ´µÄ±ä»¯²»¹»´Ì¼¤£¬°ÑÕâ¸öÀ­´ó£¡±ÈÈç 1.5 »ò 2.0")]
+    [Header("è¡¨ç°å¤¸å¼ ç³»æ•° (è°ƒèŠ‚çˆ½æ„Ÿ)")]
+    [Tooltip("å¦‚æœä½ è§‰å¾—æƒå€¼å¸¦æ¥çš„å˜åŒ–ä¸å¤Ÿåˆºæ¿€ï¼ŒæŠŠè¿™ä¸ªæ‹‰å¤§ï¼æ¯”å¦‚ 1.5 æˆ– 2.0")]
     public float visualMultiplier = 1.0f;
 
     private ParticleSystem ps;
     private ParticleSystem.EmissionModule emission;
 
-    // »º´æÔ­Ê¼Êı¾İ
+    // ç¼“å­˜åŸå§‹æ•°æ®
     private ParticleSystem.Burst[] originalBursts;
     private Vector3 originalScale;
 
@@ -19,10 +19,10 @@ public class VFXImpactScaler : MonoBehaviour
         ps = GetComponent<ParticleSystem>();
         emission = ps.emission;
 
-        // »º´æÔ¤ÖÆÌåµÄÔ­Ê¼ Transform ´óĞ¡ (ÓÃÀ´¿ØÖÆÕûÌå·¶Î§ºÍËÙ¶È)
+        // ç¼“å­˜é¢„åˆ¶ä½“çš„åŸå§‹ Transform å¤§å° (ç”¨æ¥æ§åˆ¶æ•´ä½“èŒƒå›´å’Œé€Ÿåº¦)
         originalScale = transform.localScale;
 
-        // »º´æ Burst
+        // ç¼“å­˜ Burst
         originalBursts = new ParticleSystem.Burst[emission.burstCount];
         emission.GetBursts(originalBursts);
     }
@@ -31,11 +31,11 @@ public class VFXImpactScaler : MonoBehaviour
     {
         float finalWeight = baseWeight * visualMultiplier;
 
-        // 1. ¡¾ºËĞÄ»Ö¸´¡¿£ºĞŞ¸Ä localScale¡£
-        // ÒòÎªÄãµÄÁ£×ÓÉèÖÃÁË Local Ä£Ê½£¬ÕâĞĞ´úÂë»áË²¼ä°ÑÅçÉä·¶Î§(Shape)¡¢³õËÙ¶È(Speed)ºÍ´óĞ¡(Size)È«²¿°´±ÈÀı³Å¿ª£¡
+        // 1. ã€æ ¸å¿ƒæ¢å¤ã€‘ï¼šä¿®æ”¹ localScaleã€‚
+        // å› ä¸ºä½ çš„ç²’å­è®¾ç½®äº† Local æ¨¡å¼ï¼Œè¿™è¡Œä»£ç ä¼šç¬é—´æŠŠå–·å°„èŒƒå›´(Shape)ã€åˆé€Ÿåº¦(Speed)å’Œå¤§å°(Size)å…¨éƒ¨æŒ‰æ¯”ä¾‹æ’‘å¼€ï¼
         transform.localScale = originalScale * finalWeight;
 
-        // 2. ¶¯Ì¬ĞŞ¸Ä Burst Á£×Ó±¬³öÊıÁ¿ (ÑªµÎÊıÁ¿±äµÃ¼«¶à)
+        // 2. åŠ¨æ€ä¿®æ”¹ Burst ç²’å­çˆ†å‡ºæ•°é‡ (è¡€æ»´æ•°é‡å˜å¾—æå¤š)
         if (originalBursts.Length > 0)
         {
             ParticleSystem.Burst[] modifiedBursts = new ParticleSystem.Burst[originalBursts.Length];
@@ -43,7 +43,7 @@ public class VFXImpactScaler : MonoBehaviour
             {
                 modifiedBursts[i] = originalBursts[i];
 
-                // ÈÃÁ£×ÓÊıÁ¿Ò²ËæÖ®¿ñÔö (¼ÓÉÏ Mathf.Min ·ÀÖ¹µ¥´Î±¬³ö³¬¹ı 500 ¸öµ¼ÖÂ¿¨¶Ù)
+                // è®©ç²’å­æ•°é‡ä¹Ÿéšä¹‹ç‹‚å¢ (åŠ ä¸Š Mathf.Min é˜²æ­¢å•æ¬¡çˆ†å‡ºè¶…è¿‡ 500 ä¸ªå¯¼è‡´å¡é¡¿)
                 short newCount = (short)Mathf.Clamp(originalBursts[i].count.constant * finalWeight, 1, 500);
                 modifiedBursts[i].count = new ParticleSystem.MinMaxCurve(newCount);
             }

@@ -1,25 +1,25 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 public class ModifierPoolManager : MonoBehaviour
 {
     public static ModifierPoolManager Instance;
 
-    [Header("¿¨³Ø×ÜÀÀ")]
-    [Tooltip("³£¹æÇ¹ĞµÔöÇ¿ÓëÉú´æ´ÊÌõ")]
+    [Header("å¡æ± æ€»è§ˆ")]
+    [Tooltip("å¸¸è§„æªæ¢°å¢å¼ºä¸ç”Ÿå­˜è¯æ¡")]
     public List<ModifierDataSO> allModifiers;
 
-    [Tooltip("Òì±äÓë»úÖÆÖÊ±ä´ÊÌõ")]
-    public List<ModifierDataSO> mutationModifiers; // ĞÂÔö£º×¨ÊôÒì±ä³Ø
+    [Tooltip("å¼‚å˜ä¸æœºåˆ¶è´¨å˜è¯æ¡")]
+    public List<ModifierDataSO> mutationModifiers; // æ–°å¢ï¼šä¸“å±å¼‚å˜æ± 
 
-    // ¸ßËÙ¼ìË÷×Öµä (ÓÃÓÚ¿Í»§¶ËÊÕµ½ ID ºó¿ìËÙÕÒµ½¶ÔÓ¦ SO)
+    // é«˜é€Ÿæ£€ç´¢å­—å…¸ (ç”¨äºå®¢æˆ·ç«¯æ”¶åˆ° ID åå¿«é€Ÿæ‰¾åˆ°å¯¹åº” SO)
     private Dictionary<string, ModifierDataSO> modifierDict = new Dictionary<string, ModifierDataSO>();
     private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // ³õÊ¼»¯×Öµä£¬°Ñ³£¹æ³ØºÍÒì±ä³Ø¶¼×°½ø×Öµä£¬·½±ãÍ¨¹ıÈ«¾Ö ID Í³Ò»¼ìË÷
+        // åˆå§‹åŒ–å­—å…¸ï¼ŒæŠŠå¸¸è§„æ± å’Œå¼‚å˜æ± éƒ½è£…è¿›å­—å…¸ï¼Œæ–¹ä¾¿é€šè¿‡å…¨å±€ ID ç»Ÿä¸€æ£€ç´¢
         RegisterModifiersToDict(allModifiers);
         RegisterModifiersToDict(mutationModifiers);
     }
@@ -30,7 +30,7 @@ public class ModifierPoolManager : MonoBehaviour
         {
             if (modifierDict.ContainsKey(mod.modifierId))
             {
-                Debug.LogError($"[´ÊÌõÏµÍ³] ·¢ÏÖÖØ¸´µÄ´ÊÌõ ID: {mod.modifierId}");
+                Debug.LogError($"[è¯æ¡ç³»ç»Ÿ] å‘ç°é‡å¤çš„è¯æ¡ ID: {mod.modifierId}");
                 continue;
             }
             modifierDict.Add(mod.modifierId, mod);
@@ -44,34 +44,34 @@ public class ModifierPoolManager : MonoBehaviour
     }
 
     // ======================================================================
-    // ´øÈ¨ÖØ/»¥³âµÄ³£¹æÔöÇ¿´ÊÌõ Roll (ÊÊÓÃÓÚÆÕÍ¨Õ½¶··¿½±Àø)
+    // å¸¦æƒé‡/äº’æ–¥çš„å¸¸è§„å¢å¼ºè¯æ¡ Roll (é€‚ç”¨äºæ™®é€šæˆ˜æ–—æˆ¿å¥–åŠ±)
     // ======================================================================
     public List<ModifierDataSO> RollStandardModifiersWithWeight(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
     {
-        // ¿ªÆô³åÍ»¼ì²â£¬¿ªÆôÁ÷ÅÉÈ¨ÖØ¼Ó³É
+        // å¼€å¯å†²çªæ£€æµ‹ï¼Œå¼€å¯æµæ´¾æƒé‡åŠ æˆ
         return GenerateCandidatesAndRoll(amount, allModifiers, stackCounts, playerTags, checkConflicts: true, applyWeightBonus: true);
     }
 
     // ======================================================================
-    // ´¿Ëæ»ú/ÎŞÊÓ»¥³âµÄ³£¹æÔöÇ¿´ÊÌõ Roll (ÊÊÓÃÓÚÌØÊâ/Ï×¼À·¿¼ä£¬´òÔìÎŞµĞ Combo)
+    // çº¯éšæœº/æ— è§†äº’æ–¥çš„å¸¸è§„å¢å¼ºè¯æ¡ Roll (é€‚ç”¨äºç‰¹æ®Š/çŒ®ç¥­æˆ¿é—´ï¼Œæ‰“é€ æ— æ•Œ Combo)
     // ======================================================================
     public List<ModifierDataSO> RollStandardModifiersChaos(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
     {
-        // ¹Ø±Õ³åÍ»¼ì²â£¬¹Ø±ÕÈ¨ÖØ¼Ó³É (´¿Ëæ»ú)¡£µ«×¢Òâ£¬MaxStacks µÄµ×ÏßÏŞÖÆÒÀÈ»ÉúĞ§£¬·ÀÖ¹ÓÎÏ·±ÀÀ££¡
+        // å…³é—­å†²çªæ£€æµ‹ï¼Œå…³é—­æƒé‡åŠ æˆ (çº¯éšæœº)ã€‚ä½†æ³¨æ„ï¼ŒMaxStacks çš„åº•çº¿é™åˆ¶ä¾ç„¶ç”Ÿæ•ˆï¼Œé˜²æ­¢æ¸¸æˆå´©æºƒï¼
         return GenerateCandidatesAndRoll(amount, allModifiers, stackCounts, playerTags, checkConflicts: false, applyWeightBonus: false);
     }
 
     // ======================================================================
-    // ´øÑÏ¸ñ»¥³âÓëÈ¨ÖØµÄÒì±ä´ÊÌõ Roll (ÊÊÓÃÓÚ Boss ·¿ / Òì±ä¾«Ó¢·¿)
+    // å¸¦ä¸¥æ ¼äº’æ–¥ä¸æƒé‡çš„å¼‚å˜è¯æ¡ Roll (é€‚ç”¨äº Boss æˆ¿ / å¼‚å˜ç²¾è‹±æˆ¿)
     // ======================================================================
     public List<ModifierDataSO> RollMutationModifiers(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
     {
-        // Òì±ä´ÊÌõ¼«¶ÈÎ£ÏÕ£¬±ØĞëÑÏ¸ñ¿ªÆô³åÍ»¼ì²â£¬²¢Ó¦ÓÃÁ÷ÅÉÈ¨ÖØ
+        // å¼‚å˜è¯æ¡æåº¦å±é™©ï¼Œå¿…é¡»ä¸¥æ ¼å¼€å¯å†²çªæ£€æµ‹ï¼Œå¹¶åº”ç”¨æµæ´¾æƒé‡
         return GenerateCandidatesAndRoll(amount, mutationModifiers, stackCounts, playerTags, checkConflicts: true, applyWeightBonus: true);
     }
 
     // ======================================================================
-    // ÄÚ²¿Í¨ÓÃÂ©¶·ÓëÂÖÅÌ¶ÄËã·¨ºËĞÄ
+    // å†…éƒ¨é€šç”¨æ¼æ–—ä¸è½®ç›˜èµŒç®—æ³•æ ¸å¿ƒ
     // ======================================================================
     private List<ModifierDataSO> GenerateCandidatesAndRoll(
           int amount,
@@ -85,16 +85,16 @@ public class ModifierPoolManager : MonoBehaviour
         List<float> weights = new List<float>();
         float totalWeight = 0f;
 
-        // 1. ºòÑ¡³Ø¹ıÂË (Â©¶·»úÖÆ)
+        // 1. å€™é€‰æ± è¿‡æ»¤ (æ¼æ–—æœºåˆ¶)
         foreach (var mod in sourcePool)
         {
-            // [¾ø¶Ô¹ıÂË]£ºÊÇ·ñÒÑ´ïµ½×î´ó²ãÊı£¿
+            // [ç»å¯¹è¿‡æ»¤]ï¼šæ˜¯å¦å·²è¾¾åˆ°æœ€å¤§å±‚æ•°ï¼Ÿ
             if (stackCounts.TryGetValue(mod.modifierId, out int currentStacks))
             {
                 if (currentStacks >= mod.maxStacks) continue;
             }
 
-            // [¿ÉÑ¡¹ıÂË]£º»¥³â±êÇ©¼ì²â
+            // [å¯é€‰è¿‡æ»¤]ï¼šäº’æ–¥æ ‡ç­¾æ£€æµ‹
             if (checkConflicts)
             {
                 bool isConflict = false;
@@ -109,10 +109,10 @@ public class ModifierPoolManager : MonoBehaviour
                 if (isConflict) continue;
             }
 
-            // 2. ¼ÆËãÈ¨ÖØ
-            float weight = 100f; // »ù´¡È¨ÖØ
+            // 2. è®¡ç®—æƒé‡
+            float weight = 100f; // åŸºç¡€æƒé‡
 
-            // [¿ÉÑ¡¼Ó³É]£ºÁ÷ÅÉÇãÏò¼ì²â
+            // [å¯é€‰åŠ æˆ]ï¼šæµæ´¾å€¾å‘æ£€æµ‹
             if (applyWeightBonus)
             {
                 foreach (var tag in mod.tags)
@@ -129,7 +129,7 @@ public class ModifierPoolManager : MonoBehaviour
             totalWeight += weight;
         } 
 
-        // 3. ÂÖÅÌ¶Ä³é¿¨ (´ËÊ±ËùÓĞµÄºòÑ¡Õß¶¼ÒÑ¾­×¼±¸Íê±Ï)
+        // 3. è½®ç›˜èµŒæŠ½å¡ (æ­¤æ—¶æ‰€æœ‰çš„å€™é€‰è€…éƒ½å·²ç»å‡†å¤‡å®Œæ¯•)
         List<ModifierDataSO> results = new List<ModifierDataSO>();
         int rollCount = Mathf.Min(amount, candidates.Count);
 
@@ -145,12 +145,12 @@ public class ModifierPoolManager : MonoBehaviour
                 {
                     results.Add(candidates[j]);
 
-                    // ³éÖĞºó£¬ĞèÒª½«Æä´ÓºòÑ¡³ØÖĞÒÆ³ı£¬±ÜÃâÖØ¸´³éÈ¡
+                    // æŠ½ä¸­åï¼Œéœ€è¦å°†å…¶ä»å€™é€‰æ± ä¸­ç§»é™¤ï¼Œé¿å…é‡å¤æŠ½å–
                     totalWeight -= weights[j];
                     candidates.RemoveAt(j);
                     weights.RemoveAt(j);
 
-                    break; // Ìø³öÄÚ²ã j Ñ­»·£¬½øĞĞÏÂÒ»´Î³éÈ¡ (ÏÂÒ»´Î i)
+                    break; // è·³å‡ºå†…å±‚ j å¾ªç¯ï¼Œè¿›è¡Œä¸‹ä¸€æ¬¡æŠ½å– (ä¸‹ä¸€æ¬¡ i)
                 }
             }
         }

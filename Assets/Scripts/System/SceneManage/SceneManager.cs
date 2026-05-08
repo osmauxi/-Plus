@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -68,6 +69,46 @@ public class SceneManager : MonoBehaviour// 保留SceneManagerGlobal作为全局
             rb.interpolation = RigidbodyInterpolation.Interpolate;
         }
     }
+
+    public void TransitionToNextLayer()
+    {
+        if (!NetworkManager.Singleton.IsServer) return;
+
+        // 1. 切入过场状态，冻结游戏逻辑
+        GameStateController.instance.ChangeState(GameState.MapExchanging);
+
+        // 2. 层数增加 (GameDirector 会自动读取到这个新层数)
+        GameStateController.instance.CurrentLevel.Value++;
+
+        // 3. 强行回收旧地图里所有的门、房间预制体
+        RoomManager.Instance.ClearAllLevelVisuals();
+
+        // 4. 开始极其优雅的 卸载 -> 重新加载 流程
+        AsynchronousLoader.Instance.UnLoadScene("GameScene", () =>
+        {
+            // 旧的 GameScene 连同里面的对象池、尸体、子弹已经全部灰飞烟灭
+            AsynchronousLoader.Instance.LoadScene("GameScene", LoadSceneMode.Additive, () =>
+            {
+                // 等待一帧，确保新场景的网络对象完成初始化
+                StartCoroutine(RepositionAndStartNextLayer());
+            });
+        });
+    }
+
+    private IEnumerator RepositionAndStartNextLayer()
+    {
+        yield return null;
+
+        foreach (var player in PlayerManager.Instance.AllPlayers)
+        {
+            Vector3 newPos = new Vector3(UnityEngine.Random.Range(-2f, 2f), 3f, UnityEngine.Random.Range(-2f, 2f));
+            player.TeleportClientRpc(newPos);
+        }
+
+        // 6. 指挥发牌员和地图生成器开工！
+        GameStateController.instance.ChangeState(GameState.MapGenerating);
+    }
+
     public void LoadPanelOn()
     {
         AsynchronousLoader.Instance.loadingPanel.SetActive(true);

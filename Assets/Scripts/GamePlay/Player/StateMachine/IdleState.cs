@@ -1,4 +1,4 @@
-public class IdleState : State
+ï»¿public class IdleState : State
 {
     public IdleState(StateMachine stateMachine, string animBoolName, PlayerController _player) : base(stateMachine, animBoolName, _player) { }
 
@@ -8,7 +8,7 @@ public class IdleState : State
         player.CollectInput();
         player.HandleAimingCalculation();
 
-        // ¼ì²âµ½ÊäÈë£¬ÇëÇóÇĞÈëÒÆ¶¯×´Ì¬
+        // æ£€æµ‹åˆ°è¾“å…¥ï¼Œè¯·æ±‚åˆ‡å…¥ç§»åŠ¨çŠ¶æ€
         if (player.CurrentMoveInput.sqrMagnitude > 0.01f)
         {
             player.RequestStateChange(PlayerStateType.Moving);
@@ -18,7 +18,7 @@ public class IdleState : State
     public override void FixedUpdate()
     {
         base.FixedUpdate();
-        // Idle Ò²Òª±£³ÖÒÆ¶¯ºÍĞı×ªµÄ¼ÆËã£¬±£Ö¤É²³µ»¬ĞĞÊÖ¸Ğ²»ÖĞ¶Ï
+        // Idle ä¹Ÿè¦ä¿æŒç§»åŠ¨å’Œæ—‹è½¬çš„è®¡ç®—ï¼Œä¿è¯åˆ¹è½¦æ»‘è¡Œæ‰‹æ„Ÿä¸ä¸­æ–­
         player.HandleMovement();
         player.ApplyRotation();
     }

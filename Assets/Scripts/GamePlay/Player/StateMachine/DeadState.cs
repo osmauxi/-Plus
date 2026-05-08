@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class DeadState : State
 {
@@ -16,7 +16,7 @@ public class DeadState : State
             player.reviveUI.ShowUI();
         }
 
-        // Ö»ÓĞËÀÕß×Ô¼º¸ºÔğÏò·şÎñÆ÷»ã±¨ÍÅÃğ
+        // åªæœ‰æ­»è€…è‡ªå·±è´Ÿè´£å‘æœåŠ¡å™¨æ±‡æŠ¥å›¢ç­
         if (player.IsOwner)
         {
             PlayerManager.Instance.CheckTeamWipeServerRpc();

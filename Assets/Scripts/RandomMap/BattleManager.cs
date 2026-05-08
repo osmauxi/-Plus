@@ -1,21 +1,21 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
 /// <summary>
-/// È«¾ÖÕ½¶·Í³³ïÖĞĞÄ (½öÔÚ Server ¶ËÔËĞĞ)
-/// Ö°Ôğ£º½Ó¹Üµ±Ç°¼¤»î·¿¼äµÄÕ½¶·Âß¼­¡¢²¨´Î¿ØÖÆ¡¢¹ÖÎï¼ÆÊı
+/// å…¨å±€æˆ˜æ–—ç»Ÿç­¹ä¸­å¿ƒ (ä»…åœ¨ Server ç«¯è¿è¡Œ)
+/// èŒè´£ï¼šæ¥ç®¡å½“å‰æ¿€æ´»æˆ¿é—´çš„æˆ˜æ–—é€»è¾‘ã€æ³¢æ¬¡æ§åˆ¶ã€æ€ªç‰©è®¡æ•°
 /// </summary>
 public class BattleManager : NetworkBehaviour
 {
     public static BattleManager Instance { get; private set; }
 
-    [Header("Õ½¶·×´Ì¬")]
+    [Header("æˆ˜æ–—çŠ¶æ€")]
     public bool isBattleActive = false;
     public int aliveMonsterCount = 0;
 
-    // ÄÚ²¿»º´æ
+    // å†…éƒ¨ç¼“å­˜
     private Vector2Int currentBattleRoomGrid;
     private List<string> pendingMonsters = new List<string>();
     private Transform[] currentSpawnNodes;
@@ -27,7 +27,7 @@ public class BattleManager : NetworkBehaviour
     }
 
     /// <summary>
-    /// ¿ªÆôÒ»³¡ĞÂÕ½¶· (ÓÉ RoomManager ´¥·¢)
+    /// å¼€å¯ä¸€åœºæ–°æˆ˜æ–— (ç”± RoomManager è§¦å‘)
     /// </summary>
     public void StartRoomBattle(Vector2Int roomGrid, RoomNodeData roomData)
     {
@@ -37,32 +37,32 @@ public class BattleManager : NetworkBehaviour
         float difficultyFactor = GameDirector.Instance.GetRoomDifficultyFactor(roomType, out isMutated);
         if (isMutated)
         {
-            Debug.LogWarning($"<color=red>[¾¯¸æ] ·¿¼ä {roomGrid} ·¢ÉúÒì±ä£¡ÄÑ¶È±¶ÂÊ£º{difficultyFactor}</color>");
-            // TODO: ÕâÀï¿ÉÒÔ´¥·¢Ò»¸ö ClientRpc ²¥·ÅÒì±äÒôĞ§»ò¸Ä±ä·¿¼äµÆ¹â
+            Debug.LogWarning($"<color=red>[è­¦å‘Š] æˆ¿é—´ {roomGrid} å‘ç”Ÿå¼‚å˜ï¼éš¾åº¦å€ç‡ï¼š{difficultyFactor}</color>");
+            // TODO: è¿™é‡Œå¯ä»¥è§¦å‘ä¸€ä¸ª ClientRpc æ’­æ”¾å¼‚å˜éŸ³æ•ˆæˆ–æ”¹å˜æˆ¿é—´ç¯å…‰
         }
         currentBattleRoomGrid = roomGrid;
         currentSpawnNodes = roomData.SpawnNodes;
         isBattleActive = true;
         aliveMonsterCount = 0;
 
-        // 1. Ïò·¢ÅÆÔ±ÉêÇë±øÁ¦£¡
+        // 1. å‘å‘ç‰Œå‘˜ç”³è¯·å…µåŠ›ï¼
         pendingMonsters = GameDirector.Instance.AllocateMonstersForRoom(difficultyFactor);
 
-        // 2. ¿ªÊ¼²¨´ÎÉú³ÉÁ÷³Ì
+        // 2. å¼€å§‹æ³¢æ¬¡ç”Ÿæˆæµç¨‹
         StartCoroutine(WaveSpawnRoutine());
     }
 
     /// <summary>
-    /// ²¨´ÎÉú³ÉĞ­³Ì£º²»Òª°Ñ¹ÖÒ»´ÎĞÔÈ«ÍÂ³öÀ´
+    /// æ³¢æ¬¡ç”Ÿæˆåç¨‹ï¼šä¸è¦æŠŠæ€ªä¸€æ¬¡æ€§å…¨åå‡ºæ¥
     /// </summary>
     private IEnumerator WaveSpawnRoutine()
     {
-        // Áô¸øÍæ¼Ò 2 ÃëÖÓµÄ½øÃÅ×¼±¸Ê±¼ä
+        // ç•™ç»™ç©å®¶ 2 ç§’é’Ÿçš„è¿›é—¨å‡†å¤‡æ—¶é—´
         yield return new WaitForSeconds(2.0f);
 
         while (pendingMonsters.Count > 0)
         {
-            // ¾ö¶¨ÕâÒ»²¨Ë¢¶àÉÙÖ» (±ÈÈç×î¶àÍ¬ÆÁ 10 Ö»£¬»òÕß°´Ê£ÓàÊıÁ¿µÄÒ»°ëË¢)
+            // å†³å®šè¿™ä¸€æ³¢åˆ·å¤šå°‘åª (æ¯”å¦‚æœ€å¤šåŒå± 10 åªï¼Œæˆ–è€…æŒ‰å‰©ä½™æ•°é‡çš„ä¸€åŠåˆ·)
             int spawnCountThisWave = Mathf.Min(pendingMonsters.Count, 8);
 
             for (int i = 0; i < spawnCountThisWave; i++)
@@ -70,88 +70,91 @@ public class BattleManager : NetworkBehaviour
                 string monsterPoolId = pendingMonsters[0];
                 pendingMonsters.RemoveAt(0);
 
-                // Ëæ»úÕÒÒ»¸öÉú³Éµã
+                // éšæœºæ‰¾ä¸€ä¸ªç”Ÿæˆç‚¹
                 Transform spawnPoint = currentSpawnNodes[Random.Range(0, currentSpawnNodes.Length)];
 
-                // ´Ó¶ÔÏó³ØÉú³É£¬²¢Í¬²½µ½ËùÓĞ¿Í»§¶Ë
+                // ä»å¯¹è±¡æ± ç”Ÿæˆï¼Œå¹¶åŒæ­¥åˆ°æ‰€æœ‰å®¢æˆ·ç«¯
                 NetworkObject monsterObj = SyncObjectPool.instance.GetT(monsterPoolId, spawnPoint.position,Quaternion.identity);
-                // ÖØÖÃ×´Ì¬Óë×¢ÈëÄÑ¶È
+                // é‡ç½®çŠ¶æ€ä¸æ³¨å…¥éš¾åº¦
                 MonsterEntity monsterBase = monsterObj.GetComponent<MonsterEntity>();
                 MonsterDataSO dataSO = GameDirector.Instance.monsterCatalog.Find(x => x.poolId == monsterPoolId);
                 monsterBase.InitializeEntity(dataSO);
 
                 monsterBase.ResetEntity();
                 monsterBase.SetupDifficulty(GameDirector.Instance.GetCurrentDifficultyMultiplier());
-                monsterBase.GetComponent<MonsterBrain>().enabled = true; // ¼¤»î AI
+                monsterBase.GetComponent<MonsterBrain>().enabled = true; // æ¿€æ´» AI
 
-                // ¼àÌıÕâÖ»¹ÖÎïµÄËÀÍö
+                // ç›‘å¬è¿™åªæ€ªç‰©çš„æ­»äº¡
                 Health monsterHealth = monsterObj.GetComponent<Health>();
                 monsterHealth.OnDied -= HandleMonsterDied;
                 monsterHealth.OnDied += HandleMonsterDied;
 
                 aliveMonsterCount++;
 
-                // Ã¿Ò»Ö»¹ÖÉú³É¼ä¸ô 0.2 Ãë£¬·ÀÖ¹Ë²¼ä¿¨¶Ù£¬Ò²¸üÓĞ¡°½Óõà¶øÖÁ¡±µÄÊÓ¾õĞ§¹û
+                // æ¯ä¸€åªæ€ªç”Ÿæˆé—´éš” 0.2 ç§’ï¼Œé˜²æ­¢ç¬é—´å¡é¡¿ï¼Œä¹Ÿæ›´æœ‰â€œæ¥è¸µè€Œè‡³â€çš„è§†è§‰æ•ˆæœ
                 yield return new WaitForSeconds(0.2f);
             }
 
-            // µÈ´ıÕâÒ»²¨µÄ¹ÖÎïËÀµÃ²î²»¶àÁË£¨±ÈÈç³¡ÉÏÉÙÓÚ 3 Ö»£©£¬ÔÙË¢ÏÂÒ»²¨
+            Debug.Log(pendingMonsters.Count);
+            // ç­‰å¾…è¿™ä¸€æ³¢çš„æ€ªç‰©æ­»å¾—å·®ä¸å¤šäº†ï¼ˆæ¯”å¦‚åœºä¸Šå°‘äº 3 åªï¼‰ï¼Œå†åˆ·ä¸‹ä¸€æ³¢
             yield return new WaitUntil(() => aliveMonsterCount <= 3);
-            yield return new WaitForSeconds(1.5f); // ²¨´ÎÖ®¼äµÄ´­Ï¢Ê±¼ä
+            yield return new WaitForSeconds(1.5f); // æ³¢æ¬¡ä¹‹é—´çš„å–˜æ¯æ—¶é—´
         }
 
-        // ËùÓĞ²¨´Î¶¼Ë¢ÍêÁË£¬µÈ´ı³¡ÉÏ×îºó¼¸Ö»¹ÖËÀ¹â
+        // æ‰€æœ‰æ³¢æ¬¡éƒ½åˆ·å®Œäº†ï¼Œç­‰å¾…åœºä¸Šæœ€åå‡ åªæ€ªæ­»å…‰
         yield return new WaitUntil(() => aliveMonsterCount <= 0);
 
         // ==========================================
-        // Õ½¶·Ê¤Àû£¡½áËã¹ÜÏß
+        // æˆ˜æ–—èƒœåˆ©ï¼ç»“ç®—ç®¡çº¿
         // ==========================================
         isBattleActive = false;
-        RoomManager.Instance.NotifyRoomCleared(); // Í¨Öª¿ªÃÅ
+        RoomManager.Instance.NotifyRoomCleared(); // é€šçŸ¥å¼€é—¨
 
         SpawnRoomRewards();
-        Debug.Log($"[BattleManager] ·¿¼ä {currentBattleRoomGrid} Õ½¶·½áÊø£¬ÒÑÍ¨¹Ø£¡");
+        Debug.Log($"[BattleManager] æˆ¿é—´ {currentBattleRoomGrid} æˆ˜æ–—ç»“æŸï¼Œå·²é€šå…³ï¼");
     }
     private void SpawnRoomRewards()
     {
-        if (!IsServer) return; // Éú³ÉÂß¼­Ö»ÔÚ Server Ö´ĞĞ
+        if (!IsServer) return; // ç”Ÿæˆé€»è¾‘åªåœ¨ Server æ‰§è¡Œ
 
-        // 1. ÄÃµ½µ±Ç°·¿¼äµÄÊı¾İ
+        // 1. æ‹¿åˆ°å½“å‰æˆ¿é—´çš„æ•°æ®
         int roomType = RoomManager.Instance.AllRoomsData[currentBattleRoomGrid].RoomType;
 
-        // 2. ÕÒµ½µ±Ç°·¿¼äÔ¤ÁôµÄÕ½ÀûÆ·Éú³Éµã (ÎÒÃÇÔÚ RoomNodeData ÀïÔ¤ÁôÁË TreasurePos Êı×é)
+        // 2. æ‰¾åˆ°å½“å‰æˆ¿é—´é¢„ç•™çš„æˆ˜åˆ©å“ç”Ÿæˆç‚¹ (æˆ‘ä»¬åœ¨ RoomNodeData é‡Œé¢„ç•™äº† TreasurePos æ•°ç»„)
         if (RoomManager.Instance.SpawnedRooms.TryGetValue(currentBattleRoomGrid, out RoomNodeData nodeData))
         {
             if (nodeData.ChestPos.Length > 0)
             {
-                // Ä¬ÈÏÄÃµÚÒ»¸öµãÉú³É
+                // é»˜è®¤æ‹¿ç¬¬ä¸€ä¸ªç‚¹ç”Ÿæˆ
                 Transform spawnPoint = nodeData.ChestPos[0];
 
-                // 3. ¾ö¶¨Éú³ÉÄÄÖÖÏä×Ó (¸ù¾İÒì±ä×´Ì¬ºÍ·¿¼äÀàĞÍ)
+                // 3. å†³å®šç”Ÿæˆå“ªç§ç®±å­ (æ ¹æ®å¼‚å˜çŠ¶æ€å’Œæˆ¿é—´ç±»å‹)
                 bool isMutated;
                 GameDirector.Instance.GetRoomDifficultyFactor(roomType, out isMutated);
 
-                string chestPrefabId = "Chest_Standard"; // ÄãµÄÍ¬²½¶ÔÏó³ØÀï×¢²áµÄÆÕÍ¨±¦ÏäID
+                string chestPrefabId = "Chest_Standard"; // ä½ çš„åŒæ­¥å¯¹è±¡æ± é‡Œæ³¨å†Œçš„æ™®é€šå®ç®±ID
                 TreasureChest.ChestType expectedType = TreasureChest.ChestType.Standard;
 
-                // Èç¹ûÊÇ Boss ·¿»òÒì±ä·¿£¬¸øÒì±ä±¦Ïä
+                // å¦‚æœæ˜¯ Boss æˆ¿æˆ–å¼‚å˜æˆ¿ï¼Œç»™å¼‚å˜å®ç®±
                 if (roomType == -2 || isMutated)
                 {
-                    //chestPrefabId = "Chest_Mutation"; // Òì±ä±¦ÏäÔ¤ÖÆÌåID
+                    //chestPrefabId = "Chest_Mutation"; // å¼‚å˜å®ç®±é¢„åˆ¶ä½“ID
                     expectedType = TreasureChest.ChestType.Mutation;
+                    Transform portalNode = nodeData.NextLevelPos[0];
+                    SyncObjectPool.instance.GetT("LevelPortal", portalNode.position, Quaternion.identity);
                 }
 
-                // Èç¹ûÊÇÌØÊâ·¿ (±ÈÈç¼ÀÌ³·¿)
+                // å¦‚æœæ˜¯ç‰¹æ®Šæˆ¿ (æ¯”å¦‚ç¥­å›æˆ¿)
                 if (roomType == 3)
                 {
-                    //chestPrefabId = "Altar_Chaos"; // ÏÊÑª¼ÀÌ³Ô¤ÖÆÌåID
+                    //chestPrefabId = "Altar_Chaos"; // é²œè¡€ç¥­å›é¢„åˆ¶ä½“ID
                     expectedType = TreasureChest.ChestType.ChaosAltar;
                 }
 
-                // 4. ´ÓÄãµÄ SyncObjectPool Éú³É´øÓĞ NetworkObject µÄ±¦Ïä£¡
+                // 4. ä»ä½ çš„ SyncObjectPool ç”Ÿæˆå¸¦æœ‰ NetworkObject çš„å®ç®±ï¼
                 NetworkObject chestObj = SyncObjectPool.instance.GetT(chestPrefabId, spawnPoint.position, spawnPoint.rotation);
 
-                // Ç¿ĞĞÈûÈëÀàĞÍÅäÖÃ (ÒÔ·ÀÔ¤ÖÆÌåÅä´íÁË)
+                // å¼ºè¡Œå¡å…¥ç±»å‹é…ç½® (ä»¥é˜²é¢„åˆ¶ä½“é…é”™äº†)
                 if (chestObj != null && chestObj.TryGetComponent<TreasureChest>(out var chestComp))
                 {
                     chestComp.currentChestType = expectedType;
@@ -159,13 +162,13 @@ public class BattleManager : NetworkBehaviour
             }
             else
             {
-                Debug.LogWarning($"[Õ½ÀûÆ·] ·¿¼ä {currentBattleRoomGrid} Ã»ÓĞÅäÖÃ TreasurePos Éú³Éµã£¡");
+                Debug.LogWarning($"[æˆ˜åˆ©å“] æˆ¿é—´ {currentBattleRoomGrid} æ²¡æœ‰é…ç½® TreasurePos ç”Ÿæˆç‚¹ï¼");
             }
         }
     }
     private void HandleMonsterDied()
     {
         aliveMonsterCount--;
-        // ¿ÉÒÔÔÚÕâÀïÍ³Ò»´¦Àí¹ÖÎïËÀÍöµÄ¶îÍâÂß¼­£¬±ÈÈçµôÂä½ğ±ÒµÈ
+        // å¯ä»¥åœ¨è¿™é‡Œç»Ÿä¸€å¤„ç†æ€ªç‰©æ­»äº¡çš„é¢å¤–é€»è¾‘ï¼Œæ¯”å¦‚æ‰è½é‡‘å¸ç­‰
     }
 }

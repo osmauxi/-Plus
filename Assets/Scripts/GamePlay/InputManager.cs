@@ -1,9 +1,9 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public enum InputState
 {
-    Gameplay, // Õı³£ÓÎÍæÄ£Ê½£ºÔÊĞíÒÆ¶¯¡¢¿ª»ğ£¬Ëø¶¨Êó±ê
-    UI        // UI½»»¥Ä£Ê½£º½ûÖ¹ÒÆ¶¯¡¢¿ª»ğ£¬½âËøÊó±ê
+    Gameplay, // æ­£å¸¸æ¸¸ç©æ¨¡å¼ï¼šå…è®¸ç§»åŠ¨ã€å¼€ç«ï¼Œé”å®šé¼ æ ‡
+    UI        // UIäº¤äº’æ¨¡å¼ï¼šç¦æ­¢ç§»åŠ¨ã€å¼€ç«ï¼Œè§£é”é¼ æ ‡
 }
 
 public class InputManager : MonoBehaviour
@@ -19,7 +19,7 @@ public class InputManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ºËĞÄ×´Ì¬ÇĞ»»£ºÍ³Ò»½Ó¹ÜÊó±êÏÔÒş×´Ì¬
+    /// æ ¸å¿ƒçŠ¶æ€åˆ‡æ¢ï¼šç»Ÿä¸€æ¥ç®¡é¼ æ ‡æ˜¾éšçŠ¶æ€
     /// </summary>
     public void ChangeState(InputState newState)
     {
@@ -38,20 +38,20 @@ public class InputManager : MonoBehaviour
     }
 
     // ==========================================
-    // ¹©ÏÂÓÎµ÷ÓÃµÄ°ü×°ÊôĞÔ (Ë®·§ÃÅ)
+    // ä¾›ä¸‹æ¸¸è°ƒç”¨çš„åŒ…è£…å±æ€§ (æ°´é˜€é—¨)
     // ==========================================
 
-    // ÒÆ¶¯ÊäÈë
+    // ç§»åŠ¨è¾“å…¥
     public float MoveHorizontal => CurrentState == InputState.Gameplay ? Input.GetAxisRaw("Horizontal") : 0f;
     public float MoveVertical => CurrentState == InputState.Gameplay ? Input.GetAxisRaw("Vertical") : 0f;
 
-    // ÊÓ½ÇËõ·Å
+    // è§†è§’ç¼©æ”¾
     public float ScrollWheel => CurrentState == InputState.Gameplay ? Input.GetAxis("Mouse ScrollWheel") : 0f;
 
-    // Êó±êÆÁÄ»×ø±ê (ÎŞÂÛUI»¹ÊÇÓÎÏ·×´Ì¬¶¼ĞèÒª£¬UI²ãĞèÒªµã»÷£¬GameplayĞèÒªËãÉäÏß)
+    // é¼ æ ‡å±å¹•åæ ‡ (æ— è®ºUIè¿˜æ˜¯æ¸¸æˆçŠ¶æ€éƒ½éœ€è¦ï¼ŒUIå±‚éœ€è¦ç‚¹å‡»ï¼ŒGameplayéœ€è¦ç®—å°„çº¿)
     public Vector3 MousePosition => Input.mousePosition;
 
-    // ÎäÆ÷¿ª»ğ (ÄãÖ®Ç° WeaponBase ÀïµÄÊäÈëÒ²¿ÉÒÔ½Óµ½ÕâÀï)
+    // æ­¦å™¨å¼€ç« (ä½ ä¹‹å‰ WeaponBase é‡Œçš„è¾“å…¥ä¹Ÿå¯ä»¥æ¥åˆ°è¿™é‡Œ)
     public bool FireHeld => CurrentState == InputState.Gameplay && Input.GetMouseButton(0);
     public bool ReloadPressed => CurrentState == InputState.Gameplay && Input.GetKeyDown(KeyCode.R);
 

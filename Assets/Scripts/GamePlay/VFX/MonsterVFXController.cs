@@ -1,10 +1,10 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.VFX;
 
 /// <summary>
-/// ÌØĞ§°ü×°Æ÷£ºÖ§³Ö¶à²ã¼¶Ç¶Ì×µÄ¸´ÔÓÌØĞ§£¡
+/// ç‰¹æ•ˆåŒ…è£…å™¨ï¼šæ”¯æŒå¤šå±‚çº§åµŒå¥—çš„å¤æ‚ç‰¹æ•ˆï¼
 /// </summary>
 public class CachedVFXWrapper
 {
@@ -41,22 +41,22 @@ public class MonsterVFXController : NetworkBehaviour
     [System.Serializable]
     public struct PrebakedVFX
     {
-        [Tooltip("´¥·¢Ö¸Áî£¬ÀıÈç 'EyeGlow'")]
+        [Tooltip("è§¦å‘æŒ‡ä»¤ï¼Œä¾‹å¦‚ 'EyeGlow'")]
         public string eventId;
 
-        [Tooltip("ÌáÇ°°ÚÔÚ¹ÖÎï¹Ç÷ÀÏÂµÄÌØĞ§ GameObject")]
+        [Tooltip("æå‰æ‘†åœ¨æ€ªç‰©éª¨éª¼ä¸‹çš„ç‰¹æ•ˆ GameObject")]
         public GameObject vfxObject;
     }
 
-    [Header("Ô¤Æ´×°ÌØĞ§°ó¶¨")]
+    [Header("é¢„æ‹¼è£…ç‰¹æ•ˆç»‘å®š")]
     public List<PrebakedVFX> prebakedEffects = new List<PrebakedVFX>();
 
-    // »º´æ×Öµä£ºString -> °ü×°Æ÷
+    // ç¼“å­˜å­—å…¸ï¼šString -> åŒ…è£…å™¨
     private Dictionary<string, CachedVFXWrapper> cachedVFX = new Dictionary<string, CachedVFXWrapper>();
 
     private void Awake()
     {
-        // ÓÎÏ·¿ªÊ¼Ê±£¬Ö±½ÓÉ¨ÃèÃÀÊõÍÏ½øÀ´µÄÎïÌå£¬×°½ø°ü×°Æ÷
+        // æ¸¸æˆå¼€å§‹æ—¶ï¼Œç›´æ¥æ‰«æç¾æœ¯æ‹–è¿›æ¥çš„ç‰©ä½“ï¼Œè£…è¿›åŒ…è£…å™¨
         foreach (var item in prebakedEffects)
         {
             if (string.IsNullOrEmpty(item.eventId) || item.vfxObject == null) continue;
@@ -65,12 +65,12 @@ public class MonsterVFXController : NetworkBehaviour
 
             if (wrapper.IsValid)
             {
-                wrapper.Stop(); // È·±£³õÊ¼×´Ì¬ÊÇ¹Ø±ÕµÄ
+                wrapper.Stop(); // ç¡®ä¿åˆå§‹çŠ¶æ€æ˜¯å…³é—­çš„
                 cachedVFX.Add(item.eventId, wrapper);
             }
             else
             {
-                Debug.LogWarning($"[VFX] °ó¶¨µÄÌØĞ§ {item.vfxObject.name} È±ÉÙäÖÈ¾×é¼ş£¡");
+                Debug.LogWarning($"[VFX] ç»‘å®šçš„ç‰¹æ•ˆ {item.vfxObject.name} ç¼ºå°‘æ¸²æŸ“ç»„ä»¶ï¼");
             }
         }
     }
@@ -97,7 +97,7 @@ public class MonsterVFXController : NetworkBehaviour
         }
         else
         {
-            Debug.LogWarning($"[VFX] Î´ÔÚ¹ÖÎïÉíÉÏÕÒµ½Ô¤Æ´×°µÄÌØĞ§°ó¶¨: {eventId}");
+            Debug.LogWarning($"[VFX] æœªåœ¨æ€ªç‰©èº«ä¸Šæ‰¾åˆ°é¢„æ‹¼è£…çš„ç‰¹æ•ˆç»‘å®š: {eventId}");
         }
     }
 }

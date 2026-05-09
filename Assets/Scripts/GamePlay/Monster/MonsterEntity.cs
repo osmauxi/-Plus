@@ -1,11 +1,11 @@
-using Unity.Netcode;
+ï»¿using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.VFX;
 
 /// <summary>
-/// ¹ÖÎïÊµÌåÍâ¿Ç (Facade / Config)
-/// Ö°Ôğ£º´æ·Å»ù´¡¹Ì¶¨ÊıÖµ£¬½ÓÊÕÍâ²¿ÄÑ¶È×¢Èë£¬Í³³ï×é¼şµÄ³õÊ¼»¯ºÍÖØÖÃ
+/// æ€ªç‰©å®ä½“å¤–å£³ (Facade / Config)
+/// èŒè´£ï¼šå­˜æ”¾åŸºç¡€å›ºå®šæ•°å€¼ï¼Œæ¥æ”¶å¤–éƒ¨éš¾åº¦æ³¨å…¥ï¼Œç»Ÿç­¹ç»„ä»¶çš„åˆå§‹åŒ–å’Œé‡ç½®
 /// </summary>
 [RequireComponent(typeof(Health), typeof(AIBlackboard))]
 public class MonsterEntity : NetworkBehaviour
@@ -13,13 +13,16 @@ public class MonsterEntity : NetworkBehaviour
     [HideInInspector] public MonsterDataSO Config;
     private EntityFXManager fXManager;
 
-    [Header("¶¯Ì¬±íÏÖ")]
+    [Header("åŠ¨æ€è¡¨ç°")]
     public float woundedSpeedMultiplier = 0.5f;
 
     private Health health;
-    private NavMeshAgent agent;
+    public NavMeshAgent agent;
     private AIBlackboard blackboard;
     private Animator anim;
+
+    public Animator Anim => anim;
+    public Rigidbody Rb { get; private set; }
 
     private void Awake()
     {
@@ -28,6 +31,7 @@ public class MonsterEntity : NetworkBehaviour
         blackboard = GetComponent<AIBlackboard>();
         anim = GetComponentInChildren<Animator>();
         fXManager = GetComponent<EntityFXManager>();
+        Rb = GetComponent<Rigidbody>();
         blackboard.EntityConfig = this;
 
         health.OnDied += HandleDeath;
@@ -42,7 +46,7 @@ public class MonsterEntity : NetworkBehaviour
     public void InitializeEntity(MonsterDataSO data)
     {
         if (!IsServer) return;
-        Config = data; // ÄÃµ½×Ô¼ºµÄµµ°¸
+        Config = data; // æ‹¿åˆ°è‡ªå·±çš„æ¡£æ¡ˆ
     }
 
     public void ResetEntity()
@@ -56,18 +60,19 @@ public class MonsterEntity : NetworkBehaviour
         fXManager.ResetAllRenderers();
 
         anim.speed = 1f;
-        anim.Play("Idle", 0, 0f);
 
-        agent.enabled = false;
+        if (agent.isActiveAndEnabled) agent.isStopped = true;
         agent.enabled = true;
+        agent.Warp(transform.position);
 
         if (agent.isOnNavMesh)
         {
             agent.isStopped = false;
+            agent.ResetPath();
         }
         else
         {
-            Debug.LogWarning($"[µ¼º½¾¯¸æ] ¹ÖÎï {gameObject.name} µÄÉú³Éµã²»ÔÚ NavMesh ÉÏ£¡Çë¼ì²é SpawnNode µÄ¸ß¶È¡£");
+            Debug.LogWarning($"[å¯¼èˆªè­¦å‘Š] æ€ªç‰© {gameObject.name} çš„ç”Ÿæˆç‚¹ä¸åœ¨ NavMesh ä¸Šï¼è¯·æ£€æŸ¥ SpawnNode çš„é«˜åº¦ã€‚");
         }
 
         blackboard.ClearBlackboard();
@@ -75,16 +80,16 @@ public class MonsterEntity : NetworkBehaviour
 
 
     // ==========================================
-    // ½Ó¿Ú 2£ºµ¼Ñİ(ÄÑ¶ÈÏµÍ³)×¢Èë
+    // æ¥å£ 2ï¼šå¯¼æ¼”(éš¾åº¦ç³»ç»Ÿ)æ³¨å…¥
     // ==========================================
     public void SetupDifficulty(float difficultyMultiplier)
     {
         if (!IsServer || Config == null) return;
 
-        // 1. ³õÊ¼»¯ÑªÁ¿ÉÏÏŞºÍµ±Ç°ÑªÁ¿
+        // 1. åˆå§‹åŒ–è¡€é‡ä¸Šé™å’Œå½“å‰è¡€é‡
         health.InitializeHealth(Config.baseMaxHealth * difficultyMultiplier);
 
-        // 2. ³õÊ¼»¯×îÖÕÒÆËÙ
+        // 2. åˆå§‹åŒ–æœ€ç»ˆç§»é€Ÿ
         if (agent != null)
         {
             agent.speed = Config.baseSpeed * (1 + (difficultyMultiplier - 1) * 0.1f);
@@ -92,12 +97,12 @@ public class MonsterEntity : NetworkBehaviour
     }
 
     // ==========================================
-    // ±íÏÖÂß¼­ÓëËÀÍö
+    // è¡¨ç°é€»è¾‘ä¸æ­»äº¡
     // ==========================================
     private void HandleWoundedFeedback(float currentHp, float maxHp)
     {
-        if (health.currentHealth.Value <= 0) 
-            return; // ËÀÁË¾Í²»¹ÜõçõÇÁË
+        if (!IsServer || health.currentHealth.Value <= 0) 
+            return; // æ­»äº†å°±ä¸ç®¡è¹’è·šäº†
 
         if (currentHp / maxHp <= 0.4f && agent != null)
             agent.speed = Config.baseSpeed * woundedSpeedMultiplier;
@@ -109,11 +114,11 @@ public class MonsterEntity : NetworkBehaviour
     {
         if (!IsServer) return;
 
-        // ¸æËß´óÄÔÍ£¹¤£¨ÈÃÄ£¿é²»ÔÙÖ´ĞĞ£©
+        // å‘Šè¯‰å¤§è„‘åœå·¥ï¼ˆè®©æ¨¡å—ä¸å†æ‰§è¡Œï¼‰
         var brain = GetComponent<MonsterBrain>();
         brain.enabled = false;
         if (agent.isActiveAndEnabled) agent.isStopped = true;
-        // »ØÊÕ¶ÔÏó
+        // å›æ”¶å¯¹è±¡
         SyncObjectPool.instance.RetToPool(GetComponent<NetworkObject>(), Config.poolId);
     }
 }

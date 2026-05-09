@@ -1,40 +1,42 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 /// <summary>
-/// AI ¹²ÏíºÚ°å£ºÖ»´æ·ÅÊı¾İ£¬¾ø¶Ô²»Ğ´ÈÎºÎĞĞÎªÂß¼­£¡
+/// AI å…±äº«é»‘æ¿ï¼šåªå­˜æ”¾æ•°æ®ï¼Œç»å¯¹ä¸å†™ä»»ä½•è¡Œä¸ºé€»è¾‘ï¼
 /// </summary>
 public class AIBlackboard : MonoBehaviour
 {
-    [Header("¸ĞÖªÊı¾İ (Çé±¨Ô±Ğ´Èë)")]
-    public Transform CurrentTarget;     // µ±Ç°Ëø¶¨µÄÄ¿±ê
-    public Vector3 TargetPosition;      // Ä¿±êÎ»ÖÃ£¨ÓÃÓÚ¶ªÊ§Ä¿±êÊ±È¥×îºóÒÑÖªÎ»ÖÃ£©
+    [Header("æ„ŸçŸ¥æ•°æ® (æƒ…æŠ¥å‘˜å†™å…¥)")]
+    public Transform CurrentTarget;     // å½“å‰é”å®šçš„ç›®æ ‡
+    public Vector3 TargetPosition;      // ç›®æ ‡ä½ç½®ï¼ˆç”¨äºä¸¢å¤±ç›®æ ‡æ—¶å»æœ€åå·²çŸ¥ä½ç½®ï¼‰
     public bool HasTarget => CurrentTarget != null;
 
-    [Header("¿Õ¼äÊı¾İ (Ë¾»úĞ´Èë)")]
-    public float DistanceToTarget;      // ¾àÀëÄ¿±êµÄÊµÊ±¾àÀë
-    public bool IsMoving;               // ÊÇ·ñÕıÔÚÒÆ¶¯
+    [Header("ç©ºé—´æ•°æ® (å¸æœºå†™å…¥)")]
+    public float DistanceToTarget;      // è·ç¦»ç›®æ ‡çš„å®æ—¶è·ç¦»
+    public bool IsMoving;               // æ˜¯å¦æ­£åœ¨ç§»åŠ¨
 
-    [Header("Õ½¶·Êı¾İ (É±ÊÖĞ´Èë)")]
-    public bool IsAttacking;            // ¹¥»÷¶¯×÷ÊÇ·ñÕıÔÚÖ´ĞĞ£¨Èç¹ûÎª true£¬Ë¾»ú±ØĞëÍ£³µ£©
-    public bool CanSeeTarget;           // ÊÓÏßÄÚÊÇ·ñÓĞÕÚµ²
-    public bool IsTargetInAttackRange;  // Ë¾»úĞ´Èë£º³µÒÑ¾­¿ªµ½¹¥»÷¾àÀëÁË£¬É±ÊÖÄã¿ÉÒÔ¶¯ÊÖÁË£¡
+    [Header("æˆ˜æ–—æ•°æ® (æ€æ‰‹å†™å…¥)")]
+    public bool IsAttacking;            // æ”»å‡»åŠ¨ä½œæ˜¯å¦æ­£åœ¨æ‰§è¡Œï¼ˆå¦‚æœä¸º trueï¼Œå¸æœºå¿…é¡»åœè½¦ï¼‰
+    public bool CanSeeTarget;           // è§†çº¿å†…æ˜¯å¦æœ‰é®æŒ¡
+    public bool IsTargetInAttackRange;  // å¸æœºå†™å…¥ï¼šè½¦å·²ç»å¼€åˆ°æ”»å‡»è·ç¦»äº†ï¼Œæ€æ‰‹ä½ å¯ä»¥åŠ¨æ‰‹äº†ï¼
 
-    [Header("Í¨ÓÃÊµÌåÒıÓÃ")]
-    // ·½±ã¸÷¸öÄ£¿é¿ìËÙ»ñÈ¡»ù´¡×é¼ş£¬Ê¡È¥Ã¿´Î GetComponent µÄĞÔÄÜ¿ªÏú
+    [Header("é€šç”¨å®ä½“å¼•ç”¨")]
+    // æ–¹ä¾¿å„ä¸ªæ¨¡å—å¿«é€Ÿè·å–åŸºç¡€ç»„ä»¶ï¼Œçœå»æ¯æ¬¡ GetComponent çš„æ€§èƒ½å¼€é”€
     [HideInInspector] public UnityEngine.AI.NavMeshAgent Agent;
     [HideInInspector] public Animator Anim;
     [HideInInspector] public Rigidbody Rb;
     [HideInInspector] public MonsterEntity EntityConfig;
+    public MonsterBrain Brain { get; private set; }
 
     private void Awake()
     {
+        Brain = GetComponent<MonsterBrain>();
         Agent = GetComponent<UnityEngine.AI.NavMeshAgent>();
         Anim = GetComponentInChildren<Animator>();
         Rb = GetComponent<Rigidbody>();
     }
 
     /// <summary>
-    /// Ï´ÔàÊı¾İ£¨¶ÔÏó³Ø¸´ÓÃÊ±µ÷ÓÃ£©
+    /// æ´—è„æ•°æ®ï¼ˆå¯¹è±¡æ± å¤ç”¨æ—¶è°ƒç”¨ï¼‰
     /// </summary>
     public void ClearBlackboard()
     {

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 [System.Serializable]
@@ -12,26 +12,26 @@ public struct StatModConfig
 [CreateAssetMenu(fileName = "NewModifier", menuName = "Data/Modifier")]
 public class ModifierDataSO : ScriptableObject
 {
-    [Header("»ù´¡ĞÅÏ¢")]
-    public string modifierId;       // È«¾ÖÎ¨Ò»ID£¬ÍøÂçÍ¬²½¾Í¿¿Ëü (Èç "FireRate_Up")
-    public string modifierName;     // UI ÏÔÊ¾Ãû³Æ
-    public Sprite icon;             // UI Í¼±ê
+    [Header("åŸºç¡€ä¿¡æ¯")]
+    public string modifierId;       // å…¨å±€å”¯ä¸€IDï¼Œç½‘ç»œåŒæ­¥å°±é å®ƒ (å¦‚ "FireRate_Up")
+    public string modifierName;     // UI æ˜¾ç¤ºåç§°
+    public Sprite icon;             // UI å›¾æ ‡
     [TextArea] public string description;
 
-    [Header("¶ÑµşÓë»¥³â")]
-    [Tooltip("ÔÊĞí»ñÈ¡µÄ×î´ó´ÎÊı¡£1Îª²»¿ÉÖØ¸´ÄÃ¡£")]
+    [Header("å †å ä¸äº’æ–¥")]
+    [Tooltip("å…è®¸è·å–çš„æœ€å¤§æ¬¡æ•°ã€‚1ä¸ºä¸å¯é‡å¤æ‹¿ã€‚")]
     public int maxStacks = 1;
 
-    [Tooltip("¸Ã´ÊÌõ×ÔÉíµÄ±êÇ© (Èç 'Fire', 'Projectile')")]
+    [Tooltip("è¯¥è¯æ¡è‡ªèº«çš„æ ‡ç­¾ (å¦‚ 'Fire', 'Projectile')")]
     public List<string> tags = new List<string>();
 
-    [Tooltip("Ö»ÒªÍæ¼ÒÉíÉÏÓĞÕâĞ©±êÇ©Ö®Ò»£¬Õâ¸ö´ÊÌõ¾Í²»»á³öÏÖ")]
+    [Tooltip("åªè¦ç©å®¶èº«ä¸Šæœ‰è¿™äº›æ ‡ç­¾ä¹‹ä¸€ï¼Œè¿™ä¸ªè¯æ¡å°±ä¸ä¼šå‡ºç°")]
     public List<string> conflictTags = new List<string>();
 
-    [Header("ÊıÖµĞŞÊÎ (¹ÒÔÚ Stat ÏµÍ³ÉÏ)")]
+    [Header("æ•°å€¼ä¿®é¥° (æŒ‚åœ¨ Stat ç³»ç»Ÿä¸Š)")]
     public List<StatModConfig> statModifiers = new List<StatModConfig>();
 
-    [Header("»úÖÆ×¢Èë (¹ÒÔÚ Weapon ÏµÍ³ÉÏ)")]
+    [Header("æœºåˆ¶æ³¨å…¥ (æŒ‚åœ¨ Weapon ç³»ç»Ÿä¸Š)")]
     [SerializeReference]
     public WeaponEffectSO specialEffect;
 }

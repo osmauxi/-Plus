@@ -1,4 +1,4 @@
-using Unity.Netcode;
+ï»¿using Unity.Netcode;
 using UnityEngine;
 
 [RequireComponent(typeof(Health))]
@@ -7,13 +7,13 @@ public class PlayerHUDPresenter : NetworkBehaviour
     private Health health;
     private WeaponBase weapon;
 
-    // ÎÒÃÇ³ÖÓĞµÄ View ÊµÀı
+    // æˆ‘ä»¬æŒæœ‰çš„ View å®ä¾‹
     private PlayerHUDView myView;
 
     private void Awake()
     {
         health = GetComponent<Health>();
-        // ×¢Òâ£ºÈç¹ûÄãÓĞÇĞÇ¹Âß¼­£¬ÕâÀïÒÔºó¿ÉÄÜĞèÒª¶¯Ì¬¼àÌıµ±Ç°¼¤»îµÄÎäÆ÷
+        // æ³¨æ„ï¼šå¦‚æœä½ æœ‰åˆ‡æªé€»è¾‘ï¼Œè¿™é‡Œä»¥åå¯èƒ½éœ€è¦åŠ¨æ€ç›‘å¬å½“å‰æ¿€æ´»çš„æ­¦å™¨
         weapon = GetComponentInChildren<WeaponBase>();
     }
 
@@ -21,22 +21,22 @@ public class PlayerHUDPresenter : NetworkBehaviour
     {
         if (IsOwner)
         {
-            // 1. ±¾µØÍæ¼ÒÈÏÁìÖ÷ UI
+            // 1. æœ¬åœ°ç©å®¶è®¤é¢†ä¸» UI
             myView = UIManager.Instance.mainPlayerView;
 
-            // 2. ¶ÁÈ¡È«¾Ö×´Ì¬£¬¿ØÖÆ¶ÓÓÑ UI Ãæ°åµÄÏÔÒş
+            // 2. è¯»å–å…¨å±€çŠ¶æ€ï¼Œæ§åˆ¶é˜Ÿå‹ UI é¢æ¿çš„æ˜¾éš
             bool isSoloMode = GameStateController.instance.isSolo.Value;
-            // µ¥ÈËÄ£Ê½Òş²Ø£¬Ë«ÈËÄ£Ê½ÏÔÊ¾
+            // å•äººæ¨¡å¼éšè—ï¼ŒåŒäººæ¨¡å¼æ˜¾ç¤º
             UIManager.Instance.teammateView.gameObject.SetActive(!isSoloMode);
         }
         else
         {
-            // 1. Ô¶¶Ë¶ÓÓÑÈÏÁì¸± UI
+            // 1. è¿œç«¯é˜Ÿå‹è®¤é¢†å‰¯ UI
             myView = UIManager.Instance.teammateView;
             myView.gameObject.SetActive(true);
         }
 
-        // 1. ¶©ÔÄ Model ²ãÊÂ¼ş
+        // 1. è®¢é˜… Model å±‚äº‹ä»¶
         health.OnHealthChanged += OnHealthChanged;
         weapon.OnAmmoChanged += OnAmmoChanged;
         weapon.OnReloadStart += OnReloadStart;
@@ -46,33 +46,33 @@ public class PlayerHUDPresenter : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        // Ñø³ÉºÃÏ°¹ß£¬Íæ¼Ò±»Ïú»ÙÊ±Îñ±ØÈ¡Ïû¶©ÔÄ£¬·ÀÖ¹ÄÚ´æĞ¹Â©£¡
+        // å…»æˆå¥½ä¹ æƒ¯ï¼Œç©å®¶è¢«é”€æ¯æ—¶åŠ¡å¿…å–æ¶ˆè®¢é˜…ï¼Œé˜²æ­¢å†…å­˜æ³„æ¼ï¼
         health.OnHealthChanged -= OnHealthChanged;
         weapon.OnAmmoChanged -= OnAmmoChanged;
         weapon.OnReloadStart -= OnReloadStart;
     }
 
     // ==========================================
-    // Ç¿ÖÆË¢ĞÂµ±Ç°ËùÓĞ UI (ÇĞÍ¼¡¢ÇĞ·¿¼ä¡¢»òÕßÖØĞÂ¸´»îÊ±µ÷ÓÃ)
+    // å¼ºåˆ¶åˆ·æ–°å½“å‰æ‰€æœ‰ UI (åˆ‡å›¾ã€åˆ‡æˆ¿é—´ã€æˆ–è€…é‡æ–°å¤æ´»æ—¶è°ƒç”¨)
     // ==========================================
     public void ForceRefreshUI()
     {
-        // Ç¿ÖÆË¢ĞÂÑªÌõ
+        // å¼ºåˆ¶åˆ·æ–°è¡€æ¡
         myView.UpdateHealth(health.currentHealth.Value, health.maxHealth.Value);
 
-        // Ç¿ÖÆË¢ĞÂµ¯Ò©
+        // å¼ºåˆ¶åˆ·æ–°å¼¹è¯
         int currentAmmo = weapon.currentAmmo;
         int maxAmmo = (int)weapon.stats.GetStatValue(StatType.MagSize);
         bool isWarning = (float)currentAmmo / maxAmmo <= 0.3f;
         myView.UpdateAmmo(currentAmmo, maxAmmo, isWarning);
     }
     // ==========================================
-    // Presenter µÄÒµÎñÂß¼­´¦Àí (·­Òë¹Ù)
+    // Presenter çš„ä¸šåŠ¡é€»è¾‘å¤„ç† (ç¿»è¯‘å®˜)
     // ==========================================
 
     private void OnHealthChanged(float currentHealth, float maxHealth)
     {
-        // ·­Òë¸ø View Ìı
+        // ç¿»è¯‘ç»™ View å¬
         myView.UpdateHealth(currentHealth, maxHealth);
     }
 

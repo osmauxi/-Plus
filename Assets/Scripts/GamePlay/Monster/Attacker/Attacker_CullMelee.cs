@@ -1,35 +1,34 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Attacker_Melee : MonoBehaviour, IAttackModule
+public class Attacker_CullMelee : MonoBehaviour, IAttackModule
 {
-    [Header("Õ½¶·²ÎÊı")]
+    [Header("å¤šæŠ€èƒ½æ‹“å±• (ä¼ç¬”)")]
+    public string[] attackTriggers = { "Attack" };
+
+    [Header("æˆ˜æ–—å‚æ•°")]
     public float attackCooldown = 3.0f;
-    public float prepareTime = 0.5f;
+    public float windUpTime = 0.5f;
     public float lungeTime = 0.3f;
     public float recoverTime = 0.7f;
 
-    [Header("ÉËº¦ÅĞ¶¨ÅäÖÃ")]
-    [Tooltip("½ö½ö×÷ÎªÒ»¸ö¿ÉÊÓ»¯µÄ·¶Î§²Î¿¼£¬ËüµÄ enabled ÓÀÔ¶ÊÇ false")]
+    [Header("ä¼¤å®³åˆ¤å®šé…ç½®")]
     public BoxCollider hitboxRef;
-    public LayerMask targetLayer;       // ¹´Ñ¡ Player µÄ Layer
+    public LayerMask targetLayer;
 
-    [Header("ÎïÀí²ÎÊı")]
+    [Header("ç‰©ç†å‚æ•°")]
     public float lungeForce = 15f;
 
     private float nextAttackTime;
     private Coroutine attackRoutine;
     private MonsterVFXController vfxController;
 
-    // ¡¾ºËĞÄºÚ¿Æ¼¼¡¿£ºÎŞ GC ÄÚ´æÉ¨ÃèÊı×é£¨Ô¤·ÖÅäÄÚ´æ£¬×î´óÉ¨ 10 ¸öÄ¿±ê£©
     private Collider[] hitResults = new Collider[10];
 
     private void Awake()
     {
         vfxController = GetComponent<MonsterVFXController>();
-
-        // °ş¶á BoxCollider µÄÎïÀíÈ¨Àû£¬Ö»ÁôËüµÄÊ¬Ìå£¨²ÎÊı£©
         if (hitboxRef != null) hitboxRef.enabled = false;
     }
 
@@ -44,75 +43,93 @@ public class Attacker_Melee : MonoBehaviour, IAttackModule
         }
     }
 
+    private IEnumerator PausableWait(MonsterBrain brain, float duration)
+    {
+        float timer = 0f;
+        while (timer < duration)
+        {
+            if (brain != null && brain.IsHitStopped)
+            {
+                yield return null;
+                continue;
+            }
+            timer += Time.deltaTime;
+            yield return null;
+        }
+    }
+
     private IEnumerator AttackSequence(AIBlackboard bb)
     {
-        // === 1. ĞîÁ¦Ô¤¾¯ ===
+        MonsterBrain brain = bb.GetComponent<MonsterBrain>();
+
         bb.IsAttacking = true;
-        bb.Anim.SetTrigger("Prepare");
-        vfxController.BroadcastVFX("EyeGlow");
         FaceTarget(bb);
-        yield return new WaitForSeconds(prepareTime);
 
-        // === 2. ÃÍÆËÓë¡¾Ö÷¶¯Ö¡ÉËº¦ÅĞ¶¨¡¿ ===
-        bb.Anim.SetTrigger("Attack");
-        vfxController.BroadcastVFX("DashTrail");
+        string selectedAttack = attackTriggers[0];
+        if (attackTriggers.Length > 1)
+        {
+            selectedAttack = attackTriggers[Random.Range(0, attackTriggers.Length)];
+        }
 
-        bb.Rb.AddForce(transform.forward * lungeForce, ForceMode.VelocityChange);
+        if (bb.Anim != null) bb.Anim.SetTrigger(selectedAttack);
+        if (vfxController != null) vfxController.BroadcastVFX("EyeGlow");
 
-        // ¡¾Ãû²á½¨Á¢¡¿£º¼ÇÂ¼Õâ´Î¹¥»÷ÒÑ¾­´ò¹ıµÄÈË£¬·ÀÖ¹Ò»ÃëÊ®µ¶
+        yield return StartCoroutine(PausableWait(brain, windUpTime));
+
+        if (vfxController != null) vfxController.BroadcastVFX("DashTrail");
+
+        if (lungeForce > 0)
+        {
+            bb.Rb.AddForce(transform.forward * lungeForce, ForceMode.VelocityChange);
+        }
+
         HashSet<GameObject> alreadyHitTargets = new HashSet<GameObject>();
         float timer = 0f;
 
-        // ³ÖĞøÅĞ¶¨Ñ­»·£ºÔÚÍ»½øµÄÃ¿Ò»Ö¡ÖĞÖ÷¶¯Í¶Éä
         while (timer < lungeTime)
         {
+            if (brain != null && brain.IsHitStopped)
+            {
+                yield return null;
+                continue;
+            }
+
             PerformHitDetection(bb, alreadyHitTargets);
             timer += Time.deltaTime;
-            yield return null; // µÈ´ıÏÂÒ»Ö¡¼ÌĞøÉ¨
+            yield return null;
         }
 
-        // === 3. ÊÕÕĞ½©Ö± ===
-        bb.Rb.velocity = Vector3.zero;
-        yield return new WaitForSeconds(recoverTime);
+        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0);
 
-        // === 4. ½âËø ===
+        yield return StartCoroutine(PausableWait(brain, recoverTime));
+
         bb.IsAttacking = false;
         nextAttackTime = Time.time + attackCooldown;
     }
 
-    /// <summary>
-    /// Ö÷¶¯ĞÎ×´É¨ÃèÓëÉËº¦½áËã
-    /// </summary>
     private void PerformHitDetection(AIBlackboard bb, HashSet<GameObject> alreadyHit)
     {
         if (hitboxRef == null) return;
 
-        // »ñÈ¡ Box µÄÊÀ½ç×ø±ê¡¢Ğı×ªºÍÕæÊµ´óĞ¡
         Vector3 boxCenter = hitboxRef.transform.TransformPoint(hitboxRef.center);
         Vector3 boxHalfExtents = Vector3.Scale(hitboxRef.size, hitboxRef.transform.lossyScale) * 0.5f;
         Quaternion boxRotation = hitboxRef.transform.rotation;
 
-        // ²»»á²úÉúÄÚ´æËéÆ¬µÄÎïÀíÉ¨Ãè
         int hitCount = Physics.OverlapBoxNonAlloc(boxCenter, boxHalfExtents, hitResults, boxRotation, targetLayer);
 
         for (int i = 0; i < hitCount; i++)
         {
             GameObject targetObj = hitResults[i].gameObject;
 
-            // Èç¹ûÕâ¸öÈË»¹Ã»±»´ò¹ı
             if (!alreadyHit.Contains(targetObj))
             {
                 alreadyHit.Add(targetObj);
 
-                // »ñÈ¡Íæ¼ÒÑªÁ¿×é¼ş²¢Ôì³ÉÉËº¦
                 Health targetHealth = targetObj.GetComponentInParent<Health>();
-                if (!targetHealth.isDead)
+                if (targetHealth != null && !targetHealth.isDead)
                 {
-                    // ´ÓºÚ°åÄÃµ½ÅäÖÃ¿âÀïµÄ¹¥»÷Á¦£¬·¢Æğ¹¥»÷£¡
                     float damage = bb.EntityConfig.Config.baseDamage;
                     targetHealth.TakeDamage(damage, transform.position, transform.forward);
-
-                    Debug.Log($"[ÉËº¦ÅĞ¶¨] ¹ÖÎï´òÖĞÁË {targetObj.name}£¬Ôì³ÉÁË {damage} µãÉËº¦£¡");
                 }
             }
         }

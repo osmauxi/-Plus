@@ -1,26 +1,25 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class DeadState : State
 {
-    private float reviveProgress = 0f;
+    private float realReviveProgress = 0f;
 
     public DeadState(StateMachine stateMachine, string animBoolName, PlayerController _player) : base(stateMachine, animBoolName, _player) { }
 
     public override void Enter()
     {
         base.Enter();
-        reviveProgress = 0f;
+        realReviveProgress = 0f;
+
+        if (!GameStateController.instance.isSolo.Value)
+        {
+            player.reviveUI.ShowUI();
+        }
+
+        // åªæœ‰æ­»è€…è‡ªå·±è´Ÿè´£å‘æœåŠ¡å™¨æ±‡æŠ¥å›¢ç­
         if (player.IsOwner)
         {
-            if (GameStateController.instance.isSolo.Value)
-            {
-                PlayerManager.Instance.CheckTeamWipeServerRpc();
-            }
-            else
-            {
-                player.reviveUI.ShowUI();
-                PlayerManager.Instance.CheckTeamWipeServerRpc();
-            }
+            PlayerManager.Instance.CheckTeamWipeServerRpc();
         }
     }
 
@@ -30,27 +29,17 @@ public class DeadState : State
 
         if (!player.IsOwner || GameStateController.instance.isSolo.Value) return;
 
-        // Âß¼­±äµÃ¼«Æä¼òµ¥£ºÖ»¿´ÍøÂçÇÅÁº±äÁ¿
         if (player.isBeingRevived.Value)
         {
-            // ÓÐÈËÔÚ°´ F ¾ÈÎÒ£¡½ø¶È±©ÕÇ£¡
-            reviveProgress += Time.deltaTime;
-
-            if (reviveProgress >= player.maxReviveTime)
+            realReviveProgress += Time.deltaTime;
+            if (realReviveProgress >= player.maxReviveTime)
             {
                 player.RequestRevive();
             }
         }
         else
         {
-            // Ã»ÈË¾ÈÎÒ£¨»òÖÐÍ¾´ò¶Ï£©£¬½ø¶È»ºÂýµôÂä
-            reviveProgress = Mathf.Max(0, reviveProgress - Time.deltaTime * 0.5f);
-        }
-
-        // °Ñ½ø¶ÈºÍÊÇ·ñÓ¿¶¯µÄ¸ß¼¶±íÏÖÈ«²¿Ë¦¸ø UI ×é¼þ
-        if (player.reviveUI != null)
-        {
-            player.reviveUI.UpdateProgress(reviveProgress / player.maxReviveTime, player.isBeingRevived.Value);
+            realReviveProgress = Mathf.Max(0, realReviveProgress - Time.deltaTime * 0.5f);
         }
     }
 
@@ -63,10 +52,10 @@ public class DeadState : State
     public override void Exit()
     {
         base.Exit();
+        player.reviveUI.HideUI();
         if (player.IsOwner)
         {
-            player.reviveUI.HideUI();
-            player.SetRevivingServerRpc(false); // ¶µµ×£º·ÀÖ¹¸´»îË²¼ä¿¨ËÀ±äÁ¿
+            player.SetRevivingServerRpc(false);
         }
     }
 }

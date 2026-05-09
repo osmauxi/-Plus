@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -6,33 +6,30 @@ public class GameDirector : NetworkBehaviour
 {
     public static GameDirector Instance { get; private set; }
 
-    [Header("È«¾ÖÓÎÏ·×´Ì¬")]
-    public int currentLayer = 1;          // µ±Ç°Íæ¼Ò´òµ½ÁËµÚ¼¸²ã
-
-    [Header("¾­¼ÃÓëÄÑ¶È")]
+    [Header("ç»æµä¸éš¾åº¦")]
     public int baseBudgetPerRoom = 100;
     public float budgetLayerMultiplier = 1.5f;
 
-    [Header("Òì±äÏµÍ³ÉèÖÃ")]
-    [Tooltip("»ù´¡Òì±ä¸ÅÂÊ (0.0 ~ 1.0)")]
+    [Header("å¼‚å˜ç³»ç»Ÿè®¾ç½®")]
+    [Tooltip("åŸºç¡€å¼‚å˜æ¦‚ç‡ (0.0 ~ 1.0)")]
     public float baseMutationChance = 0.1f;
-    [Tooltip("Ã¿¸öÒÑÇåÀí·¿¼äÔö¼ÓµÄ¶îÍâÒì±ä¸ÅÂÊ")]
+    [Tooltip("æ¯ä¸ªå·²æ¸…ç†æˆ¿é—´å¢åŠ çš„é¢å¤–å¼‚å˜æ¦‚ç‡")]
     public float chanceAddPerClearedRoom = 0.05f;
-    [Tooltip("Òì±ä·¿¼äµÄÔ¤Ëã±¶ÂÊ")]
+    [Tooltip("å¼‚å˜æˆ¿é—´çš„é¢„ç®—å€ç‡")]
     public float mutationBudgetMultiplier = 2.5f;
 
-    // ÄÚ²¿×´Ì¬£º±¾²ãÒÑÇåÀíµÄ·¿¼äÊı
+    // å†…éƒ¨çŠ¶æ€ï¼šæœ¬å±‚å·²æ¸…ç†çš„æˆ¿é—´æ•°
     private int clearedRoomsInCurrentLayer = 0;
 
-    [Header("AI µ¼ÑİÖÇÄÜµ÷¿Ø")]
-    [Tooltip("¼Û¸ñ¸ßÓÚ´ËÖµµÄ¹ÖÎï±»ÊÓÎª¾«Ó¢¹Ö")]
+    [Header("AI å¯¼æ¼”æ™ºèƒ½è°ƒæ§")]
+    [Tooltip("ä»·æ ¼é«˜äºæ­¤å€¼çš„æ€ªç‰©è¢«è§†ä¸ºç²¾è‹±æ€ª")]
     public int eliteCostThreshold = 80;
-    [Tooltip("¼Û¸ñµÍÓÚ´ËÖµµÄ¹ÖÎï±»ÊÓÎªÅÚ»Ò")]
+    [Tooltip("ä»·æ ¼ä½äºæ­¤å€¼çš„æ€ªç‰©è¢«è§†ä¸ºç‚®ç°")]
     public int fodderCostThreshold = 25;
-    [Tooltip("¾«Ó¢¹Ö×î¶àÄÜÕ¼ÓÃ¶àÉÙ×ÜÔ¤Ëã±ÈÀı (0.0 ~ 1.0)")]
+    [Tooltip("ç²¾è‹±æ€ªæœ€å¤šèƒ½å ç”¨å¤šå°‘æ€»é¢„ç®—æ¯”ä¾‹ (0.0 ~ 1.0)")]
     public float maxEliteBudgetRatio = 0.4f;
 
-    [Header("¹ÖÎïÉÌÆ·Í¼¼ø")]
+    [Header("æ€ªç‰©å•†å“å›¾é‰´")]
     public List<MonsterDataSO> monsterCatalog = new List<MonsterDataSO>();
 
     private void Awake()
@@ -63,23 +60,23 @@ public class GameDirector : NetworkBehaviour
     {
         isMutated = false;
 
-        // Çé¿ö A£ºÆğÊ¼·¿¡¢ÉÌµê¡¢±¦Ïä·¿²»²ÎÓëÒì±ä
+        // æƒ…å†µ Aï¼šèµ·å§‹æˆ¿ã€å•†åº—ã€å®ç®±æˆ¿ä¸å‚ä¸å¼‚å˜
         if (roomType == -1 || roomType == 1 || roomType == 3) return 1f;
 
-        // Çé¿ö B£ºBoss ·¿ (Type -2) ÔÚ·Ç Boss ²ã½øÈë£¬Ç¿ÖÆÊÓÎª³¬¼¶Òì±ä
+        // æƒ…å†µ Bï¼šBoss æˆ¿ (Type -2) åœ¨é Boss å±‚è¿›å…¥ï¼Œå¼ºåˆ¶è§†ä¸ºè¶…çº§å¼‚å˜
         if (roomType == -2)
         {
-            // ¼ÙÉèÃ¿ 3 ²ãÒ»¸öÕæ Boss
-            bool isRealBossLayer = (currentLayer % 3 == 0);
+            // å‡è®¾æ¯ 3 å±‚ä¸€ä¸ªçœŸ Boss
+            bool isRealBossLayer = (GameStateController.instance.CurrentLevel.Value % 3 == 0);
             if (!isRealBossLayer)
             {
                 isMutated = true;
-                return mutationBudgetMultiplier * 1.5f; // ¾«Ó¢·¿µÄ¾«Ó¢°æ
+                return mutationBudgetMultiplier * 1.5f; // ç²¾è‹±æˆ¿çš„ç²¾è‹±ç‰ˆ
             }
-            return 1f; // Õæ Boss ·¿Ê¹ÓÃÄ¬ÈÏÄÑ¶ÈÏµÊı£¬ÓÉ²É¹ºËã·¨ÄÚ²¿´¦Àí
+            return 1f; // çœŸ Boss æˆ¿ä½¿ç”¨é»˜è®¤éš¾åº¦ç³»æ•°ï¼Œç”±é‡‡è´­ç®—æ³•å†…éƒ¨å¤„ç†
         }
 
-        // Çé¿ö C£ºÆÕÍ¨¹ÖÎï·¿ (Type 2) µÄËæ»úÒì±ä
+        // æƒ…å†µ Cï¼šæ™®é€šæ€ªç‰©æˆ¿ (Type 2) çš„éšæœºå¼‚å˜
         float currentChance = baseMutationChance + (clearedRoomsInCurrentLayer * chanceAddPerClearedRoom);
         if (Random.value < currentChance)
         {
@@ -93,43 +90,43 @@ public class GameDirector : NetworkBehaviour
 
     private float GetSpawnWeight(int cost)
     {
-        if (cost <= fodderCostThreshold) return 100f; // ÅÚ»Ò£¬¼«¶ÈÈİÒ×±»³éÖĞ
-        if (cost <= eliteCostThreshold) return 50f;   // »ù´¡¹Ö£¬Õı³£¸ÅÂÊ
-        return 10f;                                   // ¾«Ó¢¹Ö£¬¸ÅÂÊ¼«µÍ
+        if (cost <= fodderCostThreshold) return 100f; // ç‚®ç°ï¼Œæåº¦å®¹æ˜“è¢«æŠ½ä¸­
+        if (cost <= eliteCostThreshold) return 50f;   // åŸºç¡€æ€ªï¼Œæ­£å¸¸æ¦‚ç‡
+        return 10f;                                   // ç²¾è‹±æ€ªï¼Œæ¦‚ç‡æä½
     }
 
     // ==========================================
-    // ºËĞÄ²É¹ºËã·¨ (AI Director 2.0)
+    // æ ¸å¿ƒé‡‡è´­ç®—æ³• (AI Director 2.0)
     // ==========================================
     public List<string> AllocateMonstersForRoom(float roomDifficultyWeight = 1f)
     {
         List<string> shoppingList = new List<string>();
 
-        // 1. ²ÆÎñ²¦¿î
-        int totalBudget = (int)(baseBudgetPerRoom * Mathf.Pow(budgetLayerMultiplier, currentLayer - 1) * roomDifficultyWeight);
+        // 1. è´¢åŠ¡æ‹¨æ¬¾
+        int totalBudget = (int)(baseBudgetPerRoom * Mathf.Pow(budgetLayerMultiplier, GameStateController.instance.CurrentLevel.Value - 1) * roomDifficultyWeight);
         int currentBudget = totalBudget;
 
-        // ¡¾ºËĞÄÓÅ»¯¡¿£º¾«Ó¢Ô¤ËãÉÏÏŞÈÛ¶Ï
+        // ã€æ ¸å¿ƒä¼˜åŒ–ã€‘ï¼šç²¾è‹±é¢„ç®—ä¸Šé™ç†”æ–­
         int maxEliteBudget = (int)(totalBudget * maxEliteBudgetRatio);
         int spentOnElites = 0;
 
-        Debug.Log($"[·¢ÅÆÔ±] Åú¸´Ô¤Ëã£º{totalBudget}¡£¾«Ó¢Ô¤Ëã¶î¶È£º{maxEliteBudget}¡£¿ªÊ¼ÖÇÄÜ²É¹º...");
+        Debug.Log($"[å‘ç‰Œå‘˜] æ‰¹å¤é¢„ç®—ï¼š{totalBudget}ã€‚ç²¾è‹±é¢„ç®—é¢åº¦ï¼š{maxEliteBudget}ã€‚å¼€å§‹æ™ºèƒ½é‡‡è´­...");
 
         int safeCounter = 0;
         while (currentBudget > 0 && safeCounter < 1000)
         {
             safeCounter++;
 
-            // 2. É¸Ñ¡µ±Ç°ºÏ·¨µÄÉÌÆ·
+            // 2. ç­›é€‰å½“å‰åˆæ³•çš„å•†å“
             List<MonsterDataSO> validCandidates = new List<MonsterDataSO>();
             float totalWeightForRoll = 0f;
 
             foreach (var card in monsterCatalog)
             {
-                // ÂòµÃÆğ£¬ÇÒ²ãÊı¹»
-                if (card.cost <= currentBudget && currentLayer >= card.minLayerToSpawn)
+                // ä¹°å¾—èµ·ï¼Œä¸”å±‚æ•°å¤Ÿ
+                if (card.cost <= currentBudget && GameStateController.instance.CurrentLevel.Value >= card.minLayerToSpawn)
                 {
-                    // ¡¾·À³ÁÃÔÀ¹½Ø¡¿£ºÈç¹ûËüÊÇ¾«Ó¢¹Ö£¬ÇÒÂòÁËËü¾Í»á³¬³ö¾«Ó¢Ô¤ËãÉÏÏŞ£¬ÔòÖ±½Ó°ÑËüÌß³öºòÑ¡Ãûµ¥£¡
+                    // ã€é˜²æ²‰è¿·æ‹¦æˆªã€‘ï¼šå¦‚æœå®ƒæ˜¯ç²¾è‹±æ€ªï¼Œä¸”ä¹°äº†å®ƒå°±ä¼šè¶…å‡ºç²¾è‹±é¢„ç®—ä¸Šé™ï¼Œåˆ™ç›´æ¥æŠŠå®ƒè¸¢å‡ºå€™é€‰åå•ï¼
                     if (IsElite(card.cost) && (spentOnElites + card.cost > maxEliteBudget))
                     {
                         continue;
@@ -140,10 +137,10 @@ public class GameDirector : NetworkBehaviour
                 }
             }
 
-            // Èç¹ûÁ¬×î±ãÒËµÄ¹Ö¶¼Âò²»Æğ£¨»òÕß±»À¹½ØÁË£©£¬ÌáÇ°½áÊø²É¹º
+            // å¦‚æœè¿æœ€ä¾¿å®œçš„æ€ªéƒ½ä¹°ä¸èµ·ï¼ˆæˆ–è€…è¢«æ‹¦æˆªäº†ï¼‰ï¼Œæå‰ç»“æŸé‡‡è´­
             if (validCandidates.Count == 0) break;
 
-            // 3. È¨ÖØÂÖÅÌ¶Ä (Weighted Random)
+            // 3. æƒé‡è½®ç›˜èµŒ (Weighted Random)
             float randomVal = Random.Range(0f, totalWeightForRoll);
             float weightAccumulator = 0f;
             MonsterDataSO selectedCard = null;
@@ -158,31 +155,27 @@ public class GameDirector : NetworkBehaviour
                 }
             }
 
-            // ¶µµ×£¨ÒÔ·À¸¡µãÊı¾«¶ÈÎÊÌâ£©
+            // å…œåº•ï¼ˆä»¥é˜²æµ®ç‚¹æ•°ç²¾åº¦é—®é¢˜ï¼‰
             if (selectedCard == null) selectedCard = validCandidates[validCandidates.Count - 1];
 
-            // 4. Âò¶¨ÀëÊÖ£¬½áÕË¿Û¿î£¡
+            // 4. ä¹°å®šç¦»æ‰‹ï¼Œç»“è´¦æ‰£æ¬¾ï¼
             currentBudget -= selectedCard.cost;
             shoppingList.Add(selectedCard.poolId);
 
-            // ¼ÇÕË£ºÈç¹ûÂòÁË¾«Ó¢£¬°Ñ»¨·ÑËã½ø¾«Ó¢×Ü¶î¶ÈÀï
+            // è®°è´¦ï¼šå¦‚æœä¹°äº†ç²¾è‹±ï¼ŒæŠŠèŠ±è´¹ç®—è¿›ç²¾è‹±æ€»é¢åº¦é‡Œ
             if (IsElite(selectedCard.cost))
             {
                 spentOnElites += selectedCard.cost;
             }
         }
 
-        Debug.Log($"[·¢ÅÆÔ±] ²É¹ºÍê±Ï£¡ÂòÁË {shoppingList.Count} Ö»¹Ö¡£¾«Ó¢ÏûºÄ: {spentOnElites}¡£Ê£ÓàÁãÇ®: {currentBudget}¡£");
+        Debug.Log($"[å‘ç‰Œå‘˜] é‡‡è´­å®Œæ¯•ï¼ä¹°äº† {shoppingList.Count} åªæ€ªã€‚ç²¾è‹±æ¶ˆè€—: {spentOnElites}ã€‚å‰©ä½™é›¶é’±: {currentBudget}ã€‚");
         return shoppingList;
     }
 
     public float GetCurrentDifficultyMultiplier()
     {
-        return 1f + (currentLayer - 1) * 0.1f;
+        return 1f + (GameStateController.instance.CurrentLevel.Value - 1) * 0.1f;
     }
 
-    public void AdvanceToNextLayer(int level)
-    {
-        currentLayer = level;
-    }
 }

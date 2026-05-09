@@ -1,4 +1,4 @@
-public class MoveState : State
+ï»¿public class MoveState : State
 {
     public MoveState(StateMachine stateMachine, string animBoolName, PlayerController _player) : base(stateMachine, animBoolName, _player) { }
 
@@ -8,7 +8,7 @@ public class MoveState : State
         player.CollectInput();
         player.HandleAimingCalculation();
 
-        // ÊäÈë¹éÁã£¬ÇëÇóÇĞ»ØÕ¾Á¢
+        // è¾“å…¥å½’é›¶ï¼Œè¯·æ±‚åˆ‡å›ç«™ç«‹
         if (player.CurrentMoveInput.sqrMagnitude < 0.01f)
         {
             player.RequestStateChange(PlayerStateType.Idle);

@@ -1,23 +1,23 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using DG.Tweening;
 
 public class PlayerHUDView : MonoBehaviour
 {
-    [Header("ÑªÌõ°ó¶¨")]
-    public Image topHealthBar;    // ¶¥²ãÕæÊµÑªÌõ (±ÈÈçÂÌÉ«)
-    public Image bufferHealthBar; // µ×²ã»º³åÑªÌõ (±ÈÈç°×É«/ºìÉ«)
+    [Header("è¡€æ¡ç»‘å®š")]
+    public Image topHealthBar;    // é¡¶å±‚çœŸå®è¡€æ¡ (æ¯”å¦‚ç»¿è‰²)
+    public Image bufferHealthBar; // åº•å±‚ç¼“å†²è¡€æ¡ (æ¯”å¦‚ç™½è‰²/çº¢è‰²)
 
-    [Header("µ¯Ò©°ó¶¨")]
+    [Header("å¼¹è¯ç»‘å®š")]
     public TextMeshProUGUI currentAmmoText; 
     public TextMeshProUGUI maxAmmoText;
 
-    [Header("»»µ¯UI°ó¶¨")]
-    public CanvasGroup reloadBarGroup; // ÓÃÀ´¿ØÖÆÕûÌåÏÔÒşµÄ CanvasGroup
-    public Image reloadFillImage;      // ÓÃÀ´¶ÁÌõµÄ Image (Image Type ±ØĞëÉèÎª Filled)
+    [Header("æ¢å¼¹UIç»‘å®š")]
+    public CanvasGroup reloadBarGroup; // ç”¨æ¥æ§åˆ¶æ•´ä½“æ˜¾éšçš„ CanvasGroup
+    public Image reloadFillImage;      // ç”¨æ¥è¯»æ¡çš„ Image (Image Type å¿…é¡»è®¾ä¸º Filled)
 
-    [Header("UI ÑÕÉ«ÅäÖÃ")]
+    [Header("UI é¢œè‰²é…ç½®")]
     public Color normalAmmoColor = Color.white;
     public Color warningAmmoColor = Color.red;
     public Color damageBufferColor = Color.white;
@@ -31,35 +31,35 @@ public class PlayerHUDView : MonoBehaviour
             reloadBarGroup.alpha = 0f;
     }
     /// <summary>
-    /// ¸üĞÂÑªÌõ (°üº¬Ôö¼õË«Ïò»º³å¶¯Ğ§)
+    /// æ›´æ–°è¡€æ¡ (åŒ…å«å¢å‡åŒå‘ç¼“å†²åŠ¨æ•ˆ)
     /// </summary>
     public void UpdateHealth(float currentHealth, float maxHealth)
     {
         float targetPercent = currentHealth / maxHealth;
 
-        // Èç¹ûÊÇ¿ÛÑª
+        // å¦‚æœæ˜¯æ‰£è¡€
         if (targetPercent < currentHealthPercent)
         {
             bufferHealthBar.color = damageBufferColor;
 
-            // 1. ÕæÊµÑªÌõË²¼äµôÏÂÈ¥
+            // 1. çœŸå®è¡€æ¡ç¬é—´æ‰ä¸‹å»
             topHealthBar.DOKill();
             topHealthBar.fillAmount = targetPercent;
 
-            // 2. »º³åÌõÍ£¶Ù 0.2 Ãëºó£¬»¨ 0.5 ÃëÆ½»¬×·¸ÏÕæÊµÑªÌõ
+            // 2. ç¼“å†²æ¡åœé¡¿ 0.2 ç§’åï¼ŒèŠ± 0.5 ç§’å¹³æ»‘è¿½èµ¶çœŸå®è¡€æ¡
             bufferHealthBar.DOKill();
             bufferHealthBar.DOFillAmount(targetPercent, 0.5f).SetDelay(0.2f).SetEase(Ease.OutCubic);
         }
-        // Èç¹ûÊÇ»ØÑª
+        // å¦‚æœæ˜¯å›è¡€
         else if (targetPercent > currentHealthPercent)
         {
             bufferHealthBar.color = healBufferColor;
 
-            // 1. »º³åÌõ(ÂÌÌõ)Ë²¼äÕÇÉÏÈ¥
+            // 1. ç¼“å†²æ¡(ç»¿æ¡)ç¬é—´æ¶¨ä¸Šå»
             bufferHealthBar.DOKill();
             bufferHealthBar.fillAmount = targetPercent;
 
-            // 2.ÕæÊµÑªÌõ»¨ 0.5 ÃëÆ½»¬ÕÇÉÏÀ´
+            // 2.çœŸå®è¡€æ¡èŠ± 0.5 ç§’å¹³æ»‘æ¶¨ä¸Šæ¥
             topHealthBar.DOKill();
             topHealthBar.DOFillAmount(targetPercent, 0.5f).SetEase(Ease.OutCubic);
         }
@@ -68,50 +68,50 @@ public class PlayerHUDView : MonoBehaviour
     }
 
     /// <summary>
-    /// ¸üĞÂµ¯Ò©ÓëµÍµ¯¾¯¸æÌØĞ§
+    /// æ›´æ–°å¼¹è¯ä¸ä½å¼¹è­¦å‘Šç‰¹æ•ˆ
     /// </summary>
     public void UpdateAmmo(int currentAmmo, int maxAmmo, bool isWarning)
     {
-        // ¼æÈİ¶ÓÓÑÃæ°åÃ»ÓĞµ¯Ò© UI µÄÇé¿ö
+        // å…¼å®¹é˜Ÿå‹é¢æ¿æ²¡æœ‰å¼¹è¯ UI çš„æƒ…å†µ
         if (currentAmmoText == null || maxAmmoText == null) return;
 
         currentAmmoText.text = currentAmmo.ToString();
-        // ¿ÉÒÔÔÚÕâÀï¼ÓÉÏĞ±¸Ü£¬»òÕßÄãÖ±½ÓÔÚ Unity Àï¼Ó¸ö¾²Ì¬ÎÄ±¾ "/"
+        // å¯ä»¥åœ¨è¿™é‡ŒåŠ ä¸Šæ–œæ ï¼Œæˆ–è€…ä½ ç›´æ¥åœ¨ Unity é‡ŒåŠ ä¸ªé™æ€æ–‡æœ¬ "/"
         maxAmmoText.text = maxAmmo.ToString();
 
-        // 1. ´ò¶Ïµ±Ç°µ¯Ò©ÎÄ±¾ÉÏ¿ÉÄÜÕıÔÚ½øĞĞµÄ¶¯»­£¨·ÀÖ¹¸ßËÙÁ¬·¢Ê±¶¯»­´íÂÒ£©
+        // 1. æ‰“æ–­å½“å‰å¼¹è¯æ–‡æœ¬ä¸Šå¯èƒ½æ­£åœ¨è¿›è¡Œçš„åŠ¨ç”»ï¼ˆé˜²æ­¢é«˜é€Ÿè¿å‘æ—¶åŠ¨ç”»é”™ä¹±ï¼‰
         currentAmmoText.transform.DOKill(complete: true);
 
-        // 2. È·¶¨»ù´¡×´Ì¬£º¾¯½ä×´Ì¬»ù´¡·Å´ó 1.3 ±¶£¬ÑÕÉ«±äºì
+        // 2. ç¡®å®šåŸºç¡€çŠ¶æ€ï¼šè­¦æˆ’çŠ¶æ€åŸºç¡€æ”¾å¤§ 1.3 å€ï¼Œé¢œè‰²å˜çº¢
         float baseScale = isWarning ? 1.3f : 1.0f;
         currentAmmoText.color = isWarning ? warningAmmoColor : normalAmmoColor;
 
-        // 3. Ö´ĞĞÌøÔ¾¶¯Ğ§£ºË²¼ä±ä´ó 0.5 ±¶£¬È»ºóÔÚ 0.15 ÃëÄÚµ¯»É°ã»ØÂäµ½»ù´¡´óĞ¡
+        // 3. æ‰§è¡Œè·³è·ƒåŠ¨æ•ˆï¼šç¬é—´å˜å¤§ 0.5 å€ï¼Œç„¶ååœ¨ 0.15 ç§’å†…å¼¹ç°§èˆ¬å›è½åˆ°åŸºç¡€å¤§å°
         currentAmmoText.transform.localScale = Vector3.one * (baseScale + 0.5f);
         currentAmmoText.transform.DOScale(baseScale, 0.15f).SetEase(Ease.OutBack);
     }
 
     /// <summary>
-    /// ²¥·Å»»µ¯¶ÁÌõ¶¯»­
+    /// æ’­æ”¾æ¢å¼¹è¯»æ¡åŠ¨ç”»
     /// </summary>
-    /// <param name="duration">»»µ¯ĞèÒªµÄÊ±¼ä</param>
+    /// <param name="duration">æ¢å¼¹éœ€è¦çš„æ—¶é—´</param>
     public void PlayReloadAnimation(float duration)
     {
         if (reloadBarGroup == null || reloadFillImage == null) return;
 
-        // ´ò¶ÏÖ®Ç°¿ÉÄÜÃ»²¥ÍêµÄ¶¯»­
+        // æ‰“æ–­ä¹‹å‰å¯èƒ½æ²¡æ’­å®Œçš„åŠ¨ç”»
         reloadFillImage.DOKill();
         reloadBarGroup.DOKill();
 
-        // 1. Ë²¼äÖØÖÃ½ø¶ÈÎª 0£¬²¢ÏÔÊ¾ UI
+        // 1. ç¬é—´é‡ç½®è¿›åº¦ä¸º 0ï¼Œå¹¶æ˜¾ç¤º UI
         reloadFillImage.fillAmount = 0f;
         reloadBarGroup.alpha = 1f;
 
-        // 2. ÓÃ DOTween ÔÚ duration ÃëÄÚÏßĞÔ (Linear) ÌîÂú½ø¶ÈÌõ
+        // 2. ç”¨ DOTween åœ¨ duration ç§’å†…çº¿æ€§ (Linear) å¡«æ»¡è¿›åº¦æ¡
         reloadFillImage.DOFillAmount(1f, duration).SetEase(Ease.Linear)
             .OnComplete(() =>
             {
-                // 3. ¶ÁÌõÂúÁËÖ®ºó£¬Æ½»¬Òş²ØµôÕâ¸ö UI
+                // 3. è¯»æ¡æ»¡äº†ä¹‹åï¼Œå¹³æ»‘éšè—æ‰è¿™ä¸ª UI
                 reloadBarGroup.DOFade(0f, 0.2f);
             });
     }

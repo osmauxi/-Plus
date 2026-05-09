@@ -1,22 +1,23 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI; // ÒıÈëÑ°Â·ÃüÃû¿Õ¼ä
+using UnityEngine.AI; // å¼•å…¥å¯»è·¯å‘½åç©ºé—´
 
 public class HitStopManager : MonoBehaviour
 {
     public static HitStopManager Instance { get; private set; }
 
-    // ÓÃÒ»¸öÄÚ²¿ÀàÀ´±£´æ±»¶³½á¶ÔÏóµÄËùÓĞ×´Ì¬
+    // ç”¨ä¸€ä¸ªå†…éƒ¨ç±»æ¥ä¿å­˜è¢«å†»ç»“å¯¹è±¡çš„æ‰€æœ‰çŠ¶æ€
     private class FrozenData
     {
         public float unfreezeTime;
         public Animator animator;
         public Rigidbody rb;
-        public Vector3 savedVelocity; // ±£´æ¶³½áÇ°µÄ¹ßĞÔ
+        public Vector3 savedVelocity; // ä¿å­˜å†»ç»“å‰çš„æƒ¯æ€§
         public NavMeshAgent agent;
         public bool wasAgentStopped;
     }
 
+    public float debug = 1;
     private Dictionary<GameObject, FrozenData> frozenEntities = new Dictionary<GameObject, FrozenData>();
 
     private void Awake()
@@ -25,7 +26,7 @@ public class HitStopManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
         if (frozenEntities.Count == 0) return;
 
@@ -47,17 +48,18 @@ public class HitStopManager : MonoBehaviour
     }
 
     /// <summary>
-    /// È«Ãæ¶³½áÊµÌå£¨¶¯»­¡¢ÎïÀí¡¢Ñ°Â·£©
+    /// å…¨é¢å†»ç»“å®ä½“ï¼ˆåŠ¨ç”»ã€ç‰©ç†ã€å¯»è·¯ï¼‰
     /// </summary>
     public void Freeze(GameObject target, float duration)
     {
         if (target == null) return;
 
-        float targetUnfreezeTime = Time.unscaledTime + duration;
+
+        float targetUnfreezeTime = Time.unscaledTime + duration * debug;
 
         if (frozenEntities.TryGetValue(target, out FrozenData data))
         {
-            // ·ÀÁ¬»÷ Bug£ºË¢ĞÂ×î³¤µÄ¶³½áÊ±¼ä
+            // é˜²è¿å‡» Bugï¼šåˆ·æ–°æœ€é•¿çš„å†»ç»“æ—¶é—´
             if (targetUnfreezeTime > data.unfreezeTime)
             {
                 data.unfreezeTime = targetUnfreezeTime;
@@ -65,25 +67,46 @@ public class HitStopManager : MonoBehaviour
         }
         else
         {
-            // µÚÒ»´Î¶³½á£¬×¥È¡ËùÓĞ×é¼ş²¢±£´æ×´Ì¬
+            // ç¬¬ä¸€æ¬¡å†»ç»“ï¼ŒæŠ“å–æ‰€æœ‰ç»„ä»¶å¹¶ä¿å­˜çŠ¶æ€
             FrozenData newData = new FrozenData();
             newData.unfreezeTime = targetUnfreezeTime;
-            newData.animator = target.GetComponentInChildren<Animator>();
-            newData.rb = target.GetComponent<Rigidbody>();
-            newData.agent = target.GetComponent<NavMeshAgent>();
 
-            // 1. ¶³½á¶¯»­
+            // ==========================================
+            // ã€æ ¸å¿ƒæ¶æ„å‡çº§ã€‘ï¼šä¼˜å…ˆèµ° Facade è·å– O(1) ç¼“å­˜ç»„ä»¶
+            // ==========================================
+            if (target.TryGetComponent<MonsterEntity>(out var monster))
+            {
+                newData.animator = monster.Anim;
+                newData.rb = monster.Rb;
+                newData.agent = monster.agent;
+            }
+            else if (target.TryGetComponent<PlayerController>(out var player))
+            {
+                newData.animator = player.Anim;
+                newData.rb = player.Rb;
+                newData.agent = null; // ç©å®¶æ²¡æœ‰ NavMeshAgentï¼Œç›´æ¥ç½®ç©º
+            }
+            else
+            {
+                // ã€å…œåº•æ–¹æ¡ˆã€‘ï¼šæ‰“ä¸­çš„æ˜¯æ²¡é‡æ„çš„æ—§ç‰©ä½“ã€æˆ–è€…å¯ç ´åçš„åœºæ™¯ç‰©ä»¶
+                newData.animator = target.GetComponentInChildren<Animator>();
+                newData.rb = target.GetComponent<Rigidbody>();
+                newData.agent = target.GetComponent<NavMeshAgent>();
+            }
+            // ==========================================
+
+            // 1. å†»ç»“åŠ¨ç”»
             if (newData.animator != null) newData.animator.speed = 0f;
 
-            // 2. ¶³½áÎïÀí£¨±£´æËÙ¶È£¬²¢ÔİÊ±°ş¶áÎïÀí¿ØÖÆÈ¨£©
+            // 2. å†»ç»“ç‰©ç†ï¼ˆä¿å­˜é€Ÿåº¦ï¼Œå¹¶æš‚æ—¶å‰¥å¤ºç‰©ç†æ§åˆ¶æƒï¼‰
             if (newData.rb != null)
             {
                 newData.savedVelocity = newData.rb.velocity;
                 newData.rb.velocity = Vector3.zero;
-                newData.rb.isKinematic = true; // ¿ªÆôÔË¶¯Ñ§£¬Ïñ¶¤×ÓÒ»Ñù¶¤ÔÚÔ­µØ
+                newData.rb.isKinematic = true; // å¼€å¯è¿åŠ¨å­¦ï¼Œåƒé’‰å­ä¸€æ ·é’‰åœ¨åŸåœ°
             }
 
-            // 3. ¶³½áÑ°Â·£¨Èç¹ûÊÇ¹ÖÎï£©
+            // 3. å†»ç»“å¯»è·¯ï¼ˆå¦‚æœæ˜¯æ€ªç‰©ï¼‰
             if (newData.agent != null && newData.agent.isActiveAndEnabled)
             {
                 newData.wasAgentStopped = newData.agent.isStopped;
@@ -98,17 +121,17 @@ public class HitStopManager : MonoBehaviour
     {
         if (frozenEntities.TryGetValue(target, out FrozenData data))
         {
-            // 1. »Ö¸´¶¯»­
+            // 1. æ¢å¤åŠ¨ç”»
             if (data.animator != null) data.animator.speed = 1f;
 
-            // 2. »Ö¸´ÎïÀí
+            // 2. æ¢å¤ç‰©ç†
             if (data.rb != null)
             {
                 data.rb.isKinematic = false;
-                data.rb.velocity = data.savedVelocity; // °Ñ¶³½áÇ°µÄ¹ßĞÔ»¹¸øËü
+                data.rb.velocity = data.savedVelocity; // æŠŠå†»ç»“å‰çš„æƒ¯æ€§è¿˜ç»™å®ƒ
             }
 
-            // 3. »Ö¸´Ñ°Â·
+            // 3. æ¢å¤å¯»è·¯
             if (data.agent != null && data.agent.isActiveAndEnabled)
             {
                 data.agent.isStopped = data.wasAgentStopped;

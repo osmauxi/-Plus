@@ -42,6 +42,12 @@ public class WeaponBase : NetworkBehaviour
 
     private void HandleInput()
     {
+        if (InputManager.Instance.CurrentState != InputState.Gameplay) return;
+
+        if (transform.root.TryGetComponent<PlayerController>(out var pc))
+        {
+            if (pc.currentNetState.Value == PlayerStateType.dead) return;
+        }
         // 1. 处理手动换弹
         if (Input.GetKeyDown(KeyCode.R) && !isReloading && currentAmmo < stats.GetStatValue(StatType.MagSize))
         {

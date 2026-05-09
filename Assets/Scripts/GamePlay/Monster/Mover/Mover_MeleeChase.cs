@@ -1,70 +1,59 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.AI;
 
-/// <summary>
-/// ÒÆ¶¯²å¼ş£ºÍ¨ÓÃ½üÕ½×·»÷
-/// Ö°Ôğ£ºÏòÄ¿±ê¿¿½ü£¬µ½´ï¹¥»÷¾àÀëºóÉ²³µ£¬²¢³ÖĞøÃæÏòÄ¿±ê
-/// </summary>
 public class Mover_MeleeChase : MonoBehaviour, IMovementModule
 {
-    [Header("ÒÆ¶¯²ÎÊıÅäÖÃ")]
-    [Tooltip("¾àÀëÄ¿±ê¶à½üÊ±Í£ÏÂ£¨Ó¦Ô¼µÈÓÚ¹¥»÷¶¯×÷µÄÅĞ¶¨¾àÀë£©")]
+    [Header("ç§»åŠ¨å‚æ•°é…ç½®")]
     public float stopDistance = 2.0f;
-
-    [Tooltip("Ñ°Â·¸üĞÂÆµÂÊ£¨Ãë£©¡£²»ÒªÃ¿Ö¡¸üĞÂ£¬¼«¶È½ÚÊ¡CPUĞÔÄÜ£¡")]
     public float pathUpdateInterval = 0.2f;
 
-    [Header("×ªÏòÅäÖÃ")]
-    [Tooltip("Í£ÏÂ»ò¹¥»÷Ê±£¬ÊÇ·ñÒÀÈ»ÓÃ´úÂëÆ½»¬¿´ÏòÄ¿±ê£¨·ÀÖ¹¹¥»÷´òÍá£©")]
+    [Header("è½¬å‘é…ç½®")]
     public bool faceTargetWhenStopped = true;
     public float rotationSpeed = 8f;
 
-    // ÄÚ²¿¼ÆÊ±Æ÷
     private float nextUpdateTime;
 
     public void ExecuteTick(AIBlackboard bb)
     {
-        //ºÚ°åÉÏÃ»Ä¿±ê£¬Ö±½ÓÍ£³µĞİ¼Ù
+        if (bb.Brain != null && bb.Brain.IsHitStopped) return;
+
+        // --- ä»¥ä¸‹ä¸ºä½ åŸæœ¬çš„é€»è¾‘ ---
+
         if (!bb.HasTarget)
         {
             StopAgent(bb);
+            UpdateAnimatorSpeed(bb, 0f); // æ²¡ç›®æ ‡ï¼Œé€Ÿåº¦ç¡¬è®¾ä¸º 0
             return;
         }
 
-        // 2. ºËĞÄÊıÑ§£º¼ÆËã¾àÀë£¬²¢Á¢¿ÌĞ´ÔÚºÚ°åÉÏ¸øÆäËûÄ£¿é¿´£¡
         float dist = Vector3.Distance(transform.position, bb.CurrentTarget.position);
         bb.DistanceToTarget = dist;
 
-        // 3. À¹½ØÆ÷£ºÈç¹ûÉ±ÊÖ£¨¹¥»÷Ä£¿é£©ÕıÔÚ²¥¹¥»÷¶¯»­£¬Ë¾»ú¾ø¶Ô²»ÄÜ¶¯£¡
+        // æ‹¦æˆªå™¨ï¼šå¦‚æœæ­£åœ¨æ”»å‡»ï¼Œç»å¯¹ä¸å…è®¸ç§»åŠ¨ï¼
         if (bb.IsAttacking)
         {
             StopAgent(bb);
-            // ¼´Ê¹Í£ÏÂ£¬Ò²¿ÉÒÔÑ¡ÔñËÀËÀ¶¢×¡Íæ¼Ò£¬·ÀÖ¹Íæ¼ÒÈÆ±³¶ã¿ª¹¥»÷
             if (faceTargetWhenStopped) FaceTarget(bb);
+            UpdateAnimatorSpeed(bb, 0f); // æ”»å‡»ä¸­ï¼Œæ­¥ä¼åŠ¨ç”»å¼ºåˆ¶å½’é›¶
             return;
         }
-        bb.Rb.velocity = Vector3.zero;
 
-        // 4. ¾àÀëÅĞ¶¨£ºµ½´ï¹¥»÷·¶Î§ÁËÂğ£¿
+        bb.Rb.velocity = new Vector3(0, bb.Rb.velocity.y, 0);
+
         if (dist <= stopDistance)
         {
-            // ²ÈÉ²³µ£¡
             StopAgent(bb);
             if (faceTargetWhenStopped) FaceTarget(bb);
-
-            // ¡¾¹Ø¼ü¡¿£ºÔÚºÚ°åÉÏÁôÏÂ¼ÇºÅ£¬¸æËßÉ±ÊÖ¿ÉÒÔ¿ª»ğÁË£¡
             bb.IsTargetInAttackRange = true;
+            UpdateAnimatorSpeed(bb, 0f); // è¸©åˆ¹è½¦ï¼Œæ­¥ä¼åŠ¨ç”»å½’é›¶
         }
         else
         {
-            // ¾àÀë²»¹»£¬¼ÌĞø²ÈÓÍÃÅ×·»÷
             bb.IsTargetInAttackRange = false;
 
-            // ĞÔÄÜÓÅ»¯£ºÃ¿¸ô pathUpdateInterval Ãë²ÅÖØĞÂËãÒ»´ÎÂ·
             if (Time.time >= nextUpdateTime)
             {
                 nextUpdateTime = Time.time + pathUpdateInterval;
-
                 if (bb.Agent.isActiveAndEnabled)
                 {
                     bb.Agent.isStopped = false;
@@ -72,22 +61,26 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
                     bb.IsMoving = true;
                 }
             }
-        }
-        if (bb.Anim != null && bb.Agent.isActiveAndEnabled)
-        {
-            bb.Anim.SetFloat("MoveSpeed", bb.Agent.velocity.magnitude);
+
+            // æ­£å¸¸è¿½å‡»æ—¶ï¼Œè¯»å–çœŸå®é€Ÿåº¦ç»™åŠ¨ç”»æœº
+            UpdateAnimatorSpeed(bb, bb.Agent.velocity.magnitude);
         }
     }
 
-    // ==========================================
-    // ÄÚ²¿¹¤¾ß·½·¨
-    // ==========================================
+    private void UpdateAnimatorSpeed(AIBlackboard bb, float speed)
+    {
+        if (bb.Anim != null)
+        {
+            bb.Anim.SetFloat("MoveSpeed", speed, 0.1f, Time.deltaTime);
+        }
+    }
+
     private void StopAgent(AIBlackboard bb)
     {
         if (bb.Agent.isActiveAndEnabled && !bb.Agent.isStopped)
         {
             bb.Agent.isStopped = true;
-            bb.Agent.velocity = Vector3.zero; // Çå³ı¹ßĞÔ»¬¶¯
+            bb.Agent.velocity = Vector3.zero;
             bb.IsMoving = false;
         }
     }
@@ -95,11 +88,8 @@ public class Mover_MeleeChase : MonoBehaviour, IMovementModule
     private void FaceTarget(AIBlackboard bb)
     {
         if (bb.CurrentTarget == null) return;
-
-        // ¼ÆËã´¿ 2D Æ½ÃæĞı×ª£¨ºöÂÔYÖá¸ß¶È²î£¬·ÀÖ¹¹ÖÎïÌ§Í·¿´Ìì»òµÍÍ·¿´µØ£©
         Vector3 direction = (bb.CurrentTarget.position - transform.position).normalized;
         direction.y = 0;
-
         if (direction != Vector3.zero)
         {
             Quaternion targetRot = Quaternion.LookRotation(direction);

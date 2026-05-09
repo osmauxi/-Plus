@@ -23,6 +23,9 @@ public class RoomNodeData : MonoBehaviour
     [Header("战斗生成数据")]
     public Transform[] SpawnNodes;
     public Transform[] ChestPos;
+    public Transform[] NextLevelPos;
+    public Transform[] PlayerSpawnPos;
+
 
 
     [Header("运行时表现缓存 (程序自动分配)")]

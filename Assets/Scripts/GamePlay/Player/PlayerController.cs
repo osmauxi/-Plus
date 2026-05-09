@@ -31,9 +31,12 @@ public class PlayerController : NetworkBehaviour
     public PlayerReviveUI reviveUI;
     private PlayerController currentlyRescuingTarget;
 
+    public Rigidbody Rb => rb;
+    public Animator Anim => anim;
+
     private Health health;
     private Rigidbody rb;
-    public Animator Anim;
+    public Animator anim;
 
     public StateMachine stateMachine { get; private set; }
     Dictionary<PlayerStateType, State> stateDict = new Dictionary<PlayerStateType, State>();
@@ -279,5 +282,27 @@ public class PlayerController : NetworkBehaviour
         currentMoveInput = Vector3.zero;
         moveTimer = 0f;
         rb.velocity = new Vector3(0, rb.velocity.y, 0);
+    }
+    [ClientRpc]
+    public void TeleportClientRpc(Vector3 targetPos)
+    {
+        if (IsOwner)
+        {
+            rb.velocity = Vector3.zero;
+            rb.interpolation = RigidbodyInterpolation.None; // 闭屏插值防止镜头拖尾
+            rb.position = targetPos;
+
+            // 瞬间吸附相机！
+            if (CameraViewManager.instance != null)
+                CameraViewManager.instance.ForceSnapToPlayer();
+
+            StartCoroutine(RestoreInterpolationRoutine());
+        }
+    }
+
+    private System.Collections.IEnumerator RestoreInterpolationRoutine()
+    {
+        yield return new WaitForFixedUpdate();
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
     }
 }

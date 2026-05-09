@@ -1,24 +1,24 @@
-using System.Collections;
+ï»¿using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// ÊµÌåÌØĞ§¹ÜÀíÆ÷£º¸ºÔğÄ£ĞÍ²ÄÖÊ±ä»¯¡¢×´Ì¬ÑÕÉ«ÇĞ»»µÈËùÓĞ±íÏÖĞ§¹û
+/// å®ä½“ç‰¹æ•ˆç®¡ç†å™¨ï¼šè´Ÿè´£æ¨¡å‹æè´¨å˜åŒ–ã€çŠ¶æ€é¢œè‰²åˆ‡æ¢ç­‰æ‰€æœ‰è¡¨ç°æ•ˆæœ
 /// </summary>
 public class EntityFXManager : MonoBehaviour
 {
-    [Header("äÖÈ¾Æ÷ÒıÓÃ")]
+    [Header("æ¸²æŸ“å™¨å¼•ç”¨")]
     public Renderer[] modelRenderers;
 
-    [Header("ÊÜ»÷·´À¡")]
+    [Header("å—å‡»åé¦ˆ")]
     public Color hitFlashColor = Color.white;
     public float hitFlashDuration = 0.1f;
 
-    [Header("×´Ì¬ÑÕÉ«")]
-    public Color poisonColor = new Color(0.2f, 1f, 0.2f); // ÂÌÉ«
-    public Color frozenColor = new Color(0.3f, 0.5f, 1f); // À¶É«
+    [Header("çŠ¶æ€é¢œè‰²")]
+    public Color poisonColor = new Color(0.2f, 1f, 0.2f); // ç»¿è‰²
+    public Color frozenColor = new Color(0.3f, 0.5f, 1f); // è“è‰²
 
     private MaterialPropertyBlock propBlock;
-    private static readonly int ColorPropURP = Shader.PropertyToID("_BaseColor"); // URPÓÃµÄÃû×Ö
+    private static readonly int ColorPropURP = Shader.PropertyToID("_BaseColor"); // URPç”¨çš„åå­—
     private static readonly int EmissionProperty = Shader.PropertyToID("_EmissionColor");
 
     private Coroutine activeEffectRoutine;
@@ -31,7 +31,7 @@ public class EntityFXManager : MonoBehaviour
     }
 
     // ==========================================
-    // 1. ÊÜ»÷ÉÁ°× (¸ßÓÅÏÈ¼¶µş¼Ó)
+    // 1. å—å‡»é—ªç™½ (é«˜ä¼˜å…ˆçº§å åŠ )
     // ==========================================
     public void PlayHitFlash()
     {
@@ -41,13 +41,13 @@ public class EntityFXManager : MonoBehaviour
 
     private IEnumerator FlashRoutine(Color targetColor, float duration)
     {
-        SetAllRenderersColor(targetColor, true); // ¿ªÆô×Ô·¢¹âÔöÇ¿ÉÁË¸¸Ğ
+        SetAllRenderersColor(targetColor, true); // å¼€å¯è‡ªå‘å…‰å¢å¼ºé—ªçƒæ„Ÿ
         yield return new WaitForSeconds(duration);
         ResetAllRenderers();
     }
 
     // ==========================================
-    // 2. ×´Ì¬É«ÇĞ»» (ÈçÖĞ¶¾¡¢±ù¶³)
+    // 2. çŠ¶æ€è‰²åˆ‡æ¢ (å¦‚ä¸­æ¯’ã€å†°å†»)
     // ==========================================
     public void SetStatusColor(string status)
     {
@@ -60,7 +60,7 @@ public class EntityFXManager : MonoBehaviour
     }
 
     // ==========================================
-    // ÄÚ²¿µ×²ã»æÖÆ¹¤¾ß (0 GC)
+    // å†…éƒ¨åº•å±‚ç»˜åˆ¶å·¥å…· (0 GC)
     // ==========================================
     private void SetAllRenderersColor(Color col, bool useEmission = false)
     {
@@ -68,14 +68,14 @@ public class EntityFXManager : MonoBehaviour
         {
             rend.GetPropertyBlock(propBlock);
             propBlock.SetColor(ColorPropURP, col);
-            // Èç¹ûÒª·¢¹â£¬¸ø·¢¹âÊôĞÔ¸³Öµ
+            // å¦‚æœè¦å‘å…‰ï¼Œç»™å‘å…‰å±æ€§èµ‹å€¼
             if (useEmission)
             {
-                propBlock.SetColor(EmissionProperty, col * 2f); // ³Ë 2 ÈÃËüÁÁÏ¹ÑÛ
+                propBlock.SetColor(EmissionProperty, col * 2f); // ä¹˜ 2 è®©å®ƒäº®ççœ¼
             }
             else
             {
-                propBlock.SetColor(EmissionProperty, Color.black); // ¹Øµô·¢¹â
+                propBlock.SetColor(EmissionProperty, Color.black); // å…³æ‰å‘å…‰
             }
             rend.SetPropertyBlock(propBlock);
         }

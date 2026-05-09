@@ -1,9 +1,9 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Pool;
 
 /// <summary>
-/// È«¾Ö±¾µØÌØĞ§³Ø (´¿¿Í»§¶ËÊÓ¾õ£¬²»²ÎÓëÍøÂçÍ¬²½)
+/// å…¨å±€æœ¬åœ°ç‰¹æ•ˆæ±  (çº¯å®¢æˆ·ç«¯è§†è§‰ï¼Œä¸å‚ä¸ç½‘ç»œåŒæ­¥)
 /// </summary>
 public class GlobalLocalVFXPool : MonoBehaviour
 {
@@ -12,15 +12,14 @@ public class GlobalLocalVFXPool : MonoBehaviour
     [System.Serializable]
     public struct VFXRegistry
     {
-        public string id;             // ±ÈÈç "BloodSplash", "BulletHitMetal"
-        public GameObject prefab;     // ×¢Òâ£º±ØĞë¹ÒÔØÁË VFXAutoReturn ½Å±¾£¡
-        public int defaultCapacity;   // Ä¬ÈÏ³Ø×Ó´óĞ¡£¬±ÈÈç×Óµ¯»ğ»¨½¨Òé 20£¬±¬Ñª½¨Òé 10
+        public string id;
+        public GameObject prefab;
+        public int defaultCapacity;
     }
 
-    [Header("±¾µØÌØĞ§×¢²á±í")]
+    [Header("æœ¬åœ°ç‰¹æ•ˆæ³¨å†Œè¡¨")]
     public List<VFXRegistry> registries = new List<VFXRegistry>();
 
-    // ºËĞÄÊı¾İ½á¹¹£ºÒ»¸ö´ó×Öµä£¬ÀïÃæ×°ÂúÁË¸÷ÖÖÌØĞ§µÄ¶ÀÁ¢¶ÔÏó³Ø
     private Dictionary<string, ObjectPool<GameObject>> vfxPools = new Dictionary<string, ObjectPool<GameObject>>();
 
     private void Awake()
@@ -37,60 +36,102 @@ public class GlobalLocalVFXPool : MonoBehaviour
         {
             if (string.IsNullOrEmpty(reg.id) || reg.prefab == null) continue;
 
-            // ´´½¨ Unity Ô­ÉúµÄ ObjectPool
             var pool = new ObjectPool<GameObject>(
                 createFunc: () =>
                 {
                     GameObject obj = Instantiate(reg.prefab, this.transform);
-                    // È·±£Ô¤ÖÆ¼şÉÏ¹ÒÁË»ØÊÕ½Å±¾£¬²¢ÇÒ ID Ìî¶ÔÁË
                     var autoReturn = obj.GetComponent<VFXAutoReturn>();
-                    if (autoReturn == null) Debug.LogError($"ÌØĞ§ {reg.id} È±ÉÙ VFXAutoReturn ½Å±¾£¡");
+                    if (autoReturn == null) Debug.LogError($"ç‰¹æ•ˆ {reg.id} ç¼ºå°‘ VFXAutoReturn è„šæœ¬ï¼");
                     else autoReturn.vfxId = reg.id;
                     return obj;
                 },
-                actionOnGet: (obj) => obj.SetActive(true),
-                actionOnRelease: (obj) => obj.SetActive(false),
+                actionOnGet: (obj) => {
+                    obj.transform.SetParent(null);
+                },
+                actionOnRelease: (obj) => {
+                    obj.SetActive(false);
+                    // ã€ä¿®å¤ 1ã€‘ï¼šæ”¾å›æ± å­æ—¶ç»Ÿä¸€æŒ‚å›çˆ¶èŠ‚ç‚¹ï¼Œä¿è¯ Hierarchy é¢æ¿æ•´æ´
+                    obj.transform.SetParent(this.transform);
+                },
                 actionOnDestroy: (obj) => Destroy(obj),
                 defaultCapacity: reg.defaultCapacity,
-                maxSize: 100 // ·ÀÖ¹³Ø×ÓÎŞÏŞÅòÕÍ
+                maxSize: 100
             );
 
             vfxPools.Add(reg.id, pool);
+
+            // ==========================================
+            // ã€æ ¸å¿ƒä¿®å¤ 2ã€‘ï¼šå¼ºè¡Œé¢„çƒ­æ± å­ (Pre-warm)
+            // ==========================================
+            var prewarmList = new List<GameObject>();
+            for (int i = 0; i < reg.defaultCapacity; i++)
+            {
+                prewarmList.Add(pool.Get()); // å¼ºè¡Œç”Ÿæˆ
+            }
+            foreach (var obj in prewarmList)
+            {
+                pool.Release(obj); // ç«‹åˆ»å¡å›å»
+            }
         }
     }
 
     /// <summary>
-    /// ¡¾¼«¶È¸ßÆµ±»µ÷ÓÃµÄ½Ó¿Ú¡¿ÔÚÖ¸¶¨Î»ÖÃ²¥·ÅÌØĞ§
+    /// ã€æåº¦é«˜é¢‘è¢«è°ƒç”¨çš„æ¥å£ã€‘åœ¨æŒ‡å®šä½ç½®æ’­æ”¾ç‰¹æ•ˆ
     /// </summary>
     public void GetVFX(string id, Vector3 position, Quaternion rotation = default, float weight = 1f)
     {
         if (vfxPools.TryGetValue(id, out var pool))
         {
             GameObject vfxObj = pool.Get();
-            vfxObj.transform.position = position;
 
-            // Èç¹û´«ÈëÁËĞı×ª¾ÍÓÃ´«ÈëµÄ£¬·ñÔò±£³ÖÔ¤ÖÆ¼şµÄÄ¬ÈÏĞı×ª
+            // ==========================================
+            // ã€æ ¸å¿ƒä¿®å¤ 3ã€‘ï¼šçŠ¶æ€æ¸…æ´—ä¸ä¸¥æ ¼çš„ç”Ÿå‘½å‘¨æœŸé¡ºåº
+            // ==========================================
+
+            // ç¬¬ä¸€æ­¥ï¼šå…ˆæ‘†æ­£ä½ç½®å’Œæœå‘ï¼ˆç»å¯¹ä¸èƒ½å…ˆ SetActiveï¼‰
+            vfxObj.transform.position = position;
             if (rotation != default) vfxObj.transform.rotation = rotation;
 
+            // ç¬¬äºŒæ­¥ï¼šæ¸…æ´—æ®‹ç•™çš„ç‰©ç†çŠ¶æ€ï¼ˆé˜²æ­¢æ‰å…¥åœ°ä¸‹ï¼ï¼‰
+            if (vfxObj.TryGetComponent<Rigidbody>(out var rb))
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+
+            // ç¬¬ä¸‰æ­¥ï¼šæ¿€æ´»ç‰©ä½“
+            vfxObj.SetActive(true);
+
+            // ç¬¬å››æ­¥ï¼šæ¸…ç†æ‹–å°¾å’Œç²’å­æ®‹å½±ï¼ˆé˜²æ­¢ç©ºé—´ç¬ç§»äº§ç”Ÿä¸€æ¡é•¿é•¿çš„å°¾è¿¹ï¼‰
+            var trails = vfxObj.GetComponentsInChildren<TrailRenderer>();
+            foreach (var trail in trails)
+            {
+                trail.Clear();
+            }
+
+            var pss = vfxObj.GetComponentsInChildren<ParticleSystem>();
+            foreach (var ps in pss)
+            {
+                // å¦‚æœæ²¡æœ‰å¼€å¯ PlayOnAwakeï¼Œå°±æ‰‹åŠ¨æ’­ä¸€ä¸‹
+                if (!ps.main.playOnAwake) ps.Play();
+            }
+
+            // ç¬¬äº”æ­¥ï¼šå¤„ç†å°ºå¯¸å’Œæƒé‡
             if (vfxObj.TryGetComponent<VFXImpactScaler>(out var scaler))
             {
                 scaler.SetImpactWeight(weight);
             }
             else
             {
-                // Èç¹ûÕâ¸öÌØĞ§Ã»¹Ò½Å±¾£¬¾ÍÓÃ×îÔ­Ê¼µÄËõ·Å¼æÈİÒ»ÏÂ
                 vfxObj.transform.localScale = Vector3.one * weight;
             }
         }
         else
         {
-            Debug.LogWarning($"[VFX Pool] ÕÒ²»µ½ ID Îª {id} µÄÌØĞ§£¡");
+            Debug.LogWarning($"[VFX Pool] æ‰¾ä¸åˆ° ID ä¸º {id} çš„ç‰¹æ•ˆï¼");
         }
     }
 
-    /// <summary>
-    /// »ØÊÕ½Ó¿Ú£ºÍ¨³£ÓÉÌØĞ§ÉíÉÏµÄ VFXAutoReturn ×Ô¶¯µ÷ÓÃ
-    /// </summary>
     public void ReturnVFX(string id, GameObject vfxObj)
     {
         if (vfxPools.TryGetValue(id, out var pool))

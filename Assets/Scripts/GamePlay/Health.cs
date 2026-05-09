@@ -1,32 +1,32 @@
-using System;
+ï»¿using System;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// È«¾ÖÍ¨ÓÃµÄÍøÂçÉúÃüÖµ×é¼ş (¹ÒÔØÔÚÍæ¼Ò¡¢¹ÖÎï¡¢¿ÉÆÆ»µÎïÌåµÄ¸ù½Úµã)
+/// å…¨å±€é€šç”¨çš„ç½‘ç»œç”Ÿå‘½å€¼ç»„ä»¶ (æŒ‚è½½åœ¨ç©å®¶ã€æ€ªç‰©ã€å¯ç ´åç‰©ä½“çš„æ ¹èŠ‚ç‚¹)
 /// </summary>
 public class Health : NetworkBehaviour
 {
-    // µ±Ç°ÑªÁ¿£ºÖ»ÔÊĞí·şÎñÆ÷ĞŞ¸Ä£¬¿Í»§¶ËÖ»ÄÜ¶ÁÈ¡
+    // å½“å‰è¡€é‡ï¼šåªå…è®¸æœåŠ¡å™¨ä¿®æ”¹ï¼Œå®¢æˆ·ç«¯åªèƒ½è¯»å–
     public NetworkVariable<float> currentHealth = new NetworkVariable<float>(
         100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
-    // ×î´óÑªÁ¿ÉÏÏŞ (Í¬ÑùĞèÒªÍ¬²½£¬ÒòÎª¿Í»§¶Ë»­ÑªÌõĞèÒªÖªµÀ·ÖÄ¸)
+    // æœ€å¤§è¡€é‡ä¸Šé™ (åŒæ ·éœ€è¦åŒæ­¥ï¼Œå› ä¸ºå®¢æˆ·ç«¯ç”»è¡€æ¡éœ€è¦çŸ¥é“åˆ†æ¯)
     public NetworkVariable<float> maxHealth = new NetworkVariable<float>(
         100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
     // ==========================================
-    // Ìá¹©¸ø UI ºÍ ÆäËû½Å±¾¼àÌıµÄÊÂ¼ş (C# Î¯ÍĞ)
+    // æä¾›ç»™ UI å’Œ å…¶ä»–è„šæœ¬ç›‘å¬çš„äº‹ä»¶ (C# å§”æ‰˜)
     // ==========================================
-    /// <summary> µ±ÑªÁ¿±ä»¯Ê±´¥·¢ (²ÎÊı£ºµ±Ç°ÑªÁ¿£¬×î´óÑªÁ¿) </summary>
+    /// <summary> å½“è¡€é‡å˜åŒ–æ—¶è§¦å‘ (å‚æ•°ï¼šå½“å‰è¡€é‡ï¼Œæœ€å¤§è¡€é‡) </summary>
     public event Action<float, float> OnHealthChanged;
 
-    /// <summary> µ±ËÀÍöÊ±´¥·¢ </summary>
+    /// <summary> å½“æ­»äº¡æ—¶è§¦å‘ </summary>
     public event Action OnDied;
 
-    [Header("Õ½¶·ÊÖ¸ĞÉèÖÃ")]
-    [Tooltip("ÊÜ»÷ºóµÄÎŞµĞÖ¡Ê±³¤ (Ãë)")]
+    [Header("æˆ˜æ–—æ‰‹æ„Ÿè®¾ç½®")]
+    [Tooltip("å—å‡»åçš„æ— æ•Œå¸§æ—¶é•¿ (ç§’)")]
     public float iFrameDuration = 0.2f;
     private float lastHitTime = -999f;
 
@@ -37,7 +37,7 @@ public class Health : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        // ºËĞÄ£º²»ÂÛÊÇ·şÎñÆ÷»¹ÊÇ¿Í»§¶Ë£¬Ö»Òª NetworkVariable µÄÖµ±äÁË£¬¾Í»á×Ô¶¯´¥·¢´Ë»Øµ÷
+        // æ ¸å¿ƒï¼šä¸è®ºæ˜¯æœåŠ¡å™¨è¿˜æ˜¯å®¢æˆ·ç«¯ï¼Œåªè¦ NetworkVariable çš„å€¼å˜äº†ï¼Œå°±ä¼šè‡ªåŠ¨è§¦å‘æ­¤å›è°ƒ
         currentHealth.OnValueChanged += HandleHealthChange;
     }
 
@@ -51,11 +51,11 @@ public class Health : NetworkBehaviour
         fXManager = GetComponent<EntityFXManager>();
     }
     // ==========================================
-    // ·şÎñÆ÷×¨ÓÃµÄ³õÊ¼»¯Óë¿ÛÑªÂß¼­
+    // æœåŠ¡å™¨ä¸“ç”¨çš„åˆå§‹åŒ–ä¸æ‰£è¡€é€»è¾‘
     // ==========================================
 
     /// <summary>
-    /// ³õÊ¼»¯ÑªÁ¿ (½öÏŞ·şÎñÆ÷µ÷ÓÃ£¬Í¨³£ÓÉ Director »ò Íæ¼ÒÉú³ÉÆ÷ µ÷ÓÃ)
+    /// åˆå§‹åŒ–è¡€é‡ (ä»…é™æœåŠ¡å™¨è°ƒç”¨ï¼Œé€šå¸¸ç”± Director æˆ– ç©å®¶ç”Ÿæˆå™¨ è°ƒç”¨)
     /// </summary>
     public void InitializeHealth(float maxHp)
     {
@@ -66,22 +66,22 @@ public class Health : NetworkBehaviour
         lastHitTime = -999f;
     }
 
-    /// <param name="rawDamage">ÉËº¦Á¿</param>
-    /// <param name="hitPoint">ÊÜ»÷µãµÄ¾«È·ÈıÎ¬×ø±ê</param>
-    /// <param name="hitDirection">¹¥»÷´òÀ´µÄ·½Ïò (ÓÃÓÚÌØĞ§Ğı×ªºÍ»÷ÍË¼ÆËã)</param>
+    /// <param name="rawDamage">ä¼¤å®³é‡</param>
+    /// <param name="hitPoint">å—å‡»ç‚¹çš„ç²¾ç¡®ä¸‰ç»´åæ ‡</param>
+    /// <param name="hitDirection">æ”»å‡»æ‰“æ¥çš„æ–¹å‘ (ç”¨äºç‰¹æ•ˆæ—‹è½¬å’Œå‡»é€€è®¡ç®—)</param>
     public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection, float hitWeight = 1f)
     {
         if (!IsServer || isDead) return;
 
         if (Time.time < lastHitTime + iFrameDuration)
             return;
-        // ÕâÀï¿ÉÒÔ×ö¼õÉË¼ÆËã£¬±ÈÈç¶ÁÈ¡ CharacterStatCollection ÀïµÄ»¤¼×Öµ
+        // è¿™é‡Œå¯ä»¥åšå‡ä¼¤è®¡ç®—ï¼Œæ¯”å¦‚è¯»å– CharacterStatCollection é‡Œçš„æŠ¤ç”²å€¼
 
         lastHitTime = Time.time;
         float defense = 0;
         if (monsterEntity != null && monsterEntity.Config != null)
         {
-            // ¹ÖÎï¶ÁÈ¡ SO ÀïµÄ»ù´¡·ÀÓù²¢Ó¦ÓÃ±¶ÂÊ
+            // æ€ªç‰©è¯»å– SO é‡Œçš„åŸºç¡€é˜²å¾¡å¹¶åº”ç”¨å€ç‡
             defense = monsterEntity.Config.baseDefense * GameDirector.Instance.GetCurrentDifficultyMultiplier();
         }
 
@@ -95,13 +95,37 @@ public class Health : NetworkBehaviour
         TriggerHitFeedbackClientRpc(hitPoint, hitDirection);
 
 
+        float calculatedStopDuration = (rawDamage * hitWeight) / (defense + 10f);
+        float finalStopDuration = Mathf.Clamp(calculatedStopDuration, 0.05f, 0.3f);
+        bool shouldVisualFreeze = true;
+
+        if (monsterEntity != null && monsterEntity.TryGetComponent<MonsterBrain>(out var brain))
+        {
+            shouldVisualFreeze = brain.ApplyHitStop(finalStopDuration);
+        }
+        else if (TryGetComponent<PlayerController>(out var player))
+        {
+            // é¢„ç•™æ¥å£ï¼šå¦‚æœä»¥åä½ æƒ³è®©ç©å®¶æŒ¨æ‰“æ—¶ä¹Ÿè¢«æ‰“æ–­æ¢å¼¹/å¼€æªï¼Œå¯ä»¥åœ¨ PlayerController é‡ŒåŠ ä¸ªç±»ä¼¼çš„æ–¹æ³•
+            // player.ApplyHitStop(finalStopDuration);
+        }
+        if (shouldVisualFreeze)
+        {
+            TriggerHitStopClientRpc(finalStopDuration);
+        }
+
         if (currentHealth.Value <= 0f)
         {
             currentHealth.Value = 0f;
             isDead = true;
             TriggerBloodBurstClientRpc(hitPoint, hitDirection,hitWeight);
-            OnDied?.Invoke(); // Í¨ÖªÍ¬ÎïÌåÉÏµÄÆäËû½Å±¾ (±ÈÈç AI ½Å±¾×¼±¸²¥ËÀÍö¶¯»­)
+            OnDied?.Invoke(); // é€šçŸ¥åŒç‰©ä½“ä¸Šçš„å…¶ä»–è„šæœ¬ (æ¯”å¦‚ AI è„šæœ¬å‡†å¤‡æ’­æ­»äº¡åŠ¨ç”»)
         }
+    }
+    [ClientRpc]
+    private void TriggerHitStopClientRpc(float duration)
+    {
+        // æ”¶åˆ°æœåŠ¡å™¨æŒ‡ä»¤åï¼Œå…¨ç½‘æ‰€æœ‰å®¢æˆ·ç«¯å‘¼å«è‡ªå·±æœ¬åœ°çš„å…¨å±€é¡¿å¸§ç®¡ç†å™¨ï¼
+        HitStopManager.Instance.Freeze(this.gameObject, duration);
     }
 
     [ClientRpc]
@@ -117,13 +141,13 @@ public class Health : NetworkBehaviour
     }
 
     // ==========================================
-    // ¿Í»§¶Ë/±íÏÖ²ãÂß¼­
+    // å®¢æˆ·ç«¯/è¡¨ç°å±‚é€»è¾‘
     // ==========================================
     private void HandleHealthChange(float oldHealth, float newHealth)
     {
-        // ´¥·¢±¾µØÊÂ¼ş£¬UI ½Å±¾Ö»Òª¶©ÔÄÁËÕâ¸öÊÂ¼ş£¬¾Í»á×Ô¶¯¸üĞÂÑªÌõ£¡
+        // è§¦å‘æœ¬åœ°äº‹ä»¶ï¼ŒUI è„šæœ¬åªè¦è®¢é˜…äº†è¿™ä¸ªäº‹ä»¶ï¼Œå°±ä¼šè‡ªåŠ¨æ›´æ–°è¡€æ¡ï¼
         OnHealthChanged?.Invoke(newHealth, maxHealth.Value);
 
-        // Ò²¿ÉÒÔÔÚÕâÀï¼ÓÒ»Ğ©Í¨ÓÃµÄ±íÏÖ£¬±ÈÈç·¢ÏÖ newHealth < oldHealth£¬¾Í´¥·¢È«ÆÁºìµ×Ö®ÀàµÄ
+        // ä¹Ÿå¯ä»¥åœ¨è¿™é‡ŒåŠ ä¸€äº›é€šç”¨çš„è¡¨ç°ï¼Œæ¯”å¦‚å‘ç° newHealth < oldHealthï¼Œå°±è§¦å‘å…¨å±çº¢åº•ä¹‹ç±»çš„
     }
 }

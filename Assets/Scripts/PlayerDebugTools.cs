@@ -1,4 +1,4 @@
-using Unity.Netcode;
+ï»¿using Unity.Netcode;
 using UnityEngine;
 
 [RequireComponent(typeof(PlayerModifierHandler))]
@@ -13,27 +13,27 @@ public class PlayerDebugTools : NetworkBehaviour
 
     private void Update()
     {
-        // ±ØĞëÊÇ±¾µØÍæ¼Ò²ÅÄÜ°´¼ü²âÊÔ£¬·ÀÖ¹Ó°Ïìµ½Áª»ú·¿¼äÀïµÄÆäËûÍæ¼Ò
+        // å¿…é¡»æ˜¯æœ¬åœ°ç©å®¶æ‰èƒ½æŒ‰é”®æµ‹è¯•ï¼Œé˜²æ­¢å½±å“åˆ°è”æœºæˆ¿é—´é‡Œçš„å…¶ä»–ç©å®¶
         if (!IsOwner) return;
 
-        // ¡¾K ¼ü¡¿£º²âÊÔÆÕÍ¨ÎäÆ÷Ïä (´øÁ÷ÅÉÇãÏòºÍ»¥³â)
+        // ã€K é”®ã€‘ï¼šæµ‹è¯•æ™®é€šæ­¦å™¨ç®± (å¸¦æµæ´¾å€¾å‘å’Œäº’æ–¥)
         if (Input.GetKeyDown(KeyCode.K))
         {
-            Debug.Log("<color=green>[Debug] Ç¿ÖÆ´¥·¢£º³£¹æÎä×°Ïä</color>");
+            Debug.Log("<color=green>[Debug] å¼ºåˆ¶è§¦å‘ï¼šå¸¸è§„æ­¦è£…ç®±</color>");
             modifierHandler.OpenStandardChest();
         }
 
-        // ¡¾L ¼ü¡¿£º²âÊÔÒì±ä±¦Ïä (²âÊÔÄãµÄ»úÖÆÌØĞ§ÊÇ·ñÄÜÕı³£¹ÒÔØ)
+        // ã€L é”®ã€‘ï¼šæµ‹è¯•å¼‚å˜å®ç®± (æµ‹è¯•ä½ çš„æœºåˆ¶ç‰¹æ•ˆæ˜¯å¦èƒ½æ­£å¸¸æŒ‚è½½)
         if (Input.GetKeyDown(KeyCode.L))
         {
-            Debug.Log("<color=magenta>[Debug] Ç¿ÖÆ´¥·¢£ºÒì±äºËĞÄÌáÈ¡</color>");
+            Debug.Log("<color=magenta>[Debug] å¼ºåˆ¶è§¦å‘ï¼šå¼‚å˜æ ¸å¿ƒæå–</color>");
             modifierHandler.OpenMutationChest();
         }
 
-        // ¡¾J ¼ü¡¿£º²âÊÔ»ìãç¼ÀÌ³ (´¿Ëæ»ú³é¿¨£¬²âÊÔµ×ÏßÏŞÖÆ)
+        // ã€J é”®ã€‘ï¼šæµ‹è¯•æ··æ²Œç¥­å› (çº¯éšæœºæŠ½å¡ï¼Œæµ‹è¯•åº•çº¿é™åˆ¶)
         if (Input.GetKeyDown(KeyCode.J))
         {
-            Debug.Log("<color=red>[Debug] Ç¿ÖÆ´¥·¢£º»ìãç´Í¸£ (²»¿ÛÑª°æ)</color>");
+            Debug.Log("<color=red>[Debug] å¼ºåˆ¶è§¦å‘ï¼šæ··æ²Œèµç¦ (ä¸æ‰£è¡€ç‰ˆ)</color>");
             modifierHandler.OpenChaosChest();
         }
     }

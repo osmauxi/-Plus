@@ -1,21 +1,21 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "NewMonsterData", menuName = "Data/Monster Data")]
 public class MonsterDataSO : ScriptableObject
 {
-    [Header("ºËĞÄ±êÊ¶")]
-    public string monsterName; // ²ß»®±¸×¢£¬Èç"±äÒìÉ¥Ê¬"
-    public string poolId;      // ¶ÔÏó³ØÎ¨Ò»ID£¬Èç"Zombie_Elite"
-    public GameObject prefab; // Ö±½Ó°Ñ´ø NetworkObject µÄÔ¤ÖÆ¼şÍÏµ½ÕâÀï£¡
-    public int initialPoolSize = 10; // Ä¬ÈÏ³Ø×Ó´óĞ¡
+    [Header("æ ¸å¿ƒæ ‡è¯†")]
+    public string monsterName; // ç­–åˆ’å¤‡æ³¨ï¼Œå¦‚"å˜å¼‚ä¸§å°¸"
+    public string poolId;      // å¯¹è±¡æ± å”¯ä¸€IDï¼Œå¦‚"Zombie_Elite"
+    public GameObject prefab; // ç›´æ¥æŠŠå¸¦ NetworkObject çš„é¢„åˆ¶ä»¶æ‹–åˆ°è¿™é‡Œï¼
+    public int initialPoolSize = 10; // é»˜è®¤æ± å­å¤§å°
 
-    [Header("¾­¼ÃÓëµ¼ÑİÏµÍ³")]
-    public int cost;           // ¹ºÂò¼Û¸ñ
-    public int minLayerToSpawn;// ½âËø²ãÊı
+    [Header("ç»æµä¸å¯¼æ¼”ç³»ç»Ÿ")]
+    public int cost;           // è´­ä¹°ä»·æ ¼
+    public int minLayerToSpawn;// è§£é”å±‚æ•°
 
-    [Header("»ù´¡Õ½¶·ÊôĞÔ (ROM)")]
+    [Header("åŸºç¡€æˆ˜æ–—å±æ€§ (ROM)")]
     public float baseMaxHealth;
     public float baseSpeed;
     public float baseDamage;

@@ -39,7 +39,7 @@ public class MapGenerator : NetworkBehaviour
     private int coroCount = 0;
     private bool GenerateOver = false;
 
-    public bool IsAnimating = false; // 强烈建议联机时设为 false，确保 PRNG 序列在全端绝对一致
+    public bool IsAnimating; // 强烈建议联机时设为 false，确保 PRNG 序列在全端绝对一致
     public Vector2Int initRoomGridPos = new Vector2Int(0, 0);
 
     int[,] map = new int[ArraySize, ArraySize];

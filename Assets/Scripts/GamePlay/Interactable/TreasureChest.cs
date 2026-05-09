@@ -1,15 +1,15 @@
-using Unity.Netcode;
+ï»¿using Unity.Netcode;
 using UnityEngine;
 
 public class TreasureChest : NetworkBehaviour, IInteractable
 {
-   // [Header("±¦ÏäÀàĞÍ")]
+   // [Header("å®ç®±ç±»å‹")]
     public enum ChestType { Standard, Mutation, ChaosAltar }
     public ChestType currentChestType = ChestType.Standard;
     [SerializeField] private GameObject chest_Open;
     [SerializeField] private GameObject chest_Close;
 
-    // ÍøÂç±äÁ¿£ºÍ¬²½Ïä×ÓÊÇ·ñÒÑ¾­±»¿ªÆô£¬·ÀÖ¹ÍøÂçÑÓ³Ùµ¼ÖÂÁ½¸öÈËÍ¬Ê±¿ªÒ»¸öÏä×Ó
+    // ç½‘ç»œå˜é‡ï¼šåŒæ­¥ç®±å­æ˜¯å¦å·²ç»è¢«å¼€å¯ï¼Œé˜²æ­¢ç½‘ç»œå»¶è¿Ÿå¯¼è‡´ä¸¤ä¸ªäººåŒæ—¶å¼€ä¸€ä¸ªç®±å­
     private NetworkVariable<bool> isOpened = new NetworkVariable<bool>(false);
 
     public bool IsInteractable => !isOpened.Value;
@@ -20,9 +20,9 @@ public class TreasureChest : NetworkBehaviour, IInteractable
         {
             switch (currentChestType)
             {
-                case ChestType.Mutation: return "°´ [F] ÌáÈ¡Òì±äºËĞÄ";
-                case ChestType.ChaosAltar: return "°´ [F] Ï×¼À (Ê§È¥30%ÉúÃü)";
-                default: return "°´ [F] ¿ªÆôÎä×°Ïä";
+                case ChestType.Mutation: return "æŒ‰ [F] æå–å¼‚å˜æ ¸å¿ƒ";
+                case ChestType.ChaosAltar: return "æŒ‰ [F] çŒ®ç¥­ (å¤±å»30%ç”Ÿå‘½)";
+                default: return "æŒ‰ [F] å¼€å¯æ­¦è£…ç®±";
             }
         }
     }
@@ -34,29 +34,29 @@ public class TreasureChest : NetworkBehaviour, IInteractable
     }
     public void OnInteract(GameObject interactor)
     {
-        // 1. ·ÀÓùĞÔ¼ì²é£ºÒÑ¾­±»¿ªÁË£¬»òÕß²»ÊÇ±¾µØÍæ¼Ò°´µÄ£¬Ö±½Ó return
+        // 1. é˜²å¾¡æ€§æ£€æŸ¥ï¼šå·²ç»è¢«å¼€äº†ï¼Œæˆ–è€…ä¸æ˜¯æœ¬åœ°ç©å®¶æŒ‰çš„ï¼Œç›´æ¥ return
         if (isOpened.Value) return;
 
-        // ÕÒµ½²Ù×÷ÕßµÄ±¾µØ´¦Àí¾ä±ú
+        // æ‰¾åˆ°æ“ä½œè€…çš„æœ¬åœ°å¤„ç†å¥æŸ„
         PlayerModifierHandler modifierHandler = interactor.GetComponentInParent<PlayerModifierHandler>();
         if (!modifierHandler.IsOwner) return;
 
-        // 2. Ï×¼À¼ÀÌ³µÄÌØÊâÂß¼­£ºÏÈ¿ÛÑª£¡
+        // 2. çŒ®ç¥­ç¥­å›çš„ç‰¹æ®Šé€»è¾‘ï¼šå…ˆæ‰£è¡€ï¼
         if (currentChestType == ChestType.ChaosAltar)
         {
             Health playerHealth = interactor.GetComponent<Health>();
             if (playerHealth != null)
             {
-                // ¼ÙÉèÄãµÄ Health ½Å±¾ÓĞ¶ÔÓ¦·½·¨£¬ÕâÀï¿Û³ı 30% ×î´óÉúÃüÖµ
+                // å‡è®¾ä½ çš„ Health è„šæœ¬æœ‰å¯¹åº”æ–¹æ³•ï¼Œè¿™é‡Œæ‰£é™¤ 30% æœ€å¤§ç”Ÿå‘½å€¼
                 float damageAmount = playerHealth.maxHealth.Value * 0.3f;
                 playerHealth.TakeDamage(damageAmount, transform.position, Vector3.zero);
             }
         }
 
-        // 3. Í¨Öª·şÎñÆ÷£ºÕâ¸öÏä×ÓÎÒ¿ªÁË£¡(Ëø×¡×´Ì¬£¬ÈÃ±ğÈËµã²»ÁË)
+        // 3. é€šçŸ¥æœåŠ¡å™¨ï¼šè¿™ä¸ªç®±å­æˆ‘å¼€äº†ï¼(é”ä½çŠ¶æ€ï¼Œè®©åˆ«äººç‚¹ä¸äº†)
         RequestOpenChestServerRpc();
 
-        // 4. ÔÚ±¾µØÁ¢¿Ìµ¯³ö¶ÔÓ¦µÄ´ÊÌõ³éÈ¡ UI£¡
+        // 4. åœ¨æœ¬åœ°ç«‹åˆ»å¼¹å‡ºå¯¹åº”çš„è¯æ¡æŠ½å– UIï¼
         switch (currentChestType)
         {
             case ChestType.Standard:
@@ -71,7 +71,7 @@ public class TreasureChest : NetworkBehaviour, IInteractable
                 break;
         }
 
-        // ¿ÉÑ¡£º±¾µØÏÈ²¥·ÅÒ»´Î¿ªÏäÁ£×Ó/¶¯»­ÑÚ¸ÇÍøÂçÑÓ³Ù
+        // å¯é€‰ï¼šæœ¬åœ°å…ˆæ’­æ”¾ä¸€æ¬¡å¼€ç®±ç²’å­/åŠ¨ç”»æ©ç›–ç½‘ç»œå»¶è¿Ÿ
         PlayOpenVisuals();
     }
 
@@ -80,14 +80,14 @@ public class TreasureChest : NetworkBehaviour, IInteractable
     {
         if (isOpened.Value) return;
 
-        isOpened.Value = true; // ÕæÕıËøËÀ×´Ì¬
+        isOpened.Value = true; // çœŸæ­£é”æ­»çŠ¶æ€
         OpenChestVisualsClientRpc();
     }
 
     [ClientRpc]
     private void OpenChestVisualsClientRpc()
     {
-        // ËùÓĞµÄ¿Í»§¶Ë¶¼»áÖ´ĞĞÕâÀï£º²¥·ÅÏä×Ó¸Ç×Ó´ò¿ªµÄ¶¯»­¡¢Åç½ğ¹âµÈ
+        // æ‰€æœ‰çš„å®¢æˆ·ç«¯éƒ½ä¼šæ‰§è¡Œè¿™é‡Œï¼šæ’­æ”¾ç®±å­ç›–å­æ‰“å¼€çš„åŠ¨ç”»ã€å–·é‡‘å…‰ç­‰
         PlayOpenVisuals();
     }
 
@@ -95,10 +95,10 @@ public class TreasureChest : NetworkBehaviour, IInteractable
     {
         chest_Open.SetActive(true);
         chest_Close.SetActive(false);
-        // TODO: ²¥·Å Animator ¶¯»­£¬»òÕßÖ±½Ó»»²ÄÖÊ/Ä£ĞÍ
-        Debug.Log("±¦Ïä¿ªÆô£¡");
+        // TODO: æ’­æ”¾ Animator åŠ¨ç”»ï¼Œæˆ–è€…ç›´æ¥æ¢æè´¨/æ¨¡å‹
+        Debug.Log("å®ç®±å¼€å¯ï¼");
 
-        // ¿ÉÑ¡£º¿ªÍêºó¹ı¼¸Ãë°Ñ×Ô¼º»¹¸ø¶ÔÏó³Ø
+        // å¯é€‰ï¼šå¼€å®Œåè¿‡å‡ ç§’æŠŠè‡ªå·±è¿˜ç»™å¯¹è±¡æ± 
         // if(IsServer) StartCoroutine(RecycleRoutine());
     }
 }

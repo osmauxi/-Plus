@@ -1,72 +1,119 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 
 public class PlayerReviveUI : MonoBehaviour
 {
-    public CanvasGroup canvasGroup;
-    public Image ringFill;          // ½ø¶ÈÌõÔ²»· (Image Type: Filled)
-    public RectTransform buttonIcon;// °´¼üÌáÊ¾Í¼±ê (±ÈÈç "F" ¼üµÄµ×Í¼)
-    public RectTransform surgeRing; // Ô²»·µÄ¸¸½Úµã£¬ÓÃÀ´×öÓ¿¶¯Ëõ·Å
+    public PlayerController player;
 
-    private Tween surgeTween;
+    public CanvasGroup canvasGroup;
+    public Image ringFill;
+    public RectTransform buttonIcon;
+    public RectTransform surgeRing;
+
+    private Tween currentSurgeTween;   // ç»Ÿç®¡å½“å‰æ­£åœ¨æ’­æ”¾çš„åŠ¨ç”»
+    private float visualProgress = 0f;
+    private Transform mainCameraTransform;
+
+    // è®°å½•å½“å‰çš„åŠ¨ç”»çŠ¶æ€ï¼Œé˜²æ­¢æ¯å¸§é‡å¤è§¦å‘
+    private bool isCurrentlyReviving = false;
+
+    private void Awake()
+    {
+        if (Camera.main != null) mainCameraTransform = Camera.main.transform;
+    }
+
+    private void LateUpdate()
+    {
+        if (mainCameraTransform != null && gameObject.activeSelf)
+        {
+            transform.LookAt(transform.position + mainCameraTransform.forward);
+        }
+    }
+
+    private void Update()
+    {
+        if (player == null || !gameObject.activeSelf) return;
+
+        bool isReviving = player.isBeingRevived.Value;
+
+        // 1. å¤„ç†è¿›åº¦æ¡çš„æ•°å€¼å¢å‡
+        if (isReviving)
+        {
+            visualProgress += Time.deltaTime;
+        }
+        else
+        {
+            visualProgress = Mathf.Max(0, visualProgress - Time.deltaTime * 0.5f);
+        }
+        ringFill.fillAmount = visualProgress / player.maxReviveTime;
+
+        // 2. çŠ¶æ€ç›‘å¬ï¼šåªæœ‰å½“æ•‘æ´çŠ¶æ€å‘ç”Ÿå˜åŒ–æ—¶ï¼Œæ‰åˆ‡æ¢åŠ¨ç”»
+        if (isReviving != isCurrentlyReviving)
+        {
+            isCurrentlyReviving = isReviving;
+            SwitchSurgeAnimation(isCurrentlyReviving);
+        }
+    }
 
     public void ShowUI()
     {
+        visualProgress = 0f;
+        ringFill.fillAmount = 0f;
+        isCurrentlyReviving = false;
+
         canvasGroup.alpha = 0f;
         gameObject.SetActive(true);
-
-        // 1. ÕûÌå½¥ÏÔ
         canvasGroup.DOFade(1f, 0.3f);
 
-        // 2. °´Å¥ÌáÊ¾×öÒ»¸ö¹û¶³µ¯Ìøµ¯³ö
         buttonIcon.localScale = Vector3.zero;
-        buttonIcon.DOScale(1f, 0.5f).SetEase(Ease.OutBack);
-
-        ringFill.fillAmount = 0f;
+        // å¼¹å‡ºåŠ¨ç”»ç»“æŸåï¼Œç«‹åˆ»è¿›å…¥â€œé—²ç½®å¿ƒè·³â€çŠ¶æ€
+        buttonIcon.DOScale(1f, 0.5f).SetEase(Ease.OutBack).OnComplete(() =>
+        {
+            SwitchSurgeAnimation(false);
+        });
     }
 
     public void HideUI()
     {
-        StopSurge();
+        if (currentSurgeTween != null) currentSurgeTween.Kill();
         canvasGroup.DOFade(0f, 0.2f).OnComplete(() => gameObject.SetActive(false));
     }
 
-    public void UpdateProgress(float progressPercent, bool isReviving)
+    /// <summary>
+    /// æ ¸å¿ƒåŠ¨ç”»åˆ‡æ¢é€»è¾‘
+    /// </summary>
+    private void SwitchSurgeAnimation(bool isActiveRescue)
     {
-        ringFill.fillAmount = progressPercent;
-
-        // ¸ù¾İÊÇ·ñÕıÔÚ±»°´¼ü¾ÈÔ®£¬¶¯Ì¬ÇĞ»»Ó¿¶¯×´Ì¬
-        if (isReviving && surgeTween == null)
+        // ææ–­æ—§åŠ¨ç”»ï¼Œå¹¶å°†ç¼©æ”¾æ¯”ä¾‹å®‰å…¨å½’ä½
+        if (currentSurgeTween != null)
         {
-            StartSurge();
+            currentSurgeTween.Kill();
+            surgeRing.localScale = Vector3.one;
         }
-        else if (!isReviving && surgeTween != null)
+
+        if (isActiveRescue)
         {
-            StopSurge();
+            // ã€çŠ¶æ€ Aï¼šæ­£åœ¨è¢«æ•‘ã€‘â€”â€” æ€¥ä¿ƒã€è¿ç»­çš„å¸ç®¡æ¶ŒåŠ¨
+            currentSurgeTween = surgeRing.DOScale(1.15f, 0.2f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine);
+
+            // æŒ‰é’®å›¾æ ‡å˜åŠé€æ˜ï¼Œæš—ç¤ºâ€œæŒ‰é”®æ­£åœ¨ç”Ÿæ•ˆâ€
+            buttonIcon.GetComponent<Image>().DOFade(0.5f, 0.2f);
         }
-    }
-
-    private void StartSurge()
-    {
-        // ÈÃÔ²»·ÓĞÒ»¸öÏñĞÄÔà±ÃÑªÒ»ÑùµÄ³ÖĞøËõ·Å
-        surgeTween = surgeRing.DOScale(1.1f, 0.3f)
-            .SetLoops(-1, LoopType.Yoyo)
-            .SetEase(Ease.InOutSine);
-
-        // ÈÃ°´Å¥Í¼±ê±ä°ëÍ¸Ã÷£¬°µÊ¾Íæ¼Ò¡°ÕıÔÚÉúĞ§ÖĞ¡±
-        buttonIcon.GetComponent<Image>().DOFade(0.5f, 0.2f);
-    }
-
-    private void StopSurge()
-    {
-        if (surgeTween != null)
+        else
         {
-            surgeTween.Kill();
-            surgeTween = null;
+            // ã€çŠ¶æ€ Bï¼šæ— äººæ•‘æ´ã€‘â€”â€” å‘¨æœŸæ€§çš„é—²ç½®å¿ƒè·³ (è·³ä¸€ä¸‹ -> åœé¡¿ -> å†è·³)
+            Sequence idleSeq = DOTween.Sequence();
+            idleSeq.Append(surgeRing.DOScale(1.1f, 0.15f).SetEase(Ease.OutQuad)) // å¿«é€Ÿæ”¾å¤§
+                   .Append(surgeRing.DOScale(1f, 0.15f).SetEase(Ease.InQuad))  // å¿«é€Ÿå›å¼¹
+                   .AppendInterval(1.5f) // æ ¸å¿ƒï¼šåœé¡¿ 1.5 ç§’
+                   .SetLoops(-1, LoopType.Restart); // æ— é™å¾ªç¯æ•´ä¸ªåºåˆ—
 
-            // »Ö¸´Ô­Ñù
-            surgeRing.DOScale(1f, 0.2f);
+            currentSurgeTween = idleSeq;
+
+            // æŒ‰é’®å›¾æ ‡æ¢å¤å®å¿ƒï¼Œæç¤ºç©å®¶â€œå¿«æ¥æŒ‰æˆ‘â€
             buttonIcon.GetComponent<Image>().DOFade(1f, 0.2f);
         }
     }

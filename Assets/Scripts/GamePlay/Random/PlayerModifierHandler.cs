@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -10,7 +10,7 @@ public class PlayerModifierHandler : NetworkBehaviour
 
     public List<ModifierDataSO> ownedModifiers = new List<ModifierDataSO>(); 
 
-    // ×´Ì¬»º´æ×Öµä£¬¿Õ¼ä»»Ê±¼ä
+    // çŠ¶æ€ç¼“å­˜å­—å…¸ï¼Œç©ºé—´æ¢æ—¶é—´
     public Dictionary<string, int> cachedStackCounts = new Dictionary<string, int>(); 
     public HashSet<string> cachedPlayerTags = new HashSet<string>();
 
@@ -21,50 +21,50 @@ public class PlayerModifierHandler : NetworkBehaviour
     }
 
     // ======================================================================
-    // ½»»¥Èë¿Ú£ºÍæ¼Ò¿¿½ü²»Í¬ÀàĞÍµÄ±¦Ïä/¼ÀÌ³£¬°´ÏÂ F ¼üºó´¥·¢
+    // äº¤äº’å…¥å£ï¼šç©å®¶é è¿‘ä¸åŒç±»å‹çš„å®ç®±/ç¥­å›ï¼ŒæŒ‰ä¸‹ F é”®åè§¦å‘
     // ======================================================================
 
     /// <summary>
-    /// 1. ´ò¿ªÆÕÍ¨¹ÖÎï·¿Í¨¹Ø±¦Ïä (´øÁ÷ÅÉÇãÏò£¬·À³åÍ»)
+    /// 1. æ‰“å¼€æ™®é€šæ€ªç‰©æˆ¿é€šå…³å®ç®± (å¸¦æµæ´¾å€¾å‘ï¼Œé˜²å†²çª)
     /// </summary>
     public void OpenStandardChest()
     {
         if (!IsOwner) return; 
         List<ModifierDataSO> choices = ModifierPoolManager.Instance.RollStandardModifiersWithWeight(3, cachedStackCounts, cachedPlayerTags);
-        ShowHextechSelectionUI(choices, "³£¹æÎä×°Ïä");
+        ShowHextechSelectionUI(choices, "å¸¸è§„æ­¦è£…ç®±");
     }
 
     /// <summary>
-    /// 2. ´ò¿ªÏÊÑª¼ÀÌ³ / Òş²Ø·¿¼ä (ÎŞÊÓÁ÷ÅÉ³åÍ»£¬´¿Ëæ»ú£¬¿ÉÄÜ¹¹½¨ÉñÏÉCombo)
+    /// 2. æ‰“å¼€é²œè¡€ç¥­å› / éšè—æˆ¿é—´ (æ— è§†æµæ´¾å†²çªï¼Œçº¯éšæœºï¼Œå¯èƒ½æ„å»ºç¥ä»™Combo)
     /// </summary>
     public void OpenChaosChest()
     {
         if (!IsOwner) return;
         List<ModifierDataSO> choices = ModifierPoolManager.Instance.RollStandardModifiersChaos(3, cachedStackCounts, cachedPlayerTags);
-        ShowHextechSelectionUI(choices, "»ìãç´Í¸£");
+        ShowHextechSelectionUI(choices, "æ··æ²Œèµç¦");
     }
 
     /// <summary>
-    /// 3. ´ò¿ª Boss·¿ / Òì±ä¾«Ó¢·¿ (³éÈ¡»úÖÆÖÊ±äµÄÒì±ä´ÊÌõ)
+    /// 3. æ‰“å¼€ Bossæˆ¿ / å¼‚å˜ç²¾è‹±æˆ¿ (æŠ½å–æœºåˆ¶è´¨å˜çš„å¼‚å˜è¯æ¡)
     /// </summary>
     public void OpenMutationChest()
     {
         if (!IsOwner) return;
         List<ModifierDataSO> choices = ModifierPoolManager.Instance.RollMutationModifiers(3, cachedStackCounts, cachedPlayerTags);
-        ShowHextechSelectionUI(choices, "Òì±äºËĞÄÌáÈ¡");
+        ShowHextechSelectionUI(choices, "å¼‚å˜æ ¸å¿ƒæå–");
     }
 
 
     // ======================================================================
-    // UI ±íÏÖ²ãÔ¤Áô½Ó¿Ú (½ğ²ù²ùº£¿ËË¹·ç¸ñ)
+    // UI è¡¨ç°å±‚é¢„ç•™æ¥å£ (é‡‘é“²é“²æµ·å…‹æ–¯é£æ ¼)
     // ======================================================================
 
     private void ShowHextechSelectionUI(List<ModifierDataSO> choices, string title)
     {
-        // ¶µµ×Ğ£Ñé£ºÈç¹û¿¨³ØÒÑ¾­±»Íæ¼Ò³é¿ÕÁË
+        // å…œåº•æ ¡éªŒï¼šå¦‚æœå¡æ± å·²ç»è¢«ç©å®¶æŠ½ç©ºäº†
         if (choices == null || choices.Count == 0)
         {
-            Debug.LogWarning("[´ÊÌõUI] Ã»ÓĞ³éµ½ÈÎºÎ¿ÉÓÃµÄ´ÊÌõ£¨¿¨³ØÒÑ¿Õ£©£¬Ó¦µ±×ª»¯Îª½ğ±Ò/ÑªÁ¿²¹³¥¡£");
+            Debug.LogWarning("[è¯æ¡UI] æ²¡æœ‰æŠ½åˆ°ä»»ä½•å¯ç”¨çš„è¯æ¡ï¼ˆå¡æ± å·²ç©ºï¼‰ï¼Œåº”å½“è½¬åŒ–ä¸ºé‡‘å¸/è¡€é‡è¡¥å¿ã€‚");
             return;
         }
 
@@ -76,11 +76,11 @@ public class PlayerModifierHandler : NetworkBehaviour
 
 
     // ======================================================================
-    // ÍøÂçÍ¬²½×°ÅäºËĞÄ (±£³Ö²»±ä)
+    // ç½‘ç»œåŒæ­¥è£…é…æ ¸å¿ƒ (ä¿æŒä¸å˜)
     // ======================================================================
 
     /// <summary>
-    /// µ±Íæ¼ÒÔÚ UI ÉÏµã»÷ÁËÄ³Ò»ÕÅº£¿ËË¹¿¨ÅÆÊ±µ÷ÓÃ
+    /// å½“ç©å®¶åœ¨ UI ä¸Šç‚¹å‡»äº†æŸä¸€å¼ æµ·å…‹æ–¯å¡ç‰Œæ—¶è°ƒç”¨
     /// </summary>
     public void SelectModifierFromUI(string modifierId)
     {
@@ -102,7 +102,7 @@ public class PlayerModifierHandler : NetworkBehaviour
 
         ownedModifiers.Add(modData); 
 
-        // Ë¢ĞÂ»º´æ×Öµä
+        // åˆ·æ–°ç¼“å­˜å­—å…¸
         if (cachedStackCounts.ContainsKey(modifierId)) 
             cachedStackCounts[modifierId]++; 
         else 
@@ -113,7 +113,7 @@ public class PlayerModifierHandler : NetworkBehaviour
             cachedPlayerTags.Add(tag); 
         }
         bool magSizeChanged = false;
-        // ×¢ÈëÊôĞÔÓë»úÖÆ
+        // æ³¨å…¥å±æ€§ä¸æœºåˆ¶
         foreach (var statMod in modData.statModifiers) 
         {
             statCollection.AddModifier(statMod.statType, statMod.value, statMod.modType, modData);
@@ -132,6 +132,6 @@ public class PlayerModifierHandler : NetworkBehaviour
         {
             currentWeapon.ForceInstantReload();
         }
-        Debug.Log($"[ÏµÍ³¹ã²¥] Íæ¼Ò {OwnerClientId} »ñµÃÁËÇ¿»¯£º{modData.modifierName}");
+        Debug.Log($"[ç³»ç»Ÿå¹¿æ’­] ç©å®¶ {OwnerClientId} è·å¾—äº†å¼ºåŒ–ï¼š{modData.modifierName}");
     }
 }

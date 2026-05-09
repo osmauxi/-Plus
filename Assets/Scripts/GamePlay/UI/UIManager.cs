@@ -1,21 +1,21 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class UIManager : MonoBehaviour
 {
-    // µ¥ÀıÄ£Ê½£¬·½±ãËùÓĞ Presenter ËæÊ±ºô½Ğ
+    // å•ä¾‹æ¨¡å¼ï¼Œæ–¹ä¾¿æ‰€æœ‰ Presenter éšæ—¶å‘¼å«
     public static UIManager Instance { get; private set; }
 
-    [Header("³£×¤ HUD ÒıÓÃ (¹© Presenter °ó¶¨)")]
+    [Header("å¸¸é©» HUD å¼•ç”¨ (ä¾› Presenter ç»‘å®š)")]
     public PlayerHUDView mainPlayerView;
     public PlayerHUDView teammateView;
 
-    [Header("È«ÆÁ¹¦ÄÜÃæ°å")]
-    public GameObject statsAndModsPanel; // Î´À´µÄÊôĞÔÃæ°å
-    public GameObject pausePanel;        // Î´À´µÄÔİÍ£Ãæ°å
+    [Header("å…¨å±åŠŸèƒ½é¢æ¿")]
+    public GameObject statsAndModsPanel; // æœªæ¥çš„å±æ€§é¢æ¿
+    public GameObject pausePanel;        // æœªæ¥çš„æš‚åœé¢æ¿
 
     private void Awake()
     {
-        // ¾­µäµÄµ¥Àı³õÊ¼»¯
+        // ç»å…¸çš„å•ä¾‹åˆå§‹åŒ–
         if (Instance == null)
         {
             Instance = this;
@@ -25,16 +25,16 @@ public class UIManager : MonoBehaviour
             Destroy(gameObject);
         }
 
-        // ÓÎÏ·¸Õ¿ªÊ¼Ê±£¬È·±£Ö»ÏÔÊ¾ HUD£¬Òş²ØÆäËûÈ«ÆÁÃæ°å
+        // æ¸¸æˆåˆšå¼€å§‹æ—¶ï¼Œç¡®ä¿åªæ˜¾ç¤º HUDï¼Œéšè—å…¶ä»–å…¨å±é¢æ¿
         CloseAllPanels();
     }
 
     // ==========================================
-    // Ãæ°å¿ª¹Ø¹ÜÀíÂß¼­
+    // é¢æ¿å¼€å…³ç®¡ç†é€»è¾‘
     // ==========================================
 
     /// <summary>
-    /// ´ò¿ªÊôĞÔÓë´ÊÌõÃæ°å (Î´À´ÓÉ PlayerStatsPresenter °´ Tab ¼üµ÷ÓÃ)
+    /// æ‰“å¼€å±æ€§ä¸è¯æ¡é¢æ¿ (æœªæ¥ç”± PlayerStatsPresenter æŒ‰ Tab é”®è°ƒç”¨)
     /// </summary>
     public void ToggleStatsPanel(bool isOpen)
     {
@@ -42,12 +42,12 @@ public class UIManager : MonoBehaviour
 
         if (isOpen)
         {
-            // ±ÈÈç£º´ò¿ªÃæ°åÊ±£¬ºô³öÊó±êÖ¸Õë
+            // æ¯”å¦‚ï¼šæ‰“å¼€é¢æ¿æ—¶ï¼Œå‘¼å‡ºé¼ æ ‡æŒ‡é’ˆ
             InputManager.Instance.ChangeState(InputState.UI);
         }
         else
         {
-            // ¹Ø±ÕÃæ°åÊ±£¬»Ö¸´ÓÎÏ·²Ù×÷
+            // å…³é—­é¢æ¿æ—¶ï¼Œæ¢å¤æ¸¸æˆæ“ä½œ
             InputManager.Instance.ChangeState(InputState.Gameplay);
         }
     }

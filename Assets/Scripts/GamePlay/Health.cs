@@ -67,9 +67,11 @@ public class Health : NetworkBehaviour
     }
 
     /// <param name="rawDamage">伤害量</param>
-    /// <param name="hitPoint">受击点的精确三维坐标</param>
-    /// <param name="hitDirection">攻击打来的方向 (用于特效旋转和击退计算)</param>
-    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection, float hitWeight = 1f)
+    /// <param name="hitPoint">受击点</param>
+    /// <param name="hitDirection">攻击打来的方向</param>
+    /// <param name="hitWeight">击退/顿帧权重</param>
+    /// <param name="attacker">谁打的我？</param>
+    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection, float hitWeight = 1f, Transform attacker = null)
     {
         if (!IsServer || isDead) return;
 
@@ -81,20 +83,54 @@ public class Health : NetworkBehaviour
         float defense = 0;
         if (monsterEntity != null && monsterEntity.Config != null)
         {
-            // 怪物读取 SO 里的基础防御并应用倍率
             defense = monsterEntity.Config.baseDefense * GameDirector.Instance.GetCurrentDifficultyMultiplier();
         }
-
+        else if (TryGetComponent<CharacterStatCollection>(out var stats))
+        {
+            // 如果是玩家，从玩家的属性字典里读取护甲值！
+            defense = stats.GetStatValue(StatType.Armor);
+        }
 
         float damageReduction = 100f / (100f + defense);
         float finalDamage = rawDamage * damageReduction;
         finalDamage = Mathf.Max(1f, finalDamage);
 
+        if (attacker != null && monsterEntity != null)
+        {
+            if (monsterEntity.TryGetComponent<AIBlackboard>(out var bb))
+            {
+                // 仇恨值与最终造成的真实伤害挂钩，打得越痛仇恨越高
+                bb.AddThreat(attacker, finalDamage);
+            }
+        }
+
         currentHealth.Value -= finalDamage;
 
         TriggerHitFeedbackClientRpc(hitPoint, hitDirection);
+        ///击退逻辑：伤害越高、权重越大，击退越狠；怪越肉，击退越弱。并且只有横向击退，没有竖向（起飞）效果。
+        if (hitWeight > 0f)
+        {
+            // 1. 提取纯横向方向，拒绝起飞
+            Vector3 flatDir = new Vector3(hitDirection.x, 0, hitDirection.z).normalized;
 
+            //击退公式：(基础伤害 * 击退权重 * 全局倍率) / (护甲/重量 + 10)
+            //伤害越高、权重越大，击退越狠；怪越肉，击退越弱。10f 是倍率常数，可凭手感微调。
+            float knockbackMagnitude = (rawDamage * hitWeight * 10f) / (defense + 10f);
 
+            // 3. 施加小门槛，过滤掉机枪刮痧那种微不可察的抖动，节省性能
+            if (knockbackMagnitude > 1.0f)
+            {
+                Vector3 knockbackForce = flatDir * knockbackMagnitude;
+
+                // 呼叫接口：不关心你是玩家还是怪物，只要实现了接口就击退
+                IKnockbackable kb = GetComponent<IKnockbackable>();
+                if (kb != null)
+                {
+                    kb.ApplyKnockback(knockbackForce);
+                }
+            }
+        }
+        ///顿帧
         float calculatedStopDuration = (rawDamage * hitWeight) / (defense + 10f);
         float finalStopDuration = Mathf.Clamp(calculatedStopDuration, 0.05f, 0.3f);
         bool shouldVisualFreeze = true;

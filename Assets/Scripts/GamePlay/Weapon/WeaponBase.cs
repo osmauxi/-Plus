@@ -17,6 +17,7 @@ public class WeaponBase : NetworkBehaviour
     private float lastFireTime;
 
     private MonsterVFXController vfxController;
+    private PlayerController playerController;
 
     public event Action<int, int> OnAmmoChanged;
     public event Action<float> OnReloadStart;
@@ -30,6 +31,7 @@ public class WeaponBase : NetworkBehaviour
         currentAmmo = (int)stats.GetStatValue(StatType.MagSize);
         vfxController = GetComponentInParent<MonsterVFXController>();
         OnAmmoChanged?.Invoke(currentAmmo, (int)stats.GetStatValue(StatType.MagSize));
+        playerController = GetComponentInParent<PlayerController>();
     }
 
     private void Update()
@@ -115,7 +117,7 @@ public class WeaponBase : NetworkBehaviour
         lastFireTime = Time.time;
         currentAmmo--;
         OnAmmoChanged?.Invoke(currentAmmo, (int)stats.GetStatValue(StatType.MagSize));
-
+        playerController.Anim.SetTrigger("Shoot");
         int bulletCount = Mathf.Max(1, (int)stats.GetStatValue(StatType.ProjectileCount));
         float spread = stats.GetStatValue(StatType.SpreadAngle);
 
@@ -221,7 +223,7 @@ public class WeaponBase : NetworkBehaviour
     {
         isReloading = true;
         Debug.Log("正在换弹...");
-
+        playerController.Anim.SetTrigger("Reload");
         vfxController.BroadcastVFX("Loading");
 
         float reloadTime = stats.GetStatValue(StatType.ReloadTime);

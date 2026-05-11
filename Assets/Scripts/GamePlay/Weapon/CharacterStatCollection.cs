@@ -55,7 +55,7 @@ public class CharacterStatCollection : MonoBehaviour
             // 角色生存默认值
             { StatType.MaxHealth, new Stat(100f) },
             { StatType.Armor, new Stat(0f) },
-            { StatType.MoveSpeed, new Stat(8f,1f,25f) },
+            { StatType.MoveSpeed, new Stat(4f,1f,25f) },
             { StatType.DodgeChance, new Stat(0f,0f,0.75f) }
         };
     }

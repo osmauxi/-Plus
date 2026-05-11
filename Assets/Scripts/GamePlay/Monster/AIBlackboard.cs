@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 /// <summary>
 /// AI 共享黑板：只存放数据，绝对不写任何行为逻辑！
@@ -25,6 +27,11 @@ public class AIBlackboard : MonoBehaviour
     [HideInInspector] public Animator Anim;
     [HideInInspector] public Rigidbody Rb;
     [HideInInspector] public MonsterEntity EntityConfig;
+
+    [Header("仇恨系统状态")]
+    // 存储每个玩家(Transform)对应的仇恨值(float)
+    public Dictionary<Transform, float> ThreatTable = new Dictionary<Transform, float>();
+    public float threatDecayRate = 5f;// 仇恨衰减速率（每秒衰减多少点仇恨）
     public MonsterBrain Brain { get; private set; }
 
     private void Awake()
@@ -47,4 +54,70 @@ public class AIBlackboard : MonoBehaviour
         IsAttacking = false;
         CanSeeTarget = false;
     }
+
+    private void Update()
+    {
+        DecayThreat();
+    }
+    #region 仇恨系统方法
+    /// <summary>
+    /// 【通用方法 1】：增加仇恨 (受到攻击或玩家使用嘲讽技能时调用)
+    /// </summary>
+    public void AddThreat(Transform attacker, float amount)
+    {
+        if (attacker == null) return;
+
+        if (ThreatTable.ContainsKey(attacker))
+        {
+            ThreatTable[attacker] += amount;
+        }
+        else
+        {
+            ThreatTable.Add(attacker, amount);
+        }
+    }
+
+    /// <summary>
+    /// 【通用方法 2】：获取当前仇恨值最高的存活玩家
+    /// </summary>
+    public Transform GetHighestThreatTarget()
+    {
+        // 自动清理掉已经销毁或者死亡的玩家键值对
+        var deadKeys = ThreatTable.Keys.Where(k => k == null || k.GetComponent<Health>().isDead).ToList();
+        foreach (var key in deadKeys) ThreatTable.Remove(key);
+
+        if (ThreatTable.Count == 0) return null;
+
+        // 找出字典中 value 最大的那个 Transform
+        return ThreatTable.OrderByDescending(kvp => kvp.Value).First().Key;
+    }
+
+    /// <summary>
+    /// 【通用方法 3】：获取指定目标的仇恨值
+    /// </summary>
+    public float GetThreatOf(Transform target)
+    {
+        if (target != null && ThreatTable.TryGetValue(target, out float threat))
+        {
+            return threat;
+        }
+        return 0f;
+    }
+
+    private void DecayThreat()
+    {
+        if (ThreatTable.Count == 0) return;
+
+        // 因为要在遍历中修改字典的值，所以需要转成 List
+        var keys = new List<Transform>(ThreatTable.Keys);
+        foreach (var key in keys)
+        {
+            ThreatTable[key] -= threatDecayRate * Time.deltaTime;
+            if (ThreatTable[key] <= 0)
+            {
+                ThreatTable[key] = 0;
+            }
+        }
+    }
+    #endregion
 }

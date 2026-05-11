@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerController : NetworkBehaviour
+public class PlayerController : NetworkBehaviour, IKnockbackable
 {
     [Header("网络状态同步")]
     public NetworkVariable<PlayerStateType> currentNetState = new NetworkVariable<PlayerStateType>(
@@ -12,7 +12,6 @@ public class PlayerController : NetworkBehaviour
         false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
     [Header("移动手感配置 (Movement Config)")]
-    public float maxMoveSpeed = 8f;
     public float timeToMaxSpeed = 0.3f;
     public AnimationCurve accelerationCurve;
     public float decelerationSpeed = 5f;
@@ -30,6 +29,7 @@ public class PlayerController : NetworkBehaviour
     public float reviveRadius = 2.5f; // 救援判定半径 (未来可被 Buff 修改，比如扩大救援圈)    public GameObject reviveUIContainer; // 包含光圈和进度条的父节点
     public PlayerReviveUI reviveUI;
     private PlayerController currentlyRescuingTarget;
+    private CharacterStatCollection statCollection;
 
     public Rigidbody Rb => rb;
     public Animator Anim => anim;
@@ -53,13 +53,13 @@ public class PlayerController : NetworkBehaviour
         rb = GetComponent<Rigidbody>();
         health = GetComponent<Health>();
         stateMachine = new StateMachine();
-
+        statCollection = GetComponent<CharacterStatCollection>();
         // 实例化所有具体状态，绑定到对应的 Animator Bool 名字上
         stateDict = new Dictionary<PlayerStateType, State>()
         {
             // 假设你的 Animator 里对应的 bool 叫 "isIdle", "isMoving", "isDead"
-            { PlayerStateType.Idle, new IdleState(stateMachine, "isIdle", this) },
-            { PlayerStateType.Moving, new MoveState(stateMachine, "isMoving", this) },
+            { PlayerStateType.Idle, new IdleState(stateMachine, "", this) },
+            { PlayerStateType.Moving, new MoveState(stateMachine, "", this) },
             { PlayerStateType.dead, new DeadState(stateMachine, "isDead", this) }
         };
         stateMachine.Initialize(stateDict[PlayerStateType.Idle]);
@@ -91,6 +91,12 @@ public class PlayerController : NetworkBehaviour
     {
         if (!IsOwner) return;
         stateMachine.CurrentState.FixedUpdate();
+    }
+    private void LateUpdate()
+    {
+        if (!IsOwner) return;
+
+        UpdateAnimatorParameters();
     }
     public override void OnNetworkSpawn()
     {
@@ -173,6 +179,25 @@ public class PlayerController : NetworkBehaviour
         isBeingRevived.Value = state;
     }
     #endregion
+    private void UpdateAnimatorParameters()
+    {
+        if (anim == null) return;
+
+        if (anim.speed < 0.01f) return;
+
+        // ==========================================
+        // 世界坐标输入转局部坐标
+        // currentMoveInput 是世界坐标方向。
+        // 用它和角色的正前方(forward)做点乘，算出他在往自己眼前的哪个方向走 (-1 到 1)
+        // 用它和角色的正右方(right)做点乘，算出他在往自己身体的哪侧走 (-1 到 1)
+        // ==========================================
+        float velocityZ = Vector3.Dot(currentMoveInput, transform.forward); // 前后移动度
+        float velocityX = Vector3.Dot(currentMoveInput, transform.right);   // 左右侧滑度
+
+        // 将算出的相对方向传入 Animator，带有 0.1f 的阻尼防抽搐
+        anim.SetFloat("VelocityX", velocityX, 0.1f, Time.deltaTime);
+        anim.SetFloat("VelocityZ", velocityZ, 0.1f, Time.deltaTime);
+    }
     public void RequestStateChange(PlayerStateType targetState)
     {
         ChangeStateServerRpc(targetState);
@@ -219,7 +244,7 @@ public class PlayerController : NetworkBehaviour
 
         camRight.y = 0;
         // 锁定 Y 轴高度 (如果你不需要跳跃的话)
-        transform.position = new Vector3(transform.position.x, 1, transform.position.z);
+        //transform.position = new Vector3(transform.position.x, 1, transform.position.z);
 
         currentMoveInput = (camForward.normalized * v + camRight.normalized * h).normalized;
     }
@@ -246,28 +271,43 @@ public class PlayerController : NetworkBehaviour
     /// <summary> 物理移动执行 (包含你的加减速曲线计算，在 PhysicsUpdate 中调用) </summary>
     public void HandleMovement()
     {
+        if (knockbackTimer > 0f)
+        {
+            knockbackTimer -= Time.fixedDeltaTime;
+            return;
+        }
+
         if (currentMoveInput.sqrMagnitude > 0.01f)
             moveTimer += Time.fixedDeltaTime;
         else
             moveTimer -= Time.fixedDeltaTime * decelerationSpeed;
 
-        moveTimer = Mathf.Clamp(moveTimer, 0f, timeToMaxSpeed);
+        float safeTimeToMax = Mathf.Max(timeToMaxSpeed, 0.01f);
+        moveTimer = Mathf.Clamp(moveTimer, 0f, safeTimeToMax);
 
+        // 3. 完全停下时清空水平速度
         if (moveTimer <= 0f)
         {
             rb.velocity = new Vector3(0, rb.velocity.y, 0);
             return;
         }
 
-        float normalizedTime = moveTimer / timeToMaxSpeed;
+        // 4. 计算 0~1 的时间进度，并通过 Curve 获取 0~1 的速度乘数
+        float normalizedTime = moveTimer / safeTimeToMax;
         float curveMultiplier = accelerationCurve.Evaluate(normalizedTime);
 
+        // 5. 计算后退惩罚 (根据输入方向与角色朝向的点乘判断)
         float directionDot = Vector3.Dot(transform.forward, currentMoveInput);
         float directionMultiplier = directionDot < -0.1f ? backwardSpeedMultiplier : 1f;
 
-        float currentSpeed = maxMoveSpeed * curveMultiplier * directionMultiplier;
-        Vector3 targetVelocity = currentMoveInput * currentSpeed;
+        // 6. 【核心】从 Stat 系统获取绝对最大速度！(安全校验，如果缺失组件默认用面板的 8)
+        float currentMaxSpeed = statCollection != null ? statCollection.GetStatValue(StatType.MoveSpeed) : 8f;
 
+        // 7. 组合最终速度：最大移速 * 曲线比例(0~1) * 方向惩罚
+        float finalSpeed = currentMaxSpeed * curveMultiplier * directionMultiplier;
+        Vector3 targetVelocity = currentMoveInput * finalSpeed;
+
+        // 8. 赋值给刚体，严格保留 Y 轴原始速度（不干扰重力和掉落）
         rb.velocity = new Vector3(targetVelocity.x, rb.velocity.y, targetVelocity.z);
     }
     /// <summary> 物理旋转执行 (在 PhysicsUpdate 中调用) </summary>
@@ -305,4 +345,34 @@ public class PlayerController : NetworkBehaviour
         yield return new WaitForFixedUpdate();
         rb.interpolation = RigidbodyInterpolation.Interpolate;
     }
+    #region 击退
+    private float knockbackTimer = 0f;
+
+    public void ApplyKnockback(Vector3 force)
+    {
+        if (!IsServer) return;
+        // 服务器收到击退申请，通知属于该玩家的客户端去执行物理模拟
+        ApplyKnockbackClientRpc(force);
+    }
+
+    [ClientRpc]
+    private void ApplyKnockbackClientRpc(Vector3 force)
+    {
+        if (!IsOwner) return;
+
+        if (knockbackTimer > 0f)
+        {
+            // 【核心】：续杯僵直时间，直接叠加受力，不清空速度！
+            knockbackTimer = 0.2f;
+            rb.AddForce(force, ForceMode.Impulse);
+        }
+        else
+        {
+            // 正常受击：僵直 0.2 秒，清空玩家主动跑步的速度，施加击退力
+            knockbackTimer = 0.2f;
+            rb.velocity = new Vector3(0, rb.velocity.y, 0);
+            rb.AddForce(force, ForceMode.Impulse);
+        }
+    }
+    #endregion
 }

@@ -76,6 +76,11 @@ public class RoomManager : NetworkBehaviour
     {
         if (Time.time - lastRoomChangeTime < 1.0f) 
             return;
+        if (AllRoomsData.TryGetValue(CurrentActiveRoom.Value, out RoomData activeRoomData))
+        {
+            // 只要没打完，锁死房间判定逻辑
+            if (!activeRoomData.IsCleared) return;
+        }
         // 遍历你的全局玩家列表
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {

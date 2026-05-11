@@ -1,8 +1,11 @@
-﻿using Unity.Netcode;
+﻿using System.Collections;
+using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.AI;
+using static Codice.Client.Common.WebApi.WebApiEndpoints;
 
 [RequireComponent(typeof(AIBlackboard))]
-public class MonsterBrain : NetworkBehaviour
+public class MonsterBrain : NetworkBehaviour, IKnockbackable
 {
     private AIBlackboard blackboard;
 
@@ -16,6 +19,12 @@ public class MonsterBrain : NetworkBehaviour
     public float maxHitStopTolerance = 0.6f;
     [Tooltip("触发霸体后，霸体持续的时间(秒)")]
     public float immunityDuration = 1.5f;
+
+    [Header("击退累加配置")]
+    [Tooltip("多长时间内的连续受击会被视为【击退累加】(散弹枪建议 0.1f)")]
+    public float accumulationWindow = 0.1f;
+    private float lastKnockbackTime = -999f;
+    private Coroutine knockbackRoutine;
 
     private float currentHitStopAccumulation = 0f;
     private float immunityEndTime = 0f; // 霸体结束的时间点
@@ -125,4 +134,55 @@ public class MonsterBrain : NetworkBehaviour
         mover.ExecuteTick(blackboard);
         attacker.ExecuteTick(blackboard);
     }
+
+    #region 击退
+    public void ApplyKnockback(Vector3 force)
+    {
+        if (!gameObject.activeInHierarchy) return;
+
+        // 1. 判断是否处于“累加窗口期”内（比如被散弹枪多发弹片瞬间打中）
+        bool isAccumulating = (Time.time - lastKnockbackTime) <= accumulationWindow;
+        lastKnockbackTime = Time.time;
+
+        if (isAccumulating)
+        {
+            // 【核心】：是连续受击！不要清空原有速度，直接叠加 Impulse 力量！
+            // 此时 5 发散弹片的力会完美叠加在一起，把怪物瞬间轰飞！
+            blackboard.Rb.AddForce(force, ForceMode.Impulse);
+        }
+        else
+        {
+            // 单次受击，或者上一次挨打已经是比较久之前了：剥夺路权，重新起步
+            if (knockbackRoutine != null) StopCoroutine(knockbackRoutine);
+            knockbackRoutine = StartCoroutine(KnockbackSequence(force));
+        }
+    }
+
+    private IEnumerator KnockbackSequence(Vector3 initialForce)
+    {
+        // 1. 【物理剥夺】
+        if (blackboard.Agent.isActiveAndEnabled)
+        {
+            blackboard.Agent.enabled = false;
+        }
+
+        // 2. 【初次起步】：清空原有自主速度，施加第一次击退力
+        blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
+        blackboard.Rb.AddForce(initialForce, ForceMode.Impulse);
+
+        yield return new WaitForFixedUpdate();
+
+        // 3. 【动态滑行检测】(极其精妙的改动)
+        // 注意：我们不用死板的局部 timer 了，而是看 lastKnockbackTime！
+        // 这样只要散弹枪不断命中，滑行时间就会不断被“续杯”，直到停止挨打超过 0.5 秒。
+        while (Time.time - lastKnockbackTime < 0.5f && new Vector3(blackboard.Rb.velocity.x, 0, blackboard.Rb.velocity.z).sqrMagnitude > 0.5f)
+        {
+            yield return null;
+        }
+
+        // 4. 【系统重连】：刹车，并把身体控制权还给 Agent
+        blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
+        blackboard.Agent.enabled = true;    
+    }
+    #endregion
 }

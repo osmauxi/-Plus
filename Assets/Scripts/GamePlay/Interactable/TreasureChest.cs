@@ -60,7 +60,6 @@ public class TreasureChest : NetworkBehaviour, IInteractable
         switch (currentChestType)
         {
             case ChestType.Standard:
-                Debug.Log(414145);
                 modifierHandler.OpenStandardChest();
                 break;
             case ChestType.Mutation:

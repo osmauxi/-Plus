@@ -157,6 +157,7 @@ public class PlayerModifierHandler : NetworkBehaviour
 
         if (modData.specialEffect != null && currentWeapon != null)
         {
+            // 将 SO 里的特技逻辑挂载到武器上
             currentWeapon.AddOrUpgradeEffect(modData.specialEffect);
         }
 

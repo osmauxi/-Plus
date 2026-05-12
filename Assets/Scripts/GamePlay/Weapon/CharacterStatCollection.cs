@@ -26,6 +26,7 @@ public enum StatType
     DodgeChance,   // 闪避率
 
     ProjectileSize,     // 子弹体积缩放倍率 (默认 1)
+    MaxShield,          // 最大护盾上限
 }
 
 public class CharacterStatCollection : MonoBehaviour
@@ -55,8 +56,9 @@ public class CharacterStatCollection : MonoBehaviour
             // 角色生存默认值
             { StatType.MaxHealth, new Stat(100f) },
             { StatType.Armor, new Stat(0f) },
-            { StatType.MoveSpeed, new Stat(4f,1f,25f) },
-            { StatType.DodgeChance, new Stat(0f,0f,0.75f) }
+            { StatType.MoveSpeed, new Stat(8f,1f,25f) },
+            { StatType.DodgeChance, new Stat(0f,0f,0.75f) },
+            { StatType.MaxShield, new Stat(10f) },
         };
     }
 

@@ -1,18 +1,21 @@
-﻿using Unity.Netcode;
+﻿using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 public class RoomData
 {
     public Vector2Int GridPos;   // 逻辑坐标，比如 (0,0), (1,0)
-    public int RoomType;         // 房间类型: -1起点, -2Boss, 1普通, 2商店, 3特殊
+    public int RoomType;      
+    public int RoomRotationIndex;
     public bool IsCleared;       // 是否已通关
     public bool IsDiscovered;    // 是否已经在小地图上探开
     public string PoolId;
-    public RoomData(Vector2Int pos, int type,string poolid)
+    public RoomData(Vector2Int pos, int type,string poolid, int rotIndex)
     {
         GridPos = pos;
         RoomType = type;
+        RoomRotationIndex = rotIndex;
         // 起始房( -1)、商店(2) 和 特殊房(3) 默认没有战斗，直接视为已清理
-        IsCleared = (type == -1 || type == 1 || type == 3);
+        IsCleared = (type == -1);
         IsDiscovered = false;
         PoolId = poolid;
     }
@@ -34,6 +37,19 @@ public class RoomNodeData : MonoBehaviour
     [HideInInspector] public GameObject UpDoor;
     [HideInInspector] public GameObject DownDoor;
 
+    private List<GameObject> dynamicSpawnedObjects = new List<GameObject>(8);
+
+    /// <summary>
+    /// 将动态生成的对象（墙壁、宝箱等）注册进房间，以便过关时统一回收
+    /// </summary>
+    public void RegisterSpawnedObject(GameObject obj)
+    {
+        if (!dynamicSpawnedObjects.Contains(obj))
+        {
+            dynamicSpawnedObjects.Add(obj);
+        }
+    }
+
     /// <summary>
     /// 自治方法：打开并回收所有的门
     /// </summary>
@@ -51,6 +67,14 @@ public class RoomNodeData : MonoBehaviour
     public void RecycleAll()
     {
         OpenDoors(); // 必须先还门
+        foreach (var obj in dynamicSpawnedObjects)
+        {
+            if (obj != null && obj.activeSelf)
+            {
+                LocalObjectPool.instance.RetToPool(obj);
+            }
+        }
+        dynamicSpawnedObjects.Clear();
         LocalObjectPool.instance.RetToPool(this.gameObject); // 再把自己还给池子
     }
 }

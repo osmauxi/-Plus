@@ -91,6 +91,7 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
     {
         if (!IsOwner) return;
         stateMachine.CurrentState.FixedUpdate();
+        gameObject.transform.position = new Vector3(gameObject.transform.position.x, 1, gameObject.transform.position.z);
     }
     private void LateUpdate()
     {

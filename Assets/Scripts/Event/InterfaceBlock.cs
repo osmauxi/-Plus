@@ -25,7 +25,7 @@ public interface IWeaponEffect
     void OnHit(ProjectileBase projectile, GameObject target, Vector3 hitPoint, CharacterStatCollection stats);
 
     // 子弹销毁时触发
-    void OnDestroy(ProjectileBase projectile, Vector3 destroyPoint, CharacterStatCollection stats);
+    void OnProjectileDestroyed(ProjectileBase projectile, Vector3 destroyPoint, CharacterStatCollection stats);
 }
 
 public interface IUpgradeableEffect

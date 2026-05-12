@@ -59,11 +59,20 @@ public class BattleManager : NetworkBehaviour
     {
         // 留给玩家 2 秒钟的进门准备时间
         yield return new WaitForSeconds(2.0f);
+        float diffMult = GameDirector.Instance.GetCurrentDifficultyMultiplier();
+        int maxActiveMonsters = 8 + (int)(diffMult * 3); // 难度越高，同屏怪越多，压迫感越强！
+        int waveWaitThreshold = 3 + (int)(diffMult * 1); // 剩多少只怪时开始刷下一波
 
         while (pendingMonsters.Count > 0)
         {
-            // 决定这一波刷多少只 (比如最多同屏 10 只，或者按剩余数量的一半刷)
-            int spawnCountThisWave = Mathf.Min(pendingMonsters.Count, 8);
+            if (aliveMonsterCount >= maxActiveMonsters)
+            {
+                yield return new WaitForSeconds(0.5f);
+                continue;
+            }
+
+            // 算一下这波最多还能塞多少只怪进来
+            int spawnCountThisWave = Mathf.Min(pendingMonsters.Count, maxActiveMonsters - aliveMonsterCount);
 
             for (int i = 0; i < spawnCountThisWave; i++)
             {
@@ -95,9 +104,8 @@ public class BattleManager : NetworkBehaviour
                 yield return new WaitForSeconds(0.2f);
             }
 
-            Debug.Log(pendingMonsters.Count);
             // 等待这一波的怪物死得差不多了（比如场上少于 3 只），再刷下一波
-            yield return new WaitUntil(() => aliveMonsterCount <= 3);
+            yield return new WaitUntil(() => aliveMonsterCount <= waveWaitThreshold);
             yield return new WaitForSeconds(1.5f); // 波次之间的喘息时间
         }
 
@@ -132,32 +140,35 @@ public class BattleManager : NetworkBehaviour
                 bool isMutated;
                 GameDirector.Instance.GetRoomDifficultyFactor(roomType, out isMutated);
 
-                string chestPrefabId = "Chest_Standard"; // 你的同步对象池里注册的普通宝箱ID
+                string chestPrefabId = "Chest_Standard";
                 TreasureChest.ChestType expectedType = TreasureChest.ChestType.Standard;
 
-                // 如果是 Boss 房或异变房，给异变宝箱
-                if (roomType == -2 || isMutated)
+                if (roomType == 2) // 普通精英房 -> 给混沌赐福 (多选池)
                 {
-                    //chestPrefabId = "Chest_Mutation"; // 异变宝箱预制体ID
                     expectedType = TreasureChest.ChestType.Mutation;
-                    Transform portalNode = nodeData.NextLevelPos[0];
-                    SyncObjectPool.instance.GetT("LevelPortal", portalNode.position, Quaternion.identity);
-                }
 
-                // 如果是特殊房 (比如祭坛房)
-                if (roomType == 3)
+                }
+                else if (roomType == -2) // 终极精英房 -> 异变核心 + 传送门
                 {
-                    //chestPrefabId = "Altar_Chaos"; // 鲜血祭坛预制体ID
-                    expectedType = TreasureChest.ChestType.ChaosAltar;
+                    expectedType = TreasureChest.ChestType.Mutation;
+
+                    // 生成通关传送门！
+                    Transform portalNode = nodeData.NextLevelPos.Length > 0 ? nodeData.NextLevelPos[0] : spawnPoint;
+                    GameObject portalObj = SyncObjectPool.instance.GetT("LevelPortal", portalNode.position, Quaternion.identity).gameObject;
+                    nodeData.RegisterSpawnedObject(portalObj); 
+                }
+                else if (isMutated) // 普通异变房
+                {
+                    expectedType = TreasureChest.ChestType.Mutation;
+
                 }
 
-                // 4. 从你的 SyncObjectPool 生成带有 NetworkObject 的宝箱！
                 NetworkObject chestObj = SyncObjectPool.instance.GetT(chestPrefabId, spawnPoint.position, spawnPoint.rotation);
 
-                // 强行塞入类型配置 (以防预制体配错了)
                 if (chestObj != null && chestObj.TryGetComponent<TreasureChest>(out var chestComp))
                 {
                     chestComp.currentChestType = expectedType;
+                    nodeData.RegisterSpawnedObject(chestObj.gameObject); // 扔进垃圾袋！
                 }
             }
             else

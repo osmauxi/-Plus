@@ -1,4 +1,5 @@
 ﻿using Unity.Netcode;
+using Unity.VisualScripting.Antlr3.Runtime.Misc;
 using UnityEngine;
 
 [RequireComponent(typeof(Health))]
@@ -40,6 +41,7 @@ public class PlayerHUDPresenter : NetworkBehaviour
         health.OnHealthChanged += OnHealthChanged;
         weapon.OnAmmoChanged += OnAmmoChanged;
         weapon.OnReloadStart += OnReloadStart;
+        health.OnShieldChanged += OnShieldChanged;
 
         ForceRefreshUI();
     }
@@ -50,6 +52,7 @@ public class PlayerHUDPresenter : NetworkBehaviour
         health.OnHealthChanged -= OnHealthChanged;
         weapon.OnAmmoChanged -= OnAmmoChanged;
         weapon.OnReloadStart -= OnReloadStart;
+        health.OnShieldChanged -= OnShieldChanged;
     }
 
     // ==========================================
@@ -65,6 +68,7 @@ public class PlayerHUDPresenter : NetworkBehaviour
         int maxAmmo = (int)weapon.stats.GetStatValue(StatType.MagSize);
         bool isWarning = (float)currentAmmo / maxAmmo <= 0.3f;
         myView.UpdateAmmo(currentAmmo, maxAmmo, isWarning);
+        myView.UpdateShield(health.currentShield.Value, health.maxHealth.Value); // 护盾基于最大生命值比例
     }
     // ==========================================
     // Presenter 的业务逻辑处理 (翻译官)
@@ -85,5 +89,10 @@ public class PlayerHUDPresenter : NetworkBehaviour
     private void OnReloadStart(float duration)
     {
         myView.PlayReloadAnimation(duration);
+    }
+    private void OnShieldChanged(float currentShield, float maxHealth)
+    {
+        // 直接传给 View 绘制
+        myView.UpdateShield(currentShield, maxHealth);
     }
 }

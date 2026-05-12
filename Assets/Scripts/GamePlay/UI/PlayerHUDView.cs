@@ -17,6 +17,13 @@ public class PlayerHUDView : MonoBehaviour
     public CanvasGroup reloadBarGroup; // 用来控制整体显隐的 CanvasGroup
     public Image reloadFillImage;      // 用来读条的 Image (Image Type 必须设为 Filled)
 
+    [Header("护盾绑定")]
+    public CanvasGroup shieldGroup; // 控制整体显隐
+    public Image shieldBar;         // 蓝色的护盾填充图 (Image Type 需为 Filled)
+    public Color normalShieldColor = new Color(0.2f, 0.7f, 1f, 1f); // 科技蓝
+    public Color damageShieldColor = Color.white; // 扣盾时的闪烁色
+    private float currentShieldPercent = 0f;
+
     [Header("UI 颜色配置")]
     public Color normalAmmoColor = Color.white;
     public Color warningAmmoColor = Color.red;
@@ -114,5 +121,62 @@ public class PlayerHUDView : MonoBehaviour
                 // 3. 读条满了之后，平滑隐藏掉这个 UI
                 reloadBarGroup.DOFade(0f, 0.2f);
             });
+    }
+
+    /// <summary>
+    /// 更新护盾 (比例基于最大生命值)
+    /// </summary>
+    public void UpdateShield(float currentShield, float maxHealth)
+    {
+        if (shieldGroup == null || shieldBar == null) return;
+
+        // 算出护盾占血条宽度的百分比
+        if (maxHealth <= 0) maxHealth = 1f; // 防除0保护
+        float targetPercent = currentShield / maxHealth;
+        targetPercent = Mathf.Clamp01(targetPercent); // 最多覆盖 100%
+
+        // --- 状态 A：没有护盾 ---
+        if (currentShield <= 0.1f)
+        {
+            // 修复：不要 complete: true，让它从当前位置滑落下去
+            shieldBar.DOKill(false);
+            shieldBar.DOFillAmount(0f, 0.2f).SetEase(Ease.OutQuad);
+            shieldGroup.DOFade(0f, 0.2f);
+            currentShieldPercent = 0f;
+            return;
+        }
+
+        // --- 状态 B：护盾出现/存在 ---
+        if (shieldGroup.alpha < 1f) shieldGroup.DOFade(1f, 0.1f);
+
+        // 如果护盾增加了 (如静电护盾开火)
+        if (targetPercent > currentShieldPercent)
+        {
+            shieldBar.DOKill(false); // 取消强制完成，保留丝滑感
+            shieldBar.color = normalShieldColor;
+
+            // 1. 蓝条平滑上涨
+            shieldBar.DOFillAmount(targetPercent, 0.25f).SetEase(Ease.OutCubic);
+
+            // 2. Q 弹效果：整个护盾条弹跳一下
+            shieldBar.transform.DOKill(false);
+            shieldBar.transform.localScale = Vector3.one;
+            shieldBar.transform.DOPunchScale(new Vector3(0.05f, 0.15f, 0), 0.3f, 5, 1f);
+        }
+        // 如果护盾减少了 (挨打)
+        else if (targetPercent < currentShieldPercent)
+        {
+            shieldBar.DOKill(false);
+
+            // 1. 瞬间闪白，表现受击感
+            shieldBar.DOColor(damageShieldColor, 0.05f).OnComplete(() => {
+                shieldBar.DOColor(normalShieldColor, 0.15f);
+            });
+
+            // 2. 蓝条快速掉落
+            shieldBar.DOFillAmount(targetPercent, 0.15f).SetEase(Ease.OutQuad);
+        }
+
+        currentShieldPercent = targetPercent;
     }
 }

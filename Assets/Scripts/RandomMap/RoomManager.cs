@@ -54,12 +54,12 @@ public class RoomManager : NetworkBehaviour
     }
 
     // 给 MapGenerator 调用的接口，用来注册算好的房间
-    public void RegisterRoomData(int x, int y, int type, string poolId)
+    public void RegisterRoomData(int x, int y, int type, string poolId,int rotIndex)
     {
         Vector2Int gridPos = new Vector2Int(x, y);
         if (!AllRoomsData.ContainsKey(gridPos))
         {
-            AllRoomsData.Add(gridPos, new RoomData(gridPos, type, poolId));
+            AllRoomsData.Add(gridPos, new RoomData(gridPos, type, poolId,rotIndex));
         }
     }
 
@@ -241,7 +241,7 @@ public class RoomManager : NetworkBehaviour
 
         GameObject roomObj = LocalObjectPool.instance.GetT(data.PoolId, worldPos, this.transform);
 
-        // 核心改变：直接抓取房间自带的大管家！
+        roomObj.transform.rotation = Quaternion.Euler(0, data.RoomRotationIndex * 90f, 0);
         RoomNodeData nodeData = roomObj.GetComponent<RoomNodeData>();
         if (nodeData == null)
         {
@@ -269,6 +269,7 @@ public class RoomManager : NetworkBehaviour
             if (!hasNeighbor)
             {
                 GameObject wallObj = LocalObjectPool.instance.GetT("Door", spawnPos, roomObj.transform);
+                nodeData.RegisterSpawnedObject(wallObj);
                 wallObj.transform.rotation = spawnRot;
             }
 
@@ -362,12 +363,11 @@ public class RoomManager : NetworkBehaviour
                     // 1. 设置边框颜色（当前房间高亮，其他恢复原色）
                     frameSr.color = (grid == centerRoom) ? ActiveColor : FrameColor;
                     Color targetColor = UnKnownColor;
-                    if (data.RoomType == -2) targetColor = BossRoomColor;
-                    else if (data.RoomType == -1) targetColor = StartRoomColor;
-                    else if (data.RoomType == 1) targetColor = ShopRoomColor;       // 商店
-                    else if (data.RoomType == 3) targetColor = TreasureRoomColor;   // 宝箱/特殊
+                    if (data.RoomType == -2) targetColor = BossRoomColor;       // 终极精英房
+                    else if (data.RoomType == -1) targetColor = StartRoomColor; // 起点
+                    else if (data.RoomType == 2) targetColor = TreasureRoomColor; // 精英房 (借用原宝箱颜色)
                     else if (data.IsCleared) targetColor = FinishedColor;
-                    else targetColor = MonsterRoomColor; // 普通怪物房 (Type 2)
+                    else targetColor = MonsterRoomColor; // 普通房
 
                     sr.color = targetColor;
                 }

@@ -47,7 +47,6 @@ public class LightningChainEffect : IWeaponEffect
         }
     }
 
-    public void OnDestroy(ProjectileBase projectile, Vector3 destroyPoint, CharacterStatCollection stats) { }
 
     public bool OnBeforeFire(WeaponBase weapon, CharacterStatCollection stats)
     {
@@ -57,5 +56,10 @@ public class LightningChainEffect : IWeaponEffect
     public void OnAfterFire(WeaponBase weapon, CharacterStatCollection stats)
     {
        
+    }
+
+    public void OnProjectileDestroyed(ProjectileBase projectile, Vector3 destroyPoint, CharacterStatCollection stats)
+    {
+        
     }
 }

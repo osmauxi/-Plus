@@ -14,7 +14,8 @@ public class ProjectileBase : MonoBehaviour
     public float maxLifeTime = 5f;
     private Coroutine lifeTimerCoroutine;
     // 谁发射的？（用于区分敌我，防止痛击队友）
-    private GameObject owner;
+    public GameObject owner;
+    public int generation = 0;
     private string targetTag;
     private Vector3 initialScale;
 
@@ -35,9 +36,10 @@ public class ProjectileBase : MonoBehaviour
 
     // 【核心管线】：由 WeaponBase 实例化子弹后瞬间调用
     public void Init(GameObject owner, float damage, float speed, int bounces, int pierces,
-                     List<IWeaponEffect> effects, CharacterStatCollection stats, Vector3 inheritedVelocity)
+                     List<IWeaponEffect> effects, CharacterStatCollection stats, Vector3 inheritedVelocity, int generation = 0)
     {
         this.owner = owner;
+        this.generation = generation;
         this.baseDamage = damage;
         this.speed = speed;
         this.currentBounces = bounces;
@@ -134,16 +136,34 @@ public class ProjectileBase : MonoBehaviour
         }
         else if (hitWall)
         {
-            // 处理弹射逻辑
             if (currentBounces > 0)
             {
                 currentBounces--;
-                // 简单的物理反射算初速度方向 (需要确保墙壁有 normal)
-                // rb.velocity = Vector3.Reflect(rb.velocity, hitInfo.normal);
 
-                // 暂时简单的反弹逻辑示意
-                transform.forward = Vector3.Reflect(transform.forward, (transform.position - other.ClosestPoint(transform.position)).normalized);
-                rb.velocity = transform.forward * speed;
+                // 【核心修复】：Trigger 无法直接获取法线，必须用射线补测！
+                // 从子弹当前位置稍微往后退一点点，顺着原本的方向发射一条短射线
+                Ray ray = new Ray(transform.position - transform.forward * 0.5f, transform.forward);
+
+                // 注意：这里的 LayerMask 最好填你游戏里的墙壁层，比如 LayerMask.GetMask("Wall", "Default")
+                if (Physics.Raycast(ray, out RaycastHit hitInfo, 2f))
+                {
+                    // 拿到了绝对精准的墙面法线，进行完美反射
+                    Vector3 reflectDir = Vector3.Reflect(transform.forward, hitInfo.normal);
+
+                    // 【防上天补丁】：如果你是 2.5D 俯视角，必须强行抹平 Y 轴，防止子弹弹射后飞到天上或钻进地下！
+                    reflectDir.y = 0;
+
+                    transform.forward = reflectDir.normalized;
+                    rb.velocity = transform.forward * speed;
+                }
+                else
+                {
+                    // 兜底防错：万一射线因为模型穿模没打中，用旧逻辑凑合弹一下
+                    Vector3 fallbackNormal = (transform.position - other.ClosestPoint(transform.position)).normalized;
+                    fallbackNormal.y = 0;
+                    transform.forward = Vector3.Reflect(transform.forward, fallbackNormal).normalized;
+                    rb.velocity = transform.forward * speed;
+                }
             }
             else
             {
@@ -157,7 +177,7 @@ public class ProjectileBase : MonoBehaviour
         // 触发销毁钩子 (比如冰爆术：子弹消失时冻结周围)
         foreach (var effect in activeEffects)
         {
-            effect.OnDestroy(this, transform.position, snapshotStats);
+            effect.OnProjectileDestroyed(this, transform.position, snapshotStats);
         }
 
         LocalObjectPool.instance.RetToPool(gameObject);

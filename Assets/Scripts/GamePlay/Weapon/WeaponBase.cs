@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -68,12 +69,6 @@ public class WeaponBase : NetworkBehaviour
             // 给枪增加多重射击
             stats.AddModifier(StatType.ProjectileCount, 2, StatModType.Flat, this);
             Debug.Log("获得多重射击！");
-        }
-        if (Input.GetKeyDown(KeyCode.F2))
-        {
-            // 给枪挂载雷电链特效
-            AddOrUpgradeEffect(new LightningChainEffect());
-            Debug.Log("获得雷电链！");
         }
     }
 
@@ -245,18 +240,22 @@ public class WeaponBase : NetworkBehaviour
         OnAmmoChanged?.Invoke(currentAmmo, maxAmmo);
     }
     // 拾取/升级词条的接口
-    public void AddOrUpgradeEffect(IWeaponEffect newEffect)
+    public void AddOrUpgradeEffect(WeaponEffectSO newEffect)
     {
-        var existing = activeEffects.Find(e => e.GetType() == newEffect.GetType());
-        if (existing != null)
+        if (newEffect == null) return;
+
+        // 检查是否已经拥有这个特效单例
+        if (!activeEffects.Contains(newEffect))
         {
-            if (existing is IUpgradeableEffect upgradeable) upgradeable.Upgrade();
+            // 直接塞入单例资源的引用，绝不能 Instantiate！
+            activeEffects.Add(newEffect);
+            // 触发一次装备事件 (比如雷云可以在这里启动协程)
+            newEffect.OnEquip(this.gameObject, stats);
+            Debug.Log($"[武器系统] 成功挂载机制载体: {newEffect.name}");
         }
         else
         {
-            Debug.Log(newEffect);
-            activeEffects.Add(newEffect);
-            newEffect.OnEquip(this.gameObject, stats); 
+            Debug.Log($"[武器系统] 已存在该机制，层数增加由 Handler 接管: {newEffect.name}");
         }
     }
 }

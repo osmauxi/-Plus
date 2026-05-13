@@ -2,7 +2,6 @@
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
-using static Codice.Client.Common.WebApi.WebApiEndpoints;
 
 [RequireComponent(typeof(AIBlackboard))]
 public class MonsterBrain : NetworkBehaviour, IKnockbackable

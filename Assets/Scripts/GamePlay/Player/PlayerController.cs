@@ -72,7 +72,10 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
     }
     private void HandleDeath()
     {
-        ChangeStateServerRpc(PlayerStateType.dead);
+        if (IsServer)
+        {
+            currentNetState.Value = PlayerStateType.dead;
+        }
     }
 
     private void Update()
@@ -108,10 +111,6 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
         }
         if (PlayerManager.Instance != null)
             PlayerManager.Instance.RegisterPlayer(this);
-        if (!IsOwner)
-        {
-            this.enabled = false;
-        }
     }
 
     public override void OnNetworkDespawn()

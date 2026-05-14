@@ -95,14 +95,20 @@ public class AsynchronousLoader : NetworkBehaviour
         switch (sceneEvent.SceneEventType)
         {
             case SceneEventType.LoadEventCompleted:
+            case SceneEventType.UnloadEventCompleted:
                 // 当服务器和所有客户端都完成了场景加载
                 Debug.Log($"所有客户端加载完成：{sceneEvent.SceneName}");
 
-                // 触发服务端的回调
-                _onLoadCompleted?.Dequeue()?.Invoke();
+                if (_onLoadCompleted.Count > 0)
+                {
+                    _onLoadCompleted.Dequeue()?.Invoke();
+                }
 
                 // 通知所有客户端隐藏面板
-                HideLoadingPanelClientRpc();
+                if (sceneEvent.SceneEventType == SceneEventType.LoadEventCompleted)
+                {
+                    HideLoadingPanelClientRpc();
+                }
                 break;
 
                 // 你可以在这里扩展处理掉线、超时等情况

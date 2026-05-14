@@ -1,8 +1,10 @@
-﻿using Unity.Netcode;
+﻿using System.Collections;
+using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(AIBlackboard))]
-public class MonsterBrain : NetworkBehaviour
+public class MonsterBrain : NetworkBehaviour, IKnockbackable
 {
     private AIBlackboard blackboard;
 
@@ -16,6 +18,12 @@ public class MonsterBrain : NetworkBehaviour
     public float maxHitStopTolerance = 0.6f;
     [Tooltip("触发霸体后，霸体持续的时间(秒)")]
     public float immunityDuration = 1.5f;
+
+    [Header("击退累加配置")]
+    [Tooltip("多长时间内的连续受击会被视为【击退累加】(散弹枪建议 0.1f)")]
+    public float accumulationWindow = 0.1f;
+    private float lastKnockbackTime = -999f;
+    private Coroutine knockbackRoutine;
 
     private float currentHitStopAccumulation = 0f;
     private float immunityEndTime = 0f; // 霸体结束的时间点
@@ -125,4 +133,75 @@ public class MonsterBrain : NetworkBehaviour
         mover.ExecuteTick(blackboard);
         attacker.ExecuteTick(blackboard);
     }
+
+    #region 击退
+    public void ApplyKnockback(Vector3 force)
+    {
+        if (!gameObject.activeInHierarchy) return;
+
+        bool isAccumulating = (Time.time - lastKnockbackTime) <= accumulationWindow;
+        lastKnockbackTime = Time.time;
+
+        if (isAccumulating)
+        {
+            // 【保护与升级】：如果当前没有被时停冻结，正常叠加力量
+            if (!blackboard.Rb.isKinematic)
+            {
+                blackboard.Rb.AddForce(force, ForceMode.Impulse);
+            }
+            else
+            {
+                // 【塞尔达时停机制】：如果怪物正处于霸体/时停的运动学状态，把受力转化为速度，存入解冻初速度中！
+                savedVelocity += force / blackboard.Rb.mass;
+            }
+        }
+        else
+        {
+            if (knockbackRoutine != null) StopCoroutine(knockbackRoutine);
+            knockbackRoutine = StartCoroutine(KnockbackSequence(force));
+        }
+    }
+
+    private IEnumerator KnockbackSequence(Vector3 initialForce)
+    {
+        if (blackboard.Agent.isActiveAndEnabled)
+        {
+            blackboard.Agent.enabled = false;
+        }
+
+        // 【防崩溃保护】：只有在非 Kinematic 状态下，才能赋予速度和推力
+        if (!blackboard.Rb.isKinematic)
+        {
+            blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
+            blackboard.Rb.AddForce(initialForce, ForceMode.Impulse);
+        }
+        else
+        {
+            // 时停状态下起步，直接将动量注入到解冻后的保存速度里
+            savedVelocity = new Vector3(0, savedVelocity.y, 0) + (initialForce / blackboard.Rb.mass);
+        }
+
+        yield return new WaitForFixedUpdate();
+
+        // 【逻辑同步】：如果你正在被顿帧冻结，必须让击退协程“暂停”，等待你解冻后再开始计算滑行！
+        while (IsHitStopped)
+        {
+            yield return null;
+        }
+
+        // 动态滑行检测
+        while (Time.time - lastKnockbackTime < 0.5f && new Vector3(blackboard.Rb.velocity.x, 0, blackboard.Rb.velocity.z).sqrMagnitude > 0.5f)
+        {
+            yield return null;
+        }
+
+        // 【终极防线】：刹车前最后一次检查，彻底杜绝报错！
+        if (!blackboard.Rb.isKinematic)
+        {
+            blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
+        }
+
+        blackboard.Agent.enabled = true;
+    }
+    #endregion
 }

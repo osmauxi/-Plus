@@ -99,7 +99,7 @@ public class LocalObjectPool : MonoBehaviour
     }
 
     //按名称查找
-    public GameObject GetT(string keyName, Vector3 position, Transform parent)
+    public GameObject GetT(string keyName, Vector3 position, Transform parent = null)
     {
         if (pool.TryGetValue(keyName, out var targetPool))
         //确认此name对象池存在

@@ -24,9 +24,9 @@ public class MapGenerator : NetworkBehaviour
         public float roomWeight;
     };
 
-    [SerializeField] private static int RoomTypeNum = 3;
+    [SerializeField] private static int RoomTypeNum = 2;
     [SerializeField] private static int ArraySize = 100;
-    [SerializeField] private Room[] rooms = new Room[3];
+    [SerializeField] private Room[] rooms = new Room[2];
 
     [Header("房间设置")]
     [SerializeField] private int BossRoomDis = 5;
@@ -86,7 +86,17 @@ public class MapGenerator : NetworkBehaviour
         }
         else
         {
-            mapSeed.OnValueChanged += OnMapSeedReceived;
+            if (mapSeed.Value != 0)
+            {
+                // 如果客户端进得慢，发现种子已经有值了，就不等事件了，直接开始生成！
+                Debug.Log($"[地图系统] 发现服务器已分发种子 {mapSeed.Value}，立刻追赶进度！");
+                OnMapSeedReceived(0, mapSeed.Value);
+            }
+            else
+            {
+                // 如果大家同步得很好，正常监听
+                mapSeed.OnValueChanged += OnMapSeedReceived;
+            }
         }
     }
 
@@ -177,9 +187,8 @@ public class MapGenerator : NetworkBehaviour
         MapInitialize();
         up = 0; down = 0; right = 0; left = 0;
 
-        rooms[0].roomID = 1; rooms[0].roomWeight = 0.1f;
-        rooms[1].roomID = 2; rooms[1].roomWeight = 0.8f;
-        rooms[2].roomID = 3; rooms[2].roomWeight = 0.1f;
+        rooms[0].roomID = 1; rooms[0].roomWeight = 0.8f; 
+        rooms[1].roomID = 2; rooms[1].roomWeight = 0.2f; 
 
         for (int i = 0; i < 4; i++) dirWeight[i] = 0;
         int s = mapPRNG.Next(0, 4);
@@ -199,7 +208,7 @@ public class MapGenerator : NetworkBehaviour
 
         int startType = -1;
         string startPoolId = $"Room_{startType}_{GetRandomVariant(startType)}";
-        RoomManager.Instance.RegisterRoomData(initRoomGridPos.x, initRoomGridPos.y, startType, startPoolId);
+        RoomManager.Instance.RegisterRoomData(initRoomGridPos.x, initRoomGridPos.y, startType, startPoolId,mapPRNG.Next(0, 4));
         InitializedRoomNum++;
 
         StartCoroutine(GenRoom(initRoomGridPos.x, initRoomGridPos.y, 1, true, IsAnimating, () => coroCount--));
@@ -233,7 +242,7 @@ public class MapGenerator : NetworkBehaviour
                 }
 
                 string bossPoolId = $"Room_{-2}_{GetRandomVariant(-2)}";
-                RoomManager.Instance.RegisterRoomData(x, y, -2, bossPoolId);
+                RoomManager.Instance.RegisterRoomData(x, y, -2, bossPoolId, mapPRNG.Next(0, 4));
 
                 InitializedRoomNum++;
                 bossRoomGenerated = true;
@@ -251,7 +260,7 @@ public class MapGenerator : NetworkBehaviour
                 int currentType = map[arrayX, arrayY];
 
                 string currentPoolId = $"Room_{currentType}_{GetRandomVariant(currentType)}";
-                RoomManager.Instance.RegisterRoomData(x, y, currentType, currentPoolId);
+                RoomManager.Instance.RegisterRoomData(x, y, currentType, currentPoolId, mapPRNG.Next(0, 4));
                 InitializedRoomNum++;
             }
 

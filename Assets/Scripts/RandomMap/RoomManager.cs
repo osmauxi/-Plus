@@ -45,21 +45,21 @@ public class RoomManager : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        CurrentActiveRoom.OnValueChanged += OnRoomChanged;
+        //CurrentActiveRoom.OnValueChanged += OnRoomChanged;
     }
 
     public override void OnNetworkDespawn()
     {
-        CurrentActiveRoom.OnValueChanged -= OnRoomChanged;
+        //CurrentActiveRoom.OnValueChanged -= OnRoomChanged;
     }
 
     // 给 MapGenerator 调用的接口，用来注册算好的房间
-    public void RegisterRoomData(int x, int y, int type, string poolId)
+    public void RegisterRoomData(int x, int y, int type, string poolId,int rotIndex)
     {
         Vector2Int gridPos = new Vector2Int(x, y);
         if (!AllRoomsData.ContainsKey(gridPos))
         {
-            AllRoomsData.Add(gridPos, new RoomData(gridPos, type, poolId));
+            AllRoomsData.Add(gridPos, new RoomData(gridPos, type, poolId,rotIndex));
         }
     }
 
@@ -67,6 +67,7 @@ public class RoomManager : NetworkBehaviour
     {
         // 只有服务器且在游玩状态下才进行房间判定
         // if (!IsServer || GameStateController.instance.currentNetState.Value != GameState.GamePlaying) return;
+        UpdateLocalPlayerVisibility();
         if (!IsServer) return; // 暂且简写
 
         CheckPlayerPositions();
@@ -76,6 +77,11 @@ public class RoomManager : NetworkBehaviour
     {
         if (Time.time - lastRoomChangeTime < 1.0f) 
             return;
+        if (AllRoomsData.TryGetValue(CurrentActiveRoom.Value, out RoomData activeRoomData))
+        {
+            // 只要没打完，锁死房间判定逻辑
+            if (!activeRoomData.IsCleared) return;
+        }
         // 遍历你的全局玩家列表
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {
@@ -92,7 +98,7 @@ public class RoomManager : NetworkBehaviour
                 // 如果这不是当前的战斗房间
                 if (playerGrid != CurrentActiveRoom.Value)
                 {
-
+                    Debug.Log("ENTER");
                     HandlePlayerEnterNewRoom(player, playerGrid, roomData);
                     lastRoomChangeTime = Time.time;
                     break;
@@ -100,14 +106,52 @@ public class RoomManager : NetworkBehaviour
             }
         }
     }
+    private Vector2Int localLastGrid = new Vector2Int(-999, -999);
+    private void UpdateLocalPlayerVisibility()
+    {
+        // 1. 找到本地玩家
+        PlayerController localPlayer = null;
+        foreach (var p in PlayerManager.Instance.AllPlayers)
+        {
+            if (p.IsOwner) { localPlayer = p; break; }
+        }
 
+        if (localPlayer == null) return;
+
+        // 2. 计算本地玩家所在的网格
+        int gridX = Mathf.RoundToInt(localPlayer.transform.position.x / roomSize);
+        int gridY = Mathf.RoundToInt(localPlayer.transform.position.z / roomSize);
+        Vector2Int currentGrid = new Vector2Int(gridX, gridY);
+
+        // 3. 只有格位变化时才更新渲染，节省性能
+        if (currentGrid != localLastGrid)
+        {
+            localLastGrid = currentGrid;
+            UpdateLocalVisuals(currentGrid); // 这里的 UpdateLocalVisuals 保持你原有的 HashSet 逻辑即可
+            UpdateMinimapFog(currentGrid);   // 迷雾也改为本地触发
+        }
+    }
     private void HandlePlayerEnterNewRoom(PlayerController enteringPlayer, Vector2Int newRoomGrid, RoomData roomData)
     {
         CurrentActiveRoom.Value = newRoomGrid;
 
         if (!roomData.IsCleared)
         {
-            PullOtherPlayers(enteringPlayer);
+            Vector3 enterPos = enteringPlayer.transform.position; 
+            Vector3 safeTeleportPos = enterPos;
+            if (SpawnedRooms.TryGetValue(newRoomGrid, out RoomNodeData nData) && nData.PlayerSpawnPos != null && nData.PlayerSpawnPos.Length > 0)
+            {
+                // 【核心优化】：极其自然的传送落点
+                Vector3 centerPos = nData.PlayerSpawnPos[0].position;
+
+                // 1. 算出从中心指向玩家大门方向的单位向量
+                Vector3 dirToPlayer = (enterPos - centerPos).normalized;
+
+                // 2. 在进门玩家的脚下，顺着向内（中心）的方向回退 3 米，加上随机散布
+                safeTeleportPos = enterPos - dirToPlayer * 3.0f;
+            }
+
+            PullOtherPlayers(enteringPlayer, safeTeleportPos); // 传过去
 
             //通知所有客户端立刻生成门，锁死这间房
             LockDoorsClientRpc(newRoomGrid);
@@ -158,32 +202,30 @@ public class RoomManager : NetworkBehaviour
         }
     }
 
-    private void PullOtherPlayers(PlayerController enteringPlayer)
+    private void PullOtherPlayers(PlayerController enteringPlayer, Vector3 basePos)
     {
-        Vector3 enterPos = enteringPlayer.transform.position;
-
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {
-            // 找到没进门的倒霉蛋队友
             if (player != enteringPlayer)
             {
-                // 在进门玩家的坐标附近加个随机小偏移，防止两人模型重叠卡死
-                Vector3 offset = new Vector3(UnityEngine.Random.Range(-2f, 2f), 0, UnityEngine.Random.Range(-2f, 2f));
+                Debug.Log($"[传送] 准备拉取玩家 ID: {player.OwnerClientId}");
 
-                // 因为我们之前把玩家移动改成了“客户端权威”，服务器不能直接改位置。
-                // 必须发 RPC 告诉那个客户端：“你被拉扯了，自己改下坐标！”
-                ForceTeleportClientRpc(enterPos + offset, new ClientRpcParams
-                {
-                    Send = new ClientRpcSendParams { TargetClientIds = new[] { player.OwnerClientId } }
-                });
+                // 在安全的中心点附近加一点小偏移
+                Vector3 offset = new Vector3(UnityEngine.Random.Range(-1.5f, 1.5f), 0, UnityEngine.Random.Range(-1.5f, 1.5f));
+
+                // 【核心修复】：放弃 ClientRpcParams！直接全网广播，把需要传送的玩家 ID 传过去
+                ForceTeleportClientRpc(player.OwnerClientId, basePos + offset);
             }
         }
     }
 
     [ClientRpc]
-    private void ForceTeleportClientRpc(Vector3 targetPos, ClientRpcParams rpcParams = default)
+    private void ForceTeleportClientRpc(ulong targetClientId, Vector3 targetPos)
     {
-        // 收到指令的本地玩家执行强制位移
+        // 【核心修复】：所有客户端都会收到广播，但如果是叫别人，直接无视！
+        if (NetworkManager.Singleton.LocalClientId != targetClientId) return;
+
+        // 走到这里，说明服务器叫的就是我本地这个玩家
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {
             if (player.IsOwner)
@@ -192,9 +234,12 @@ public class RoomManager : NetworkBehaviour
                 rb.velocity = Vector3.zero;
                 rb.interpolation = RigidbodyInterpolation.None;
 
+                player.transform.position = targetPos;
                 rb.position = targetPos;
+
                 StartCoroutine(RestoreInterpolation(rb));
-                Debug.Log("【系统】已传送到队友所在的房间！");
+                Debug.Log("【系统】已响应服务器召唤，强行突入战场！");
+                break;
             }
         }
     }
@@ -236,7 +281,7 @@ public class RoomManager : NetworkBehaviour
 
         GameObject roomObj = LocalObjectPool.instance.GetT(data.PoolId, worldPos, this.transform);
 
-        // 核心改变：直接抓取房间自带的大管家！
+        roomObj.transform.rotation = Quaternion.Euler(0, data.RoomRotationIndex * 90f, 0);
         RoomNodeData nodeData = roomObj.GetComponent<RoomNodeData>();
         if (nodeData == null)
         {
@@ -264,6 +309,7 @@ public class RoomManager : NetworkBehaviour
             if (!hasNeighbor)
             {
                 GameObject wallObj = LocalObjectPool.instance.GetT("Door", spawnPos, roomObj.transform);
+                nodeData.RegisterSpawnedObject(wallObj);
                 wallObj.transform.rotation = spawnRot;
             }
 
@@ -357,12 +403,16 @@ public class RoomManager : NetworkBehaviour
                     // 1. 设置边框颜色（当前房间高亮，其他恢复原色）
                     frameSr.color = (grid == centerRoom) ? ActiveColor : FrameColor;
                     Color targetColor = UnKnownColor;
-                    if (data.RoomType == -2) targetColor = BossRoomColor;
-                    else if (data.RoomType == -1) targetColor = StartRoomColor;
-                    else if (data.RoomType == 1) targetColor = ShopRoomColor;       // 商店
-                    else if (data.RoomType == 3) targetColor = TreasureRoomColor;   // 宝箱/特殊
-                    else if (data.IsCleared) targetColor = FinishedColor;
-                    else targetColor = MonsterRoomColor; // 普通怪物房 (Type 2)
+                   if (data.RoomType == -1) 
+                        targetColor = StartRoomColor;       // 优先级 1：起点永远是起点色
+                    else if (data.IsCleared) 
+                        targetColor = FinishedColor;        // 优先级 2：只要通关了，统统变绿（包括精英房！）
+                    else if (data.RoomType == -2) 
+                        targetColor = BossRoomColor;        // 优先级 3：没打的 Boss 房
+                    else if (data.RoomType == 2) 
+                        targetColor = TreasureRoomColor;    // 优先级 4：没打的精英房 (金色)
+                    else 
+                        targetColor = MonsterRoomColor;     // 优先级 5：没打的普通房
 
                     sr.color = targetColor;
                 }

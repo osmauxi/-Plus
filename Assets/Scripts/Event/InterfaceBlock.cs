@@ -25,7 +25,7 @@ public interface IWeaponEffect
     void OnHit(ProjectileBase projectile, GameObject target, Vector3 hitPoint, CharacterStatCollection stats);
 
     // 子弹销毁时触发
-    void OnDestroy(ProjectileBase projectile, Vector3 destroyPoint, CharacterStatCollection stats);
+    void OnProjectileDestroyed(ProjectileBase projectile, Vector3 destroyPoint, CharacterStatCollection stats);
 }
 
 public interface IUpgradeableEffect
@@ -57,4 +57,12 @@ public interface IInteractable
 
     // 当玩家按下交互键时触发。传入触发者的 GameObject，方便溯源。
     void OnInteract(GameObject interactor);
+}
+public interface IKnockbackable
+{
+    /// <summary>
+    /// 接收击退指令
+    /// </summary>
+    /// <param name="force">算好的纯横向击退力</param>
+    void ApplyKnockback(Vector3 force);
 }

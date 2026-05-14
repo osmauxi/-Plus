@@ -32,12 +32,18 @@ public class State
     //进入状态是改变对应的bool为ture，Animator中进入此状态，退出后设为false，Animator进入Exit，这样就不用在Animator里拉蜘蛛网
     public virtual void Enter()
     {
-        player.Anim.SetBool(animBoolName, true);
+        if (!string.IsNullOrEmpty(animBoolName))
+        {
+            player.Anim.SetBool(animBoolName, true);
+        }
     }
 
     public virtual void Exit()
     {
-        player.Anim.SetBool(animBoolName, false);
+        if (!string.IsNullOrEmpty(animBoolName))
+        {
+            player.Anim.SetBool(animBoolName, false);
+        }
     }
 
 }

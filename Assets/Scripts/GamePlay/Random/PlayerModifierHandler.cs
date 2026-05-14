@@ -29,9 +29,8 @@ public class PlayerModifierHandler : NetworkBehaviour
     /// </summary>
     public void OpenStandardChest()
     {
-        if (!IsOwner) return; 
-        List<ModifierDataSO> choices = ModifierPoolManager.Instance.RollStandardModifiersWithWeight(3, cachedStackCounts, cachedPlayerTags);
-        ShowHextechSelectionUI(choices, "常规武装箱");
+        if (!IsOwner) return;
+        NotifyChestOpenedServerRpc(0);
     }
 
     /// <summary>
@@ -40,8 +39,7 @@ public class PlayerModifierHandler : NetworkBehaviour
     public void OpenChaosChest()
     {
         if (!IsOwner) return;
-        List<ModifierDataSO> choices = ModifierPoolManager.Instance.RollStandardModifiersChaos(3, cachedStackCounts, cachedPlayerTags);
-        ShowHextechSelectionUI(choices, "混沌赐福");
+        NotifyChestOpenedServerRpc(1);
     }
 
     /// <summary>
@@ -50,11 +48,45 @@ public class PlayerModifierHandler : NetworkBehaviour
     public void OpenMutationChest()
     {
         if (!IsOwner) return;
-        List<ModifierDataSO> choices = ModifierPoolManager.Instance.RollMutationModifiers(3, cachedStackCounts, cachedPlayerTags);
-        ShowHextechSelectionUI(choices, "异变核心提取");
+        NotifyChestOpenedServerRpc(2);
     }
 
+    [ServerRpc]
+    private void NotifyChestOpenedServerRpc(int chestType)
+    {
+        // 服务器收到开箱申请，立刻向全网所有的 PlayerPrefab 发送开箱广播
+        TriggerChestUIClientRpc(chestType);
+    }
 
+    [ClientRpc]
+    private void TriggerChestUIClientRpc(int chestType)
+    {
+        // 【关键】：这里是 ClientRpc，每个玩家的电脑上都会执行。
+        // 但我们只让属于本地玩家的那个主角弹 UI，否则屏幕上会弹出 N 个窗口！
+        if (!IsOwner) return;
+
+        List<ModifierDataSO> choices = null;
+        string title = "";
+
+        // 每个玩家根据自己的缓存（cachedStackCounts），独立 Roll 出属于自己的 3 个词条！
+        switch (chestType)
+        {
+            case 0:
+                choices = ModifierPoolManager.Instance.RollStandardModifiersWithWeight(3, cachedStackCounts, cachedPlayerTags);
+                title = "常规武装箱";
+                break;
+            case 1:
+                choices = ModifierPoolManager.Instance.RollStandardModifiersChaos(3, cachedStackCounts, cachedPlayerTags);
+                title = "混沌赐福";
+                break;
+            case 2:
+                choices = ModifierPoolManager.Instance.RollMutationModifiers(3, cachedStackCounts, cachedPlayerTags);
+                title = "异变核心提取";
+                break;
+        }
+
+        ShowHextechSelectionUI(choices, title);
+    }
     // ======================================================================
     // UI 表现层预留接口 (金铲铲海克斯风格)
     // ======================================================================
@@ -125,12 +157,30 @@ public class PlayerModifierHandler : NetworkBehaviour
 
         if (modData.specialEffect != null && currentWeapon != null)
         {
+            // 将 SO 里的特技逻辑挂载到武器上
             currentWeapon.AddOrUpgradeEffect(modData.specialEffect);
         }
 
         if (magSizeChanged)
         {
             currentWeapon.ForceInstantReload();
+        }
+        if (IsServer)
+        {
+            var healthComp = GetComponent<Health>();
+            if (healthComp != null)
+            {
+                // 直接拿到经过词条乘区计算后的最新血量上限
+                float newMaxHp = statCollection.GetStatValue(StatType.MaxHealth);
+
+                float hpIncrease = newMaxHp - healthComp.maxHealth.Value;
+
+                if (hpIncrease > 0)
+                {
+                    healthComp.maxHealth.Value = newMaxHp;
+                    healthComp.currentHealth.Value += hpIncrease; // 同步拔高当前血量
+                }
+            }
         }
         Debug.Log($"[系统广播] 玩家 {OwnerClientId} 获得了强化：{modData.modifierName}");
     }

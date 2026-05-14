@@ -3,13 +3,11 @@ using UnityEngine;
 
 public class TreasureChest : NetworkBehaviour, IInteractable
 {
-   // [Header("宝箱类型")]
     public enum ChestType { Standard, Mutation, ChaosAltar }
     public ChestType currentChestType = ChestType.Standard;
     [SerializeField] private GameObject chest_Open;
     [SerializeField] private GameObject chest_Close;
 
-    // 网络变量：同步箱子是否已经被开启，防止网络延迟导致两个人同时开一个箱子
     private NetworkVariable<bool> isOpened = new NetworkVariable<bool>(false);
 
     public bool IsInteractable => !isOpened.Value;
@@ -32,73 +30,87 @@ public class TreasureChest : NetworkBehaviour, IInteractable
         chest_Close.SetActive(true);
         chest_Open.SetActive(false);
     }
+
+    // ==========================================
+    // 1. 客户端发起请求
+    // ==========================================
     public void OnInteract(GameObject interactor)
     {
-        // 1. 防御性检查：已经被开了，或者不是本地玩家按的，直接 return
         if (isOpened.Value) return;
 
-        // 找到操作者的本地处理句柄
-        PlayerModifierHandler modifierHandler = interactor.GetComponentInParent<PlayerModifierHandler>();
-        if (!modifierHandler.IsOwner) return;
+        var netObj = interactor.GetComponentInParent<NetworkObject>();
+        if (netObj == null || !netObj.IsOwner) return;
 
-        // 2. 献祭祭坛的特殊逻辑：先扣血！
+        // 把互动的玩家ID传给服务器，让服务器去裁决扣血和开箱！
+        RequestOpenChestServerRpc(netObj.NetworkObjectId);
+    }
+
+    // ==========================================
+    // 2. 服务器权威裁决 (扣血、锁状态)
+    // ==========================================
+    [ServerRpc(RequireOwnership = false)]
+    private void RequestOpenChestServerRpc(ulong interactorId)
+    {
+        if (isOpened.Value) return;
+
+        // 祭坛特殊逻辑：服务器负责真实扣血！
         if (currentChestType == ChestType.ChaosAltar)
         {
-            Health playerHealth = interactor.GetComponent<Health>();
-            if (playerHealth != null)
+            if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(interactorId, out NetworkObject playerObj))
             {
-                // 假设你的 Health 脚本有对应方法，这里扣除 30% 最大生命值
-                float damageAmount = playerHealth.maxHealth.Value * 0.3f;
-                playerHealth.TakeDamage(damageAmount, transform.position, Vector3.zero);
+                Health playerHealth = playerObj.GetComponent<Health>();
+                if (playerHealth != null)
+                {
+                    float damageAmount = playerHealth.maxHealth.Value * 0.3f;
+                    // 使用真实伤害(isTrueDamage = true)无视护甲，hitWeight传0无硬直
+                    playerHealth.TakeDamage(damageAmount, transform.position, Vector3.zero, 0f, null, true);
+                }
             }
         }
 
-        // 3. 通知服务器：这个箱子我开了！(锁住状态，让别人点不了)
-        RequestOpenChestServerRpc();
+        isOpened.Value = true; // 全网锁死
 
-        // 4. 在本地立刻弹出对应的词条抽取 UI！
-        switch (currentChestType)
-        {
-            case ChestType.Standard:
-                Debug.Log(414145);
-                modifierHandler.OpenStandardChest();
-                break;
-            case ChestType.Mutation:
-                modifierHandler.OpenMutationChest();
-                break;
-            case ChestType.ChaosAltar:
-                modifierHandler.OpenChaosChest();
-                break;
-        }
-
-        // 可选：本地先播放一次开箱粒子/动画掩盖网络延迟
-        PlayOpenVisuals();
+        // 通知全宇宙所有客户端：开箱啦，发奖励啦！
+        OpenChestAndShowUIClientRpc(currentChestType);
     }
 
-    [ServerRpc(RequireOwnership = false)]
-    private void RequestOpenChestServerRpc()
-    {
-        if (isOpened.Value) return;
-
-        isOpened.Value = true; // 真正锁死状态
-        OpenChestVisualsClientRpc();
-    }
-
+    // ==========================================
+    // 3. 客户端各自弹 UI
+    // ==========================================
     [ClientRpc]
-    private void OpenChestVisualsClientRpc()
+    private void OpenChestAndShowUIClientRpc(ChestType type)
     {
-        // 所有的客户端都会执行这里：播放箱子盖子打开的动画、喷金光等
+        if (TryGetComponent<TargetableIndicator>(out var indicator))
+        {
+            indicator.Unregister();
+        }
+        // 1. 播放表现
         PlayOpenVisuals();
+
+        // 2. 极其关键：让每个客户端只给【自己的本地玩家】弹 UI！
+        foreach (var player in PlayerManager.Instance.AllPlayers)
+        {
+            if (player.IsOwner)
+            {
+                PlayerModifierHandler handler = player.GetComponent<PlayerModifierHandler>();
+                if (handler != null)
+                {
+                    switch (type)
+                    {
+                        case ChestType.Standard: handler.OpenStandardChest(); break;
+                        case ChestType.Mutation: handler.OpenMutationChest(); break;
+                        case ChestType.ChaosAltar: handler.OpenChaosChest(); break;
+                    }
+                }
+                break; // 找到了自己的玩家，弹完就跳出
+            }
+        }
     }
 
     private void PlayOpenVisuals()
     {
         chest_Open.SetActive(true);
         chest_Close.SetActive(false);
-        // TODO: 播放 Animator 动画，或者直接换材质/模型
         Debug.Log("宝箱开启！");
-
-        // 可选：开完后过几秒把自己还给对象池
-        // if(IsServer) StartCoroutine(RecycleRoutine());
     }
 }

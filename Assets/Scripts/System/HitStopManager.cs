@@ -77,8 +77,8 @@ public class HitStopManager : MonoBehaviour
             if (target.TryGetComponent<MonsterEntity>(out var monster))
             {
                 newData.animator = monster.Anim;
-                newData.rb = monster.Rb;
-                newData.agent = monster.agent;
+                newData.rb = null;
+                newData.agent = null;
             }
             else if (target.TryGetComponent<PlayerController>(out var player))
             {

@@ -21,6 +21,8 @@ public class EnergySiphonEffect : WeaponEffectSO
 
         if (projectile.owner.transform.root.TryGetComponent<Health>(out var playerHealth))
         {
+            GameObject vfx = GlobalLocalVFXPool.Instance.GetVFX("Shield_Lightning", target.transform.position);
+            vfx.transform.SetParent(target.transform);
             // 1. 获取玩家当前的真实伤害面板
             float currentDamage = stats.GetStatValue(StatType.Damage);
 
@@ -33,8 +35,6 @@ public class EnergySiphonEffect : WeaponEffectSO
             // 4. 计算动态上限：伤害越高，不仅吸得越快，能攒的护盾池子也越深！
             float effectCap = currentDamage * capDamageMultiplier;
             float finalShieldLimit = effectCap + stats.GetStatValue(StatType.MaxShield);
-            Debug.Log(shieldGain);
-            Debug.Log(finalShieldLimit);
             playerHealth.AddShieldServerRpc(shieldGain, finalShieldLimit);
         }
     }

@@ -16,11 +16,16 @@ public class Health : NetworkBehaviour
     public NetworkVariable<float> maxHealth = new NetworkVariable<float>(
         100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+    public NetworkVariable<float> currentShield = new NetworkVariable<float>(
+        0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
     // ==========================================
     // 提供给 UI 和 其他脚本监听的事件 (C# 委托)
     // ==========================================
     /// <summary> 当血量变化时触发 (参数：当前血量，最大血量) </summary>
     public event Action<float, float> OnHealthChanged;
+
+    public event Action<float, float> OnShieldChanged;
 
     /// <summary> 当死亡时触发 </summary>
     public event Action OnDied;
@@ -39,11 +44,13 @@ public class Health : NetworkBehaviour
     {
         // 核心：不论是服务器还是客户端，只要 NetworkVariable 的值变了，就会自动触发此回调
         currentHealth.OnValueChanged += HandleHealthChange;
+        currentShield.OnValueChanged += HandleShieldChange;
     }
 
     public override void OnNetworkDespawn()
     {
         currentHealth.OnValueChanged -= HandleHealthChange;
+        currentShield.OnValueChanged -= HandleShieldChange;
     }
     private void Awake()
     {
@@ -67,9 +74,11 @@ public class Health : NetworkBehaviour
     }
 
     /// <param name="rawDamage">伤害量</param>
-    /// <param name="hitPoint">受击点的精确三维坐标</param>
-    /// <param name="hitDirection">攻击打来的方向 (用于特效旋转和击退计算)</param>
-    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection, float hitWeight = 1f)
+    /// <param name="hitPoint">受击点</param>
+    /// <param name="hitDirection">攻击打来的方向</param>
+    /// <param name="hitWeight">击退/顿帧权重</param>
+    /// <param name="attacker">谁打的我？</param>
+    public void TakeDamage(float rawDamage, Vector3 hitPoint, Vector3 hitDirection, float hitWeight = 1f, Transform attacker = null, bool isTrueDamage = false)
     {
         if (!IsServer || isDead) return;
 
@@ -81,20 +90,76 @@ public class Health : NetworkBehaviour
         float defense = 0;
         if (monsterEntity != null && monsterEntity.Config != null)
         {
-            // 怪物读取 SO 里的基础防御并应用倍率
             defense = monsterEntity.Config.baseDefense * GameDirector.Instance.GetCurrentDifficultyMultiplier();
         }
-
+        else if (TryGetComponent<CharacterStatCollection>(out var stats))
+        {
+            // 如果是玩家，从玩家的属性字典里读取护甲值！
+            defense = stats.GetStatValue(StatType.Armor);
+        }
 
         float damageReduction = 100f / (100f + defense);
-        float finalDamage = rawDamage * damageReduction;
+        float finalDamage = rawDamage;
+        if (!isTrueDamage)
+        {
+            finalDamage = rawDamage * damageReduction;
+        }
         finalDamage = Mathf.Max(1f, finalDamage);
 
-        currentHealth.Value -= finalDamage;
+        if (attacker != null && monsterEntity != null)
+        {
+            if (monsterEntity.TryGetComponent<AIBlackboard>(out var bb))
+            {
+                // 仇恨值与最终造成的真实伤害挂钩，打得越痛仇恨越高
+                bb.AddThreat(attacker, finalDamage);
+            }
+        }
+
+        if (currentShield.Value > 0f)
+        {
+            if (currentShield.Value >= finalDamage)
+            {
+                currentShield.Value -= finalDamage;
+                finalDamage = 0f;
+            }
+            else
+            {
+                finalDamage -= currentShield.Value;
+                currentShield.Value = 0f;
+            }
+        }
+
+        // 如果护盾碎了还有真实伤害溢出，再扣血
+        if (finalDamage > 0f)
+        {
+            currentHealth.Value -= finalDamage;
+        }
 
         TriggerHitFeedbackClientRpc(hitPoint, hitDirection);
+        ///击退逻辑：伤害越高、权重越大，击退越狠；怪越肉，击退越弱。并且只有横向击退，没有竖向（起飞）效果。
+        if (hitWeight > 0f)
+        {
+            // 1. 提取纯横向方向，拒绝起飞
+            Vector3 flatDir = new Vector3(hitDirection.x, 0, hitDirection.z).normalized;
 
+            //击退公式：(基础伤害 * 击退权重 * 全局倍率) / (护甲/重量 + 10)
+            //伤害越高、权重越大，击退越狠；怪越肉，击退越弱。10f 是倍率常数，可凭手感微调。
+            float knockbackMagnitude = (rawDamage * hitWeight * 10f) / (defense + 10f);
 
+            // 3. 施加小门槛，过滤掉机枪刮痧那种微不可察的抖动，节省性能
+            if (knockbackMagnitude > 1.0f)
+            {
+                Vector3 knockbackForce = flatDir * knockbackMagnitude;
+
+                // 呼叫接口：不关心你是玩家还是怪物，只要实现了接口就击退
+                IKnockbackable kb = GetComponent<IKnockbackable>();
+                if (kb != null)
+                {
+                    kb.ApplyKnockback(knockbackForce);
+                }
+            }
+        }
+        ///顿帧
         float calculatedStopDuration = (rawDamage * hitWeight) / (defense + 10f);
         float finalStopDuration = Mathf.Clamp(calculatedStopDuration, 0.05f, 0.3f);
         bool shouldVisualFreeze = true;
@@ -122,12 +187,21 @@ public class Health : NetworkBehaviour
         }
     }
     [ClientRpc]
-    private void TriggerHitStopClientRpc(float duration)
+    public void TriggerHitStopClientRpc(float duration)
     {
         // 收到服务器指令后，全网所有客户端呼叫自己本地的全局顿帧管理器！
         HitStopManager.Instance.Freeze(this.gameObject, duration);
     }
-
+    [ServerRpc(RequireOwnership = false)]
+    public void AddShieldServerRpc(float amount, float maxShieldLimit)
+    {
+        if (isDead) return;
+        currentShield.Value += amount;
+        if (currentShield.Value > maxShieldLimit)
+        {
+            currentShield.Value = maxShieldLimit;
+        }
+    }
     [ClientRpc]
     private void TriggerHitFeedbackClientRpc(Vector3 pos, Vector3 dir)
     {
@@ -137,7 +211,15 @@ public class Health : NetworkBehaviour
     [ClientRpc]
     private void TriggerBloodBurstClientRpc(Vector3 pos, Vector3 dir, float hitWeight)
     {
-        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(dir), hitWeight);
+        float randomX = UnityEngine.Random.Range(-15f, 15f);
+        float randomY = UnityEngine.Random.Range(-15f, 15f);
+        float randomZ = UnityEngine.Random.Range(-10f, 10f);
+        Vector3 randomizedDir = Quaternion.Euler(randomX, randomY, randomZ) * dir;
+
+        // 兜底保护：如果极其罕见地导致了零向量，给个默认方向防止 LookRotation 报错
+        if (randomizedDir == Vector3.zero) randomizedDir = Vector3.forward;
+
+        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(randomizedDir), hitWeight);
     }
 
     // ==========================================
@@ -149,5 +231,10 @@ public class Health : NetworkBehaviour
         OnHealthChanged?.Invoke(newHealth, maxHealth.Value);
 
         // 也可以在这里加一些通用的表现，比如发现 newHealth < oldHealth，就触发全屏红底之类的
+    }
+
+    private void HandleShieldChange(float oldShield, float newShield)
+    {
+        OnShieldChanged?.Invoke(newShield, maxHealth.Value);
     }
 }

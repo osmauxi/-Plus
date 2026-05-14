@@ -28,6 +28,8 @@ public class GameDirector : NetworkBehaviour
     public int fodderCostThreshold = 25;
     [Tooltip("精英怪最多能占用多少总预算比例 (0.0 ~ 1.0)")]
     public float maxEliteBudgetRatio = 0.4f;
+    [Header("动态调控")]
+    public float budgetIncreasePerClearedRoom = 0.15f;
 
     [Header("怪物商品图鉴")]
     public List<MonsterDataSO> monsterCatalog = new List<MonsterDataSO>();
@@ -59,24 +61,22 @@ public class GameDirector : NetworkBehaviour
     public float GetRoomDifficultyFactor(int roomType, out bool isMutated)
     {
         isMutated = false;
+        if (roomType == -1) return 1f;
 
-        // 情况 A：起始房、商店、宝箱房不参与异变
-        if (roomType == -1 || roomType == 1 || roomType == 3) return 1f;
-
-        // 情况 B：Boss 房 (Type -2) 在非 Boss 层进入，强制视为超级异变
+        // Boss 精英房：强行异变，且难度极高
         if (roomType == -2)
         {
-            // 假设每 3 层一个真 Boss
-            bool isRealBossLayer = (GameStateController.instance.CurrentLevel.Value % 3 == 0);
-            if (!isRealBossLayer)
-            {
-                isMutated = true;
-                return mutationBudgetMultiplier * 1.5f; // 精英房的精英版
-            }
-            return 1f; // 真 Boss 房使用默认难度系数，由采购算法内部处理
+            isMutated = true;
+            return mutationBudgetMultiplier * 1.5f;
         }
 
-        // 情况 C：普通怪物房 (Type 2) 的随机异变
+        // 普通精英房
+        if (roomType == 2)
+        {
+            return 1.5f;
+        }
+
+        // 普通房异变检测
         float currentChance = baseMutationChance + (clearedRoomsInCurrentLayer * chanceAddPerClearedRoom);
         if (Random.value < currentChance)
         {
@@ -101,9 +101,9 @@ public class GameDirector : NetworkBehaviour
     public List<string> AllocateMonstersForRoom(float roomDifficultyWeight = 1f)
     {
         List<string> shoppingList = new List<string>();
-
-        // 1. 财务拨款
-        int totalBudget = (int)(baseBudgetPerRoom * Mathf.Pow(budgetLayerMultiplier, GameStateController.instance.CurrentLevel.Value - 1) * roomDifficultyWeight);
+        //动态预算 = 基础预算 * 层数倍率 * 房间系数 * 清房狂暴系数
+        float clearRampUp = 1f + (clearedRoomsInCurrentLayer * budgetIncreasePerClearedRoom);
+        int totalBudget = (int)(baseBudgetPerRoom * Mathf.Pow(budgetLayerMultiplier, GameStateController.instance.CurrentLevel.Value - 1) * roomDifficultyWeight * clearRampUp); 
         int currentBudget = totalBudget;
 
         // 【核心优化】：精英预算上限熔断
@@ -175,7 +175,7 @@ public class GameDirector : NetworkBehaviour
 
     public float GetCurrentDifficultyMultiplier()
     {
-        return 1f + (GameStateController.instance.CurrentLevel.Value - 1) * 0.1f;
+        return 1f + (GameStateController.instance.CurrentLevel.Value - 1) * 0.1f + (clearedRoomsInCurrentLayer * 0.05f);
     }
 
 }

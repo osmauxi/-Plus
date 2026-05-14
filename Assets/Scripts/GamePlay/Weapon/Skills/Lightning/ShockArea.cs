@@ -67,7 +67,7 @@ public class ShockArea : MonoBehaviour
         if (zoneVFX != null)
         {
             zoneVFX.transform.position = playerRootPos + Vector3.up * 0.1f;
-            zoneVFX.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+            zoneVFX.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
             zoneVFX.transform.localScale = new Vector3(currentRadius * 2f, 1f, currentRadius * 2f);
         }
     }

@@ -1,5 +1,6 @@
-using UnityEngine;
 using Unity.Netcode;
+using UnityEngine;
+using static UnityEditor.PlayerSettings;
 
 [CreateAssetMenu(fileName = "ShockwaveEffect", menuName = "Roguelike/Effects/Shockwave")]
 public class ShockwaveEffect : WeaponEffectSO
@@ -9,6 +10,10 @@ public class ShockwaveEffect : WeaponEffectSO
     public float baseForce = 25f;
     public float bonusForce = 10f;
 
+    public override void OnProjectileSpawn(ProjectileBase projectile, CharacterStatCollection stats)
+    {
+        base.OnProjectileSpawn(projectile, stats);
+    }
     public override void OnProjectileDestroyed(ProjectileBase projectile, Vector3 pos, CharacterStatCollection stats)
     {
         int stacks = GetCurrentStacks(stats);
@@ -18,7 +23,7 @@ public class ShockwaveEffect : WeaponEffectSO
         float currentRadius = (baseRadius + (stacks - 1) * bonusRadius) * sizeMod;
         float currentForce = baseForce + (stacks - 1) * bonusForce;
 
-        GlobalLocalVFXPool.Instance.GetVFX("ExplosionVFX", pos, Quaternion.identity, sizeMod);
+        GlobalLocalVFXPool.Instance.GetVFX("Explo_Fire", pos, Quaternion.identity, sizeMod);
 
         if (!NetworkManager.Singleton.IsServer) return;
 

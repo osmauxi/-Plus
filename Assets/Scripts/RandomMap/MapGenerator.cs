@@ -86,7 +86,17 @@ public class MapGenerator : NetworkBehaviour
         }
         else
         {
-            mapSeed.OnValueChanged += OnMapSeedReceived;
+            if (mapSeed.Value != 0)
+            {
+                // 如果客户端进得慢，发现种子已经有值了，就不等事件了，直接开始生成！
+                Debug.Log($"[地图系统] 发现服务器已分发种子 {mapSeed.Value}，立刻追赶进度！");
+                OnMapSeedReceived(0, mapSeed.Value);
+            }
+            else
+            {
+                // 如果大家同步得很好，正常监听
+                mapSeed.OnValueChanged += OnMapSeedReceived;
+            }
         }
     }
 

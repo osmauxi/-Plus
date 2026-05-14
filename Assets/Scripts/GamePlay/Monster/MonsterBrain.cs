@@ -2,7 +2,6 @@
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
-using static Codice.Client.Common.WebApi.WebApiEndpoints;
 
 [RequireComponent(typeof(AIBlackboard))]
 public class MonsterBrain : NetworkBehaviour, IKnockbackable
@@ -140,19 +139,24 @@ public class MonsterBrain : NetworkBehaviour, IKnockbackable
     {
         if (!gameObject.activeInHierarchy) return;
 
-        // 1. 判断是否处于“累加窗口期”内（比如被散弹枪多发弹片瞬间打中）
         bool isAccumulating = (Time.time - lastKnockbackTime) <= accumulationWindow;
         lastKnockbackTime = Time.time;
 
         if (isAccumulating)
         {
-            // 【核心】：是连续受击！不要清空原有速度，直接叠加 Impulse 力量！
-            // 此时 5 发散弹片的力会完美叠加在一起，把怪物瞬间轰飞！
-            blackboard.Rb.AddForce(force, ForceMode.Impulse);
+            // 【保护与升级】：如果当前没有被时停冻结，正常叠加力量
+            if (!blackboard.Rb.isKinematic)
+            {
+                blackboard.Rb.AddForce(force, ForceMode.Impulse);
+            }
+            else
+            {
+                // 【塞尔达时停机制】：如果怪物正处于霸体/时停的运动学状态，把受力转化为速度，存入解冻初速度中！
+                savedVelocity += force / blackboard.Rb.mass;
+            }
         }
         else
         {
-            // 单次受击，或者上一次挨打已经是比较久之前了：剥夺路权，重新起步
             if (knockbackRoutine != null) StopCoroutine(knockbackRoutine);
             knockbackRoutine = StartCoroutine(KnockbackSequence(force));
         }
@@ -160,29 +164,44 @@ public class MonsterBrain : NetworkBehaviour, IKnockbackable
 
     private IEnumerator KnockbackSequence(Vector3 initialForce)
     {
-        // 1. 【物理剥夺】
         if (blackboard.Agent.isActiveAndEnabled)
         {
             blackboard.Agent.enabled = false;
         }
 
-        // 2. 【初次起步】：清空原有自主速度，施加第一次击退力
-        blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
-        blackboard.Rb.AddForce(initialForce, ForceMode.Impulse);
+        // 【防崩溃保护】：只有在非 Kinematic 状态下，才能赋予速度和推力
+        if (!blackboard.Rb.isKinematic)
+        {
+            blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
+            blackboard.Rb.AddForce(initialForce, ForceMode.Impulse);
+        }
+        else
+        {
+            // 时停状态下起步，直接将动量注入到解冻后的保存速度里
+            savedVelocity = new Vector3(0, savedVelocity.y, 0) + (initialForce / blackboard.Rb.mass);
+        }
 
         yield return new WaitForFixedUpdate();
 
-        // 3. 【动态滑行检测】(极其精妙的改动)
-        // 注意：我们不用死板的局部 timer 了，而是看 lastKnockbackTime！
-        // 这样只要散弹枪不断命中，滑行时间就会不断被“续杯”，直到停止挨打超过 0.5 秒。
+        // 【逻辑同步】：如果你正在被顿帧冻结，必须让击退协程“暂停”，等待你解冻后再开始计算滑行！
+        while (IsHitStopped)
+        {
+            yield return null;
+        }
+
+        // 动态滑行检测
         while (Time.time - lastKnockbackTime < 0.5f && new Vector3(blackboard.Rb.velocity.x, 0, blackboard.Rb.velocity.z).sqrMagnitude > 0.5f)
         {
             yield return null;
         }
 
-        // 4. 【系统重连】：刹车，并把身体控制权还给 Agent
-        blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
-        blackboard.Agent.enabled = true;    
+        // 【终极防线】：刹车前最后一次检查，彻底杜绝报错！
+        if (!blackboard.Rb.isKinematic)
+        {
+            blackboard.Rb.velocity = new Vector3(0, blackboard.Rb.velocity.y, 0);
+        }
+
+        blackboard.Agent.enabled = true;
     }
     #endregion
 }

@@ -15,32 +15,54 @@ public class OverloadEffect : WeaponEffectSO
     public int chainCount = 3;
     public float searchRadius = 5f;
 
+    // ==========================================
+    // 1. 原本的子弹触发入口
+    // ==========================================
     public override void OnHit(ProjectileBase projectile, GameObject target, Vector3 hitPoint, CharacterStatCollection stats)
     {
-        // 1. 调用基类的通用方法，极其优雅地获取当前层数！
-        int currentStacks = GetCurrentStacks(stats);
+        // 子弹打中时：触发连锁，并且要求附加首目标的额外电击伤害 (true)
+        TriggerChainLightning(target, stats, true);
+    }
 
-        // 如果层数 <= 0，说明要么没配置 modifierId，要么是网络延迟还没同步到，直接防错退出
+    // ==========================================
+    // 2. 供其他技能(如雷云)跨界调用的联动接口！
+    // ==========================================
+    public void TriggerExternalChain(GameObject target, CharacterStatCollection stats)
+    {
+        // 外部技能触发时：只向外传播连锁闪电，不重复劈首目标 (false)，因为雷云本身已经劈过它了
+        TriggerChainLightning(target, stats, false);
+    }
+
+    // ==========================================
+    // 3. 核心分发逻辑
+    // ==========================================
+    private void TriggerChainLightning(GameObject target, CharacterStatCollection stats, bool applyInitialDamage)
+    {
+        int currentStacks = GetCurrentStacks(stats);
         if (currentStacks <= 0) return;
 
-        // 2. 利用纯数学公式算出当前级别该有的数值！(无状态计算，绝对不会引起联机 Bug)
         int currentMaxDepth = baseDepth + (currentStacks - 1) * bonusDepthPerStack;
         float currentDamageMultiplier = baseDamageMultiplier + (currentStacks - 1) * bonusDamagePerStack;
 
-        // 3. 频率限制 (直接算，不存私有变量)
-        float currentAttackSpeed = stats.GetStatValue(StatType.FireRate);
-        float frequencyLimit = Mathf.Min(5.0f, currentAttackSpeed * 0.5f);
-        float minInterval = 1f / Mathf.Max(0.1f, frequencyLimit);
+        // 如果要求首目标额外伤害 (子弹命中专属)
+        if (applyInitialDamage && target.CompareTag("Enemy") && target.TryGetComponent<Health>(out var initialHealth) && !initialHealth.isDead)
+        {
+            GlobalLocalVFXPool.Instance.GetVFX("OnHit_Lightning", target.transform.position);
 
-        // 提示：你之前代码里的 lastTriggerTime 被我删了，因为它会导致所有拿着这个武器的人共享冷却！
-        // 如果你需要做严格的防刷 CD，你需要把 CD 记在 `WeaponBase` 或玩家身上，而不是记在单例 SO 里。
-        // 但对于电弧来说，其实只要用下面的 visited 集合防止同一次射击无限反弹就足够了。
+            if (NetworkManager.Singleton.IsServer)
+            {
+                float initialArcDamage = stats.GetStatValue(StatType.Damage) * currentDamageMultiplier;
+                initialHealth.TakeDamage(initialArcDamage, target.transform.position, Vector3.zero, 0f);
+            }
+        }
 
-        // 4. 执行核心逻辑
         HashSet<GameObject> visitedTargets = new HashSet<GameObject> { target };
         ExecuteChainLightning(target.transform.position, stats, 0, currentMaxDepth, currentDamageMultiplier, visitedTargets);
     }
 
+    // ==========================================
+    // 4. 精准连线逻辑 (保持不变)
+    // ==========================================
     private void ExecuteChainLightning(Vector3 startPos, CharacterStatCollection stats, int currentDepth, int maxDepth, float dmgMult, HashSet<GameObject> visited)
     {
         if (currentDepth >= maxDepth) return;
@@ -60,12 +82,24 @@ public class OverloadEffect : WeaponEffectSO
 
                 Vector3 targetPos = hit.transform.position;
 
-                GlobalLocalVFXPool.Instance.GetVFX("ArcEffect", targetPos);
+                Vector3 dir = targetPos - startPos;
+                float distance = dir.magnitude;
+                Vector3 midPoint = startPos + dir / 2f;
+                Quaternion rotation = Quaternion.LookRotation(dir);
+
+                GameObject arc = GlobalLocalVFXPool.Instance.GetVFX("OnLightning", midPoint, rotation, 1f);
+                if (arc != null)
+                {
+                    float visualLength = Mathf.Max(0.2f, distance - 1.0f);
+                    arc.transform.localScale = new Vector3(1f, 1f, visualLength);
+                }
+
+                GlobalLocalVFXPool.Instance.GetVFX("OnHit_Lightning", targetPos);
 
                 if (NetworkManager.Singleton.IsServer)
                 {
                     float arcDamage = stats.GetStatValue(StatType.Damage) * dmgMult;
-                    targetHealth.TakeDamage(arcDamage, targetPos, (targetPos - startPos).normalized, 0f);
+                    targetHealth.TakeDamage(arcDamage, targetPos, dir.normalized, 0f);
                 }
 
                 ExecuteChainLightning(targetPos, stats, currentDepth + 1, maxDepth, dmgMult, visited);

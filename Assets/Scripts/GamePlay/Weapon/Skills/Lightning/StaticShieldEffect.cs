@@ -31,7 +31,9 @@ public class StaticShieldEffect : WeaponEffectSO
         {
             float currentShieldGain = baseShieldPerHit + (stacks - 1) * bonusShieldPerStack;
             float currentEffectCap = baseMaxShieldLimit + (stacks - 1) * bonusMaxShieldPerStack;
-
+            
+            GameObject vfx = GlobalLocalVFXPool.Instance.GetVFX("Shield_Lightning", target.transform.position);
+            vfx.transform.SetParent(target.transform);
             // 最终上限 = 词条上限 + 玩家商店买的基础上限
             float finalShieldLimit = currentEffectCap + stats.GetStatValue(StatType.MaxShield);
 

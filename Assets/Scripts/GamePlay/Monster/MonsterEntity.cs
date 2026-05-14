@@ -3,10 +3,6 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.VFX;
 
-/// <summary>
-/// 怪物实体外壳 (Facade / Config)
-/// 职责：存放基础固定数值，接收外部难度注入，统筹组件的初始化和重置
-/// </summary>
 [RequireComponent(typeof(Health), typeof(AIBlackboard))]
 public class MonsterEntity : NetworkBehaviour
 {
@@ -23,6 +19,14 @@ public class MonsterEntity : NetworkBehaviour
 
     public Animator Anim => anim;
     public Rigidbody Rb { get; private set; }
+
+    // ==========================================
+    // 移速状态机 (彻底修复了原本难度移速丢失的Bug)
+    // ==========================================
+    private float baseDifficultySpeed = 0f; // 缓存加入难度加成后的基准速度
+    private bool isWounded = false;         // 是否处于半血蹒跚状态
+    private float slowMultiplier = 1f;      // 外部塞入的减速倍率
+    private float slowTimer = 0f;           // 减速计时器
 
     private void Awake()
     {
@@ -43,10 +47,27 @@ public class MonsterEntity : NetworkBehaviour
         health.OnDied -= HandleDeath;
         health.OnHealthChanged -= HandleWoundedFeedback;
     }
+
+    private void Update()
+    {
+        if (!IsServer) return;
+
+        // 处理减速倒计时
+        if (slowTimer > 0f)
+        {
+            slowTimer -= Time.deltaTime;
+            if (slowTimer <= 0f)
+            {
+                slowMultiplier = 1f; // 减速时间到，恢复
+                UpdateSpeed();
+            }
+        }
+    }
+
     public void InitializeEntity(MonsterDataSO data)
     {
         if (!IsServer) return;
-        Config = data; // 拿到自己的档案
+        Config = data;
     }
 
     public void ResetEntity()
@@ -61,6 +82,11 @@ public class MonsterEntity : NetworkBehaviour
 
         anim.speed = 1f;
 
+        // 清空状态机
+        isWounded = false;
+        slowTimer = 0f;
+        slowMultiplier = 1f;
+
         if (agent.isActiveAndEnabled) agent.isStopped = true;
         agent.enabled = true;
         agent.Warp(transform.position);
@@ -70,55 +96,69 @@ public class MonsterEntity : NetworkBehaviour
             agent.isStopped = false;
             agent.ResetPath();
         }
-        else
-        {
-            Debug.LogWarning($"[导航警告] 怪物 {gameObject.name} 的生成点不在 NavMesh 上！请检查 SpawnNode 的高度。");
-        }
-
         blackboard.ClearBlackboard();
     }
 
-
-    // ==========================================
-    // 接口 2：导演(难度系统)注入
-    // ==========================================
     public void SetupDifficulty(float difficultyMultiplier)
     {
         if (!IsServer || Config == null) return;
 
-        // 1. 初始化血量上限和当前血量
         health.InitializeHealth(Config.baseMaxHealth * difficultyMultiplier);
 
-        // 2. 初始化最终移速
-        if (agent != null)
-        {
-            agent.speed = Config.baseSpeed * (1 + (difficultyMultiplier - 1) * 0.1f);
-        }
+        // 【关键修复】：缓存计算后的难度移速！
+        baseDifficultySpeed = Config.baseSpeed * (1 + (difficultyMultiplier - 1) * 0.1f);
+        UpdateSpeed();
     }
 
     // ==========================================
-    // 表现逻辑与死亡
+    // 开放给毒沼/冰霜的减速接口
     // ==========================================
+    public void ApplySlow(float multiplier, float duration)
+    {
+        if (!IsServer) return;
+
+        // 如果有多个减速源，取最强的减速效果 (multiplier 越小越慢)
+        if (slowTimer <= 0 || multiplier < slowMultiplier)
+        {
+            slowMultiplier = multiplier;
+        }
+
+        // 刷新持续时间
+        slowTimer = Mathf.Max(slowTimer, duration);
+        UpdateSpeed();
+    }
+
     private void HandleWoundedFeedback(float currentHp, float maxHp)
     {
-        if (!IsServer || health.currentHealth.Value <= 0) 
-            return; // 死了就不管蹒跚了
+        if (!IsServer || health.currentHealth.Value <= 0) return;
 
-        if (currentHp / maxHp <= 0.4f && agent != null)
-            agent.speed = Config.baseSpeed * woundedSpeedMultiplier;
-        else if (agent != null)
-            agent.speed = Config.baseSpeed;
+        // 仅标记状态，将计算权利交给统一结算中心
+        isWounded = (currentHp / maxHp <= 0.4f);
+        UpdateSpeed();
+    }
+
+    /// <summary>
+    /// 唯一合法的移速计算中心，杜绝冲突
+    /// </summary>
+    private void UpdateSpeed()
+    {
+        if (agent == null || Config == null || health.currentHealth.Value <= 0) return;
+
+        float finalSpeed = baseDifficultySpeed > 0f ? baseDifficultySpeed : Config.baseSpeed;
+
+        if (isWounded) finalSpeed *= woundedSpeedMultiplier; // 先算残血蹒跚
+        finalSpeed *= slowMultiplier;                        // 再算外力减速
+
+        agent.speed = finalSpeed;
     }
 
     private void HandleDeath()
     {
         if (!IsServer) return;
-
-        // 告诉大脑停工（让模块不再执行）
         var brain = GetComponent<MonsterBrain>();
-        brain.enabled = false;
+        if (brain != null) brain.enabled = false;
         if (agent.isActiveAndEnabled) agent.isStopped = true;
-        // 回收对象
+
         SyncObjectPool.instance.RetToPool(GetComponent<NetworkObject>(), Config.poolId);
     }
 }

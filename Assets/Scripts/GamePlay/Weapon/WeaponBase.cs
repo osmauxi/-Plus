@@ -132,6 +132,7 @@ public class WeaponBase : NetworkBehaviour
             exactAimPoint = ray.GetPoint(rayDistance);
         }
         vfxController.BroadcastVFX("Shoot");
+        vfxController.BroadcastVFX("VFX_OnFIre");
         // 算出枪口到鼠标的绝对精准方向
         Vector3 baseFireDirection = (exactAimPoint - firePoint.position).normalized;
         Quaternion baseRotation = Quaternion.LookRotation(baseFireDirection);

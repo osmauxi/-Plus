@@ -115,6 +115,7 @@ public class ProjectileBase : MonoBehaviour
                 //Debug.Log(targetHealth.transform.position);
                 //Debug.Log(hitPoint);
                 //Debug.Log(targetHealth.transform.position - hitPoint);
+                GlobalLocalVFXPool.Instance.GetVFX("VFX_OnHit", transform.position, Quaternion.LookRotation(-transform.forward), hitWeight);
                 GlobalLocalVFXPool.Instance.GetVFX("HitBlood", hitPoint, Quaternion.LookRotation(-transform.forward), hitWeight);
             }
 
@@ -136,6 +137,7 @@ public class ProjectileBase : MonoBehaviour
         }
         else if (hitWall)
         {
+            GlobalLocalVFXPool.Instance.GetVFX("VFX_OnHit",transform.position,Quaternion.LookRotation(-transform.forward));
             if (currentBounces > 0)
             {
                 currentBounces--;

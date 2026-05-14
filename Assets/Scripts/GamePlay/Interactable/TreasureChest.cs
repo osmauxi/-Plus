@@ -80,6 +80,10 @@ public class TreasureChest : NetworkBehaviour, IInteractable
     [ClientRpc]
     private void OpenChestAndShowUIClientRpc(ChestType type)
     {
+        if (TryGetComponent<TargetableIndicator>(out var indicator))
+        {
+            indicator.Unregister();
+        }
         // 1. 播放表现
         PlayOpenVisuals();
 

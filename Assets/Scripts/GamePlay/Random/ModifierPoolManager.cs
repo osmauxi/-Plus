@@ -49,9 +49,20 @@ public class ModifierPoolManager : MonoBehaviour
     public List<ModifierDataSO> RollStandardModifiersWithWeight(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
     {
         // 开启冲突检测，开启流派权重加成
-        return GenerateCandidatesAndRoll(amount, allModifiers, stackCounts, playerTags, checkConflicts: true, applyWeightBonus: true);
-    }
+        List<ModifierDataSO> results = GenerateCandidatesAndRoll(amount, allModifiers, stackCounts, playerTags, checkConflicts: true, applyWeightBonus: true);
 
+        // ==========================================
+        // 【新增】：卡池数量保底机制
+        // ==========================================
+        if (results.Count < amount)
+        {
+            Debug.Log($"[词条系统] 常规卡池冲突过多 (仅抽到 {results.Count} 张)，触发全随机保底重抽！");
+            // 抛弃残缺结果，直接无视冲突全随机重抽！
+            results = RollStandardModifiersChaos(amount, stackCounts, playerTags);
+        }
+
+        return results;
+    }
     // ======================================================================
     // 纯随机/无视互斥的常规增强词条 Roll (适用于特殊/献祭房间，打造无敌 Combo)
     // ======================================================================
@@ -67,9 +78,29 @@ public class ModifierPoolManager : MonoBehaviour
     public List<ModifierDataSO> RollMutationModifiers(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
     {
         // 异变词条极度危险，必须严格开启冲突检测，并应用流派权重
-        return GenerateCandidatesAndRoll(amount, mutationModifiers, stackCounts, playerTags, checkConflicts: true, applyWeightBonus: true);
+        List<ModifierDataSO> results = GenerateCandidatesAndRoll(amount, mutationModifiers, stackCounts, playerTags, checkConflicts: true, applyWeightBonus: true);
+
+        // ==========================================
+        // 【新增】：卡池数量保底机制
+        // ==========================================
+        if (results.Count < amount)
+        {
+            Debug.Log($"[词条系统] 异变卡池冲突过多 (仅抽到 {results.Count} 张)，触发全随机保底重抽！");
+            // 抛弃残缺结果，直接无视冲突全随机重抽！
+            results = RollMutationModifiersChaos(amount, stackCounts, playerTags);
+        }
+
+        return results;
     }
 
+    // ======================================================================
+    // 【新增】：纯随机/无视互斥的异变词条 Roll (适用于异变宝箱触发了 15% 混沌升级)
+    // ======================================================================
+    public List<ModifierDataSO> RollMutationModifiersChaos(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
+    {
+        // 关闭冲突检测，关闭权重倾向！放手让玩家组建逆天 Combo！
+        return GenerateCandidatesAndRoll(amount, mutationModifiers, stackCounts, playerTags, checkConflicts: false, applyWeightBonus: false);
+    }
     // ======================================================================
     // 内部通用漏斗与轮盘赌算法核心
     // ======================================================================

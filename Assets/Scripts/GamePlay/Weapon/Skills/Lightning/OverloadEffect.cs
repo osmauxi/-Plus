@@ -49,6 +49,9 @@ public class OverloadEffect : WeaponEffectSO
         {
             GlobalLocalVFXPool.Instance.GetVFX("OnHit_Lightning", target.transform.position);
 
+            // 【新增】：连锁闪电首发命中音效
+            AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Skill_LightningHit, 0.8f);
+
             if (NetworkManager.Singleton.IsServer)
             {
                 float initialArcDamage = stats.GetStatValue(StatType.Damage) * currentDamageMultiplier;
@@ -88,6 +91,10 @@ public class OverloadEffect : WeaponEffectSO
                 Quaternion rotation = Quaternion.LookRotation(dir);
 
                 GameObject arc = GlobalLocalVFXPool.Instance.GetVFX("OnLightning", midPoint, rotation, 1f);
+
+                // 【新增】：连锁闪电弹跳命中音效
+                AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Skill_LightningHit, 0.8f);
+
                 if (arc != null)
                 {
                     float visualLength = Mathf.Max(0.2f, distance - 1.0f);

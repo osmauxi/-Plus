@@ -6,69 +6,55 @@ using UnityEngine;
 public class PlayerModifierHandler : NetworkBehaviour
 {
     private CharacterStatCollection statCollection;
-    private WeaponBase currentWeapon; 
+    private WeaponBase currentWeapon;
 
-    public List<ModifierDataSO> ownedModifiers = new List<ModifierDataSO>(); 
+    public List<ModifierDataSO> ownedModifiers = new List<ModifierDataSO>();
 
     // 状态缓存字典，空间换时间
-    public Dictionary<string, int> cachedStackCounts = new Dictionary<string, int>(); 
+    public Dictionary<string, int> cachedStackCounts = new Dictionary<string, int>();
     public HashSet<string> cachedPlayerTags = new HashSet<string>();
 
     private void Awake()
     {
-        statCollection = GetComponent<CharacterStatCollection>(); 
-        currentWeapon = GetComponentInChildren<WeaponBase>(); 
+        statCollection = GetComponent<CharacterStatCollection>();
+        currentWeapon = GetComponentInChildren<WeaponBase>();
     }
 
     // ======================================================================
-    // 交互入口：玩家靠近不同类型的宝箱/祭坛，按下 F 键后触发
+    // 交互入口：统一接收 TreasureChest 发来的开箱指令
     // ======================================================================
-
-    /// <summary>
-    /// 1. 打开普通怪物房通关宝箱 (带流派倾向，防冲突)
-    /// </summary>
-    public void OpenStandardChest()
+    public void OpenChestFromTrigger(TreasureChest.ChestType chestType, bool isChaosUpgrade)
     {
         if (!IsOwner) return;
-        NotifyChestOpenedServerRpc(0);
-    }
 
-    /// <summary>
-    /// 2. 打开鲜血祭坛 / 隐藏房间 (无视流派冲突，纯随机，可能构建神仙Combo)
-    /// </summary>
-    public void OpenChaosChest()
-    {
-        if (!IsOwner) return;
-        NotifyChestOpenedServerRpc(1);
-    }
+        int mappedChestId = 0;
 
-    /// <summary>
-    /// 3. 打开 Boss房 / 异变精英房 (抽取机制质变的异变词条)
-    /// </summary>
-    public void OpenMutationChest()
-    {
-        if (!IsOwner) return;
-        NotifyChestOpenedServerRpc(2);
+        // 根据宝箱类型和是否触发 15% 升级，映射到 0~3 的内部 ID
+        if (chestType == TreasureChest.ChestType.Standard)
+            mappedChestId = isChaosUpgrade ? 1 : 0;
+        else if (chestType == TreasureChest.ChestType.ChaosAltar)
+            mappedChestId = 1;
+        else if (chestType == TreasureChest.ChestType.Mutation)
+            mappedChestId = isChaosUpgrade ? 3 : 2;
+
+        NotifyChestOpenedServerRpc(mappedChestId);
     }
 
     [ServerRpc]
     private void NotifyChestOpenedServerRpc(int chestType)
     {
-        // 服务器收到开箱申请，立刻向全网所有的 PlayerPrefab 发送开箱广播
         TriggerChestUIClientRpc(chestType);
     }
 
     [ClientRpc]
     private void TriggerChestUIClientRpc(int chestType)
     {
-        // 【关键】：这里是 ClientRpc，每个玩家的电脑上都会执行。
-        // 但我们只让属于本地玩家的那个主角弹 UI，否则屏幕上会弹出 N 个窗口！
         if (!IsOwner) return;
 
         List<ModifierDataSO> choices = null;
         string title = "";
 
-        // 每个玩家根据自己的缓存（cachedStackCounts），独立 Roll 出属于自己的 3 个词条！
+        // 根据映射的 ID Roll 不同的池子
         switch (chestType)
         {
             case 0:
@@ -77,16 +63,21 @@ public class PlayerModifierHandler : NetworkBehaviour
                 break;
             case 1:
                 choices = ModifierPoolManager.Instance.RollStandardModifiersChaos(3, cachedStackCounts, cachedPlayerTags);
-                title = "混沌赐福";
+                title = "✨ 混沌武装赐福 ✨";
                 break;
             case 2:
                 choices = ModifierPoolManager.Instance.RollMutationModifiers(3, cachedStackCounts, cachedPlayerTags);
                 title = "异变核心提取";
                 break;
+            case 3:
+                choices = ModifierPoolManager.Instance.RollMutationModifiersChaos(3, cachedStackCounts, cachedPlayerTags);
+                title = "✨ 混沌异变核心 ✨";
+                break;
         }
 
         ShowHextechSelectionUI(choices, title);
     }
+
     // ======================================================================
     // UI 表现层预留接口 (金铲铲海克斯风格)
     // ======================================================================
@@ -105,7 +96,6 @@ public class PlayerModifierHandler : NetworkBehaviour
             SelectModifierFromUI(selectedId);
         });
     }
-
 
     // ======================================================================
     // 网络同步装配核心 (保持不变)
@@ -129,24 +119,25 @@ public class PlayerModifierHandler : NetworkBehaviour
     [ClientRpc]
     private void ApplyModifierClientRpc(string modifierId)
     {
-        ModifierDataSO modData = ModifierPoolManager.Instance.GetModifierById(modifierId); 
-        if (modData == null) return; 
+        ModifierDataSO modData = ModifierPoolManager.Instance.GetModifierById(modifierId);
+        if (modData == null) return;
 
-        ownedModifiers.Add(modData); 
+        ownedModifiers.Add(modData);
 
         // 刷新缓存字典
-        if (cachedStackCounts.ContainsKey(modifierId)) 
-            cachedStackCounts[modifierId]++; 
-        else 
-            cachedStackCounts[modifierId] = 1; 
+        if (cachedStackCounts.ContainsKey(modifierId))
+            cachedStackCounts[modifierId]++;
+        else
+            cachedStackCounts[modifierId] = 1;
 
-        foreach (var tag in modData.tags) 
+        foreach (var tag in modData.tags)
         {
-            cachedPlayerTags.Add(tag); 
+            cachedPlayerTags.Add(tag);
         }
         bool magSizeChanged = false;
+
         // 注入属性与机制
-        foreach (var statMod in modData.statModifiers) 
+        foreach (var statMod in modData.statModifiers)
         {
             statCollection.AddModifier(statMod.statType, statMod.value, statMod.modType, modData);
             if (statMod.statType == StatType.MagSize)
@@ -165,6 +156,7 @@ public class PlayerModifierHandler : NetworkBehaviour
         {
             currentWeapon.ForceInstantReload();
         }
+
         if (IsServer)
         {
             var healthComp = GetComponent<Health>();

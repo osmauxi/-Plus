@@ -1,6 +1,5 @@
 using Unity.Netcode;
 using UnityEngine;
-using static UnityEditor.PlayerSettings;
 
 [CreateAssetMenu(fileName = "ShockwaveEffect", menuName = "Roguelike/Effects/Shockwave")]
 public class ShockwaveEffect : WeaponEffectSO
@@ -14,6 +13,7 @@ public class ShockwaveEffect : WeaponEffectSO
     {
         base.OnProjectileSpawn(projectile, stats);
     }
+
     public override void OnProjectileDestroyed(ProjectileBase projectile, Vector3 pos, CharacterStatCollection stats)
     {
         int stacks = GetCurrentStacks(stats);
@@ -23,7 +23,21 @@ public class ShockwaveEffect : WeaponEffectSO
         float currentRadius = (baseRadius + (stacks - 1) * bonusRadius) * sizeMod;
         float currentForce = baseForce + (stacks - 1) * bonusForce;
 
-        GlobalLocalVFXPool.Instance.GetVFX("Explo_Fire", pos, Quaternion.identity, sizeMod);
+        // ==========================================
+        // 【核心修复】：解决贴墙爆炸特效方向乱飞的问题
+        // 用 FromToRotation 强制让特效模型的默认喷发方向（Vector3.up/Y轴），
+        // 旋转去对准子弹反弹道方向，让爆炸笔直向外喷射！
+        // ==========================================
+        Quaternion exploRotation = Quaternion.identity;
+        if (projectile != null && projectile.transform.forward.sqrMagnitude > 0.01f)
+        {
+            exploRotation = Quaternion.FromToRotation(Vector3.up, -projectile.transform.forward);
+        }
+
+        GlobalLocalVFXPool.Instance.GetVFX("Explo_Fire", pos, exploRotation, sizeMod);
+
+        // 【此时由于 AudioManager 底层已重构，这个音效绝不会被吃掉】
+        AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Skill_Explosion, 1f);
 
         if (!NetworkManager.Singleton.IsServer) return;
 

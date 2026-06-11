@@ -20,6 +20,9 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
     public float backwardSpeedMultiplier = 0.6f;
     public float rotateSmoothTime = 0.05f;
     private float targetAimAngle;
+    [Header("音效配置")]
+    public float footstepInterval = 0.45f; // 在面板里调大这个值，脚步声就会变慢
+    private float footstepTimer = 0f;
 
     [Header("环境检测")]
     public LayerMask groundLayer;
@@ -278,6 +281,26 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
         }
 
         if (currentMoveInput.sqrMagnitude > 0.01f)
+        {
+            moveTimer += Time.fixedDeltaTime;
+            footstepTimer += Time.fixedDeltaTime;
+
+            // 每走 0.35 秒播放一次脚步声
+            if (footstepTimer >= footstepInterval)
+            {
+                footstepTimer = 0f;
+                // 随机播放玩家行走音效，加上 0.1f 的音调随机波动防止听觉疲劳
+                AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Player_Walk, 0.4f);
+            }
+        }
+        else
+        {
+            moveTimer -= Time.fixedDeltaTime * decelerationSpeed;
+            // 玩家停下时立刻重置，保证下次起步的第一下立刻有声音
+            footstepTimer = 0.35f;
+        }
+
+        if (currentMoveInput.sqrMagnitude > 0.01f)
             moveTimer += Time.fixedDeltaTime;
         else
             moveTimer -= Time.fixedDeltaTime * decelerationSpeed;
@@ -328,11 +351,22 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
     {
         if (IsOwner)
         {
-            rb.velocity = Vector3.zero;
-            rb.interpolation = RigidbodyInterpolation.None; // 闭屏插值防止镜头拖尾
-            rb.position = targetPos;
+            // 1. 彻底斩断玩家的按键输入缓存，强制刹车！
+            ExecuteStop();
 
-            // 瞬间吸附相机！
+            // 2. 强行适配你游戏里的 Y 轴锁定法则
+            targetPos.y = 1f;
+
+            // 3. 彻底清空刚体的所有物理动量
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.interpolation = RigidbodyInterpolation.None; // 闭屏插值防止镜头拖尾
+
+            // 4. Unity 官方推荐：对于 Rigidbody，强行位移必须同时修改 transform 和 rb.position
+            rb.position = targetPos;
+            transform.position = targetPos;
+
+            // 5. 瞬间吸附相机！
             if (CameraViewManager.instance != null)
                 CameraViewManager.instance.ForceSnapToPlayer();
 

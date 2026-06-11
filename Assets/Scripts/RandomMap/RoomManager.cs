@@ -82,7 +82,6 @@ public class RoomManager : NetworkBehaviour
             // 只要没打完，锁死房间判定逻辑
             if (!activeRoomData.IsCleared) return;
         }
-        // 遍历你的全局玩家列表
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {
             if (player == null) continue;
@@ -91,6 +90,24 @@ public class RoomManager : NetworkBehaviour
             int gridX = Mathf.RoundToInt(player.transform.position.x / roomSize);
             int gridY = Mathf.RoundToInt(player.transform.position.z / roomSize);
             Vector2Int playerGrid = new Vector2Int(gridX, gridY);
+
+            // ==========================================
+            // 【核心修改】：放宽判定边界（向内收缩 10%）
+            // ==========================================
+            float centerX = gridX * roomSize;
+            float centerZ = gridY * roomSize;
+
+            // 房间的绝对边缘是 0.5f，我们设为 0.4f 意味着玩家必须往里走至少 10% 的距离
+            // (比如 50x50 的房间，边缘是25，0.4f算出来是20，玩家要跨过门槛走进去 5 米才触发！)
+            float threshold = roomSize * 0.4f;
+
+            // 如果玩家距离目标房间的中心点太远（还在门槛蹭着），不当作进入
+            if (Mathf.Abs(player.transform.position.x - centerX) > threshold ||
+                Mathf.Abs(player.transform.position.z - centerZ) > threshold)
+            {
+                continue;
+            }
+            // ==========================================
 
             // 如果玩家踩进的这个网格确实是个合法房间
             if (AllRoomsData.TryGetValue(playerGrid, out RoomData roomData))
@@ -336,10 +353,20 @@ public class RoomManager : NetworkBehaviour
     [ClientRpc]
     private void UnlockDoorsClientRpc(Vector2Int grid)
     {
+        // 1. 【核心修复】：客户端收到开门指令时，必须同步更新自己本地的房间数据状态！
+        if (AllRoomsData.TryGetValue(grid, out RoomData data))
+        {
+            data.IsCleared = true;
+        }
+
+        // 2. 原有的开门逻辑
         if (SpawnedRooms.TryGetValue(grid, out RoomNodeData nodeData))
         {
             nodeData.OpenDoors();
         }
+
+        // 3. 【核心修复】：数据更新完毕后，强制让客户端刷新一次这个房间的小地图颜色
+        UpdateMinimapFog(grid);
     }
 
     // 加载下一关卡时调用，一键清空所有数据！

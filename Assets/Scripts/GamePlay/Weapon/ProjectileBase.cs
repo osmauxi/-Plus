@@ -104,7 +104,7 @@ public class ProjectileBase : MonoBehaviour
                 // hitDirection: 子弹当前的飞行方向，用于计算击退和血迹喷溅角度！
 
                 // 1. 获取子弹现在的物理大小倍率
-                float sizeBonus = snapshotStats.GetStatValue(StatType.ProjectileSize);
+                float sizeBonus = Mathf.Clamp(snapshotStats.GetStatValue(StatType.ProjectileSize) / 3,1,10);
 
                 // 2. 伤害附加值 (直接线性映射)：基础伤害10点时倍率是1，伤害30点时倍率就是3！
                 float damageBonus = baseDamage / 10f;
@@ -117,6 +117,7 @@ public class ProjectileBase : MonoBehaviour
                 //Debug.Log(targetHealth.transform.position - hitPoint);
                 GlobalLocalVFXPool.Instance.GetVFX("VFX_OnHit", transform.position, Quaternion.LookRotation(-transform.forward), hitWeight);
                 GlobalLocalVFXPool.Instance.GetVFX("HitBlood", hitPoint, Quaternion.LookRotation(-transform.forward), hitWeight);
+                AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Bullet_Hit, 0.5f);
             }
 
             // 2. 触发所有特效的 "击中" 钩子 (比如爆出一团火、引雷)
@@ -138,6 +139,7 @@ public class ProjectileBase : MonoBehaviour
         else if (hitWall)
         {
             GlobalLocalVFXPool.Instance.GetVFX("VFX_OnHit",transform.position,Quaternion.LookRotation(-transform.forward));
+            AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Bullet_Hit_Wall, 0.8f);
             if (currentBounces > 0)
             {
                 currentBounces--;

@@ -10,6 +10,10 @@ public class GameDirector : NetworkBehaviour
     public int baseBudgetPerRoom = 100;
     public float budgetLayerMultiplier = 1.5f;
 
+    // 【新增】：前期放水，后期狂暴的基础参数
+    [Tooltip("游戏初始的基础难度，设为 0.8 让第一关更轻松")]
+    public float baseDifficultyStart = 0.8f;
+
     [Header("异变系统设置")]
     [Tooltip("基础异变概率 (0.0 ~ 1.0)")]
     public float baseMutationChance = 0.1f;
@@ -18,17 +22,12 @@ public class GameDirector : NetworkBehaviour
     [Tooltip("异变房间的预算倍率")]
     public float mutationBudgetMultiplier = 2.5f;
 
-    // 内部状态：本层已清理的房间数
     private int clearedRoomsInCurrentLayer = 0;
 
     [Header("AI 导演智能调控")]
-    [Tooltip("价格高于此值的怪物被视为精英怪")]
     public int eliteCostThreshold = 80;
-    [Tooltip("价格低于此值的怪物被视为炮灰")]
     public int fodderCostThreshold = 25;
-    [Tooltip("精英怪最多能占用多少总预算比例 (0.0 ~ 1.0)")]
     public float maxEliteBudgetRatio = 0.4f;
-    [Header("动态调控")]
     public float budgetIncreasePerClearedRoom = 0.15f;
 
     [Header("怪物商品图鉴")]
@@ -63,20 +62,17 @@ public class GameDirector : NetworkBehaviour
         isMutated = false;
         if (roomType == -1) return 1f;
 
-        // Boss 精英房：强行异变，且难度极高
         if (roomType == -2)
         {
             isMutated = true;
             return mutationBudgetMultiplier * 1.5f;
         }
 
-        // 普通精英房
         if (roomType == 2)
         {
             return 1.5f;
         }
 
-        // 普通房异变检测
         float currentChance = baseMutationChance + (clearedRoomsInCurrentLayer * chanceAddPerClearedRoom);
         if (Random.value < currentChance)
         {
@@ -90,57 +86,78 @@ public class GameDirector : NetworkBehaviour
 
     private float GetSpawnWeight(int cost)
     {
-        if (cost <= fodderCostThreshold) return 100f; // 炮灰，极度容易被抽中
-        if (cost <= eliteCostThreshold) return 50f;   // 基础怪，正常概率
-        return 10f;                                   // 精英怪，概率极低
+        if (cost <= fodderCostThreshold) return 100f;
+        if (cost <= eliteCostThreshold) return 50f;
+        return 10f;
     }
 
     // ==========================================
-    // 核心采购算法 (AI Director 2.0)
+    // 【核心新增】：动态评估全队战力 (根据持有词条数)
+    // ==========================================
+    private float GetPlayerPowerMultiplier()
+    {
+        if (PlayerManager.Instance == null || PlayerManager.Instance.AllPlayers.Count == 0) return 1f;
+
+        int totalModifiers = 0;
+        foreach (var player in PlayerManager.Instance.AllPlayers)
+        {
+            // 获取玩家手里枪械的词条数量
+            var weapon = player.GetComponentInChildren<WeaponBase>();
+            if (weapon != null)
+            {
+                totalModifiers += weapon.activeEffects.Count;
+            }
+        }
+
+        // 算出平均没人带了几个词条
+        float avgModifiers = (float)totalModifiers / PlayerManager.Instance.AllPlayers.Count;
+
+        // 0 词条时是 1.0 倍
+        // 5 个词条时是 1 + 5*0.15 = 1.75 倍
+        // 10 个词条时是 1 + 10*0.15 = 2.5 倍！
+        return 1f + (avgModifiers * 0.15f);
+    }
+
+    // ==========================================
+    // 核心采购算法 (AI Director 3.0)
     // ==========================================
     public List<string> AllocateMonstersForRoom(float roomDifficultyWeight = 1f)
     {
         List<string> shoppingList = new List<string>();
-        //动态预算 = 基础预算 * 层数倍率 * 房间系数 * 清房狂暴系数
         float clearRampUp = 1f + (clearedRoomsInCurrentLayer * budgetIncreasePerClearedRoom);
-        int totalBudget = (int)(baseBudgetPerRoom * Mathf.Pow(budgetLayerMultiplier, GameStateController.instance.CurrentLevel.Value - 1) * roomDifficultyWeight * clearRampUp); 
+
+        // 【核心修改 1】：将玩家的“战力倍率”无情地乘以总预算，玩家越强，导演越有钱刷怪！
+        float powerMult = GetPlayerPowerMultiplier();
+        int totalBudget = (int)(baseBudgetPerRoom * Mathf.Pow(budgetLayerMultiplier, GameStateController.instance.CurrentLevel.Value - 1) * roomDifficultyWeight * clearRampUp * powerMult);
+
         int currentBudget = totalBudget;
 
-        // 【核心优化】：精英预算上限熔断
         int maxEliteBudget = (int)(totalBudget * maxEliteBudgetRatio);
         int spentOnElites = 0;
 
-        Debug.Log($"[发牌员] 批复预算：{totalBudget}。精英预算额度：{maxEliteBudget}。开始智能采购...");
+        Debug.Log($"[发牌员] 批复预算：{totalBudget} (战力膨胀: {powerMult}x)。开始智能采购...");
 
         int safeCounter = 0;
         while (currentBudget > 0 && safeCounter < 1000)
         {
             safeCounter++;
 
-            // 2. 筛选当前合法的商品
             List<MonsterDataSO> validCandidates = new List<MonsterDataSO>();
             float totalWeightForRoll = 0f;
 
             foreach (var card in monsterCatalog)
             {
-                // 买得起，且层数够
                 if (card.cost <= currentBudget && GameStateController.instance.CurrentLevel.Value >= card.minLayerToSpawn)
                 {
-                    // 【防沉迷拦截】：如果它是精英怪，且买了它就会超出精英预算上限，则直接把它踢出候选名单！
-                    if (IsElite(card.cost) && (spentOnElites + card.cost > maxEliteBudget))
-                    {
-                        continue;
-                    }
+                    if (IsElite(card.cost) && (spentOnElites + card.cost > maxEliteBudget)) continue;
 
                     validCandidates.Add(card);
                     totalWeightForRoll += GetSpawnWeight(card.cost);
                 }
             }
 
-            // 如果连最便宜的怪都买不起（或者被拦截了），提前结束采购
             if (validCandidates.Count == 0) break;
 
-            // 3. 权重轮盘赌 (Weighted Random)
             float randomVal = Random.Range(0f, totalWeightForRoll);
             float weightAccumulator = 0f;
             MonsterDataSO selectedCard = null;
@@ -155,27 +172,31 @@ public class GameDirector : NetworkBehaviour
                 }
             }
 
-            // 兜底（以防浮点数精度问题）
             if (selectedCard == null) selectedCard = validCandidates[validCandidates.Count - 1];
 
-            // 4. 买定离手，结账扣款！
             currentBudget -= selectedCard.cost;
             shoppingList.Add(selectedCard.poolId);
 
-            // 记账：如果买了精英，把花费算进精英总额度里
-            if (IsElite(selectedCard.cost))
-            {
-                spentOnElites += selectedCard.cost;
-            }
+            if (IsElite(selectedCard.cost)) spentOnElites += selectedCard.cost;
         }
 
-        Debug.Log($"[发牌员] 采购完毕！买了 {shoppingList.Count} 只怪。精英消耗: {spentOnElites}。剩余零钱: {currentBudget}。");
+        Debug.Log($"[发牌员] 买了 {shoppingList.Count} 只怪。剩余零钱: {currentBudget}。");
         return shoppingList;
     }
 
+    // ==========================================
+    // 【核心修改 2】：重塑怪物血量和移速的难度公式
+    // ==========================================
     public float GetCurrentDifficultyMultiplier()
     {
-        return 1f + (GameStateController.instance.CurrentLevel.Value - 1) * 0.1f + (clearedRoomsInCurrentLayer * 0.05f);
-    }
+        // 基础层数成长 (每层 +0.15)
+        float levelScale = (GameStateController.instance.CurrentLevel.Value - 1) * 0.15f;
+        // 同层房间推进成长 (每个房间 +0.05)
+        float roomScale = clearedRoomsInCurrentLayer * 0.05f;
+        // 【让怪变肉】：从词条倍率里抽取一半，加给怪物的血量和速度！
+        float powerScale = (GetPlayerPowerMultiplier() - 1f) * 0.5f;
 
+        // 结果：前期白板时 0.8 倍数值 (变脆)；大后期神装时，怪物体力呈指数级爆发！
+        return baseDifficultyStart + levelScale + roomScale + powerScale;
+    }
 }

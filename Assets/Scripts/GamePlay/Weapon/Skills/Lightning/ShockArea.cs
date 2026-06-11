@@ -10,7 +10,6 @@ public class ShockArea : MonoBehaviour
 
     // --- 常驻特效引用 ---
     private GameObject cloudVFX;
-    private GameObject zoneVFX;
 
     // ==========================================
     // --- 性能优化缓存区 ---
@@ -48,27 +47,13 @@ public class ShockArea : MonoBehaviour
                 autoReturn.enabled = false;
         }
 
-        if (zoneVFX == null)
-        {
-            zoneVFX = GlobalLocalVFXPool.Instance.GetVFX("Lightning_Zone", transform.position);
-            if (zoneVFX != null && zoneVFX.TryGetComponent<MonoBehaviour>(out var autoReturn2))
-                autoReturn2.enabled = false;
-        }
-
         Vector3 playerRootPos = transform.root.position;
 
         if (cloudVFX != null)
         {
             Vector3 targetCloudPos = playerRootPos + Vector3.up * 3.5f;
-            cloudVFX.transform.position = Vector3.Lerp(cloudVFX.transform.position, targetCloudPos, Time.deltaTime * 10f);
+            cloudVFX.transform.position = Vector3.Lerp(cloudVFX.transform.position, targetCloudPos, Time.deltaTime * 6.5f);
             cloudVFX.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
-        }
-
-        if (zoneVFX != null)
-        {
-            zoneVFX.transform.position = playerRootPos + Vector3.up * 0.1f;
-            zoneVFX.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
-            zoneVFX.transform.localScale = new Vector3(currentRadius * 2f, 1f, currentRadius * 2f);
         }
     }
 
@@ -109,6 +94,9 @@ public class ShockArea : MonoBehaviour
 
                 GlobalLocalVFXPool.Instance.GetVFX("OnHit_Lightning", targetPos);
 
+                // 【新增】：落雷击中音效
+                AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Skill_LightningHit, 0.8f);
+
                 if (NetworkManager.Singleton.IsServer)
                 {
                     float damage = stats.GetStatValue(StatType.Damage) * effectSO.damageMultiplier;
@@ -118,7 +106,6 @@ public class ShockArea : MonoBehaviour
                 // ==========================================
                 // 【优化 2】：基于 Bool 锁的 0 开销缓存检测
                 // ==========================================
-                // 如果还没找到连锁闪电技能，就去列表里搜一下
                 if (!hasFoundOverload && cachedWeapon != null)
                 {
                     foreach (var effect in cachedWeapon.activeEffects)
@@ -153,12 +140,6 @@ public class ShockArea : MonoBehaviour
             if (cloudVFX.TryGetComponent<MonoBehaviour>(out var autoReturn)) autoReturn.enabled = true;
             GlobalLocalVFXPool.Instance.ReturnVFX("RainCloud", cloudVFX);
             cloudVFX = null;
-        }
-        if (zoneVFX != null)
-        {
-            if (zoneVFX.TryGetComponent<MonoBehaviour>(out var autoReturn2)) autoReturn2.enabled = true;
-            GlobalLocalVFXPool.Instance.ReturnVFX("Lightning_Zone", zoneVFX);
-            zoneVFX = null;
         }
     }
 }

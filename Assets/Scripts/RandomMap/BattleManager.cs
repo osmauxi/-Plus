@@ -59,9 +59,17 @@ public class BattleManager : NetworkBehaviour
     {
         // 留给玩家 2 秒钟的进门准备时间
         yield return new WaitForSeconds(2.0f);
+
         float diffMult = GameDirector.Instance.GetCurrentDifficultyMultiplier();
-        int maxActiveMonsters = 8 + (int)(diffMult * 3); // 难度越高，同屏怪越多，压迫感越强！
-        int waveWaitThreshold = 3 + (int)(diffMult * 1); // 剩多少只怪时开始刷下一波
+
+        // ==========================================
+        // 【核心修改 3】：同屏怪海与波次刷新极速狂暴化！
+        // ==========================================
+        // 同屏上限：前期十几只；大后期可以轻松达到 30~50 只同屏，全屏轰炸！
+        int maxActiveMonsters = 12 + (int)(diffMult * 8);
+
+        // 什么时候刷下一波？当场上怪死得剩下 一半 的时候就赶紧补充兵力，绝不让场子冷下来！
+        int waveWaitThreshold = maxActiveMonsters / 2;
 
         while (pendingMonsters.Count > 0)
         {
@@ -71,7 +79,6 @@ public class BattleManager : NetworkBehaviour
                 continue;
             }
 
-            // 算一下这波最多还能塞多少只怪进来
             int spawnCountThisWave = Mathf.Min(pendingMonsters.Count, maxActiveMonsters - aliveMonsterCount);
 
             for (int i = 0; i < spawnCountThisWave; i++)
@@ -79,44 +86,43 @@ public class BattleManager : NetworkBehaviour
                 string monsterPoolId = pendingMonsters[0];
                 pendingMonsters.RemoveAt(0);
 
-                // 随机找一个生成点
                 Transform spawnPoint = currentSpawnNodes[Random.Range(0, currentSpawnNodes.Length)];
 
-                // 从对象池生成，并同步到所有客户端
-                NetworkObject monsterObj = SyncObjectPool.instance.GetT(monsterPoolId, spawnPoint.position,Quaternion.identity);
-                // 重置状态与注入难度
+                NetworkObject monsterObj = SyncObjectPool.instance.GetT(monsterPoolId, spawnPoint.position, Quaternion.identity);
                 MonsterEntity monsterBase = monsterObj.GetComponent<MonsterEntity>();
                 MonsterDataSO dataSO = GameDirector.Instance.monsterCatalog.Find(x => x.poolId == monsterPoolId);
                 monsterBase.InitializeEntity(dataSO);
 
                 monsterBase.ResetEntity();
-                monsterBase.SetupDifficulty(GameDirector.Instance.GetCurrentDifficultyMultiplier());
-                monsterBase.GetComponent<MonsterBrain>().enabled = true; // 激活 AI
+                // 注入被强化过的难度倍率
+                monsterBase.SetupDifficulty(diffMult);
+                monsterBase.GetComponent<MonsterBrain>().enabled = true;
 
-                // 监听这只怪物的死亡
                 Health monsterHealth = monsterObj.GetComponent<Health>();
                 monsterHealth.OnDied -= HandleMonsterDied;
                 monsterHealth.OnDied += HandleMonsterDied;
 
                 aliveMonsterCount++;
 
-                // 每一只怪生成间隔 0.2 秒，防止瞬间卡顿，也更有“接踵而至”的视觉效果
-                yield return new WaitForSeconds(0.2f);
+                // 生成间隔缩短到 0.1 秒，像虫群一样涌出
+                yield return new WaitForSeconds(0.1f);
             }
 
-            // 等待这一波的怪物死得差不多了（比如场上少于 3 只），再刷下一波
+            // 等场上怪剩下不到一半时...
             yield return new WaitUntil(() => aliveMonsterCount <= waveWaitThreshold);
-            yield return new WaitForSeconds(1.5f); // 波次之间的喘息时间
+
+            // 如果发牌员手里还有超过 20 只怪没刷，说明预算爆炸了，连喘息时间都不给，0.5秒后直接空投下一波！
+            float nextWaveDelay = pendingMonsters.Count > 20 ? 0.5f : 1.5f;
+            yield return new WaitForSeconds(nextWaveDelay);
         }
 
-        // 所有波次都刷完了，等待场上最后几只怪死光
         yield return new WaitUntil(() => aliveMonsterCount <= 0);
 
         // ==========================================
         // 战斗胜利！结算管线
         // ==========================================
         isBattleActive = false;
-        RoomManager.Instance.NotifyRoomCleared(); // 通知开门
+        RoomManager.Instance.NotifyRoomCleared();
 
         SpawnRoomRewards();
         Debug.Log($"[BattleManager] 房间 {currentBattleRoomGrid} 战斗结束，已通关！");

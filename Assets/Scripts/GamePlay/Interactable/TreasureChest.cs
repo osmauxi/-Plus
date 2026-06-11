@@ -62,32 +62,58 @@ public class TreasureChest : NetworkBehaviour, IInteractable
                 if (playerHealth != null)
                 {
                     float damageAmount = playerHealth.maxHealth.Value * 0.3f;
-                    // 使用真实伤害(isTrueDamage = true)无视护甲，hitWeight传0无硬直
                     playerHealth.TakeDamage(damageAmount, transform.position, Vector3.zero, 0f, null, true);
+                }
+            }
+        }
+
+        // ==========================================
+        // 【新增 1】：全队恢复 20% 生命值
+        // ==========================================
+        foreach (var player in PlayerManager.Instance.AllPlayers)
+        {
+            if (player != null)
+            {
+                Health hp = player.GetComponent<Health>();
+                if (hp != null && !hp.isDead)
+                {
+                    float healAmount = hp.maxHealth.Value * 0.2f;
+                    // 直接在服务器修改血量，自动同步给所有客户端
+                    hp.currentHealth.Value = Mathf.Clamp(hp.currentHealth.Value + healAmount, 0f, hp.maxHealth.Value);
                 }
             }
         }
 
         isOpened.Value = true; // 全网锁死
 
-        // 通知全宇宙所有客户端：开箱啦，发奖励啦！
-        OpenChestAndShowUIClientRpc(currentChestType);
+        // ==========================================
+        // 【新增 2】：15% 概率获得“无冲突随机宝箱”升级
+        // ==========================================
+        bool isChaosUpgrade = false;
+        if (currentChestType == ChestType.Standard || currentChestType == ChestType.Mutation)
+        {
+            // 只有普通箱和异变箱有概率升级（混沌祭坛本身就是混沌池了，不用升）
+            isChaosUpgrade = UnityEngine.Random.value <= 0.15f;
+        }
+
+        // 通知全宇宙所有客户端：开箱啦，发奖励啦！带上是否升级的标志位
+        OpenChestAndShowUIClientRpc(currentChestType, isChaosUpgrade);
     }
 
     // ==========================================
     // 3. 客户端各自弹 UI
     // ==========================================
     [ClientRpc]
-    private void OpenChestAndShowUIClientRpc(ChestType type)
+    private void OpenChestAndShowUIClientRpc(ChestType type, bool isChaosUpgrade)
     {
         if (TryGetComponent<TargetableIndicator>(out var indicator))
         {
             indicator.Unregister();
         }
-        // 1. 播放表现
+
         PlayOpenVisuals();
 
-        // 2. 极其关键：让每个客户端只给【自己的本地玩家】弹 UI！
+        // 极其关键：让每个客户端只给【自己的本地玩家】弹 UI！
         foreach (var player in PlayerManager.Instance.AllPlayers)
         {
             if (player.IsOwner)
@@ -95,22 +121,18 @@ public class TreasureChest : NetworkBehaviour, IInteractable
                 PlayerModifierHandler handler = player.GetComponent<PlayerModifierHandler>();
                 if (handler != null)
                 {
-                    switch (type)
-                    {
-                        case ChestType.Standard: handler.OpenStandardChest(); break;
-                        case ChestType.Mutation: handler.OpenMutationChest(); break;
-                        case ChestType.ChaosAltar: handler.OpenChaosChest(); break;
-                    }
+                    // 【修改】：使用统一的新接口，并将升级标志传过去
+                    handler.OpenChestFromTrigger(type, isChaosUpgrade);
                 }
-                break; // 找到了自己的玩家，弹完就跳出
+                break;
             }
         }
     }
-
     private void PlayOpenVisuals()
     {
         chest_Open.SetActive(true);
         chest_Close.SetActive(false);
         Debug.Log("宝箱开启！");
+        AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Chest_Open, 1f);
     }
 }

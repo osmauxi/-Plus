@@ -27,7 +27,7 @@ public class MonsterEntity : NetworkBehaviour
     private bool isWounded = false;         // 是否处于半血蹒跚状态
     private float slowMultiplier = 1f;      // 外部塞入的减速倍率
     private float slowTimer = 0f;           // 减速计时器
-
+    public float maxMoveSpeedLimit = 8f;
     private void Awake()
     {
         health = GetComponent<Health>();
@@ -97,16 +97,26 @@ public class MonsterEntity : NetworkBehaviour
             agent.ResetPath();
         }
         blackboard.ClearBlackboard();
+        if (UnityEngine.Random.value <= 0.3f)
+        {
+            AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Monster_Roar, 0.6f);
+        }
     }
 
     public void SetupDifficulty(float difficultyMultiplier)
     {
         if (!IsServer || Config == null) return;
 
+        // 1. 最大生命值：无上限爆发成长！(吃满难度系数)
         health.InitializeHealth(Config.baseMaxHealth * difficultyMultiplier);
 
-        // 【关键修复】：缓存计算后的难度移速！
-        baseDifficultySpeed = Config.baseSpeed * (1 + (difficultyMultiplier - 1) * 0.1f);
+        // 2. 移动速度：增加侵略性，但加上绝对限速锁！
+        // 成长率从原先的 0.1f 提到了 0.2f，让前期怪物加速明显一点，给玩家压力
+        float calculatedSpeed = Config.baseSpeed * (1f + (difficultyMultiplier - 1f) * 0.2f);
+
+        // 使用 Mathf.Min 强行给移速盖上天花板
+        baseDifficultySpeed = Mathf.Min(calculatedSpeed, maxMoveSpeedLimit);
+
         UpdateSpeed();
     }
 

@@ -133,6 +133,7 @@ public class WeaponBase : NetworkBehaviour
         }
         vfxController.BroadcastVFX("Shoot");
         vfxController.BroadcastVFX("VFX_OnFIre");
+        AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Bullet_Normal, 0.7f);
         // 算出枪口到鼠标的绝对精准方向
         Vector3 baseFireDirection = (exactAimPoint - firePoint.position).normalized;
         Quaternion baseRotation = Quaternion.LookRotation(baseFireDirection);
@@ -221,6 +222,7 @@ public class WeaponBase : NetworkBehaviour
         Debug.Log("正在换弹...");
         playerController.Anim.SetTrigger("Reload");
         vfxController.BroadcastVFX("Loading");
+        AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Reload, 0.8f);
 
         float reloadTime = stats.GetStatValue(StatType.ReloadTime);
         OnReloadStart?.Invoke(reloadTime);

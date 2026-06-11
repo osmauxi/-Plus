@@ -1,56 +1,58 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// 音频类别枚举，用于对音频进行分类管理
-/// </summary>
+public enum BGMType { Title, Gameplay, Boss, Victory }
+
 public enum AudioCategory
 {
-    BGM,            // 背景音乐
-    SFX_Weapon,     // 武器音效
-    SFX_Footstep,   // 脚步声
-    SFX_UI,         // 界面交互音效
-    SFX_Environment,// 环境音效
-    SFX_Monster,    // 怪物音效
-    Voice,          // 语音
+    BGM, SFX_Weapon, SFX_Footstep, SFX_UI, SFX_Environment, SFX_Monster, Voice,
+    SFX_Bullet_Lightning, SFX_Bullet_Explosion, SFX_Bullet_Laser, SFX_Bullet_Normal,
+    SFX_Monster_Walk, SFX_Monster_Roar, SFX_Monster_Lunge, SFX_Player_Walk, SFX_Reload,
+    SFX_Footstep_Poison, SFX_Footstep_Ice, SFX_Footstep_Lava, SFX_Bullet_Hit, SFX_Shell_Drop,
+    SFX_Bullet_Hit_Wall, SFX_Player_Hurt, SFX_Monster_Hurt, SFX_Chest_Open,
+    SFX_Portal_Activate, SFX_Portal_Teleport,
+    SFX_Skill_ThunderCloud, SFX_Skill_LightningHit, SFX_Skill_Explosion
 }
 
-/// <summary>
-/// 音频管理器 - 负责管理游戏中所有音频的播放、音量控制和设置持久化
-/// 采用单例模式，支持 BGM 淡入淡出、音效对象池、跨场景音频保持
-/// </summary>
 public class AudioManager : MonoBehaviour
 {
-    /// <summary>
-    /// 单例实例，提供全局访问点
-    /// </summary>
     public static AudioManager instance;
 
     [Header("BGM 设置")]
-    [SerializeField] private AudioSource bgmSource;      // BGM 专用的 AudioSource 组件
-    [SerializeField] private float bgmFadeTime = 1f;     // BGM 淡入淡出时间（秒）
+    [SerializeField] private AudioSource bgmSource;
+    [SerializeField] private AudioSource titleBGMSource;
+    [SerializeField] private AudioSource gameplayBGMSource;
+    [SerializeField] private float bgmFadeTime = 1f;
 
     [Header("SFX 设置")]
-    [SerializeField] private int sfxPoolSize = 10;       // 音效对象池初始大小
-    [SerializeField] private float minSfxInterval = 0.05f; // 音效播放最小间隔，防止过于频繁
+    [SerializeField] private int sfxPoolSize = 100;
+    [SerializeField] private float minSfxInterval = 0.05f;
 
     [Header("音量默认值")]
-    [SerializeField, Range(0f, 1f)] private float defaultBGMVolume = 0.7f; // BGM 默认音量
-    [SerializeField, Range(0f, 1f)] private float defaultSFXVolume = 0.8f; // SFX 默认音量
+    [SerializeField, Range(0f, 1f)] private float defaultBGMVolume = 0.7f;
+    [SerializeField, Range(0f, 1f)] private float defaultSFXVolume = 0.8f;
 
-    private AudioPool sfxPool;           // 音效对象池实例
-    private float currentBGMVolume;      // 当前 BGM 音量值
-    private float currentSFXVolume;      // 当前 SFX 音量值
-    private float lastSFXPlayTime;       // 上一次播放音效的时间戳
-    private bool isBGMPlaying;           // BGM 是否正在播放
-    private bool isBGMFading;            // BGM 是否正在淡入淡出过程中
-    private bool isSFXMuted;             // SFX 是否静音
-    private bool isBGMMuted;             // BGM 是否静音
+    [Header("音频配置")]
+    [SerializeField] private AudioConfigSO audioConfig;
 
-    /// <summary>
-    /// Unity 生命周期 - 初始化时调用
-    /// 负责单例初始化和 DontDestroyOnLoad 设置
-    /// </summary>
+    private AudioPool sfxPool;
+    private float currentBGMVolume;
+    private float currentSFXVolume;
+
+    // ==========================================
+    // 【核心修复】：将全局冷却改为“每首音效独立的冷却字典”
+    // 这样爆炸声和子弹命中声在同一帧播放时，就不会互相吞音了！
+    // ==========================================
+    private Dictionary<AudioClip, float> clipPlayTimes = new Dictionary<AudioClip, float>();
+
+    private bool isBGMPlaying;
+    private bool isBGMFading;
+    private bool isSFXMuted;
+    private bool isBGMMuted;
+    private BGMType currentBGMType;
+    private Coroutine bgmFadeCoroutine;
+
     private void Awake()
     {
         if (instance == null)
@@ -66,23 +68,31 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 初始化 AudioManager 的各个子系统
-    /// 包括 BGM Source 创建、设置加载、音效池初始化、事件订阅
-    /// </summary>
     private void Initialize()
     {
-        if (bgmSource == null)
+        if (titleBGMSource == null)
         {
-            GameObject bgmObj = new GameObject("BGMSource");
-            bgmObj.transform.SetParent(transform);
-            bgmSource = bgmObj.AddComponent<AudioSource>();
-            bgmSource.loop = true;
-            bgmSource.playOnAwake = false;
+            GameObject titleObj = new GameObject("TitleBGMSource");
+            titleObj.transform.SetParent(transform);
+            titleBGMSource = titleObj.AddComponent<AudioSource>();
+            titleBGMSource.loop = true;
+            titleBGMSource.playOnAwake = false;
         }
 
+        if (gameplayBGMSource == null)
+        {
+            GameObject gameplayObj = new GameObject("GameplayBGMSource");
+            gameplayObj.transform.SetParent(transform);
+            gameplayBGMSource = gameplayObj.AddComponent<AudioSource>();
+            gameplayBGMSource.loop = true;
+            gameplayBGMSource.playOnAwake = false;
+        }
+
+        bgmSource = titleBGMSource;
+
         LoadSettings();
-        bgmSource.volume = isBGMMuted ? 0f : currentBGMVolume;
+        titleBGMSource.volume = isBGMMuted ? 0f : currentBGMVolume;
+        gameplayBGMSource.volume = isBGMMuted ? 0f : currentBGMVolume;
 
         sfxPool = new AudioPool(sfxPoolSize, transform);
         sfxPool.SetMasterVolume(isSFXMuted ? 0f : currentSFXVolume);
@@ -93,10 +103,6 @@ public class AudioManager : MonoBehaviour
         LocalEventCenter.Instance.AddEventListener<bool>("OnSFXMuteChanged", HandleSFXMuteChanged);
     }
 
-    /// <summary>
-    /// Unity 生命周期 - 销毁时调用
-    /// 清理事件订阅，防止内存泄漏
-    /// </summary>
     private void OnDestroy()
     {
         LocalEventCenter.Instance.RemoveEventListener<float>("OnBGMVolumeChanged", HandleBGMVolumeChanged);
@@ -105,141 +111,138 @@ public class AudioManager : MonoBehaviour
         LocalEventCenter.Instance.RemoveEventListener<bool>("OnSFXMuteChanged", HandleSFXMuteChanged);
     }
 
-    /// <summary>
-    /// 事件处理 - BGM 音量变化
-    /// </summary>
     private void HandleBGMVolumeChanged(float volume) => SetBGMVolume(volume);
-
-    /// <summary>
-    /// 事件处理 - SFX 音量变化
-    /// </summary>
     private void HandleSFXVolumeChanged(float volume) => SetSFXVolume(volume);
-
-    /// <summary>
-    /// 事件处理 - BGM 静音状态变化
-    /// </summary>
     private void HandleBGMMuteChanged(bool muted) => MuteBGM(muted);
-
-    /// <summary>
-    /// 事件处理 - SFX 静音状态变化
-    /// </summary>
     private void HandleSFXMuteChanged(bool muted) => MuteSFX(muted);
 
-    /// <summary>
-    /// Unity 生命周期 - 每帧调用
-    /// 更新音效对象池状态，回收已播放完成的 AudioSource
-    /// </summary>
     private void Update()
     {
         sfxPool?.Update();
     }
 
     #region BGM 控制
-
-    /// <summary>
-    /// 播放 BGM，支持淡入效果
-    /// </summary>
-    /// <param name="clip">要播放的音频片段</param>
-    /// <param name="fadeInTime">淡入时间（秒），-1 表示使用默认值</param>
-    public void PlayBGM(AudioClip clip, float fadeInTime = -1f)
+    public void SwitchBGM(BGMType type, AudioClip clip = null, float fadeTime = -1f)
     {
+        if (fadeTime < 0f) fadeTime = bgmFadeTime;
+        if (currentBGMType == type && isBGMPlaying) return;
+
+        AudioSource targetSource = type switch
+        {
+            BGMType.Title => titleBGMSource,
+            BGMType.Gameplay => gameplayBGMSource,
+            _ => titleBGMSource
+        };
+
+        if (clip == null && audioConfig != null)
+        {
+            clip = type switch
+            {
+                BGMType.Title => audioConfig.titleBGM,
+                BGMType.Gameplay => audioConfig.gameplayBGM,
+                BGMType.Boss => audioConfig.bossBGM,
+                BGMType.Victory => audioConfig.victoryBGM,
+                _ => null
+            };
+        }
+
         if (clip == null) return;
 
-        if (fadeInTime < 0f) fadeInTime = bgmFadeTime;
-
-        StopAllCoroutines();
-
-        if (bgmSource.clip == clip && isBGMPlaying) return;
-
-        bgmSource.clip = clip;
-        bgmSource.Play();
-
-        if (fadeInTime > 0f)
+        if (bgmFadeCoroutine != null)
         {
-            bgmSource.volume = 0f;
-            StartCoroutine(FadeBGM(isBGMMuted ? 0f : currentBGMVolume, fadeInTime));
+            StopCoroutine(bgmFadeCoroutine);
+            bgmFadeCoroutine = null;
+        }
+
+        if (isBGMPlaying && bgmSource != null && bgmSource.isPlaying)
+        {
+            bgmFadeCoroutine = StartCoroutine(CrossFadeBGM(bgmSource, targetSource, clip, fadeTime));
         }
         else
         {
-            bgmSource.volume = isBGMMuted ? 0f : currentBGMVolume;
+            bgmSource = targetSource;
+            bgmSource.clip = clip;
+            bgmSource.volume = isBGMMuted ? 0f : 0f;
+            bgmSource.Play();
+            bgmFadeCoroutine = StartCoroutine(FadeBGM(isBGMMuted ? 0f : currentBGMVolume, fadeTime));
         }
 
+        currentBGMType = type;
         isBGMPlaying = true;
         LocalEventCenter.Instance.EventTrigger<AudioClip>("OnBGMChanged", clip);
-        SaveSettings();
     }
 
-    /// <summary>
-    /// 停止 BGM，支持淡出效果
-    /// </summary>
-    /// <param name="fadeOutTime">淡出时间（秒），-1 表示使用默认值</param>
+    public void PlayBGM(AudioClip clip, float fadeInTime = -1f) => SwitchBGM(BGMType.Gameplay, clip, fadeInTime);
+
     public void StopBGM(float fadeOutTime = -1f)
     {
         if (!isBGMPlaying) return;
 
         if (fadeOutTime < 0f) fadeOutTime = bgmFadeTime;
 
+        if (bgmFadeCoroutine != null)
+        {
+            StopCoroutine(bgmFadeCoroutine);
+            bgmFadeCoroutine = null;
+        }
+
         if (fadeOutTime > 0f)
         {
-            StartCoroutine(FadeBGM(0f, fadeOutTime, () =>
+            bgmFadeCoroutine = StartCoroutine(FadeBGM(0f, fadeOutTime, () =>
             {
-                bgmSource.Stop();
+                titleBGMSource.Stop();
+                gameplayBGMSource.Stop();
                 isBGMPlaying = false;
             }));
         }
         else
         {
-            bgmSource.Stop();
+            titleBGMSource.Stop();
+            gameplayBGMSource.Stop();
             isBGMPlaying = false;
         }
     }
 
-    /// <summary>
-    /// 暂停 BGM 播放
-    /// </summary>
     public void PauseBGM()
     {
-        if (isBGMPlaying) bgmSource.Pause();
+        if (isBGMPlaying)
+        {
+            titleBGMSource.Pause();
+            gameplayBGMSource.Pause();
+        }
     }
 
-    /// <summary>
-    /// 恢复 BGM 播放
-    /// </summary>
     public void ResumeBGM()
     {
-        if (isBGMPlaying) bgmSource.UnPause();
+        if (isBGMPlaying)
+        {
+            titleBGMSource.UnPause();
+            gameplayBGMSource.UnPause();
+        }
     }
 
-    /// <summary>
-    /// 设置 BGM 音量
-    /// </summary>
-    /// <param name="volume">音量值（0-1）</param>
     public void SetBGMVolume(float volume)
     {
         currentBGMVolume = Mathf.Clamp01(volume);
-        if (!isBGMFading && !isBGMMuted) bgmSource.volume = currentBGMVolume;
+        if (!isBGMFading && !isBGMMuted)
+        {
+            titleBGMSource.volume = currentBGMVolume;
+            gameplayBGMSource.volume = currentBGMVolume;
+        }
         LocalEventCenter.Instance.EventTrigger<float>("OnBGMVolumeChanged", currentBGMVolume);
         SaveSettings();
     }
 
-    /// <summary>
-    /// 设置 BGM 静音状态
-    /// </summary>
-    /// <param name="mute">是否静音</param>
     public void MuteBGM(bool mute)
     {
         isBGMMuted = mute;
-        bgmSource.volume = mute ? 0f : currentBGMVolume;
+        float volume = mute ? 0f : currentBGMVolume;
+        titleBGMSource.volume = volume;
+        gameplayBGMSource.volume = volume;
         LocalEventCenter.Instance.EventTrigger<bool>("OnBGMuteChanged", isBGMMuted);
         SaveSettings();
     }
 
-    /// <summary>
-    /// BGM 淡入淡出协程
-    /// </summary>
-    /// <param name="targetVolume">目标音量</param>
-    /// <param name="duration">淡入淡出时间（秒）</param>
-    /// <param name="onComplete">淡入淡出完成后的回调</param>
     private IEnumerator FadeBGM(float targetVolume, float duration, System.Action onComplete = null)
     {
         isBGMFading = true;
@@ -256,24 +259,48 @@ public class AudioManager : MonoBehaviour
         bgmSource.volume = targetVolume;
         isBGMFading = false;
         onComplete?.Invoke();
+        bgmFadeCoroutine = null;
     }
 
+    private IEnumerator CrossFadeBGM(AudioSource oldSource, AudioSource newSource, AudioClip newClip, float duration)
+    {
+        isBGMFading = true;
+        float startVolume = oldSource.volume;
+        float elapsed = 0f;
+
+        newSource.clip = newClip;
+        newSource.volume = 0f;
+        newSource.Play();
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            oldSource.volume = Mathf.Lerp(startVolume, 0f, t);
+            newSource.volume = Mathf.Lerp(0f, isBGMMuted ? 0f : currentBGMVolume, t);
+            yield return null;
+        }
+
+        oldSource.volume = 0f;
+        oldSource.Stop();
+        newSource.volume = isBGMMuted ? 0f : currentBGMVolume;
+        bgmSource = newSource;
+        isBGMFading = false;
+        bgmFadeCoroutine = null;
+    }
     #endregion
 
     #region SFX 控制
-
-    /// <summary>
-    /// 播放 2D 音效
-    /// </summary>
-    /// <param name="clip">要播放的音频片段</param>
-    /// <param name="volume">音量值（0-1）</param>
-    /// <param name="pitch">音调（1.0 为正常）</param>
     public void PlaySFX(AudioClip clip, float volume = 1f, float pitch = 1f)
     {
         if (clip == null) return;
 
-        if (Time.time - lastSFXPlayTime < minSfxInterval) return;
-        lastSFXPlayTime = Time.time;
+        // 【核心修复】：为每一个 AudioClip 提供独立的冷却判定！
+        if (clipPlayTimes.TryGetValue(clip, out float lastTime))
+        {
+            if (Time.time - lastTime < minSfxInterval) return;
+        }
+        clipPlayTimes[clip] = Time.time;
 
         float finalVolume = isSFXMuted ? 0f : volume * currentSFXVolume;
         sfxPool.Play(clip, Vector3.zero, finalVolume, pitch);
@@ -281,16 +308,16 @@ public class AudioManager : MonoBehaviour
         LocalEventCenter.Instance.EventTrigger<string>("OnSFXPlayed", clip.name);
     }
 
-    /// <summary>
-    /// 在指定位置播放 3D 音效
-    /// </summary>
-    /// <param name="clip">要播放的音频片段</param>
-    /// <param name="position">音效播放的世界坐标位置</param>
-    /// <param name="volume">音量值（0-1）</param>
-    /// <param name="pitch">音调（1.0 为正常）</param>
     public void PlaySFXAtPosition(AudioClip clip, Vector3 position, float volume = 1f, float pitch = 1f)
     {
         if (clip == null) return;
+
+        // 3D 音效同样受独立冷却保护
+        if (clipPlayTimes.TryGetValue(clip, out float lastTime))
+        {
+            if (Time.time - lastTime < minSfxInterval) return;
+        }
+        clipPlayTimes[clip] = Time.time;
 
         float finalVolume = isSFXMuted ? 0f : volume * currentSFXVolume;
         sfxPool.Play(clip, position, finalVolume, pitch);
@@ -298,25 +325,48 @@ public class AudioManager : MonoBehaviour
         LocalEventCenter.Instance.EventTrigger<string>("OnSFXPlayedAtPosition", clip.name);
     }
 
-    /// <summary>
-    /// 随机播放一组音效中的一个
-    /// </summary>
-    /// <param name="clips">音频片段数组</param>
-    /// <param name="volume">音量值（0-1）</param>
-    /// <param name="pitchVariance">音调随机波动范围</param>
     public void PlayRandomSFX(AudioClip[] clips, float volume = 1f, float pitchVariance = 0f)
     {
         if (clips == null || clips.Length == 0) return;
-
         AudioClip clip = clips[Random.Range(0, clips.Length)];
         float pitch = pitchVariance > 0f ? 1f + Random.Range(-pitchVariance, pitchVariance) : 1f;
         PlaySFX(clip, volume, pitch);
     }
 
-    /// <summary>
-    /// 设置 SFX 音量
-    /// </summary>
-    /// <param name="volume">音量值（0-1）</param>
+    public void PlaySFXByCategory(AudioCategory category, float volume = 1f)
+    {
+        if (audioConfig == null) return;
+
+        AudioClip clip = category switch
+        {
+            AudioCategory.SFX_Bullet_Lightning => audioConfig.lightningBullet,
+            AudioCategory.SFX_Bullet_Explosion => audioConfig.explosionBullet,
+            AudioCategory.SFX_Bullet_Laser => audioConfig.laserBullet,
+            AudioCategory.SFX_Bullet_Normal => audioConfig.normalBullet,
+            AudioCategory.SFX_Monster_Walk => GetRandomClip(audioConfig.monsterWalk),
+            AudioCategory.SFX_Monster_Roar => GetRandomClip(audioConfig.monsterRoar),
+            AudioCategory.SFX_Monster_Lunge => GetRandomClip(audioConfig.monsterLunge),
+            AudioCategory.SFX_Player_Walk => GetRandomClip(audioConfig.playerWalk),
+            AudioCategory.SFX_Reload => audioConfig.reload,
+            AudioCategory.SFX_Footstep_Poison => GetRandomClip(audioConfig.footstepPoison),
+            AudioCategory.SFX_Footstep_Ice => GetRandomClip(audioConfig.footstepIce),
+            AudioCategory.SFX_Footstep_Lava => GetRandomClip(audioConfig.footstepLava),
+            AudioCategory.SFX_Bullet_Hit => audioConfig.bulletHit,
+            AudioCategory.SFX_Bullet_Hit_Wall => audioConfig.bulletHitWall,
+            AudioCategory.SFX_Player_Hurt => GetRandomClip(audioConfig.playerHurt),
+            AudioCategory.SFX_Monster_Hurt => GetRandomClip(audioConfig.monsterHurt),
+            AudioCategory.SFX_Chest_Open => audioConfig.chestOpen,
+            AudioCategory.SFX_Portal_Activate => audioConfig.portalActivate,
+            AudioCategory.SFX_Portal_Teleport => audioConfig.levelUp,
+            AudioCategory.SFX_Skill_ThunderCloud => audioConfig.skillThunderCloud,
+            AudioCategory.SFX_Skill_LightningHit => audioConfig.skillLightningHit,
+            AudioCategory.SFX_Skill_Explosion => audioConfig.skillExplosion,
+            _ => null
+        };
+
+        if (clip != null) PlaySFX(clip, volume);
+    }
+
     public void SetSFXVolume(float volume)
     {
         currentSFXVolume = Mathf.Clamp01(volume);
@@ -325,10 +375,6 @@ public class AudioManager : MonoBehaviour
         SaveSettings();
     }
 
-    /// <summary>
-    /// 设置 SFX 静音状态
-    /// </summary>
-    /// <param name="mute">是否静音</param>
     public void MuteSFX(bool mute)
     {
         isSFXMuted = mute;
@@ -336,15 +382,9 @@ public class AudioManager : MonoBehaviour
         LocalEventCenter.Instance.EventTrigger<bool>("OnSFXMuteChanged", isSFXMuted);
         SaveSettings();
     }
-
     #endregion
 
     #region 设置持久化
-
-    /// <summary>
-    /// 从 PlayerPrefs 加载音频设置
-    /// 包括 BGM/SFX 音量和静音状态
-    /// </summary>
     private void LoadSettings()
     {
         currentBGMVolume = PlayerPrefs.GetFloat("AudioManager_BGMVolume", defaultBGMVolume);
@@ -353,10 +393,6 @@ public class AudioManager : MonoBehaviour
         isSFXMuted = PlayerPrefs.GetInt("AudioManager_SFXMuted", 0) == 1;
     }
 
-    /// <summary>
-    /// 保存音频设置到 PlayerPrefs
-    /// 在音量、静音状态变化时自动调用
-    /// </summary>
     private void SaveSettings()
     {
         PlayerPrefs.SetFloat("AudioManager_BGMVolume", currentBGMVolume);
@@ -365,40 +401,23 @@ public class AudioManager : MonoBehaviour
         PlayerPrefs.SetInt("AudioManager_SFXMuted", isSFXMuted ? 1 : 0);
         PlayerPrefs.Save();
     }
-
     #endregion
 
     #region 查询接口
-
-    /// <summary>
-    /// BGM 是否正在播放
-    /// </summary>
     public bool IsBGMPlaying => isBGMPlaying;
-
-    /// <summary>
-    /// 获取当前 BGM 音量
-    /// </summary>
     public float GetBGMVolume => currentBGMVolume;
-
-    /// <summary>
-    /// 获取当前 SFX 音量
-    /// </summary>
     public float GetSFXVolume => currentSFXVolume;
-
-    /// <summary>
-    /// BGM 是否静音
-    /// </summary>
     public bool IsBGMMuted => isBGMMuted;
-
-    /// <summary>
-    /// SFX 是否静音
-    /// </summary>
     public bool IsSFXMuted => isSFXMuted;
-
-    /// <summary>
-    /// 获取当前播放的 BGM 音频片段
-    /// </summary>
     public AudioClip GetCurrentBGM => bgmSource.clip;
+    public BGMType CurrentBGMType => currentBGMType;
+    #endregion
 
+    #region 辅助方法
+    private AudioClip GetRandomClip(AudioClip[] clips)
+    {
+        if (clips == null || clips.Length == 0) return null;
+        return clips[Random.Range(0, clips.Length)];
+    }
     #endregion
 }

@@ -22,6 +22,9 @@ public class StormCloudEffect : WeaponEffectSO
         {
             runner = weaponObj.AddComponent<ShockArea>();
             runner.Init(this, stats);
+
+            // 【新增】：获得雷云时，播放一次打雷全屏音效震撼一下！
+            AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Skill_ThunderCloud, 1f);
         }
     }
 }

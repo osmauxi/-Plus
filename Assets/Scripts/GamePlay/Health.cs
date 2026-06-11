@@ -206,6 +206,10 @@ public class Health : NetworkBehaviour
     private void TriggerHitFeedbackClientRpc(Vector3 pos, Vector3 dir)
     {
         fXManager.PlayHitFlash();
+        if (gameObject.CompareTag("Player"))
+        {
+            AudioManager.instance.PlaySFXByCategory(AudioCategory.SFX_Player_Hurt, 0.8f);
+        }
     }
 
     [ClientRpc]
@@ -216,10 +220,23 @@ public class Health : NetworkBehaviour
         float randomZ = UnityEngine.Random.Range(-10f, 10f);
         Vector3 randomizedDir = Quaternion.Euler(randomX, randomY, randomZ) * dir;
 
-        // 兜底保护：如果极其罕见地导致了零向量，给个默认方向防止 LookRotation 报错
+        // 兜底保护
         if (randomizedDir == Vector3.zero) randomizedDir = Vector3.forward;
 
-        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(randomizedDir), hitWeight);
+        float dampedWeight = 1f;
+        if (hitWeight > 1f)
+        {
+            dampedWeight = 1f + (hitWeight - 1f) * 0.3f; // 软衰减
+        }
+        else
+        {
+            dampedWeight = hitWeight; // 小子弹正常缩小
+        }
+
+        // 强行锁死上限，比如血花最大只允许是默认的 1.8 倍
+        float finalSafeWeight = Mathf.Clamp(dampedWeight, 0.5f, 10f);
+
+        GlobalLocalVFXPool.Instance.GetVFX("BloodBurst", pos, Quaternion.LookRotation(randomizedDir), finalSafeWeight);
     }
 
     // ==========================================

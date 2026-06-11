@@ -57,7 +57,7 @@ public class PlayerIndicatorController : NetworkBehaviour
     public void RegisterTarget(Transform target, IndicatorType type)
     {
         if (activeArrows.ContainsKey(target)) return;
-
+        Debug.Log(1122);
         // 从对象池拿出一个箭头
         GameObject arrowObj = LocalObjectPool.instance.GetT(arrowPoolId, transform.position);
         if (arrowObj != null && arrowObj.TryGetComponent<IndicatorArrow>(out var arrowComp))

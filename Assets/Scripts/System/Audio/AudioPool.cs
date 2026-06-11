@@ -59,8 +59,10 @@ public class AudioPool
 
         AudioSource source = obj.AddComponent<AudioSource>();
         source.playOnAwake = false;
-        source.spatialBlend = 0f;
-        source.rolloffMode = AudioRolloffMode.Logarithmic;
+
+        // 【核心修改】：优化俯视角 3D 衰减曲线
+        source.rolloffMode = AudioRolloffMode.Linear; // 从 Logarithmic 改为 Linear（线性平滑衰减）
+        source.minDistance = 15f; // 【新增】在 15 米范围内，音量保持 100% 绝对不衰减！
         source.maxDistance = 50f;
 
         return new PoolItem(source);

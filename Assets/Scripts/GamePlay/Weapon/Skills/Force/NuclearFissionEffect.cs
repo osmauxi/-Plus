@@ -53,7 +53,7 @@ public class NuclearFissionEffect : WeaponEffectSO
 
             // 视觉特效动态放大
             areaObj.transform.localScale = new Vector3(currentRadius * 2f, 1f, currentRadius * 2f);
-            areaObj.transform.position = new Vector3(hitPoint.x, 0.1f, hitPoint.z); 
+            areaObj.transform.position = new Vector3(hitPoint.x, 0.2f, hitPoint.z); 
             if (!areaObj.TryGetComponent<DamageArea>(out var damageArea))
             {
                 damageArea = areaObj.AddComponent<DamageArea>();

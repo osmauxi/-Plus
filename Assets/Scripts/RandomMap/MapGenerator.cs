@@ -131,7 +131,7 @@ public class MapGenerator : NetworkBehaviour
         int index = 0;
         for (int i = 0; i < 4; i++)
         {
-            int l = (int)(dirWeight[i] * 100f);
+            int l = Mathf.RoundToInt(dirWeight[i] * 100f);
             if ((seed > index) && (seed <= (index + l))) dir = i + 1;
             index += l;
         }
@@ -141,13 +141,17 @@ public class MapGenerator : NetworkBehaviour
     int RandomRoom()
     {
         if (mapPRNG == null) return 1;
-        int type = 0;
-        int seed = mapPRNG.Next(1, 101);
+        int type = 1;
+        int seed = mapPRNG.Next(1, 101); // 产生 1 到 100 的随机数
         int index = 0;
         for (int i = 0; i < RoomTypeNum; i++)
         {
             int l = (int)(rooms[i].roomWeight * 100f);
-            if ((seed >= index) && (seed <= (index + l))) type = rooms[i].roomID;
+            if ((seed > index) && (seed <= (index + l)))
+            {
+                type = rooms[i].roomID;
+                break;
+            }
             index += l;
         }
         return type;
@@ -187,8 +191,8 @@ public class MapGenerator : NetworkBehaviour
         MapInitialize();
         up = 0; down = 0; right = 0; left = 0;
 
-        rooms[0].roomID = 1; rooms[0].roomWeight = 0.8f; 
-        rooms[1].roomID = 2; rooms[1].roomWeight = 0.2f; 
+        rooms[0].roomID = 1; rooms[0].roomWeight = 0.7f; 
+        rooms[1].roomID = 2; rooms[1].roomWeight = 0.3f; 
 
         for (int i = 0; i < 4; i++) dirWeight[i] = 0;
         int s = mapPRNG.Next(0, 4);
@@ -231,7 +235,7 @@ public class MapGenerator : NetworkBehaviour
                 {
                     int a = 0;
                     Vector2Int newBossPos = Dir(x, y, RandomDir());
-                    while ((Mathf.Abs(x - initRoomGridPos.x) + Mathf.Abs(y - initRoomGridPos.y) <= MinBossRoomDistance))
+                    while ((Mathf.Abs(newBossPos.x - initRoomGridPos.x) + Mathf.Abs(newBossPos.y - initRoomGridPos.y) <= MinBossRoomDistance))
                     {
                         newBossPos = Dir(x, y, RandomDir());
                         a++;
@@ -324,14 +328,39 @@ public class MapGenerator : NetworkBehaviour
             GenerateOver = true;
             if (IsServer && GameStateController.instance != null)
             {
+                // ==========================================
+                // 【核心修复】：地图建好了，把所有在外太空飘着的玩家抓回起点！
+                // ==========================================
+                TeleportAllPlayersToStartRoom();
+
                 GameStateController.instance.ChangeState(GameState.GamePlaying);
             }
 
-            // 【新增】生成完成后，强制触发一次玩家房间检测，生成初始场景的视觉
+            // 生成完成后，强制触发一次玩家房间检测，生成初始场景的视觉
             if (IsClient || IsServer)
             {
                 RoomManager.Instance.ForceInitVisuals();
             }
+        }
+    }
+    private void TeleportAllPlayersToStartRoom()
+    {
+        if (RoomManager.Instance == null) return;
+
+        // 计算初始房间的真实世界坐标
+        float startX = initRoomGridPos.x * RoomManager.Instance.roomSize;
+        float startZ = initRoomGridPos.y * RoomManager.Instance.roomSize;
+
+        // 配合你 PlayerController 里的锁 Y 轴，高度设为 1
+        Vector3 baseStartPos = new Vector3(startX, 1f, startZ);
+
+        foreach (var player in PlayerManager.Instance.AllPlayers)
+        {
+            // 给每个玩家稍微加一点随机偏移，防止两个人重叠在一起互相挤飞
+            Vector3 offset = new Vector3(UnityEngine.Random.Range(-2f, 2f), 0, UnityEngine.Random.Range(-2f, 2f));
+
+            // 呼叫每个玩家各自的客户端去执行强行传送
+            player.TeleportClientRpc(baseStartPos + offset);
         }
     }
 }

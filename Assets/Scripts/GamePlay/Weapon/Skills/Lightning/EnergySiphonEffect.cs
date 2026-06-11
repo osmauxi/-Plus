@@ -22,7 +22,8 @@ public class EnergySiphonEffect : WeaponEffectSO
         if (projectile.owner.transform.root.TryGetComponent<Health>(out var playerHealth))
         {
             GameObject vfx = GlobalLocalVFXPool.Instance.GetVFX("Shield_Lightning", target.transform.position);
-            vfx.transform.SetParent(target.transform);
+            vfx.transform.SetParent(projectile.owner.transform);
+            vfx.transform.localPosition = new Vector3(0, 1f, 0); // 可以根据需要调整特效位置
             // 1. 获取玩家当前的真实伤害面板
             float currentDamage = stats.GetStatValue(StatType.Damage);
 

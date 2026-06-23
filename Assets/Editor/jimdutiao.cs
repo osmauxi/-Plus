@@ -1,19 +1,19 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.VFX;
 
 public class VFXController : MonoBehaviour
 {
-    public VisualEffect targetVFX; // ÍÏÈëÄãµÄ Visual Effect ×é¼ş
-    public Slider progressSlider; // ÍÏÈëÒ»¸ö UI Slider ×÷Îª½ø¶ÈÌõ
+    public VisualEffect targetVFX; // æ‹–å…¥ä½ çš„ Visual Effect ç»„ä»¶
+    public Slider progressSlider; // æ‹–å…¥ä¸€ä¸ª UI Slider ä½œä¸ºè¿›åº¦æ¡
 
-    private bool isPlaying = false; // ÌØĞ§ÊÇ·ñÕıÔÚ²¥·Å
-    private float currentTime = 0.0f; // µ±Ç°ÌØĞ§µÄ¡°Âß¼­Ê±¼ä¡±
-    public float maxDuration = 5.0f; // ÌØĞ§µÄ×ÜÊ±³¤£¨¿ÉÔÚInspectorÖĞÊÖ¶¯ÉèÖÃ£©
+    private bool isPlaying = false; // ç‰¹æ•ˆæ˜¯å¦æ­£åœ¨æ’­æ”¾
+    private float currentTime = 0.0f; // å½“å‰ç‰¹æ•ˆçš„â€œé€»è¾‘æ—¶é—´â€
+    public float maxDuration = 5.0f; // ç‰¹æ•ˆçš„æ€»æ—¶é•¿ï¼ˆå¯åœ¨Inspectorä¸­æ‰‹åŠ¨è®¾ç½®ï¼‰
 
     void Start()
     {
-        // ³õÊ¼»¯ Slider£¬×î´óÖµÉèÎªÌØĞ§µÄ×ÜÊ±³¤
+        // åˆå§‹åŒ– Sliderï¼Œæœ€å¤§å€¼è®¾ä¸ºç‰¹æ•ˆçš„æ€»æ—¶é•¿
         if (progressSlider != null)
         {
             progressSlider.minValue = 0.0f;
@@ -22,7 +22,7 @@ public class VFXController : MonoBehaviour
             progressSlider.onValueChanged.AddListener(OnSliderValueChanged);
         }
 
-        // ¿ÉÑ¡£ºÈÃÌØĞ§Ä¬ÈÏÔİÍ£
+        // å¯é€‰ï¼šè®©ç‰¹æ•ˆé»˜è®¤æš‚åœ
         targetVFX.pause = true;
     }
 
@@ -30,40 +30,40 @@ public class VFXController : MonoBehaviour
     {
         if (isPlaying)
         {
-            // ÕıÏò²¥·Å£ºÊ¹ÓÃ Time.deltaTime ÍÆ½øÊ±¼ä
+            // æ­£å‘æ’­æ”¾ï¼šä½¿ç”¨ Time.deltaTime æ¨è¿›æ—¶é—´
             currentTime += Time.deltaTime;
 
-            // µ±Ê±¼ä³¬¹ı×ÜÊ±³¤ºó£¬ÖØÖÃµ½¿ªÍ·£¨¿É¸ù¾İĞèÒªĞŞ¸ÄÎªÍ£Ö¹»òÑ­»·£©
+            // å½“æ—¶é—´è¶…è¿‡æ€»æ—¶é•¿åï¼Œé‡ç½®åˆ°å¼€å¤´ï¼ˆå¯æ ¹æ®éœ€è¦ä¿®æ”¹ä¸ºåœæ­¢æˆ–å¾ªç¯ï¼‰
             if (currentTime >= maxDuration)
             {
                 currentTime = 0.0f;
-                // targetVFX.Reinit(); // ¿ÉÑ¡£ºÖØÖÃÌØĞ§£¬Ê¹ÆäÖØĞÂ¿ªÊ¼
+                // targetVFX.Reinit(); // å¯é€‰ï¼šé‡ç½®ç‰¹æ•ˆï¼Œä½¿å…¶é‡æ–°å¼€å§‹
             }
 
-            // ¸üĞÂ½ø¶ÈÌõµÄÖµ
+            // æ›´æ–°è¿›åº¦æ¡çš„å€¼
             if (progressSlider != null)
                 progressSlider.SetValueWithoutNotify(currentTime);
 
-            // Í¨¹ı Simulate Çı¶¯ÌØĞ§Ç°½øÒ»Ö¡
+            // é€šè¿‡ Simulate é©±åŠ¨ç‰¹æ•ˆå‰è¿›ä¸€å¸§
             targetVFX.Simulate(Time.deltaTime, 1);
         }
     }
 
-    // µ±»¬¿éÖµ¸Ä±äÊ±µ÷ÓÃ
+    // å½“æ»‘å—å€¼æ”¹å˜æ—¶è°ƒç”¨
     public void OnSliderValueChanged(float newTime)
     {
-        // ¼ÆËã´Ó currentTime µ½ newTime µÄÊ±¼ä²î
+        // è®¡ç®—ä» currentTime åˆ° newTime çš„æ—¶é—´å·®
         float deltaTime = newTime - currentTime;
         currentTime = newTime;
 
-        // Èç¹ûµ±Ç°´¦ÓÚÔİÍ£»òÍ£Ö¹×´Ì¬£¬Í¨¹ı Simulate Á¢¼´¸üĞÂ»­Ãæ
+        // å¦‚æœå½“å‰å¤„äºæš‚åœæˆ–åœæ­¢çŠ¶æ€ï¼Œé€šè¿‡ Simulate ç«‹å³æ›´æ–°ç”»é¢
         if (!isPlaying)
         {
             targetVFX.Simulate(deltaTime, 1);
         }
     }
 
-    // --- ÒÔÏÂ·½·¨¿ÉÒÔ°ó¶¨µ½ UI °´Å¥µÄ OnClick ÊÂ¼ş ---
+    // --- ä»¥ä¸‹æ–¹æ³•å¯ä»¥ç»‘å®šåˆ° UI æŒ‰é’®çš„ OnClick äº‹ä»¶ ---
     public void PlayVFX()
     {
         isPlaying = true;
@@ -79,8 +79,8 @@ public class VFXController : MonoBehaviour
     public void StopVFX()
     {
         isPlaying = false;
-        targetVFX.Stop(); // Í£Ö¹ËùÓĞÁ£×ÓÉú³É
-        // targetVFX.Reinit(); // Èç¹ûĞèÒªÖØÖÃ£¬¿ÉÒÔÊ¹ÓÃ Reinit()
+        targetVFX.Stop(); // åœæ­¢æ‰€æœ‰ç²’å­ç”Ÿæˆ
+        // targetVFX.Reinit(); // å¦‚æœéœ€è¦é‡ç½®ï¼Œå¯ä»¥ä½¿ç”¨ Reinit()
         currentTime = 0.0f;
         if (progressSlider != null)
             progressSlider.SetValueWithoutNotify(0.0f);

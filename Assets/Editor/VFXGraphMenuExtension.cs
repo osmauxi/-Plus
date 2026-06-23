@@ -1,4 +1,4 @@
-using UnityEditor;
+ï»¿using UnityEditor;
 using UnityEngine;
 using UnityEngine.VFX;
 using System.IO;
@@ -6,62 +6,62 @@ using System.Linq;
 
 public static class VFXGraphAssetCreator
 {
-    // ×Ô¶¨ÒåÄ¿±êÎÄ¼ş¼ĞÂ·¾¶£¨Äã¿ÉÒÔĞŞ¸ÄÕâÀï£©
+    // è‡ªå®šä¹‰ç›®æ ‡æ–‡ä»¶å¤¹è·¯å¾„ï¼ˆä½ å¯ä»¥ä¿®æ”¹è¿™é‡Œï¼‰
     private const string targetFolder = "Assets/vfx";
 
     [MenuItem("GameObject/Create/VFX Graph", false, 20)]
     static void CreateVFXGraphAssetFromHierarchy()
     {
-        // 1. È·±£Ä¿±êÎÄ¼ş¼Ğ´æÔÚ£¨²»´æÔÚÔò×Ô¶¯´´½¨£©
+        // 1. ç¡®ä¿ç›®æ ‡æ–‡ä»¶å¤¹å­˜åœ¨ï¼ˆä¸å­˜åœ¨åˆ™è‡ªåŠ¨åˆ›å»ºï¼‰
         EnsureFolderExists(targetFolder);
 
-        // 2. ¼ÇÂ¼µ±Ç°ËùÓĞ VisualEffectAsset µÄ GUID£¨ÓÃÓÚºóÃæÕÒĞÂÔöµÄÎÄ¼ş£©
+        // 2. è®°å½•å½“å‰æ‰€æœ‰ VisualEffectAsset çš„ GUIDï¼ˆç”¨äºåé¢æ‰¾æ–°å¢çš„æ–‡ä»¶ï¼‰
         var beforeAssets = AssetDatabase.FindAssets("t:VisualEffectAsset");
 
-        // 3. Ö´ĞĞ¹Ù·½²Ëµ¥ÃüÁî£¬´´½¨Ò»¸öĞÂµÄ .vfx ÎÄ¼ş
+        // 3. æ‰§è¡Œå®˜æ–¹èœå•å‘½ä»¤ï¼Œåˆ›å»ºä¸€ä¸ªæ–°çš„ .vfx æ–‡ä»¶
         EditorApplication.ExecuteMenuItem("Assets/Create/Visual Effects/Visual Effect Graph");
 
-        // 4. ÑÓ³ÙÒ»Ö¡£¬µÈ´ı×ÊÔ´´´½¨Íê³ÉºóÔÙÒÆ¶¯Ëü
+        // 4. å»¶è¿Ÿä¸€å¸§ï¼Œç­‰å¾…èµ„æºåˆ›å»ºå®Œæˆåå†ç§»åŠ¨å®ƒ
         EditorApplication.delayCall += () =>
         {
-            // ÕÒ³öĞÂÔöµÄ VisualEffectAsset
+            // æ‰¾å‡ºæ–°å¢çš„ VisualEffectAsset
             var afterAssets = AssetDatabase.FindAssets("t:VisualEffectAsset");
             var newGuid = afterAssets.Except(beforeAssets).FirstOrDefault();
 
             if (string.IsNullOrEmpty(newGuid))
             {
-                Debug.LogWarning("Î´ÄÜÕÒµ½ĞÂ´´½¨µÄ VFX Graph ×ÊÔ´¡£");
+                Debug.LogWarning("æœªèƒ½æ‰¾åˆ°æ–°åˆ›å»ºçš„ VFX Graph èµ„æºã€‚");
                 return;
             }
 
-            // »ñÈ¡Ô­Ê¼Â·¾¶ºÍÎÄ¼şÃû
+            // è·å–åŸå§‹è·¯å¾„å’Œæ–‡ä»¶å
             string originalPath = AssetDatabase.GUIDToAssetPath(newGuid);
             string fileName = Path.GetFileName(originalPath);
 
-            // Éú³ÉÄ¿±êÂ·¾¶£¨×Ô¶¯´¦ÀíÖØÃû£¬±ÈÈçÉú³É "New VFX Graph 1.vfx"£©
+            // ç”Ÿæˆç›®æ ‡è·¯å¾„ï¼ˆè‡ªåŠ¨å¤„ç†é‡åï¼Œæ¯”å¦‚ç”Ÿæˆ "New VFX Graph 1.vfx"ï¼‰
             string targetPath = AssetDatabase.GenerateUniqueAssetPath($"{targetFolder}/{fileName}");
 
-            // ÒÆ¶¯×ÊÔ´µ½Ä¿±êÎÄ¼ş¼Ğ
+            // ç§»åŠ¨èµ„æºåˆ°ç›®æ ‡æ–‡ä»¶å¤¹
             string error = AssetDatabase.MoveAsset(originalPath, targetPath);
             if (!string.IsNullOrEmpty(error))
             {
-                Debug.LogError($"ÒÆ¶¯×ÊÔ´Ê§°Ü: {error}");
+                Debug.LogError($"ç§»åŠ¨èµ„æºå¤±è´¥: {error}");
                 return;
             }
 
             AssetDatabase.Refresh();
 
-            // ¼ÓÔØÒÆ¶¯ºóµÄ×ÊÔ´²¢¸ßÁÁÑ¡ÖĞ
+            // åŠ è½½ç§»åŠ¨åçš„èµ„æºå¹¶é«˜äº®é€‰ä¸­
             var asset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>(targetPath);
             Selection.activeObject = asset;
             EditorGUIUtility.PingObject(asset);
 
-            // ×Ô¶¯ÔÚ³¡¾°ÖĞ´´½¨¶ÔÓ¦µÄ GameObject
+            // è‡ªåŠ¨åœ¨åœºæ™¯ä¸­åˆ›å»ºå¯¹åº”çš„ GameObject
             CreateGameObjectWithVFXAsset(asset);
         };
     }
 
-    // µİ¹é´´½¨ÎÄ¼ş¼Ğ£¨Èç¹û¸¸ÎÄ¼ş¼ĞÒ²²»´æÔÚ£¬Ò»²¢´´½¨£©
+    // é€’å½’åˆ›å»ºæ–‡ä»¶å¤¹ï¼ˆå¦‚æœçˆ¶æ–‡ä»¶å¤¹ä¹Ÿä¸å­˜åœ¨ï¼Œä¸€å¹¶åˆ›å»ºï¼‰
     private static void EnsureFolderExists(string folderPath)
     {
         if (AssetDatabase.IsValidFolder(folderPath))
@@ -76,7 +76,7 @@ public static class VFXGraphAssetCreator
         AssetDatabase.Refresh();
     }
 
-    // ´´½¨´ø Visual Effect ×é¼şµÄ GameObject
+    // åˆ›å»ºå¸¦ Visual Effect ç»„ä»¶çš„ GameObject
     private static void CreateGameObjectWithVFXAsset(VisualEffectAsset vfxAsset)
     {
         GameObject go = new GameObject(vfxAsset.name);

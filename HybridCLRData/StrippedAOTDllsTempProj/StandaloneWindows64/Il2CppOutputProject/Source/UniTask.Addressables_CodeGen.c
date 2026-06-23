@@ -1,0 +1,346 @@
+﻿#include "pch-c.h"
+#ifndef _MSC_VER
+# include <alloca.h>
+#else
+# include <malloc.h>
+#endif
+
+
+#include "codegen/il2cpp-codegen-metadata.h"
+
+
+
+
+
+extern void UnitySourceGeneratedAssemblyMonoScriptTypes_v1_Get_m51FF24DAB983286DD03ABFC7697ED00756C5744F (void);
+extern void UnitySourceGeneratedAssemblyMonoScriptTypes_v1__ctor_mEB7ED413653639D324638546BC1BF50CFA803028 (void);
+extern void AddressablesAsyncExtensions_GetAwaiter_m9C0CEF7C2C34DA7CD7CF6191AD3A75D32A553A3B (void);
+extern void AddressablesAsyncExtensions_WithCancellation_m18B924BAD460AD62F488E95477CA091BD149FAC6 (void);
+extern void AddressablesAsyncExtensions_ToUniTask_m356538CA8E56C00FDC81D53EE2B2BC65E56413FA (void);
+extern void AsyncOperationHandleAwaiter__ctor_mAA5F0D2AE7CB8E3F41B895AD7F76EC82981C20A4 (void);
+extern void AsyncOperationHandleAwaiter_get_IsCompleted_mC6C9062435CC040CE44427BD557C486EFC5D0280 (void);
+extern void AsyncOperationHandleAwaiter_GetResult_m33804BDD0B7FF7F81D1B42C207EA1514C083F0EC (void);
+extern void AsyncOperationHandleAwaiter_OnCompleted_m64CEFFABF77C22AD39E601092C6D4EC8F3496299 (void);
+extern void AsyncOperationHandleAwaiter_UnsafeOnCompleted_m8F98BA486C33973AD5C2BB3AE2A36DE1DD108718 (void);
+extern void AsyncOperationHandleConfiguredSource_get_NextNode_m8288117BA326B2F168B00403AA09981638B3BB2E (void);
+extern void AsyncOperationHandleConfiguredSource__cctor_m54AECA783F5AE082E31D678061A4B65C847352BA (void);
+extern void AsyncOperationHandleConfiguredSource__ctor_mD470890A08CF572597DDBCD2A6683AD7B8D1AAB7 (void);
+extern void AsyncOperationHandleConfiguredSource_Create_m4636BB8EFDE6366EECC92CEFD54AA5D1396597B7 (void);
+extern void AsyncOperationHandleConfiguredSource_HandleCompleted_m14E5829724B56C48E18F02E6C4BB20FE0CA7FB49 (void);
+extern void AsyncOperationHandleConfiguredSource_GetResult_m83E5CF2A004992977E61E5FEF81D8ED5E26B50FD (void);
+extern void AsyncOperationHandleConfiguredSource_GetStatus_m8EFE2CFA26B2574CE7D825B4283E82B023636F27 (void);
+extern void AsyncOperationHandleConfiguredSource_UnsafeGetStatus_mC43F92AFE343827C521AF2F93DC316133EF529D2 (void);
+extern void AsyncOperationHandleConfiguredSource_OnCompleted_m6ECC1DE60C735C93A0774E132D43A9D5DC573517 (void);
+extern void AsyncOperationHandleConfiguredSource_MoveNext_m27CE2E8F6E6061D5BA9DDB32865C5658AB6CE76B (void);
+extern void AsyncOperationHandleConfiguredSource_TryReturn_mCF84DB1A3FB69026A80F59BE99D34D399449198E (void);
+extern void U3CU3Ec__cctor_mADB5B3D3655E3DDE76386CE6B9D8BD091928FCAF (void);
+extern void U3CU3Ec__ctor_mBA2EB0ACBA733B7F8F77708AAD5FCA28C94231CF (void);
+extern void U3CU3Ec_U3C_cctorU3Eb__4_0_mF081A3F1B5BF4A1AC3805E4B84F912530F074F76 (void);
+extern void U3CU3Ec_U3CCreateU3Eb__15_0_m45D655C473D44BAA4396F0331E4AA0B3ED4E56B1 (void);
+static Il2CppMethodPointer s_methodPointers[44] = 
+{
+	UnitySourceGeneratedAssemblyMonoScriptTypes_v1_Get_m51FF24DAB983286DD03ABFC7697ED00756C5744F,
+	UnitySourceGeneratedAssemblyMonoScriptTypes_v1__ctor_mEB7ED413653639D324638546BC1BF50CFA803028,
+	AddressablesAsyncExtensions_GetAwaiter_m9C0CEF7C2C34DA7CD7CF6191AD3A75D32A553A3B,
+	AddressablesAsyncExtensions_WithCancellation_m18B924BAD460AD62F488E95477CA091BD149FAC6,
+	AddressablesAsyncExtensions_ToUniTask_m356538CA8E56C00FDC81D53EE2B2BC65E56413FA,
+	NULL,
+	NULL,
+	NULL,
+	AsyncOperationHandleAwaiter__ctor_mAA5F0D2AE7CB8E3F41B895AD7F76EC82981C20A4,
+	AsyncOperationHandleAwaiter_get_IsCompleted_mC6C9062435CC040CE44427BD557C486EFC5D0280,
+	AsyncOperationHandleAwaiter_GetResult_m33804BDD0B7FF7F81D1B42C207EA1514C083F0EC,
+	AsyncOperationHandleAwaiter_OnCompleted_m64CEFFABF77C22AD39E601092C6D4EC8F3496299,
+	AsyncOperationHandleAwaiter_UnsafeOnCompleted_m8F98BA486C33973AD5C2BB3AE2A36DE1DD108718,
+	AsyncOperationHandleConfiguredSource_get_NextNode_m8288117BA326B2F168B00403AA09981638B3BB2E,
+	AsyncOperationHandleConfiguredSource__cctor_m54AECA783F5AE082E31D678061A4B65C847352BA,
+	AsyncOperationHandleConfiguredSource__ctor_mD470890A08CF572597DDBCD2A6683AD7B8D1AAB7,
+	AsyncOperationHandleConfiguredSource_Create_m4636BB8EFDE6366EECC92CEFD54AA5D1396597B7,
+	AsyncOperationHandleConfiguredSource_HandleCompleted_m14E5829724B56C48E18F02E6C4BB20FE0CA7FB49,
+	AsyncOperationHandleConfiguredSource_GetResult_m83E5CF2A004992977E61E5FEF81D8ED5E26B50FD,
+	AsyncOperationHandleConfiguredSource_GetStatus_m8EFE2CFA26B2574CE7D825B4283E82B023636F27,
+	AsyncOperationHandleConfiguredSource_UnsafeGetStatus_mC43F92AFE343827C521AF2F93DC316133EF529D2,
+	AsyncOperationHandleConfiguredSource_OnCompleted_m6ECC1DE60C735C93A0774E132D43A9D5DC573517,
+	AsyncOperationHandleConfiguredSource_MoveNext_m27CE2E8F6E6061D5BA9DDB32865C5658AB6CE76B,
+	AsyncOperationHandleConfiguredSource_TryReturn_mCF84DB1A3FB69026A80F59BE99D34D399449198E,
+	U3CU3Ec__cctor_mADB5B3D3655E3DDE76386CE6B9D8BD091928FCAF,
+	U3CU3Ec__ctor_mBA2EB0ACBA733B7F8F77708AAD5FCA28C94231CF,
+	U3CU3Ec_U3C_cctorU3Eb__4_0_mF081A3F1B5BF4A1AC3805E4B84F912530F074F76,
+	U3CU3Ec_U3CCreateU3Eb__15_0_m45D655C473D44BAA4396F0331E4AA0B3ED4E56B1,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+};
+extern void AsyncOperationHandleAwaiter__ctor_mAA5F0D2AE7CB8E3F41B895AD7F76EC82981C20A4_AdjustorThunk (void);
+extern void AsyncOperationHandleAwaiter_get_IsCompleted_mC6C9062435CC040CE44427BD557C486EFC5D0280_AdjustorThunk (void);
+extern void AsyncOperationHandleAwaiter_GetResult_m33804BDD0B7FF7F81D1B42C207EA1514C083F0EC_AdjustorThunk (void);
+extern void AsyncOperationHandleAwaiter_OnCompleted_m64CEFFABF77C22AD39E601092C6D4EC8F3496299_AdjustorThunk (void);
+extern void AsyncOperationHandleAwaiter_UnsafeOnCompleted_m8F98BA486C33973AD5C2BB3AE2A36DE1DD108718_AdjustorThunk (void);
+static Il2CppTokenAdjustorThunkPair s_adjustorThunks[5] = 
+{
+	{ 0x06000009, AsyncOperationHandleAwaiter__ctor_mAA5F0D2AE7CB8E3F41B895AD7F76EC82981C20A4_AdjustorThunk },
+	{ 0x0600000A, AsyncOperationHandleAwaiter_get_IsCompleted_mC6C9062435CC040CE44427BD557C486EFC5D0280_AdjustorThunk },
+	{ 0x0600000B, AsyncOperationHandleAwaiter_GetResult_m33804BDD0B7FF7F81D1B42C207EA1514C083F0EC_AdjustorThunk },
+	{ 0x0600000C, AsyncOperationHandleAwaiter_OnCompleted_m64CEFFABF77C22AD39E601092C6D4EC8F3496299_AdjustorThunk },
+	{ 0x0600000D, AsyncOperationHandleAwaiter_UnsafeOnCompleted_m8F98BA486C33973AD5C2BB3AE2A36DE1DD108718_AdjustorThunk },
+};
+static const int32_t s_InvokerIndices[44] = 
+{
+	21879,
+	13247,
+	21592,
+	15799,
+	13995,
+	0,
+	0,
+	0,
+	10341,
+	12937,
+	13247,
+	10505,
+	10505,
+	12915,
+	21846,
+	13247,
+	13791,
+	10341,
+	10453,
+	8974,
+	13027,
+	3204,
+	12937,
+	12937,
+	21846,
+	13247,
+	13027,
+	10505,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+};
+static const Il2CppTokenRangePair s_rgctxIndices[5] = 
+{
+	{ 0x02000008, { 25, 44 } },
+	{ 0x02000009, { 69, 15 } },
+	{ 0x06000006, { 0, 6 } },
+	{ 0x06000007, { 6, 3 } },
+	{ 0x06000008, { 9, 16 } },
+};
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_t6353B3E12392DE41EB45003035314D4D82377146;
+extern const uint32_t g_rgctx_AddressablesAsyncExtensions_ToUniTask_TisT_t31A6B381994CB37CEC2AB502742D92CD2CB47B21_mFF21C10BD5F0DED532FCAF2754B5510CB161E8B5;
+extern const uint32_t g_rgctx_UniTask_1_tCC23BC746963B9C9E22EDCA45406FDA7DA0AD91C;
+extern const uint32_t g_rgctx_UniTask_1_GetAwaiter_m242CF9BFC224A539CBCBDB9C9E5DDBDF623944FD;
+extern const uint32_t g_rgctx_UniTask_1_tCC23BC746963B9C9E22EDCA45406FDA7DA0AD91C;
+extern const uint32_t g_rgctx_Awaiter_t65580F8C19618210A6287C41EE5C5DC7AA1B81F5;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_t0080927C7A08CE5F88964407B898EA1A8C802575;
+extern const uint32_t g_rgctx_AddressablesAsyncExtensions_ToUniTask_TisT_tF1FF61ACF1D5F519565BB1E6A74EA8A911375F0A_mEC6A8005A8806C6D09E86CA5A182E342D4D67C22;
+extern const uint32_t g_rgctx_UniTask_1_t7070E47AF4C8ACABA12C1A88B6B10873A756609D;
+extern const uint32_t g_rgctx_UniTask_FromCanceled_TisT_t213C121A494A12F99C0733DDCF8AC3F231E8C89B_mE15CDB86E8AB9CE5731E6E08987E73BFC849BD8F;
+extern const uint32_t g_rgctx_UniTask_1_t0E5DC16591FFE27D290F56F1D0E61EA95A45B5C8;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_tED48D365007D2A9B791C10C038B59ADADBEEB32E;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_IsValid_m9084813F999280636CC18B0A9599EECC2DB727CB;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_tED48D365007D2A9B791C10C038B59ADADBEEB32E;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_IsDone_mACB2F7D5FEB8E89AC714D54857D56C5CBB88C144;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_Status_mE2F0319DE2B5FE4480DC81B2461F30B915F92142;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_OperationException_m83478A727CBCC0F5456824FC5DC69C66F2B621C2;
+extern const uint32_t g_rgctx_UniTask_FromException_TisT_t213C121A494A12F99C0733DDCF8AC3F231E8C89B_mCA636DAF99959633684A10148CCAD616C645386A;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_Result_m9FC296A59EF947D7ED0AE6962D336606F0713A68;
+extern const uint32_t g_rgctx_T_t213C121A494A12F99C0733DDCF8AC3F231E8C89B;
+extern const uint32_t g_rgctx_UniTask_FromResult_TisT_t213C121A494A12F99C0733DDCF8AC3F231E8C89B_m6C045DC2303907A9CFD8476AE0851D795DC956E5;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_Create_mB5F6AD219D39B7EDFB41CA3112F63B2A724A1D9E;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_t674B2BDAA3A039B66371D8AF02A5517A67EDEE28;
+extern const uint32_t g_rgctx_IUniTaskSource_1_t471CD10C661E7400F5540F0B735C61D69E608D37;
+extern const uint32_t g_rgctx_UniTask_1__ctor_m4BD7896CE28277E81751ED390533FF4EBC667483;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_t6C0FF7C26ED4B49E1A568441730B9AAC581BE4C2;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1U26_t40A4225DE23789769D11C9DB6634FC61CDD1FAE7;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_t6C0FF7C26ED4B49E1A568441730B9AAC581BE4C2;
+extern const uint32_t g_rgctx_U3CU3Ec_tDC0DF7A866A1932A73564D2747F78F15E08F44AC;
+extern const uint32_t g_rgctx_U3CU3Ec_tDC0DF7A866A1932A73564D2747F78F15E08F44AC;
+extern const uint32_t g_rgctx_U3CU3Ec_U3C_cctorU3Eb__4_0_mD5A8CADCFEE2BCD504A66B7CABCBF5720323AB94;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_HandleCompleted_mDAF947D82314A9CE2B8698E195D4545C2DEFCE85;
+extern const uint32_t g_rgctx_Action_1_t9D0A404D894B7D1EE8B83E6BC34C66F6D4027A84;
+extern const uint32_t g_rgctx_Action_1__ctor_m92FC7720290E13A741B8182A921DAF4E245E8E19;
+extern const uint32_t g_rgctx_AutoResetUniTaskCompletionSource_1_CreateFromCanceled_mE049A968640026D4BCFAF3D281A2E0E786F0B500;
+extern const uint32_t g_rgctx_AutoResetUniTaskCompletionSource_1_t035F1D752F3CA01E8D3783835C4C9DB170F2BA17;
+extern const uint32_t g_rgctx_AutoResetUniTaskCompletionSource_1_t035F1D752F3CA01E8D3783835C4C9DB170F2BA17;
+extern const uint32_t g_rgctx_TaskPool_1_tC141CABA944DAB94B87683076CD8D0F9FC2DEF76;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_t6C0FF7C26ED4B49E1A568441730B9AAC581BE4C2;
+extern const uint32_t g_rgctx_TaskPool_1_TryPop_m25319C8A40E7FB5A51515EA19E140DC1A4FED516;
+extern const uint32_t g_rgctx_TaskPool_1_tC141CABA944DAB94B87683076CD8D0F9FC2DEF76;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1__ctor_m54E4581835C50B7FE39BF7E800E0E00E999DC4E8;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_t91B9EBEC30170736194FAFCC49C7EF8470621199;
+extern const uint32_t g_rgctx_U3CU3Ec_U3CCreateU3Eb__15_0_m000A5BE87144B3C8AA1551FAAF877302D05C4F9B;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_add_Completed_m4C68A040F379F145E901C555A3C840BAC6AFFE2D;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_t91B9EBEC30170736194FAFCC49C7EF8470621199;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_t79BADE12D32E0CEA7E60015A00F27CCFE83363E6;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_get_Version_m1972343DBB3982ACE2C3521ED80B065FD3A4C28C;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_t79BADE12D32E0CEA7E60015A00F27CCFE83363E6;
+extern const uint32_t g_rgctx_IUniTaskSource_1_t0CF314FEFCE1550C2A64121ED348789905898023;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_IsValid_m8BF122DB485B217379B90DCE47902CF48840B6CC;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_remove_Completed_m0B149C5631AAF968037AB8D2FCEC34F5C91640DA;
+extern const uint32_t g_rgctx_Addressables_Release_TisT_t51129C6F9CFC10FE16BD194D3D0E37C9B9377E84_mB9A783737761EFA735C1E0F051A1613CB5C6E62B;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_TrySetCanceled_m9E78A86195597A9D110352013DC8C31202658F53;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_Status_m55CC20551D753A3E355969D6533F75E1F3534061;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_OperationException_m320AC2CFE10D3DC3FB3B576799063A94AF6F6A36;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_TrySetException_m8CF7D0DA7CD8A9E156C3BEA00331C21522EEF688;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_get_Result_mF070BEB52BFF6C5D23FFAD8862547A409C6F545C;
+extern const uint32_t g_rgctx_T_t51129C6F9CFC10FE16BD194D3D0E37C9B9377E84;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_TrySetResult_mC63981B8500CBC5772A9345C367F0F296E16D44B;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_GetResult_mCAB7B2833982A8BD1E27D9913F68E2E8E9D82E90;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_TryReturn_m88342E7922BB7CD0A683FAE163AAF1DB436FF6FB;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_GetResult_mD8092BFF775E625ED2F7C2F4D152E451B4B521E4;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_GetStatus_mE2E07AEDB2A4EDCBCB8EFBE08E8972BF0B1E3D2C;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_UnsafeGetStatus_mE41B1C544487356A173BFC90E1D2F2FB06DE0B8A;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_OnCompleted_mE13CD9ABD62CEFA0204A6B786D63F276645D60F0;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_GetDownloadStatus_m02193D5CD0576481EA0D390237414F0BCCF084B8;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_Reset_mE97800597134654011B48ED06DFAC2456E3B5FCB;
+extern const uint32_t g_rgctx_TaskPool_1_TryPush_mC77C53D27F6E3C7AE783D0CE5FCC2355E2EAEAE8;
+extern const uint32_t g_rgctx_U3CU3Ec_tBD4F459652D549FD58C09DD26A85D4BFA523127E;
+extern const uint32_t g_rgctx_U3CU3Ec__ctor_mE12959514B1C14E0D2C59A281DBE624A11E72B0C;
+extern const uint32_t g_rgctx_U3CU3Ec_tBD4F459652D549FD58C09DD26A85D4BFA523127E;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_t532C0284CAE5D25924C9CC4A7DEAAA62A4AD30D2;
+extern const uint32_t g_rgctx_TaskPool_1_t968E6AD8E6141DE68BFA7577EBA53136E4D20248;
+extern const uint32_t g_rgctx_AsyncOperationHandleConfiguredSource_1_t532C0284CAE5D25924C9CC4A7DEAAA62A4AD30D2;
+extern const uint32_t g_rgctx_TaskPool_1_get_Size_m102D1217CACB1851C04FFCD6EA2EC130DF738457;
+extern const uint32_t g_rgctx_TaskPool_1_t968E6AD8E6141DE68BFA7577EBA53136E4D20248;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_t317592F105AFCCDD2C024D8C27A8EFF104728CCA;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_IsValid_mB0886E6FC7F8AF2721123ED2D41244F0D287D336;
+extern const uint32_t g_rgctx_AsyncOperationHandle_1_t317592F105AFCCDD2C024D8C27A8EFF104728CCA;
+extern const uint32_t g_rgctx_Addressables_Release_TisT_tB1B8502D00065E4A58C93C3B7A45C02596E2BC9B_m4E47A7D08C731D28C913D2A5ECE6709C60F64F1D;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_t16854BA118ED80F206E0CDC2C2321AB0CC3BBDA5;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_TrySetCanceled_m0B8423338DE658C0293DDA258691B81BCE71E8DD;
+extern const uint32_t g_rgctx_UniTaskCompletionSourceCore_1_t16854BA118ED80F206E0CDC2C2321AB0CC3BBDA5;
+static const Il2CppRGCTXDefinition s_rgctxValues[84] = 
+{
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_t6353B3E12392DE41EB45003035314D4D82377146 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AddressablesAsyncExtensions_ToUniTask_TisT_t31A6B381994CB37CEC2AB502742D92CD2CB47B21_mFF21C10BD5F0DED532FCAF2754B5510CB161E8B5 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTask_1_tCC23BC746963B9C9E22EDCA45406FDA7DA0AD91C },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTask_1_GetAwaiter_m242CF9BFC224A539CBCBDB9C9E5DDBDF623944FD },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTask_1_tCC23BC746963B9C9E22EDCA45406FDA7DA0AD91C },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_Awaiter_t65580F8C19618210A6287C41EE5C5DC7AA1B81F5 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_t0080927C7A08CE5F88964407B898EA1A8C802575 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AddressablesAsyncExtensions_ToUniTask_TisT_tF1FF61ACF1D5F519565BB1E6A74EA8A911375F0A_mEC6A8005A8806C6D09E86CA5A182E342D4D67C22 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTask_1_t7070E47AF4C8ACABA12C1A88B6B10873A756609D },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTask_FromCanceled_TisT_t213C121A494A12F99C0733DDCF8AC3F231E8C89B_mE15CDB86E8AB9CE5731E6E08987E73BFC849BD8F },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTask_1_t0E5DC16591FFE27D290F56F1D0E61EA95A45B5C8 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_tED48D365007D2A9B791C10C038B59ADADBEEB32E },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_IsValid_m9084813F999280636CC18B0A9599EECC2DB727CB },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_tED48D365007D2A9B791C10C038B59ADADBEEB32E },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_IsDone_mACB2F7D5FEB8E89AC714D54857D56C5CBB88C144 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_Status_mE2F0319DE2B5FE4480DC81B2461F30B915F92142 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_OperationException_m83478A727CBCC0F5456824FC5DC69C66F2B621C2 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTask_FromException_TisT_t213C121A494A12F99C0733DDCF8AC3F231E8C89B_mCA636DAF99959633684A10148CCAD616C645386A },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_Result_m9FC296A59EF947D7ED0AE6962D336606F0713A68 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_T_t213C121A494A12F99C0733DDCF8AC3F231E8C89B },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTask_FromResult_TisT_t213C121A494A12F99C0733DDCF8AC3F231E8C89B_m6C045DC2303907A9CFD8476AE0851D795DC956E5 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_Create_mB5F6AD219D39B7EDFB41CA3112F63B2A724A1D9E },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_t674B2BDAA3A039B66371D8AF02A5517A67EDEE28 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_IUniTaskSource_1_t471CD10C661E7400F5540F0B735C61D69E608D37 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTask_1__ctor_m4BD7896CE28277E81751ED390533FF4EBC667483 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_t6C0FF7C26ED4B49E1A568441730B9AAC581BE4C2 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1U26_t40A4225DE23789769D11C9DB6634FC61CDD1FAE7 },
+	{ (Il2CppRGCTXDataType)1, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_t6C0FF7C26ED4B49E1A568441730B9AAC581BE4C2 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_U3CU3Ec_tDC0DF7A866A1932A73564D2747F78F15E08F44AC },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_U3CU3Ec_tDC0DF7A866A1932A73564D2747F78F15E08F44AC },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_U3CU3Ec_U3C_cctorU3Eb__4_0_mD5A8CADCFEE2BCD504A66B7CABCBF5720323AB94 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_HandleCompleted_mDAF947D82314A9CE2B8698E195D4545C2DEFCE85 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_Action_1_t9D0A404D894B7D1EE8B83E6BC34C66F6D4027A84 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_Action_1__ctor_m92FC7720290E13A741B8182A921DAF4E245E8E19 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AutoResetUniTaskCompletionSource_1_CreateFromCanceled_mE049A968640026D4BCFAF3D281A2E0E786F0B500 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AutoResetUniTaskCompletionSource_1_t035F1D752F3CA01E8D3783835C4C9DB170F2BA17 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AutoResetUniTaskCompletionSource_1_t035F1D752F3CA01E8D3783835C4C9DB170F2BA17 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_TaskPool_1_tC141CABA944DAB94B87683076CD8D0F9FC2DEF76 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_t6C0FF7C26ED4B49E1A568441730B9AAC581BE4C2 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_TaskPool_1_TryPop_m25319C8A40E7FB5A51515EA19E140DC1A4FED516 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_TaskPool_1_tC141CABA944DAB94B87683076CD8D0F9FC2DEF76 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1__ctor_m54E4581835C50B7FE39BF7E800E0E00E999DC4E8 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_t91B9EBEC30170736194FAFCC49C7EF8470621199 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_U3CU3Ec_U3CCreateU3Eb__15_0_m000A5BE87144B3C8AA1551FAAF877302D05C4F9B },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_add_Completed_m4C68A040F379F145E901C555A3C840BAC6AFFE2D },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_t91B9EBEC30170736194FAFCC49C7EF8470621199 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_t79BADE12D32E0CEA7E60015A00F27CCFE83363E6 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_get_Version_m1972343DBB3982ACE2C3521ED80B065FD3A4C28C },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_t79BADE12D32E0CEA7E60015A00F27CCFE83363E6 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_IUniTaskSource_1_t0CF314FEFCE1550C2A64121ED348789905898023 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_IsValid_m8BF122DB485B217379B90DCE47902CF48840B6CC },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_remove_Completed_m0B149C5631AAF968037AB8D2FCEC34F5C91640DA },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_Addressables_Release_TisT_t51129C6F9CFC10FE16BD194D3D0E37C9B9377E84_mB9A783737761EFA735C1E0F051A1613CB5C6E62B },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_TrySetCanceled_m9E78A86195597A9D110352013DC8C31202658F53 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_Status_m55CC20551D753A3E355969D6533F75E1F3534061 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_OperationException_m320AC2CFE10D3DC3FB3B576799063A94AF6F6A36 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_TrySetException_m8CF7D0DA7CD8A9E156C3BEA00331C21522EEF688 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_get_Result_mF070BEB52BFF6C5D23FFAD8862547A409C6F545C },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_T_t51129C6F9CFC10FE16BD194D3D0E37C9B9377E84 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_TrySetResult_mC63981B8500CBC5772A9345C367F0F296E16D44B },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_GetResult_mCAB7B2833982A8BD1E27D9913F68E2E8E9D82E90 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_TryReturn_m88342E7922BB7CD0A683FAE163AAF1DB436FF6FB },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_GetResult_mD8092BFF775E625ED2F7C2F4D152E451B4B521E4 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_GetStatus_mE2E07AEDB2A4EDCBCB8EFBE08E8972BF0B1E3D2C },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_UnsafeGetStatus_mE41B1C544487356A173BFC90E1D2F2FB06DE0B8A },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_OnCompleted_mE13CD9ABD62CEFA0204A6B786D63F276645D60F0 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_GetDownloadStatus_m02193D5CD0576481EA0D390237414F0BCCF084B8 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_Reset_mE97800597134654011B48ED06DFAC2456E3B5FCB },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_TaskPool_1_TryPush_mC77C53D27F6E3C7AE783D0CE5FCC2355E2EAEAE8 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_U3CU3Ec_tBD4F459652D549FD58C09DD26A85D4BFA523127E },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_U3CU3Ec__ctor_mE12959514B1C14E0D2C59A281DBE624A11E72B0C },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_U3CU3Ec_tBD4F459652D549FD58C09DD26A85D4BFA523127E },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_t532C0284CAE5D25924C9CC4A7DEAAA62A4AD30D2 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_TaskPool_1_t968E6AD8E6141DE68BFA7577EBA53136E4D20248 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandleConfiguredSource_1_t532C0284CAE5D25924C9CC4A7DEAAA62A4AD30D2 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_TaskPool_1_get_Size_m102D1217CACB1851C04FFCD6EA2EC130DF738457 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_TaskPool_1_t968E6AD8E6141DE68BFA7577EBA53136E4D20248 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_t317592F105AFCCDD2C024D8C27A8EFF104728CCA },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_AsyncOperationHandle_1_IsValid_mB0886E6FC7F8AF2721123ED2D41244F0D287D336 },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_AsyncOperationHandle_1_t317592F105AFCCDD2C024D8C27A8EFF104728CCA },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_Addressables_Release_TisT_tB1B8502D00065E4A58C93C3B7A45C02596E2BC9B_m4E47A7D08C731D28C913D2A5ECE6709C60F64F1D },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_t16854BA118ED80F206E0CDC2C2321AB0CC3BBDA5 },
+	{ (Il2CppRGCTXDataType)3, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_TrySetCanceled_m0B8423338DE658C0293DDA258691B81BCE71E8DD },
+	{ (Il2CppRGCTXDataType)2, (const void *)&g_rgctx_UniTaskCompletionSourceCore_1_t16854BA118ED80F206E0CDC2C2321AB0CC3BBDA5 },
+};
+IL2CPP_EXTERN_C const Il2CppCodeGenModule g_UniTask_Addressables_CodeGenModule;
+const Il2CppCodeGenModule g_UniTask_Addressables_CodeGenModule = 
+{
+	"UniTask.Addressables.dll",
+	44,
+	s_methodPointers,
+	5,
+	s_adjustorThunks,
+	s_InvokerIndices,
+	0,
+	NULL,
+	5,
+	s_rgctxIndices,
+	84,
+	s_rgctxValues,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+};

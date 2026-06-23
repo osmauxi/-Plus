@@ -1,0 +1,121 @@
+﻿#include "pch-c.h"
+#ifndef _MSC_VER
+# include <alloca.h>
+#else
+# include <malloc.h>
+#endif
+
+
+#include "codegen/il2cpp-codegen-metadata.h"
+
+
+
+
+
+extern void UnitySourceGeneratedAssemblyMonoScriptTypes_v1_Get_m5D16D45E3A352E765C3DB9F4C59E6F7A759C5213 (void);
+extern void UnitySourceGeneratedAssemblyMonoScriptTypes_v1__ctor_m1AA9BAF54B03419DE91AED6459B4E9C1A81C0F89 (void);
+extern void BootstrapRunner_Start_mEE3A0FB9C68480499E574560189D1711DD319818 (void);
+extern void BootstrapRunner_StartPipelineAsync_m3461D1F908FA8D19EDE3C96270834B7D44BB16CC (void);
+extern void BootstrapRunner_DownloadDependencies_m5A02820ED6ABE872CCAA5008C0820983AD9D0DB8 (void);
+extern void BootstrapRunner_LoadMetadataForAOTAssemblies_mDBF97A820CAF1F4247C11860D85264D0FCCA9A66 (void);
+extern void BootstrapRunner_LoadHotFixAssembly_m9EAA841E36F3C203CE56BB090F3E08F54D2AF1CF (void);
+extern void BootstrapRunner_EnterGame_m2FF1D15AFD3FEA5C9D4A37C01E0727BCFA905D1E (void);
+extern void BootstrapRunner__ctor_m5E845AE792DF09E85E8D7AD84FCE2C6084AB16B8 (void);
+extern void U3CDownloadDependenciesU3Ed__5_MoveNext_mE1FDD7ECE3F31C470BA1ABBB2CCF12FA939C9795 (void);
+extern void U3CDownloadDependenciesU3Ed__5_SetStateMachine_m4225626A867920715D8D213EB9765B10497B5649 (void);
+extern void U3CLoadHotFixAssemblyU3Ed__7_MoveNext_m1D2FFB12E5396EF033747F0B311978F4FCA1D8CE (void);
+extern void U3CLoadHotFixAssemblyU3Ed__7_SetStateMachine_m22C4133DB84CC009DB510E99C21A4F4D681CB144 (void);
+extern void U3CLoadMetadataForAOTAssembliesU3Ed__6_MoveNext_m219AECFB80C7B048B53578863BD2BEE8E5A47039 (void);
+extern void U3CLoadMetadataForAOTAssembliesU3Ed__6_SetStateMachine_mCC70A007FB420B2989D95F9F8DE6ED760B297245 (void);
+extern void U3CStartU3Ed__3_MoveNext_m815138702E0303903B89EE395E56CB3422BF494D (void);
+extern void U3CStartU3Ed__3_SetStateMachine_mA06AB9CAE19444FBF6FB5CFD158298B5EDA648C4 (void);
+extern void U3CStartPipelineAsyncU3Ed__4_MoveNext_m516394A2E674E4B75876774B47CFEEDC49552706 (void);
+extern void U3CStartPipelineAsyncU3Ed__4_SetStateMachine_m009A48298C113370C78715C111B60F41D0F6DB49 (void);
+static Il2CppMethodPointer s_methodPointers[19] = 
+{
+	UnitySourceGeneratedAssemblyMonoScriptTypes_v1_Get_m5D16D45E3A352E765C3DB9F4C59E6F7A759C5213,
+	UnitySourceGeneratedAssemblyMonoScriptTypes_v1__ctor_m1AA9BAF54B03419DE91AED6459B4E9C1A81C0F89,
+	BootstrapRunner_Start_mEE3A0FB9C68480499E574560189D1711DD319818,
+	BootstrapRunner_StartPipelineAsync_m3461D1F908FA8D19EDE3C96270834B7D44BB16CC,
+	BootstrapRunner_DownloadDependencies_m5A02820ED6ABE872CCAA5008C0820983AD9D0DB8,
+	BootstrapRunner_LoadMetadataForAOTAssemblies_mDBF97A820CAF1F4247C11860D85264D0FCCA9A66,
+	BootstrapRunner_LoadHotFixAssembly_m9EAA841E36F3C203CE56BB090F3E08F54D2AF1CF,
+	BootstrapRunner_EnterGame_m2FF1D15AFD3FEA5C9D4A37C01E0727BCFA905D1E,
+	BootstrapRunner__ctor_m5E845AE792DF09E85E8D7AD84FCE2C6084AB16B8,
+	U3CDownloadDependenciesU3Ed__5_MoveNext_mE1FDD7ECE3F31C470BA1ABBB2CCF12FA939C9795,
+	U3CDownloadDependenciesU3Ed__5_SetStateMachine_m4225626A867920715D8D213EB9765B10497B5649,
+	U3CLoadHotFixAssemblyU3Ed__7_MoveNext_m1D2FFB12E5396EF033747F0B311978F4FCA1D8CE,
+	U3CLoadHotFixAssemblyU3Ed__7_SetStateMachine_m22C4133DB84CC009DB510E99C21A4F4D681CB144,
+	U3CLoadMetadataForAOTAssembliesU3Ed__6_MoveNext_m219AECFB80C7B048B53578863BD2BEE8E5A47039,
+	U3CLoadMetadataForAOTAssembliesU3Ed__6_SetStateMachine_mCC70A007FB420B2989D95F9F8DE6ED760B297245,
+	U3CStartU3Ed__3_MoveNext_m815138702E0303903B89EE395E56CB3422BF494D,
+	U3CStartU3Ed__3_SetStateMachine_mA06AB9CAE19444FBF6FB5CFD158298B5EDA648C4,
+	U3CStartPipelineAsyncU3Ed__4_MoveNext_m516394A2E674E4B75876774B47CFEEDC49552706,
+	U3CStartPipelineAsyncU3Ed__4_SetStateMachine_m009A48298C113370C78715C111B60F41D0F6DB49,
+};
+extern void U3CDownloadDependenciesU3Ed__5_MoveNext_mE1FDD7ECE3F31C470BA1ABBB2CCF12FA939C9795_AdjustorThunk (void);
+extern void U3CDownloadDependenciesU3Ed__5_SetStateMachine_m4225626A867920715D8D213EB9765B10497B5649_AdjustorThunk (void);
+extern void U3CLoadHotFixAssemblyU3Ed__7_MoveNext_m1D2FFB12E5396EF033747F0B311978F4FCA1D8CE_AdjustorThunk (void);
+extern void U3CLoadHotFixAssemblyU3Ed__7_SetStateMachine_m22C4133DB84CC009DB510E99C21A4F4D681CB144_AdjustorThunk (void);
+extern void U3CLoadMetadataForAOTAssembliesU3Ed__6_MoveNext_m219AECFB80C7B048B53578863BD2BEE8E5A47039_AdjustorThunk (void);
+extern void U3CLoadMetadataForAOTAssembliesU3Ed__6_SetStateMachine_mCC70A007FB420B2989D95F9F8DE6ED760B297245_AdjustorThunk (void);
+extern void U3CStartU3Ed__3_MoveNext_m815138702E0303903B89EE395E56CB3422BF494D_AdjustorThunk (void);
+extern void U3CStartU3Ed__3_SetStateMachine_mA06AB9CAE19444FBF6FB5CFD158298B5EDA648C4_AdjustorThunk (void);
+extern void U3CStartPipelineAsyncU3Ed__4_MoveNext_m516394A2E674E4B75876774B47CFEEDC49552706_AdjustorThunk (void);
+extern void U3CStartPipelineAsyncU3Ed__4_SetStateMachine_m009A48298C113370C78715C111B60F41D0F6DB49_AdjustorThunk (void);
+static Il2CppTokenAdjustorThunkPair s_adjustorThunks[10] = 
+{
+	{ 0x0600000A, U3CDownloadDependenciesU3Ed__5_MoveNext_mE1FDD7ECE3F31C470BA1ABBB2CCF12FA939C9795_AdjustorThunk },
+	{ 0x0600000B, U3CDownloadDependenciesU3Ed__5_SetStateMachine_m4225626A867920715D8D213EB9765B10497B5649_AdjustorThunk },
+	{ 0x0600000C, U3CLoadHotFixAssemblyU3Ed__7_MoveNext_m1D2FFB12E5396EF033747F0B311978F4FCA1D8CE_AdjustorThunk },
+	{ 0x0600000D, U3CLoadHotFixAssemblyU3Ed__7_SetStateMachine_m22C4133DB84CC009DB510E99C21A4F4D681CB144_AdjustorThunk },
+	{ 0x0600000E, U3CLoadMetadataForAOTAssembliesU3Ed__6_MoveNext_m219AECFB80C7B048B53578863BD2BEE8E5A47039_AdjustorThunk },
+	{ 0x0600000F, U3CLoadMetadataForAOTAssembliesU3Ed__6_SetStateMachine_mCC70A007FB420B2989D95F9F8DE6ED760B297245_AdjustorThunk },
+	{ 0x06000010, U3CStartU3Ed__3_MoveNext_m815138702E0303903B89EE395E56CB3422BF494D_AdjustorThunk },
+	{ 0x06000011, U3CStartU3Ed__3_SetStateMachine_mA06AB9CAE19444FBF6FB5CFD158298B5EDA648C4_AdjustorThunk },
+	{ 0x06000012, U3CStartPipelineAsyncU3Ed__4_MoveNext_m516394A2E674E4B75876774B47CFEEDC49552706_AdjustorThunk },
+	{ 0x06000013, U3CStartPipelineAsyncU3Ed__4_SetStateMachine_m009A48298C113370C78715C111B60F41D0F6DB49_AdjustorThunk },
+};
+static const int32_t s_InvokerIndices[19] = 
+{
+	21872,
+	13247,
+	13247,
+	13224,
+	9638,
+	13224,
+	12743,
+	10505,
+	13247,
+	13247,
+	10505,
+	13247,
+	10505,
+	13247,
+	10505,
+	13247,
+	10505,
+	13247,
+	10505,
+};
+IL2CPP_EXTERN_C const Il2CppCodeGenModule g_AOT_Bootstrap_CodeGenModule;
+const Il2CppCodeGenModule g_AOT_Bootstrap_CodeGenModule = 
+{
+	"AOT_Bootstrap.dll",
+	19,
+	s_methodPointers,
+	10,
+	s_adjustorThunks,
+	s_InvokerIndices,
+	0,
+	NULL,
+	0,
+	NULL,
+	0,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+};

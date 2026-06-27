@@ -27,16 +27,12 @@ namespace ProjectGame.HotFix.UI.Lobby
             _view.OnPrevClicked += () => SwitchWeapon(-1);
             _view.OnNextClicked += () => SwitchWeapon(1);
             _view.OnConfirmClicked += HandleConfirm;
+
         }
 
         private void InitMockData()
         {
-            _availableWeapons = new List<WeaponInfo>
-            {
-                new WeaponInfo { Id = 2001, Name = "极寒之牙", Description = "散发着极寒气息的狙击枪，一发入魂。", Power = 0.9f, Speed = 0.2f },
-                new WeaponInfo { Id = 2002, Name = "红莲战斧", Description = "近战暴力美学，灼烧一切敌人。", Power = 0.8f, Speed = 0.5f },
-                new WeaponInfo { Id = 2003, Name = "脉冲冲锋枪", Description = "极致射速，弹雨风暴。", Power = 0.4f, Speed = 0.9f }
-            };
+
         }
 
         // =========================================================

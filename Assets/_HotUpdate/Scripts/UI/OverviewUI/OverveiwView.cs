@@ -8,26 +8,36 @@ namespace ProjectGame.HotFix.UI.Lobby
     public class OverviewView : MonoBehaviour
     {
         [Header("核心交互区")]
-        [SerializeField] private Button _readyButton;
+        [SerializeField] private MainActionButtonView _readyButton;
         [SerializeField] private TMP_Text _readyBtnText;
+        [SerializeField] private MainActionButtonView _joinButton;
 
         [Header("个人配装区")]
-        [SerializeField] private Button _weaponSelectButton;
-        [SerializeField] private TMP_Text _currentWeaponText;
+        [SerializeField] private EquipmentSlotView[] _equipmentSlots;
 
         [Header("系统辅助区")]
-        [SerializeField] private Button _settingsButton;
+        [SerializeField] private MainActionButtonView _settingsButton;
 
         public event Action OnReadyClicked;
+        public event Action OnJoinedClicked;
         public event Action OnWeaponSelectClicked;
         public event Action OnSettingsClicked;
+        public event Action<int> OnEquipmentSlotClicked;
+
 
         private void Awake()
         {
-            // 内部消化 UI 监听，转化为纯逻辑事件
-            _readyButton.onClick.AddListener(() => OnReadyClicked?.Invoke());
-            _weaponSelectButton.onClick.AddListener(() => OnWeaponSelectClicked?.Invoke());
-            _settingsButton.onClick.AddListener(() => OnSettingsClicked?.Invoke());
+            _readyButton.OnClicked += () => OnReadyClicked?.Invoke();
+            _joinButton.OnClicked += () => OnWeaponSelectClicked?.Invoke();
+            _settingsButton.OnClicked += () => OnSettingsClicked?.Invoke();
+
+            if (_equipmentSlots != null)
+            {
+                foreach (var slot in _equipmentSlots)
+                {
+                    slot.OnSlotClicked += (index) => OnEquipmentSlotClicked?.Invoke(index);
+                }
+            }
         }
 
         public void SetReadyState(bool isReady)
@@ -44,9 +54,6 @@ namespace ProjectGame.HotFix.UI.Lobby
             }
         }
 
-        public void SetWeaponInfo(int weaponId)
-        {
-            _currentWeaponText.text = $"当前配装: 武器 [{weaponId}]";
-        }
+       
     }
 }

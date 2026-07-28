@@ -54,7 +54,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
     [MenuItem("Tools/数据管线")]
     public static void ShowWindow()
     {
-        //它会去编辑器里找有没有打开的“数据管线引擎”的面板，如果有，就把焦点切过去；
+        //它会去编辑器里找有没有打开的"数据管线引擎"的面板，如果有，就把焦点切过去；
         //如果没有，就在内存里new一个该类的实例并弹出一个新窗口。
         //OnGUI方法就是这个窗口的核心绘制函数，Unity会在窗口需要重绘时自动调用它。
         GetWindow<ExcelToMessagePackGenerator>("数据管线引擎");
@@ -116,8 +116,39 @@ public class ExcelToMessagePackGenerator : EditorWindow
             "• 仅修改了业务 C# 代码：按 <b>4</b> 即可。", helpStyle);
     }
 
+    /// <summary>
+    /// 清理指定目录下匹配模式的所有旧文件（在重新生成前调用，避免Excel中删除/重命名工作表后残留过时代码导致编译报错）
+    /// </summary>
+    private void CleanGeneratedFiles(string directory, string pattern)
+    {
+        if (!Directory.Exists(directory)) return;
+        string[] files = Directory.GetFiles(directory, pattern);
+        if (files.Length > 0)
+        {
+            foreach (string file in files)
+            {
+                File.Delete(file);
+                Debug.Log($"[清理] 已删除旧文件: {Path.GetFileName(file)}");
+            }
+        }
+    }
+
     private void ProcessExcels(bool generateCS, bool exportBytes)
     {
+        //每次扫描前清空类名列表，避免删除的Excel工作表残留无效case
+        validClassNames.Clear();
+
+        // 清理旧产物，避免Excel中删除/重命名工作表后残留过时的代码文件导致编译报错
+        if (generateCS)
+        {
+            CleanGeneratedFiles(csOutputFolderPath, "Config_*.cs");
+            CleanGeneratedFiles(csOutputFolderPath, "ConfigRegister.cs");
+        }
+        if (exportBytes)
+        {
+            CleanGeneratedFiles(bytesOutputFolderPath, "Config_*.bytes");
+        }
+
         //ExcelDataReader需要这个才能正确处理 Excel 文件的编码问题，尤其是中文路径或内容
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         //获取指定目录下所有的.xlsx文件

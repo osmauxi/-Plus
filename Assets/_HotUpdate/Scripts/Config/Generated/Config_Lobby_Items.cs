@@ -1,0 +1,32 @@
+﻿using System;
+using MessagePack;
+using System.Collections.Generic;
+
+[MessagePackObject]
+public class Config_Lobby_Items
+{
+    /// <summary> 道具ID </summary>
+    [Key(0)]
+    public int ItemID;
+
+    /// <summary> 道具名称 </summary>
+    [Key(1)]
+    public string Name;
+
+    /// <summary> 模型名称 </summary>
+    [Key(2)]
+    public string ModleName;
+
+    /// <summary> 图标名称 </summary>
+    [Key(3)]
+    public string IconName;
+
+    /// <summary> 道具描述 </summary>
+    [Key(4)]
+    public string Description;
+
+    /// <summary> 物品生成锚点 </summary>
+    [Key(5)]
+    public int ItemSpawnSlot;
+
+}

@@ -18,6 +18,18 @@ namespace ProjectGame.HotFix.Config
                     var dict_Config_Item = MessagePackSerializer.Deserialize<Dictionary<int, Config_Item>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_Item);
                     break;
+                case "Config_Lobby_Skins":
+                    var dict_Config_Lobby_Skins = MessagePackSerializer.Deserialize<Dictionary<int, Config_Lobby_Skins>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Lobby_Skins);
+                    break;
+                case "Config_Lobby_Weapons":
+                    var dict_Config_Lobby_Weapons = MessagePackSerializer.Deserialize<Dictionary<int, Config_Lobby_Weapons>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Lobby_Weapons);
+                    break;
+                case "Config_Lobby_Items":
+                    var dict_Config_Lobby_Items = MessagePackSerializer.Deserialize<Dictionary<int, Config_Lobby_Items>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Lobby_Items);
+                    break;
                 default:
                     Debug.LogWarning($"[ConfigRegister] 未知的配置表名: {addressableName}，检查Address标签是否打错");
                     break;

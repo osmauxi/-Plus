@@ -2,44 +2,62 @@
 using UnityEditor;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
+
 public class MessagePackCompilerTool
 {
     public static void GenerateMPC()
     {
-        //获取项目根目录 (也就是 Assets 文件夹的上一级)
-        //string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+        // 获取项目根目录（Assets 的上一级）
+        string projectRoot = Directory.GetParent(Application.dataPath).FullName;
 
-        //string inputPath = Path.Combine(projectRoot, "_HotUpdate.Config.csproj");
-        string inputPath = Application.dataPath + "/_HotUpdate/Scripts/Config/Generated";
+        // 输入目录：生成的 Config C# 脚本所在位置
+        string inputPath = Path.Combine(Application.dataPath, "_HotUpdate", "Scripts", "Config", "Generated");
 
-        //输出路径：把生成的静态解析器文件，也放在 HotFix 目录下参与热更编译
-        string outputPath = Application.dataPath + "/_HotUpdate/Scripts/Config/MessagePackGenerated.cs";
+        // 输出文件：生成的静态解析器，放在 HotFix 目录下参与热更编译
+        string outputPath = Path.Combine(Application.dataPath, "_HotUpdate", "Scripts", "Config", "MessagePackGenerated.cs");
 
-        //组装mpc命令行指令                                          
-        //-i表示输入目录，-o表示输出文件
-        string arguments = $"/c mpc -i \"{inputPath}\" -o \"{outputPath}\" -n ProjectGame.HotFix.Resolvers";
+        // 清理旧的生成文件，避免残留过时代码导致编译报错
+        if (File.Exists(outputPath))
+        {
+            File.Delete(outputPath);
+            UnityEngine.Debug.Log($"[清理] 已删除旧的 MessagePackGenerated.cs，准备重新生成");
+        }
 
-        UnityEngine.Debug.Log($"[MPC] 正在执行命令: cmd.exe {arguments}");
+        // mpc 的可执行文件路径（dotnet 全局工具）
+#if UNITY_EDITOR_WIN
+        string mpcPath = Path.Combine(
+            System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile),
+            ".dotnet", "tools", "mpc.exe");
+#else
+        string mpcPath = "mpc";
+#endif
 
-        //在后台静默调用系统终端
+        // 组装 mpc 命令行参数
+        // -i 指定输入目录，-o 指定输出文件，-n 指定命名空间
+        string arguments = $"-i \"{inputPath}\" -o \"{outputPath}\" -n ProjectGame.HotFix.Resolvers";
+
+        UnityEngine.Debug.Log($"[MPC] 执行命令: {mpcPath} {arguments}");
+
         ProcessStartInfo startInfo = new ProcessStartInfo()
         {
-            FileName = "cmd.exe",
+            FileName = mpcPath,
             Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            CreateNoWindow = true
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            CreateNoWindow = true,
+            WorkingDirectory = projectRoot
         };
 
         using (Process process = Process.Start(startInfo))
         {
-            // 读取输出
             string output = process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
-            // 0 代表系统层面执行成功
             if (process.ExitCode == 0)
             {
                 UnityEngine.Debug.Log("<color=green>[MPC] AOT 静态代码生成成功！无惧 IL2CPP！</color>\n" + output);
@@ -47,8 +65,7 @@ public class MessagePackCompilerTool
             }
             else
             {
-                // 打印详细双端日志，让报错无处遁形
-                UnityEngine.Debug.LogError($"[MPC] 生成失败\n【错误日志】: {error}\n【输出日志】: {output}");
+                UnityEngine.Debug.LogError($"[MPC] 生成失败 (ExitCode: {process.ExitCode})\n【错误日志】: {error}\n【输出日志】: {output}");
             }
         }
     }

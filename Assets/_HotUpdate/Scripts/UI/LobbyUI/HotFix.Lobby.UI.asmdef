@@ -1,0 +1,30 @@
+{
+    "name": "HotFix.Lobby.UI",
+    "rootNamespace": "",
+    "references": [
+        "HotFix.Lobby.Network",
+        "HotFix.Lobby.World",
+        "HotFix.Settings",
+        "GUID:4307f53044263cf4b835bd812fc161a4",
+        "GUID:1491147abca9d7d4bb7105af628b223e",
+        "GUID:9e24947de15b9834991c9d8411ea37cf",
+        "GUID:84651a3751eca9349aac36a66bba901b",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:6055be8ebefd69e48b49212b09b47b2f",
+        "GUID:e0cd26848372d4e5c891c569017e11f1",
+        "GUID:63b4756c73ea6694e8d0d46b4d1bb197",
+        "GUID:d403b56ef9a3aea40ae307fab3e5e834",
+        "GUID:f2d49d9fa7e7eb3418e39723a7d3b92f",
+        "GUID:75469ad4d38634e559750d17036d5f7c",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

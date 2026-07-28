@@ -1,0 +1,24 @@
+{
+    "name": "HotFix.Lobby.World",
+    "rootNamespace": "",
+    "references": [
+        "HotFix.Lobby.Network",
+        "GUID:d403b56ef9a3aea40ae307fab3e5e834",
+        "GUID:1491147abca9d7d4bb7105af628b223e",
+        "GUID:e0cd26848372d4e5c891c569017e11f1",
+        "GUID:9e24947de15b9834991c9d8411ea37cf",
+        "GUID:84651a3751eca9349aac36a66bba901b",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:6055be8ebefd69e48b49212b09b47b2f",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

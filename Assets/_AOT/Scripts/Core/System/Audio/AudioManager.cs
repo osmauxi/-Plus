@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Audio;
 
 public enum BGMType { Title, Gameplay, Boss, Victory }
 
@@ -36,6 +37,10 @@ public class AudioManager : MonoBehaviour
     [Header("音频配置")]
     [SerializeField] private AudioConfigSO audioConfig;
 
+    private AudioMixer runtimeAudioMixer;
+    private AudioMixerGroup musicMixerGroup;
+    private AudioMixerGroup sfxMixerGroup;
+
     private AudioPool sfxPool;
     private float currentBGMVolume;
     private float currentSFXVolume;
@@ -68,8 +73,15 @@ public class AudioManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 创建音频源、连接 Mixer Group 并恢复 AudioManager 自身状态。
+    /// </summary>
     private void Initialize()
     {
+        runtimeAudioMixer = Resources.Load<AudioMixer>("Audio/LobbyAudioMixer");
+        musicMixerGroup = runtimeAudioMixer.FindMatchingGroups("Music")[0];
+        sfxMixerGroup = runtimeAudioMixer.FindMatchingGroups("SFX")[0];
+
         if (titleBGMSource == null)
         {
             GameObject titleObj = new GameObject("TitleBGMSource");
@@ -89,12 +101,14 @@ public class AudioManager : MonoBehaviour
         }
 
         bgmSource = titleBGMSource;
+        titleBGMSource.outputAudioMixerGroup = musicMixerGroup;
+        gameplayBGMSource.outputAudioMixerGroup = musicMixerGroup;
 
         LoadSettings();
         titleBGMSource.volume = isBGMMuted ? 0f : currentBGMVolume;
         gameplayBGMSource.volume = isBGMMuted ? 0f : currentBGMVolume;
 
-        sfxPool = new AudioPool(sfxPoolSize, transform);
+        sfxPool = new AudioPool(sfxPoolSize, transform, sfxMixerGroup);
         sfxPool.SetMasterVolume(isSFXMuted ? 0f : currentSFXVolume);
 
         LocalEventCenter.Instance.AddEventListener<float>("OnBGMVolumeChanged", HandleBGMVolumeChanged);

@@ -465,6 +465,7 @@ IL2CPP_EXTERN_C RuntimeClass* Exception_t_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* FastBufferWriter_tE6AFE9436BD125AF309056A81B70F95625FB96EC_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* Func_2_t9E0E64156B6C6D11E7637D1AB92AE279580431B1_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* Func_2_tCC2A29050F36A7F78CF277882751E9AAA1C6802B_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* Guid_t_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* HashSet_1_t4CB93F2D8A0CA74AB045A363BEAA451C9E5C4337_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* IDisposable_t030E0496B4E0E4E4F086825007979AF51F7248C5_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* IEnumerable_1_t0AC4B0264C90B43D2F1B3B68095F5A35E8750525_il2cpp_TypeInfo_var;
@@ -21280,6 +21281,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void SceneEventData__ctor_m3CAE02A05FBCC8D27E
 	{
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Dictionary_2__ctor_m15C61D94CB57C61D512E992D46E46E0D79874DF4_RuntimeMethod_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Dictionary_2_t22725CCB6FBB02934C66017A19716A9B785A516B_il2cpp_TypeInfo_var);
+		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Guid_t_il2cpp_TypeInfo_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&List_1__ctor_m29BEDE660794161B463CE980419121848921671C_RuntimeMethod_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&List_1__ctor_mF2D5F7FEA18D35CB454DEAD52957C316652549B9_RuntimeMethod_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&List_1_t77ED838FA3E673D6D8B49578EE1F27A0836DE6A9_il2cpp_TypeInfo_var);
@@ -21309,6 +21311,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void SceneEventData__ctor_m3CAE02A05FBCC8D27E
 		NetworkManager_t3C1F76E0C1B39BB363D1C5C7667A5CC90A6CE468* L_4 = ___0_networkManager;
 		__this->___m_NetworkManager = L_4;
 		Il2CppCodeGenWriteBarrier((void**)(&__this->___m_NetworkManager), (void*)L_4);
+		il2cpp_codegen_runtime_class_init_inline(Guid_t_il2cpp_TypeInfo_var);
 		Guid_t L_5;
 		L_5 = Guid_NewGuid_m1F4894E8DC089811D6252148AD5858E58D43A7BD(NULL);
 		V_0 = L_5;
@@ -21686,6 +21689,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void SceneEventProgress__ctor_mA49620B3797107
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Dictionary_2_Add_mB44298AF06C76A9B8AF73F2FE9179AA4ADF4EE4F_RuntimeMethod_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Dictionary_2__ctor_m5B5EA7D3D65587773B9AF276CA710120C525DE70_RuntimeMethod_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Dictionary_2_t9F1806E717860146F88E53EA3FA844A5B8AE4EC5_il2cpp_TypeInfo_var);
+		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Guid_t_il2cpp_TypeInfo_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&IDisposable_t030E0496B4E0E4E4F086825007979AF51F7248C5_il2cpp_TypeInfo_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&IEnumerable_1_t0AC4B0264C90B43D2F1B3B68095F5A35E8750525_il2cpp_TypeInfo_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&IEnumerator_1_tE07B98951C528DCEC133D87CFB6966101285E71E_il2cpp_TypeInfo_var);
@@ -21707,6 +21711,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void SceneEventProgress__ctor_mA49620B3797107
 		List_1__ctor_m29BEDE660794161B463CE980419121848921671C(L_1, List_1__ctor_m29BEDE660794161B463CE980419121848921671C_RuntimeMethod_var);
 		__this->___ClientsThatDisconnected = L_1;
 		Il2CppCodeGenWriteBarrier((void**)(&__this->___ClientsThatDisconnected), (void*)L_1);
+		il2cpp_codegen_runtime_class_init_inline(Guid_t_il2cpp_TypeInfo_var);
 		Guid_t L_2;
 		L_2 = Guid_NewGuid_m1F4894E8DC089811D6252148AD5858E58D43A7BD(NULL);
 		__this->___U3CGuidU3Ek__BackingField = L_2;
@@ -27245,7 +27250,7 @@ IL2CPP_MANAGED_FORCE_INLINE IL2CPP_METHOD_ATTR uint32_t XXHash_Hash32_mDAC30AB83
 		String_t* L_1 = ___0_text;
 		NullCheck(L_0);
 		ByteU5BU5D_tA6237BF417AE52AD70CFB4EF24A7A82613DF9031* L_2;
-		L_2 = VirtualFuncInvoker1< ByteU5BU5D_tA6237BF417AE52AD70CFB4EF24A7A82613DF9031*, String_t* >::Invoke(16, L_0, L_1);
+		L_2 = VirtualFuncInvoker1< ByteU5BU5D_tA6237BF417AE52AD70CFB4EF24A7A82613DF9031*, String_t* >::Invoke(27, L_0, L_1);
 		uint32_t L_3;
 		L_3 = XXHash_Hash32_m138B37A17F29CC75B22A5AE277C1223A76A53F9A_inline(L_2, NULL);
 		return L_3;

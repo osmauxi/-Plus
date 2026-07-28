@@ -10349,7 +10349,7 @@ IL_000e:
 		Type_t* L_2 = ___0_nullableType;
 		NullCheck(L_2);
 		bool L_3;
-		L_3 = VirtualFuncInvoker0< bool >::Invoke(47, L_2);
+		L_3 = VirtualFuncInvoker0< bool >::Invoke(56, L_2);
 		if (!L_3)
 		{
 			goto IL_0039;
@@ -10359,7 +10359,7 @@ IL_000e:
 		Type_t* L_4 = ___0_nullableType;
 		NullCheck(L_4);
 		bool L_5;
-		L_5 = VirtualFuncInvoker0< bool >::Invoke(48, L_4);
+		L_5 = VirtualFuncInvoker0< bool >::Invoke(57, L_4);
 		if (L_5)
 		{
 			goto IL_0039;
@@ -10369,7 +10369,7 @@ IL_000e:
 		Type_t* L_6 = ___0_nullableType;
 		NullCheck(L_6);
 		Type_t* L_7;
-		L_7 = VirtualFuncInvoker0< Type_t* >::Invoke(56, L_6);
+		L_7 = VirtualFuncInvoker0< Type_t* >::Invoke(65, L_6);
 		RuntimeTypeHandle_t332A452B8B6179E4469B69525D0FE82A88030F7B L_8 = { reinterpret_cast<intptr_t> (Nullable_1_tCC12E6AC31BF7E862A033EBEFF48D5000D6291E6_0_0_0_var) };
 		il2cpp_codegen_runtime_class_init_inline(Type_t_il2cpp_TypeInfo_var);
 		Type_t* L_9;
@@ -10383,7 +10383,7 @@ IL_000e:
 		Type_t* L_10 = ___0_nullableType;
 		NullCheck(L_10);
 		TypeU5BU5D_t97234E1129B564EB38B8D85CAC2AD8B5B9522FFB* L_11;
-		L_11 = VirtualFuncInvoker0< TypeU5BU5D_t97234E1129B564EB38B8D85CAC2AD8B5B9522FFB* >::Invoke(58, L_10);
+		L_11 = VirtualFuncInvoker0< TypeU5BU5D_t97234E1129B564EB38B8D85CAC2AD8B5B9522FFB* >::Invoke(67, L_10);
 		NullCheck(L_11);
 		int32_t L_12 = 0;
 		Type_t* L_13 = (L_11)->GetAt(static_cast<il2cpp_array_size_t>(L_12));

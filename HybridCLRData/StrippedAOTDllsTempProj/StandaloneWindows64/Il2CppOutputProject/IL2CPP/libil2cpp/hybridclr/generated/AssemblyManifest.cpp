@@ -5,7 +5,14 @@ namespace hybridclr
 	const char* g_placeHolderAssemblies[] =
 	{
 		//!!!{{PLACE_HOLDER
-		"_HotUpdate",
+		"HotFix.Config",
+		"HotFix.Lobby.Network",
+		"HotFix.Lobby.World",
+		"HotFix.Settings",
+		"HotFix.Lobby.UI",
+		"HotFix.Gameplay",
+		"HotFix.DebugTools",
+		"HotFix.Entry",
 
 		//!!!}}PLACE_HOLDER
 		nullptr,

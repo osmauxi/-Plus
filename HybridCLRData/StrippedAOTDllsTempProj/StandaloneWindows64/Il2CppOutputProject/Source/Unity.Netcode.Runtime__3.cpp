@@ -23305,7 +23305,7 @@ IL_0016:
 		StreamReader__ctor_m08BA7049EACE030ACE06AB8A8F2CDF2E2AFB55C6(L_4, L_3, NULL);
 		NullCheck(L_4);
 		String_t* L_5;
-		L_5 = VirtualFuncInvoker0< String_t* >::Invoke(11, L_4);
+		L_5 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_4);
 		V_0 = L_5;
 		String_t* L_6 = V_0;
 		NullCheck(L_6);

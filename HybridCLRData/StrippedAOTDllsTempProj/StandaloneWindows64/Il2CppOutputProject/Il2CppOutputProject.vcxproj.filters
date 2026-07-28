@@ -655,6 +655,18 @@
     <ClCompile Include="Source\GenericMethods__31.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Source\GenericMethods__32.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\GenericMethods__33.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\GenericMethods__34.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\GenericMethods__35.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
     <ClCompile Include="Source\GenericMethods__4.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -823,7 +835,55 @@
     <ClCompile Include="Source\Generics__142.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Generics__143.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__144.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__145.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__146.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__147.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__148.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__149.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Generics__15.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__150.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__151.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__152.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__153.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__154.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__155.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__156.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__157.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Generics__158.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Generics__16.cpp">
@@ -1123,6 +1183,9 @@
     <ClCompile Include="Source\Il2CppCCalculateTypeValues1.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Il2CppCCalculateTypeValues2.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
     <ClCompile Include="Source\Il2CppCCFieldValuesTable.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -1202,6 +1265,12 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\mscorlib__2.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\mscorlib__20.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\mscorlib__21.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\mscorlib__3.cpp">
@@ -1310,6 +1379,45 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Unity.Collections__2.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem.ForUI.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__1.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__10.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__11.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__2.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__3.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__4.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__5.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__6.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__7.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__8.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__9.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Unity.Mathematics.cpp">
@@ -1657,9 +1765,6 @@
     <ClCompile Include="Source\UnityEngine.XRModule.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Source\_HotUpdate.Config.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="Source\__Generated.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -1778,6 +1883,12 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Unity.Collections_CodeGen.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem.ForUI_CodeGen.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem_CodeGen.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Unity.Mathematics_CodeGen.c">
@@ -1922,9 +2033,6 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\UnityEngine_CodeGen.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\_HotUpdate.Config_CodeGen.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\__Generated_CodeGen.c">

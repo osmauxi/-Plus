@@ -12739,13 +12739,13 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CollectionHelper_WriteLayout_m5A3898F494
 		Type_t* L_3 = ___0_type;
 		NullCheck(L_3);
 		String_t* L_4;
-		L_4 = VirtualFuncInvoker0< String_t* >::Invoke(7, L_3);
+		L_4 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_3);
 		il2cpp_codegen_runtime_class_init_inline(Console_t5EDF9498D011BD48287171978EDBBA6964829C3E_il2cpp_TypeInfo_var);
 		Console_WriteLine_mCF1AA33709B943A23A5CA168DF7972F4DAB53011(L_2, L_4, NULL);
 		Type_t* L_5 = ___0_type;
 		NullCheck(L_5);
 		FieldInfoU5BU5D_t50D47CBECF1AEB152F555803E3329D9E34DBF8D8* L_6;
-		L_6 = VirtualFuncInvoker1< FieldInfoU5BU5D_t50D47CBECF1AEB152F555803E3329D9E34DBF8D8*, int32_t >::Invoke(114, L_5, ((int32_t)52));
+		L_6 = VirtualFuncInvoker1< FieldInfoU5BU5D_t50D47CBECF1AEB152F555803E3329D9E34DBF8D8*, int32_t >::Invoke(123, L_5, ((int32_t)52));
 		V_0 = L_6;
 		V_1 = 0;
 		goto IL_0061;
@@ -12763,7 +12763,7 @@ IL_0028:
 		FieldInfo_t* L_12 = V_2;
 		NullCheck(L_12);
 		String_t* L_13;
-		L_13 = VirtualFuncInvoker0< String_t* >::Invoke(7, L_12);
+		L_13 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_12);
 		il2cpp_codegen_runtime_class_init_inline(Marshal_tD976A56A90263C3CE2B780D4B1CADADE2E70B4A7_il2cpp_TypeInfo_var);
 		intptr_t L_14;
 		L_14 = Marshal_OffsetOf_m106F2D2FC0C00CAD2982B489C1FB58B031729310(L_11, L_13, NULL);
@@ -12772,7 +12772,7 @@ IL_0028:
 		FieldInfo_t* L_17 = V_2;
 		NullCheck(L_17);
 		Type_t* L_18;
-		L_18 = VirtualFuncInvoker0< Type_t* >::Invoke(16, L_17);
+		L_18 = VirtualFuncInvoker0< Type_t* >::Invoke(25, L_17);
 		int32_t L_19;
 		L_19 = Marshal_SizeOf_mED64846722033D6F60C2973CA604B7C2D7D4A1B7(L_18, NULL);
 		int32_t L_20 = L_19;
@@ -12780,7 +12780,7 @@ IL_0028:
 		FieldInfo_t* L_22 = V_2;
 		NullCheck(L_22);
 		String_t* L_23;
-		L_23 = VirtualFuncInvoker0< String_t* >::Invoke(7, L_22);
+		L_23 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_22);
 		il2cpp_codegen_runtime_class_init_inline(Console_t5EDF9498D011BD48287171978EDBBA6964829C3E_il2cpp_TypeInfo_var);
 		Console_WriteLine_m8B1D009F40586AF6BAC587A56F510BF7CAC6E84F(_stringLiteral5DF416F12CCD450A0B525DB801FD7B5C2F3104D6, L_16, L_21, L_23, NULL);
 		int32_t L_24 = V_1;

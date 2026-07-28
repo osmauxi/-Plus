@@ -27934,8 +27934,8 @@ const FullName2Signature hybridclr::interpreter::g_fullName2SignatureStub[] = {
 	{"System.Collections.Immutable.SortedInt32KeyNode`1/Enumerator<System.Collections.Immutable.ImmutableHashSet`1/HashBucket<u>>", "s1795"},
 	{"System.Collections.Immutable.SortedInt32KeyNode`1/Enumerator<u>", "s1795"},
 	{"System.ConsoleKeyInfo", "s1798"},
-	{"MessagePack.Annotations:System.Index", "s0"},
 	{"System.Index", "s0"},
+	{"MessagePack.Annotations:System.Index", "s0"},
 	{"System.Memory`1<u>", "s2030"},
 	{"System.Numerics.BigInteger", "s1180"},
 	{"System.Numerics.Complex", "s1291"},
@@ -59757,6 +59757,20 @@ static void __M2N_s1243us15(const MethodInfo* method, uint16_t* argVarIndexs, St
 {
     typedef __struct_1243__ (*NativeMethod)(uintptr_t __arg0, __struct_15__ __arg1, const MethodInfo* method);
     *(__struct_1243__*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[1]), method);
+}
+
+
+static void __M2N_s1243uu(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+{
+    typedef __struct_1243__ (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, const MethodInfo* method);
+    *(__struct_1243__*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), method);
+}
+
+
+static void __M2N_s1243uuu(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+{
+    typedef __struct_1243__ (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, uintptr_t __arg2, const MethodInfo* method);
+    *(__struct_1243__*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[2]), method);
 }
 
 
@@ -140687,6 +140701,13 @@ static void __M2N_uuus15(const MethodInfo* method, uint16_t* argVarIndexs, Stack
 }
 
 
+static void __M2N_uuus15i4i4u(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+{
+    typedef uintptr_t (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, __struct_15__ __arg2, int32_t __arg3, int32_t __arg4, uintptr_t __arg5, const MethodInfo* method);
+    *(uintptr_t*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[2]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[3]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[4]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[5]), method);
+}
+
+
 static void __M2N_uuus15i4u(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
 {
     typedef uintptr_t (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, __struct_15__ __arg2, int32_t __arg3, uintptr_t __arg4, const MethodInfo* method);
@@ -141048,6 +141069,13 @@ static void __M2N_uuuus15(const MethodInfo* method, uint16_t* argVarIndexs, Stac
 {
     typedef uintptr_t (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, uintptr_t __arg2, __struct_15__ __arg3, const MethodInfo* method);
     *(uintptr_t*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[2]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[3]), method);
+}
+
+
+static void __M2N_uuuus15i4(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+{
+    typedef uintptr_t (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, uintptr_t __arg2, __struct_15__ __arg3, int32_t __arg4, const MethodInfo* method);
+    *(uintptr_t*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[2]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[3]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[4]), method);
 }
 
 
@@ -167539,6 +167567,13 @@ static void __M2N_vuus1599i2u1(const MethodInfo* method, uint16_t* argVarIndexs,
 }
 
 
+static void __M2N_vuus15i4(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+{
+    typedef void (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, __struct_15__ __arg2, int32_t __arg3, const MethodInfo* method);
+    ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[2]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[3]), method);
+}
+
+
 static void __M2N_vuus15s15(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
 {
     typedef void (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, __struct_15__ __arg2, __struct_15__ __arg3, const MethodInfo* method);
@@ -169237,6 +169272,13 @@ static void __M2N_vuuus15i4(const MethodInfo* method, uint16_t* argVarIndexs, St
 {
     typedef void (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, uintptr_t __arg2, __struct_15__ __arg3, int32_t __arg4, const MethodInfo* method);
     ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[2]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[3]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[4]), method);
+}
+
+
+static void __M2N_vuuus15i4i4u(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+{
+    typedef void (*NativeMethod)(uintptr_t __arg0, uintptr_t __arg1, uintptr_t __arg2, __struct_15__ __arg3, int32_t __arg4, int32_t __arg5, uintptr_t __arg6, const MethodInfo* method);
+    ((NativeMethod)(method->methodPointerCallByInterp))(M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[0]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[1]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[2]), M2NFromValueOrAddress<__struct_15__>(localVarBase+argVarIndexs[3]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[4]), M2NFromValueOrAddress<int32_t>(localVarBase+argVarIndexs[5]), M2NFromValueOrAddress<uintptr_t>(localVarBase+argVarIndexs[6]), method);
 }
 
 
@@ -173538,6 +173580,8 @@ const Managed2NativeMethodInfo hybridclr::interpreter::g_managed2nativeStub[] =
 	{"s1243s15uu", __M2N_s1243s15uu},
 	{"s1243u", __M2N_s1243u},
 	{"s1243us15", __M2N_s1243us15},
+	{"s1243uu", __M2N_s1243uu},
+	{"s1243uuu", __M2N_s1243uuu},
 	{"s1243uuu1", __M2N_s1243uuu1},
 	{"s1243uuuu1", __M2N_s1243uuuu1},
 	{"s1243uuuu1u1", __M2N_s1243uuuu1u1},
@@ -185099,6 +185143,7 @@ const Managed2NativeMethodInfo hybridclr::interpreter::g_managed2nativeStub[] =
 	{"uuus1077uu", __M2N_uuus1077uu},
 	{"uuus1079s1079", __M2N_uuus1079s1079},
 	{"uuus15", __M2N_uuus15},
+	{"uuus15i4i4u", __M2N_uuus15i4i4u},
 	{"uuus15i4u", __M2N_uuus15i4u},
 	{"uuus15uu", __M2N_uuus15uu},
 	{"uuus1697", __M2N_uuus1697},
@@ -185151,6 +185196,7 @@ const Managed2NativeMethodInfo hybridclr::interpreter::g_managed2nativeStub[] =
 	{"uuuus1075r4", __M2N_uuuus1075r4},
 	{"uuuus1077r4", __M2N_uuuus1077r4},
 	{"uuuus15", __M2N_uuuus15},
+	{"uuuus15i4", __M2N_uuuus15i4},
 	{"uuuus15i4i4u", __M2N_uuuus15i4i4u},
 	{"uuuus15i4u", __M2N_uuuus15i4u},
 	{"uuuus1815u", __M2N_uuuus1815u},
@@ -188935,6 +188981,7 @@ const Managed2NativeMethodInfo hybridclr::interpreter::g_managed2nativeStub[] =
 	{"vuus1597i2u1", __M2N_vuus1597i2u1},
 	{"vuus1598i2u1", __M2N_vuus1598i2u1},
 	{"vuus1599i2u1", __M2N_vuus1599i2u1},
+	{"vuus15i4", __M2N_vuus15i4},
 	{"vuus15s15", __M2N_vuus15s15},
 	{"vuus15u", __M2N_vuus15u},
 	{"vuus15u1", __M2N_vuus15u1},
@@ -189178,6 +189225,7 @@ const Managed2NativeMethodInfo hybridclr::interpreter::g_managed2nativeStub[] =
 	{"vuuus1201", __M2N_vuuus1201},
 	{"vuuus15", __M2N_vuuus15},
 	{"vuuus15i4", __M2N_vuuus15i4},
+	{"vuuus15i4i4u", __M2N_vuuus15i4i4u},
 	{"vuuus15u1", __M2N_vuuus15u1},
 	{"vuuus1695", __M2N_vuuus1695},
 	{"vuuus1697", __M2N_vuuus1697},

@@ -206,6 +206,7 @@ struct IDebugDisplaySettings_t3536F2A59DE9B5D8B53D685685024ED0DB26C438;
 struct IDictionary_t6D03155AF1FA9083817AA5B6AD7DEEACC26AB220;
 struct ISubsystemDescriptor_tEF29944D579CC7D70F52CB883150735991D54E6E;
 struct IndexOutOfRangeException_t7ECB35264FB6CA8FAA516BD958F4B2ADC78E8A82;
+struct InputActionMap_tFCE82E0E014319D4DED9F8962B06655DD0420A09;
 struct InvalidOperationException_t5DDE4D49B7405FAAB1E4576F4715A42A3FAD4BAB;
 struct InvokeOnRenderObjectCallbackPass_tC8BAE077CDE3D8D01F80041E285EAEC9E375FFE9;
 struct Light_t1E68479B7782AF2050FAA02A5DC612FD034F18F3;
@@ -1490,6 +1491,7 @@ struct DebugManager_t7B02CD44432A634FA9654CC7ABE89DBA061A8672  : public RuntimeO
 {
 	DebugActionDescU5BU5D_t4E2759E60EB786DE189B8646D7E7BC5DEACE9703* ___m_DebugActions;
 	DebugActionStateU5BU5D_tEDECDC92D0831CE3393A86713996A09454D0B733* ___m_DebugActionStates;
+	InputActionMap_tFCE82E0E014319D4DED9F8962B06655DD0420A09* ___debugActionMap;
 	ReadOnlyCollection_1_tF0FFDCC1E1E5FFF308EA742DAB59C57038E63299* ___m_ReadOnlyPanels;
 	List_1_t761CB6AB53A1E86522C5172FA0AB1A4E725A013F* ___m_Panels;
 	Action_1_t10DCB0C07D0D3C565CEACADC80D1152B35A45F6C* ___onDisplayRuntimeUIChanged;
@@ -7763,7 +7765,7 @@ IL_00f4_1:
 				Type_t* L_51 = V_16;
 				NullCheck(L_51);
 				String_t* L_52;
-				L_52 = VirtualFuncInvoker0< String_t* >::Invoke(7, L_51);
+				L_52 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_51);
 				NullCheck(L_50);
 				(L_50)->SetAt(static_cast<il2cpp_array_size_t>(3), (String_t*)L_52);
 				StringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_53 = L_50;
@@ -7783,7 +7785,7 @@ IL_00f4_1:
 				Type_t* L_59 = V_11;
 				NullCheck(L_59);
 				String_t* L_60;
-				L_60 = VirtualFuncInvoker0< String_t* >::Invoke(7, L_59);
+				L_60 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_59);
 				NullCheck(L_58);
 				(L_58)->SetAt(static_cast<il2cpp_array_size_t>(7), (String_t*)L_60);
 				StringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_61 = L_58;
@@ -7832,7 +7834,7 @@ IL_0166_1:
 				L_74 = Object_GetType_mE10A8FC1E57F3DF29972CCBC026C2DC3942263B3(L_73, NULL);
 				NullCheck(L_74);
 				String_t* L_75;
-				L_75 = VirtualFuncInvoker0< String_t* >::Invoke(7, L_74);
+				L_75 = VirtualFuncInvoker0< String_t* >::Invoke(12, L_74);
 				NullCheck(L_72);
 				(L_72)->SetAt(static_cast<il2cpp_array_size_t>(3), (String_t*)L_75);
 				StringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_76 = L_72;

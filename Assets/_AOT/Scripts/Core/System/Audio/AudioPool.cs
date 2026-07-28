@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Audio;
 
 /// <summary>
 /// 音效对象池 - 负责管理 AudioSource 的复用，减少频繁创建销毁带来的性能开销
@@ -28,6 +29,7 @@ public class AudioPool
 
     private readonly List<PoolItem> pool;  // 对象池列表
     private readonly Transform parent;     // 父节点，用于组织层级结构
+    private readonly AudioMixerGroup outputGroup;
     private float masterVolume = 1f;       // 主音量控制，影响池中所有音效
 
     /// <summary>
@@ -35,9 +37,11 @@ public class AudioPool
     /// </summary>
     /// <param name="initialSize">初始对象池大小</param>
     /// <param name="parent">父节点 Transform，用于挂载生成的 AudioSource</param>
-    public AudioPool(int initialSize, Transform parent)
+    /// <param name="outputGroup">所有池化音效使用的 AudioMixerGroup</param>
+    public AudioPool(int initialSize, Transform parent, AudioMixerGroup outputGroup)
     {
         this.parent = parent;
+        this.outputGroup = outputGroup;
         pool = new List<PoolItem>(initialSize);
 
         for (int i = 0; i < initialSize; i++)
@@ -59,6 +63,7 @@ public class AudioPool
 
         AudioSource source = obj.AddComponent<AudioSource>();
         source.playOnAwake = false;
+        source.outputAudioMixerGroup = outputGroup;
 
         // 【核心修改】：优化俯视角 3D 衰减曲线
         source.rolloffMode = AudioRolloffMode.Linear; // 从 Logarithmic 改为 Linear（线性平滑衰减）

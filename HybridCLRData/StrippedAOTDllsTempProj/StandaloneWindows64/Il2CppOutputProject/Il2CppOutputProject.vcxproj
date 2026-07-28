@@ -120,6 +120,14 @@
     </ClCompile>
     <ClCompile Include="Source\GenericMethods__31.cpp">
     </ClCompile>
+    <ClCompile Include="Source\GenericMethods__32.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\GenericMethods__33.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\GenericMethods__34.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\GenericMethods__35.cpp">
+    </ClCompile>
     <ClCompile Include="Source\GenericMethods__4.cpp">
     </ClCompile>
     <ClCompile Include="Source\GenericMethods__5.cpp">
@@ -232,7 +240,39 @@
     </ClCompile>
     <ClCompile Include="Source\Generics__142.cpp">
     </ClCompile>
+    <ClCompile Include="Source\Generics__143.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__144.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__145.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__146.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__147.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__148.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__149.cpp">
+    </ClCompile>
     <ClCompile Include="Source\Generics__15.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__150.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__151.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__152.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__153.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__154.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__155.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__156.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__157.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Generics__158.cpp">
     </ClCompile>
     <ClCompile Include="Source\Generics__16.cpp">
     </ClCompile>
@@ -432,6 +472,8 @@
     </ClCompile>
     <ClCompile Include="Source\Il2CppCCalculateTypeValues1.cpp">
     </ClCompile>
+    <ClCompile Include="Source\Il2CppCCalculateTypeValues2.cpp">
+    </ClCompile>
     <ClCompile Include="Source\Il2CppCCFieldValuesTable.cpp">
     </ClCompile>
     <ClCompile Include="Source\Il2CppCCTypeValuesTable.cpp">
@@ -485,6 +527,10 @@
     <ClCompile Include="Source\mscorlib__19.cpp">
     </ClCompile>
     <ClCompile Include="Source\mscorlib__2.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\mscorlib__20.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\mscorlib__21.cpp">
     </ClCompile>
     <ClCompile Include="Source\mscorlib__3.cpp">
     </ClCompile>
@@ -557,6 +603,32 @@
     <ClCompile Include="Source\Unity.Collections__1.cpp">
     </ClCompile>
     <ClCompile Include="Source\Unity.Collections__2.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem.ForUI.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__1.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__10.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__11.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__2.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__3.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__4.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__5.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__6.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__7.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__8.cpp">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem__9.cpp">
     </ClCompile>
     <ClCompile Include="Source\Unity.Mathematics.cpp">
     </ClCompile>
@@ -788,8 +860,6 @@
     </ClCompile>
     <ClCompile Include="Source\UnityEngine.XRModule.cpp">
     </ClCompile>
-    <ClCompile Include="Source\_HotUpdate.Config.cpp">
-    </ClCompile>
     <ClCompile Include="Source\__Generated.cpp">
     </ClCompile>
     <ClCompile Include="Source\AHD2.TODSystem.Runtime_CodeGen.c">
@@ -869,6 +939,10 @@
     <ClCompile Include="Source\Unity.Collections.LowLevel.ILSupport_CodeGen.c">
     </ClCompile>
     <ClCompile Include="Source\Unity.Collections_CodeGen.c">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem.ForUI_CodeGen.c">
+    </ClCompile>
+    <ClCompile Include="Source\Unity.InputSystem_CodeGen.c">
     </ClCompile>
     <ClCompile Include="Source\Unity.Mathematics_CodeGen.c">
     </ClCompile>
@@ -965,8 +1039,6 @@
     <ClCompile Include="Source\UnityEngine.XRModule_CodeGen.c">
     </ClCompile>
     <ClCompile Include="Source\UnityEngine_CodeGen.c">
-    </ClCompile>
-    <ClCompile Include="Source\_HotUpdate.Config_CodeGen.c">
     </ClCompile>
     <ClCompile Include="Source\__Generated_CodeGen.c">
     </ClCompile>

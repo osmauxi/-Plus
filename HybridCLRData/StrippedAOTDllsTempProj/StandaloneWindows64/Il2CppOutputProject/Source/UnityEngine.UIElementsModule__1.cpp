@@ -23453,7 +23453,7 @@ IL_004c:
 		Type_t* L_25 = *((Type_t**)L_24);
 		NullCheck(L_25);
 		String_t* L_26;
-		L_26 = VirtualFuncInvoker0< String_t* >::Invoke(31, L_25);
+		L_26 = VirtualFuncInvoker0< String_t* >::Invoke(40, L_25);
 		NullCheck(L_23);
 		ArrayElementTypeCheck (L_23, L_26);
 		(L_23)->SetAt(static_cast<il2cpp_array_size_t>(1), (RuntimeObject*)L_26);

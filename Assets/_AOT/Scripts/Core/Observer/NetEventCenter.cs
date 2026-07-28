@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ProjectGame.HotFix.Core.Events;
+using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
@@ -64,9 +65,8 @@ public class NetEventCenter : NetworkBehaviour
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
         var targetAssemblies = new HashSet<string>
         {
-            "Assembly-CSharp",      //没有划分 Asmdef 的默认代码
-            "CoreArchitecture",     //底层核心架构
-            "GameplayExtensions"    //合作开发的沙盒程序集
+            typeof(INetEvent).Assembly.GetName().Name,
+            "HotFix.Gameplay"
         };
 
         foreach (var assembly in assemblies)

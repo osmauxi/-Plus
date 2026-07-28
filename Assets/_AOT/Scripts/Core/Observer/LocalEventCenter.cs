@@ -6,7 +6,7 @@ using UnityEngine.Events;
 //怎么避免这个问题呢？
 //我们再次引入本地观察者，给一套方法用于接受上层的事件调用，这样NetEventCenter的事件就只需要存一个总控方法
 //最后在总控方法中触发本地观察者，这样就行了
-public class LocalEventCenter
+public sealed class LocalEventCenter
 {
     private static LocalEventCenter instance;
     //NGO未连接时使用这个

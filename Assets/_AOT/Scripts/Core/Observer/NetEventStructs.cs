@@ -1,4 +1,5 @@
-﻿using Unity.Netcode;
+﻿using ProjectGame.HotFix.Core.Events;
+using Unity.Netcode;
 
 public struct GameStartStruct : INetEvent
 {

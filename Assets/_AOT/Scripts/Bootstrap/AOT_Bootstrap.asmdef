@@ -2,7 +2,6 @@
     "name": "AOT_Bootstrap",
     "rootNamespace": "",
     "references": [
-        "AOT_Core",
         "UniTask.Addressables",
         "Unity.Addressables",
         "HybridCLR.Runtime",

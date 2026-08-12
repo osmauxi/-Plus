@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "com.ahd2.tod-system": "https://github.com/ahd2/AHD2-TODSystem.git",
     "com.anklebreaker.unity-mcp": "file:D:/unity-mcp-plugin-main/unity-mcp-plugin-main",
     "com.code-philosophy.hybridclr": "https://gitee.com/focus-creative-games/hybridclr_unity.git",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",

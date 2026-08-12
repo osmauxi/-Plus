@@ -1,12 +1,5 @@
 {
   "dependencies": {
-    "com.ahd2.tod-system": {
-      "version": "https://github.com/ahd2/AHD2-TODSystem.git",
-      "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "262369a63cc352f6a77673e6e5e987994fabe00b"
-    },
     "com.anklebreaker.unity-mcp": {
       "version": "file:D:/unity-mcp-plugin-main/unity-mcp-plugin-main",
       "depth": 0,

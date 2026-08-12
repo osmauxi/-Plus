@@ -1,9 +1,9 @@
-using System;
+锘縰sing System;
 namespace ProjectGame.HotFix.Core.Events
 {
     public interface IEventBus
     {
-        //TEvent是一种命名规范，表示事件类型必须是结构体
+        //TEvent鏄竴绉嶅懡鍚嶈鑼冿紝琛ㄧず浜嬩欢绫诲瀷蹇呴』鏄粨鏋勪綋
         IDisposable Subscribe<TEvent>(Action<TEvent> handler)
             where TEvent : struct, ILocalEvent;
 

@@ -1,12 +1,12 @@
-using System;
+ï»¿using System;
 
 namespace ProjectGame.HotFix.Core.NetworkEvents
 {
-    //ÔÊĞí±ê¼Ç½á¹¹Ìå£¬²»ÔÊĞíÖØ¸´£¬²»ÄÜ¼Ì³Ğ£¬²»ÄÜÖØ¸´Ê¹ÓÃ    
+    //å…è®¸æ ‡è®°ç»“æ„ä½“ï¼Œä¸å…è®¸é‡å¤ï¼Œä¸èƒ½ç»§æ‰¿ï¼Œä¸èƒ½é‡å¤ä½¿ç”¨    
     [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
     public sealed class NetEventIdAttribute : Attribute
     {
-        //Ö»Ê¹ÓÃÕâ¸ö¶ş×Ö½ÚµÄushort×÷ÎªÊÂ¼şID
+        //åªä½¿ç”¨è¿™ä¸ªäºŒå­—èŠ‚çš„ushortä½œä¸ºäº‹ä»¶ID
         public ushort Id { get; }
 
         public NetEventIdAttribute(ushort id)

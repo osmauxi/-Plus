@@ -1,11 +1,9 @@
-using ProjectGame.HotFix.Core.Events;
+ï»¿using ProjectGame.HotFix.Core.Events;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Unity.Collections;
 using Unity.Netcode;
-using UnityEditor.PackageManager;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Core.NetworkEvents
@@ -14,8 +12,9 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
     {
         private readonly Dictionary<Type, ushort> _idByType = new();
         private readonly Dictionary<ushort, Type> _typeById = new();
-        //Ã¿¸öÊÂ¼ş¶¼ÓĞ×Ô¼º¶ÀÓĞµÄDispatcherÓÃÓÚ¹ÜÀí·´ĞòÁĞ»¯ºÍ´¥·¢£¬DispatcherÖĞÎ¬»¤ÁËËùÓĞ¶©ÔÄµÄÊÂ¼ş´¦ÀíÆ÷ÁĞ±í
+        //æ¯ä¸ªäº‹ä»¶éƒ½æœ‰è‡ªå·±ç‹¬æœ‰çš„Dispatcherç”¨äºç®¡ç†ååºåˆ—åŒ–å’Œè§¦å‘ï¼ŒDispatcherä¸­ç»´æŠ¤äº†æ‰€æœ‰è®¢é˜…çš„äº‹ä»¶å¤„ç†å™¨åˆ—è¡¨
         private readonly Dictionary<ushort, IEventDispatcher> _dispatchers = new();
+        private readonly List<ulong> _remoteClientIds = new();
 
         private readonly NetEventBusConfig _config;
         private NetworkManager _networkManager;
@@ -44,9 +43,9 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
                 throw new InvalidOperationException(
                     "CustomMessagingManager is null. Make sure NetworkManager is properly initialized.");
             }
-            //_config.RequestMessageNameÕâÖÖ³¤×Ö·û´®ÔÚ×¢²á½øHandlerÖ®ºó»áÍ¨¹ıÄÚ²¿Ëã·¨×ª»¯ÎªID
-            //ËùÓĞSend°üÔÚ´øÓĞ_config.RequestMessageName×÷Îª±íÍ·Ê±¶¼»áÊ¹ÓÃÕâ¸öID×÷Îª±íÍ··¢ËÍ£¬È»ºóÔÚHandlerÖĞ½øĞĞÆ¥Åä
-            //_config.Name¾ö¶¨Õâ¸ö°ü×ßµÄÊÇ¼àÌı´¦ÀíÆ÷»¹ÊÇ¹ã²¥´¦ÀíÆ÷
+            //_config.RequestMessageNameè¿™ç§é•¿å­—ç¬¦ä¸²åœ¨æ³¨å†Œè¿›Handlerä¹‹åä¼šé€šè¿‡å†…éƒ¨ç®—æ³•è½¬åŒ–ä¸ºID
+            //æ‰€æœ‰SendåŒ…åœ¨å¸¦æœ‰_config.RequestMessageNameä½œä¸ºè¡¨å¤´æ—¶éƒ½ä¼šä½¿ç”¨è¿™ä¸ªIDä½œä¸ºè¡¨å¤´å‘é€ï¼Œç„¶ååœ¨Handlerä¸­è¿›è¡ŒåŒ¹é…
+            //_config.Nameå†³å®šè¿™ä¸ªåŒ…èµ°çš„æ˜¯ç›‘å¬å¤„ç†å™¨è¿˜æ˜¯å¹¿æ’­å¤„ç†å™¨
             messaging.RegisterNamedMessageHandler(
                 _config.RequestMessageName,
                 OnRequestMessageReceived);
@@ -107,7 +106,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
             _dispatchers.Add(id, dispatcher);
         }
         /// <summary>
-        /// ¶©ÔÄ¼àÌı£¬¾ö¶¨Ë­¼àÌıÕâ¸öÊÂ¼şµÄÇëÇó£¬·şÎñÆ÷ÊÕµ½ÇëÇóºó»á´¥·¢¶ÔÓ¦µÄÇëÇóÊÂ¼ş´¦ÀíÆ÷¡£
+        /// è®¢é˜…ç›‘å¬ï¼Œå†³å®šè°ç›‘å¬è¿™ä¸ªäº‹ä»¶çš„è¯·æ±‚ï¼ŒæœåŠ¡å™¨æ”¶åˆ°è¯·æ±‚åä¼šè§¦å‘å¯¹åº”çš„è¯·æ±‚äº‹ä»¶å¤„ç†å™¨ã€‚
         /// </summary>
         public IDisposable SubscribeRequest<TEvent>(NetEventHandler<TEvent> handler) where TEvent : struct, INetEvent
         {
@@ -120,7 +119,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
             return dispatcher.SubscribeRequest(handler);
         }
         /// <summary>
-        /// ¶©ÔÄ¹ã²¥£¬¾ö¶¨Ë­½ÓÊÜÕâ¸öÊÂ¼şµÄ¹ã²¥£¬¿Í»§¶ËĞèÒª½ÓÊÕ¹ã²¥¡£
+        /// è®¢é˜…å¹¿æ’­ï¼Œå†³å®šè°æ¥å—è¿™ä¸ªäº‹ä»¶çš„å¹¿æ’­ï¼Œå®¢æˆ·ç«¯éœ€è¦æ¥æ”¶å¹¿æ’­ã€‚
         /// </summary>
         public IDisposable SubscribeBroadcast<TEvent>(NetEventHandler<TEvent> handler) where TEvent : struct, INetEvent
         {
@@ -133,9 +132,9 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
             return dispatcher.SubscribeBroadcast(handler);
         }
         /// <summary>
-        /// ¿Í»§¶ËÏò·şÎñÆ÷·¢ËÍÇëÇóÊÂ¼ş¡£·şÎñÆ÷ÊÕµ½ÇëÇóºó»á´¥·¢¶ÔÓ¦µÄÇëÇóÊÂ¼ş´¦ÀíÆ÷¡£
+        /// å®¢æˆ·ç«¯å‘æœåŠ¡å™¨å‘é€è¯·æ±‚äº‹ä»¶ã€‚æœåŠ¡å™¨æ”¶åˆ°è¯·æ±‚åä¼šè§¦å‘å¯¹åº”çš„è¯·æ±‚äº‹ä»¶å¤„ç†å™¨ã€‚
         /// </summary>
-        //ReliableSequencedÖ¸¿É¿¿ÓĞĞò´«Êä
+        //ReliableSequencedæŒ‡å¯é æœ‰åºä¼ è¾“
         public void SendRequestToServer<TEvent>( TEvent eventData, NetworkDelivery delivery = NetworkDelivery.ReliableSequenced)
             where TEvent : struct, INetEvent
         {
@@ -144,7 +143,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
             var eventId = GetRegisteredEventId<TEvent>();
 
-            //Èç¹û·¢ËÍÇëÇóµÄÊÇHost¶Ë£¬Ö±½Ó±¾µØÑ²»Ø¡£
+            //å¦‚æœå‘é€è¯·æ±‚çš„æ˜¯Hostç«¯ï¼Œç›´æ¥æœ¬åœ°å·¡å›ã€‚
             if (_networkManager.IsServer && _networkManager.IsClient)
             {
                 if (_config.InvokeHostRequestLocally)
@@ -163,7 +162,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
                 delivery);
         }
         /// <summary>
-        /// ½«ÊÂ¼ş½øĞĞ¹ã²¥£¬ËùÓĞ¿Í»§¶Ë¶¼»áÊÕµ½¹ã²¥ÊÂ¼ş¡£
+        /// å°†äº‹ä»¶è¿›è¡Œå¹¿æ’­ï¼Œæ‰€æœ‰å®¢æˆ·ç«¯éƒ½ä¼šæ”¶åˆ°å¹¿æ’­äº‹ä»¶ã€‚
         /// </summary>
         public void BroadcastFromServer<TEvent>(TEvent eventData,NetworkDelivery delivery = NetworkDelivery.ReliableSequenced) where TEvent : struct, INetEvent
         {
@@ -172,7 +171,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
             var eventId = GetRegisteredEventId<TEvent>();
 
-            //Èç¹ûµ±Ç°¹ã²¥¶ÔÏóÊÇHost¶Ë×Ô¼º£¬ÔòÖ±½Ó±¾µØÑ²»Ø£¬²»·¢°ü¡£
+            //å¦‚æœå½“å‰å¹¿æ’­å¯¹è±¡æ˜¯Hostç«¯è‡ªå·±ï¼Œåˆ™ç›´æ¥æœ¬åœ°å·¡å›ï¼Œä¸å‘åŒ…ã€‚
             if (_networkManager.IsHost && _config.InvokeHostBroadcastLocally)
             {
                 DispatchBroadcastLocally(eventId, eventData, NetworkManager.ServerClientId);
@@ -186,7 +185,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
                 delivery);
         }
         /// <summary>
-        /// ·¢ËÍµ½Ö¸¶¨¿Í»§¶Ë£¬Ö»ÓĞÖ¸¶¨µÄ¿Í»§¶Ë»áÊÕµ½ÊÂ¼ş¡£
+        /// å‘é€åˆ°æŒ‡å®šå®¢æˆ·ç«¯ï¼Œåªæœ‰æŒ‡å®šçš„å®¢æˆ·ç«¯ä¼šæ”¶åˆ°äº‹ä»¶ã€‚
         /// </summary>
         public void SendToClient<TEvent>(
             ulong clientId,
@@ -199,7 +198,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
             var eventId = GetRegisteredEventId<TEvent>();
 
-            //Èç¹ûÕâÀï·¢ÏÖHost×Ô¼ºÊÇ¹ã²¥Ä¿±ê£¬Ôò²»·¢°üÖ±½Ó±¾µØÑ²»Ø
+            //å¦‚æœè¿™é‡Œå‘ç°Hostè‡ªå·±æ˜¯å¹¿æ’­ç›®æ ‡ï¼Œåˆ™ä¸å‘åŒ…ç›´æ¥æœ¬åœ°å·¡å›
             if (_networkManager.IsHost &&
                 clientId == _networkManager.LocalClientId &&
                 _config.InvokeHostBroadcastLocally)
@@ -217,7 +216,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
                 delivery);
         }
         /// <summary>
-        /// ·¢ËÍµ½Ö¸¶¨¿Í»§¶ËÁĞ±í£¬Ö»ÓĞÖ¸¶¨µÄ¿Í»§¶Ë»áÊÕµ½ÊÂ¼ş¡£
+        /// å‘é€åˆ°æŒ‡å®šå®¢æˆ·ç«¯åˆ—è¡¨ï¼Œåªæœ‰æŒ‡å®šçš„å®¢æˆ·ç«¯ä¼šæ”¶åˆ°äº‹ä»¶ã€‚
         /// </summary>
         public void SendToClients<TEvent>(
             IReadOnlyList<ulong> clientIds,
@@ -235,23 +234,19 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
             var eventId = GetRegisteredEventId<TEvent>();
 
-            //¹ıÂËµôHost½øĞĞ±¾µØÑ­»·£¬´«ÈëremoteClientIds°Ñ´¿¿Í»§¶ËµÄID´«Èë·¢ËÍ°ü
-            List<ulong> remoteClientIds = null;
+            //è¿‡æ»¤æ‰Hostè¿›è¡Œæœ¬åœ°å¾ªç¯ï¼Œä¼ å…¥remoteClientIdsæŠŠçº¯å®¢æˆ·ç«¯çš„IDä¼ å…¥å‘é€åŒ…
             bool shouldInvokeHostLocally = false;
 
-            for (int i = 0; i < clientIds.Count; i++)
+            if (_networkManager.IsHost)
             {
-                var clientId = clientIds[i];
-
-                if (_networkManager.IsHost &&
-                    clientId == _networkManager.LocalClientId)
+                for (int i = 0; i < clientIds.Count; i++)
                 {
-                    shouldInvokeHostLocally = true;
-                    continue;
+                    if (clientIds[i] == _networkManager.LocalClientId)
+                    {
+                        shouldInvokeHostLocally = true;
+                        break;
+                    }
                 }
-
-                remoteClientIds ??= new List<ulong>(clientIds.Count);
-                remoteClientIds.Add(clientId);
             }
 
             if (shouldInvokeHostLocally &&
@@ -263,9 +258,26 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
                     NetworkManager.ServerClientId);
             }
 
-            if (remoteClientIds == null || remoteClientIds.Count == 0)
+            IReadOnlyList<ulong> recipients = clientIds;
+            if (shouldInvokeHostLocally)
             {
-                return;
+                //ä¸»çº¿ç¨‹åŒæ­¥å‘é€å¯å®‰å…¨å¤ç”¨è¯¥åˆ—è¡¨ï¼Œé¿å…æ¯æ¬¡ç¾¤å‘éƒ½åˆ›å»ºä¸´æ—¶ Listã€‚
+                _remoteClientIds.Clear();
+                for (int i = 0; i < clientIds.Count; i++)
+                {
+                    var clientId = clientIds[i];
+                    if (clientId != _networkManager.LocalClientId)
+                    {
+                        _remoteClientIds.Add(clientId);
+                    }
+                }
+
+                if (_remoteClientIds.Count == 0)
+                {
+                    return;
+                }
+
+                recipients = _remoteClientIds;
             }
 
 
@@ -273,7 +285,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
             _networkManager.CustomMessagingManager.SendNamedMessage(
                 _config.BroadcastMessageName,
-                remoteClientIds,
+                recipients,
                 writer,
                 delivery);
         }
@@ -288,7 +300,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
             return writer;
         }
         /// <summary>
-        /// ¹ÜÀíÇëÇóĞÅÏ¢°üµÄÊÕ±¨ºÍ·´ĞòÁĞ»¯
+        /// ç®¡ç†è¯·æ±‚ä¿¡æ¯åŒ…çš„æ”¶æŠ¥å’Œååºåˆ—åŒ–
         /// </summary>
         private void OnRequestMessageReceived(ulong senderClientId,FastBufferReader reader)
         {
@@ -296,12 +308,12 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
             {
                 return;
             }
-            //¶ÁÈ¡ÊÂ¼şID
+            //è¯»å–äº‹ä»¶ID
             if (!TryReadEventId(ref reader, out var eventId))
             {
                 return;
             }
-            //Èç¹ûÃ»ÓĞ¶ÔÓ¦µÄÊÂ¼ş´¦ÀíÆ÷£¬Ôò´òÓ¡¾¯¸æĞÅÏ¢
+            //å¦‚æœæ²¡æœ‰å¯¹åº”çš„äº‹ä»¶å¤„ç†å™¨ï¼Œåˆ™æ‰“å°è­¦å‘Šä¿¡æ¯
             if (!_dispatchers.TryGetValue(eventId, out var dispatcher))
             {
                 Debug.LogWarning($"Received unknown request NetEvent id: {eventId}");
@@ -399,7 +411,7 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
         private static ushort GetEventIdOrThrow(Type eventType)
         {
-            //Í¨¹ı·´Éä¶ÁÈ¡ÎÒÃÇÊµÏÖµÄ×Ô¶¨ÒåÌØĞÔ[NetEventId]£¬»ñÈ¡ÊÂ¼şµÄÎ¨Ò»±êÊ¶·û¡£
+            //é€šè¿‡åå°„è¯»å–æˆ‘ä»¬å®ç°çš„è‡ªå®šä¹‰ç‰¹æ€§[NetEventId]ï¼Œè·å–äº‹ä»¶çš„å”¯ä¸€æ ‡è¯†ç¬¦ã€‚
             var attribute = eventType.GetCustomAttribute<NetEventIdAttribute>();
 
             if (attribute == null)
@@ -444,47 +456,35 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
 
             void DispatchBroadcast(ref FastBufferReader reader, ulong senderClientId);
         }
-        //Ã¿¸öÊÂ¼ş¶¼¶ÀÁ¢¶ÔÓ¦×Ô¼ºµÄÒ»¸öEventDispatcher£¬ÓÃÀ´×¨ÃÅ¶ÔÓ¦·´ĞòÁĞ»¯ºÍÊÂ¼ş´¥·¢£¬ÓÅµãÈçÏÂ£º
-        //Ê×ÏÈÊÇIL2CPPµÄAOTÎÊÌâ£¬Ã¿¸öÊÂ¼ş½á¹¹Ìå¶¼»áÏÔÊ½µ÷ÓÃEventDispatcher<TEvent>£¬ÕâÑùÄÜ±ÜÃâ³öÏÖ·ºĞÍÊÂ¼şÃ»ÓĞÏÔÊ¾µ÷ÓÃµ¼ÖÂµÄÈ±Ê§ÎÊÌâ
-        //Ïà¶ÔÓÚÉÏÒ»×÷µÄtype object×Öµä£¬ÕâÀï±ÜÃâÁË×°Ïä²ğÏäµÄĞÔÄÜËğºÄ¡£
-        //¿´ËÆ½á¹¹ÌåÓëÀàÒ»Ò»¶ÔÓ¦£¬Õ¼ÓÃÄÚ´æ¸ü¶à£¬µ«Êµ¼ÊÉÏEventDispatcher<TEvent>ÊÇÒ»¸ö·ºĞÍÀà£¬
-        //Ö»ÓĞÔÚµÚÒ»´Î×¢²áÊ±²Å»áÉú³É¶ÔÓ¦µÄÀàÊµÀı£¬Ö®ºó·¢ËÍ¡¢½ÓÊÕ¡¢¶©ÔÄ¶¼¸´ÓÃÕâ¸öDispatcherÊµÀı£¬ÄÚ´æÕ¼ÓÃÖ÷ÒªºÍ×¢²áµÄÍøÂçÊÂ¼şÀàĞÍÊıÁ¿³ÉÕı±È¡£
+        //æ¯ä¸ªäº‹ä»¶éƒ½ç‹¬ç«‹å¯¹åº”è‡ªå·±çš„ä¸€ä¸ªEventDispatcherï¼Œç”¨æ¥ä¸“é—¨å¯¹åº”ååºåˆ—åŒ–å’Œäº‹ä»¶è§¦å‘ï¼Œä¼˜ç‚¹å¦‚ä¸‹ï¼š
+        //é¦–å…ˆæ˜¯IL2CPPçš„AOTé—®é¢˜ï¼Œæ¯ä¸ªäº‹ä»¶ç»“æ„ä½“éƒ½ä¼šæ˜¾å¼è°ƒç”¨EventDispatcher<TEvent>ï¼Œè¿™æ ·èƒ½é¿å…å‡ºç°æ³›å‹äº‹ä»¶æ²¡æœ‰æ˜¾ç¤ºè°ƒç”¨å¯¼è‡´çš„ç¼ºå¤±é—®é¢˜
+        //ç›¸å¯¹äºä¸Šä¸€ä½œçš„type objectå­—å…¸ï¼Œè¿™é‡Œé¿å…äº†è£…ç®±æ‹†ç®±çš„æ€§èƒ½æŸè€—ã€‚
+        //çœ‹ä¼¼ç»“æ„ä½“ä¸ç±»ä¸€ä¸€å¯¹åº”ï¼Œå ç”¨å†…å­˜æ›´å¤šï¼Œä½†å®é™…ä¸ŠEventDispatcher<TEvent>æ˜¯ä¸€ä¸ªæ³›å‹ç±»ï¼Œ
+        //åªæœ‰åœ¨ç¬¬ä¸€æ¬¡æ³¨å†Œæ—¶æ‰ä¼šç”Ÿæˆå¯¹åº”çš„ç±»å®ä¾‹ï¼Œä¹‹åå‘é€ã€æ¥æ”¶ã€è®¢é˜…éƒ½å¤ç”¨è¿™ä¸ªDispatcherå®ä¾‹ï¼Œå†…å­˜å ç”¨ä¸»è¦å’Œæ³¨å†Œçš„ç½‘ç»œäº‹ä»¶ç±»å‹æ•°é‡æˆæ­£æ¯”ã€‚
         private sealed class EventDispatcher<TEvent> : IEventDispatcher where TEvent : struct, INetEvent
         {
-            private readonly object _gate = new();
-
-            private readonly List<NetEventHandler<TEvent>> _requestHandlers = new();
-            private readonly List<NetEventHandler<TEvent>> _broadcastHandlers = new();
+            private readonly HandlerList _requestHandlers = new();
+            private readonly HandlerList _broadcastHandlers = new();
 
             public IDisposable SubscribeRequest(NetEventHandler<TEvent> handler)
             {
-                lock (_gate)
-                {
-                    _requestHandlers.Add(handler);
-                }
-
-                //±Õ°ü½«µ±Ç°ÊÂ¼şµÄÈ¡Ïû¶©ÔÄ²Ù×÷·â×°ÔÚEventSubscriptionÖĞ£¬·µ»Ø¸øµ÷ÓÃÕß£¬µ÷ÓÃÕß¿ÉÒÔÍ¨¹ıDisposeÈ¡Ïû¶©ÔÄ¡£
-                return new EventSubscription(() => Remove(_requestHandlers, handler));
+                //é—­åŒ…å°†å½“å‰äº‹ä»¶çš„å–æ¶ˆè®¢é˜…æ“ä½œå°è£…åœ¨EventSubscriptionä¸­ï¼Œè¿”å›ç»™è°ƒç”¨è€…ï¼Œè°ƒç”¨è€…å¯ä»¥é€šè¿‡Disposeå–æ¶ˆè®¢é˜…ã€‚
+                return _requestHandlers.Subscribe(handler);
             }
 
             public IDisposable SubscribeBroadcast(NetEventHandler<TEvent> handler)
             {
-                lock (_gate)
-                {
-                    _broadcastHandlers.Add(handler);
-                }
-
-                return new EventSubscription(() => Remove(_broadcastHandlers, handler));
+                return _broadcastHandlers.Subscribe(handler);
             }
 
             public void DispatchRequest(ref FastBufferReader reader, ulong senderClientId)
             {
-                //ÕâÊÇ¶ÔÓ¦ÊÂ¼ş½á¹¹ÌåµÄ¶ÀÓĞEventDispatcherÄÚ²¿£¬Ê¹ÓÃ¿ÉÒÔÖ±½ÓÊ¹ÓÃdefault´´½¨Ò»¸ö¿ÕµÄ½á¹¹ÌåÊµÀı£¬È»ºóÍ¨¹ı·´ĞòÁĞ»¯Ìî³äÊı¾İ¡£    
+                //è¿™æ˜¯å¯¹åº”äº‹ä»¶ç»“æ„ä½“çš„ç‹¬æœ‰EventDispatcherå†…éƒ¨ï¼Œä½¿ç”¨å¯ä»¥ç›´æ¥ä½¿ç”¨defaultåˆ›å»ºä¸€ä¸ªç©ºçš„ç»“æ„ä½“å®ä¾‹ï¼Œç„¶åé€šè¿‡ååºåˆ—åŒ–å¡«å……æ•°æ®ã€‚    
                 var eventData = default(TEvent);
 
                 try
                 {
-                    //¶Á³öÊı¾İÌîÈëeventData
+                    //è¯»å‡ºæ•°æ®å¡«å…¥eventData
                     reader.ReadValueSafe(out eventData, default(FastBufferWriter.ForNetworkSerializable));
                 }
                 catch (Exception exception)
@@ -513,53 +513,106 @@ namespace ProjectGame.HotFix.Core.NetworkEvents
                 PublishBroadcast(eventData, senderClientId);
             }
             /// <summary>
-            /// ¿Í»§¶ËÇëÇóÊÂ¼şµÄ´¦ÀíÆ÷£¬·şÎñÆ÷ÊÕµ½ÇëÇóºó»á´¥·¢¶ÔÓ¦µÄÇëÇóÊÂ¼ş´¦ÀíÆ÷¡£
+            /// å®¢æˆ·ç«¯è¯·æ±‚äº‹ä»¶çš„å¤„ç†å™¨ï¼ŒæœåŠ¡å™¨æ”¶åˆ°è¯·æ±‚åä¼šè§¦å‘å¯¹åº”çš„è¯·æ±‚äº‹ä»¶å¤„ç†å™¨ã€‚
             /// </summary>
             public void PublishRequest(TEvent eventData, ulong senderClientId)
             {
-                Publish(_requestHandlers, eventData, senderClientId);
+                _requestHandlers.Publish(eventData, senderClientId);
             }
             /// <summary>
-            /// ·şÎñÆ÷¹ã²¥ÊÂ¼şµÄ´¦ÀíÆ÷£¬ËùÓĞ¿Í»§¶Ë¶¼»áÊÕµ½¹ã²¥ÊÂ¼ş
+            /// æœåŠ¡å™¨å¹¿æ’­äº‹ä»¶çš„å¤„ç†å™¨ï¼Œæ‰€æœ‰å®¢æˆ·ç«¯éƒ½ä¼šæ”¶åˆ°å¹¿æ’­äº‹ä»¶
             /// </summary>
             public void PublishBroadcast(TEvent eventData,ulong senderClientId)
             {
-                Publish(_broadcastHandlers, eventData, senderClientId);
+                _broadcastHandlers.Publish(eventData, senderClientId);
             }
 
-            private void Publish(List<NetEventHandler<TEvent>> handlers,TEvent eventData,ulong senderClientId)
+            private sealed class HandlerList
             {
-                //ÒÀ¾ÉÏß³ÌËø£¬È¡³ö¿ìÕÕºóÂíÉÏ»¹Ëø
-                NetEventHandler<TEvent>[] snapshot;
+                private readonly List<NetEventHandler<TEvent>> _handlers = new();
+                private int _dispatchDepth;
+                private int _handlerCount;
 
-                lock (_gate)
+                public IDisposable Subscribe(NetEventHandler<TEvent> handler)
                 {
-                    if (handlers.Count == 0)
+                    _handlers.Add(handler);
+                    _handlerCount++;
+                    return new EventSubscription(() => Remove(handler));
+                }
+
+                public void Publish(TEvent eventData,ulong senderClientId)
+                {
+                    //ä¾æ—§çº¿ç¨‹é”ï¼Œå–å‡ºå¿«ç…§åé©¬ä¸Šè¿˜é”
+                    //å½“å‰å®ç°æŒ‰ä¸»çº¿ç¨‹è¿è¡Œï¼šè®°å½•æ´¾å‘å¼€å§‹æ—¶çš„æ•°é‡ï¼Œå–æ¶ˆé¡¹å…ˆç½®ç©ºï¼Œæ´¾å‘ç»“æŸåå†åŸåœ°å‹ç¼©ã€‚
+                    if (_handlerCount == 0)
                     {
                         return;
                     }
 
-                    snapshot = handlers.ToArray();
-                }
-
-                for (int i = 0; i < snapshot.Length; i++)
-                {
+                    var publishCount = _handlers.Count;
+                    _dispatchDepth++;
                     try
                     {
-                        snapshot[i].Invoke(eventData, senderClientId);
+                        for (int i = 0; i < publishCount; i++)
+                        {
+                            var handler = _handlers[i];
+                            if (handler == null)
+                            {
+                                continue;
+                            }
+
+                            try
+                            {
+                                handler.Invoke(eventData, senderClientId);
+                            }
+                            catch (Exception exception)
+                            {
+                                Debug.LogException(exception);
+                            }
+                        }
                     }
-                    catch (Exception exception)
+                    finally
                     {
-                        Debug.LogException(exception);
+                        _dispatchDepth--;
+                        if (_dispatchDepth == 0)
+                        {
+                            RemoveInactiveHandlers();
+                        }
                     }
                 }
-            }
 
-            private void Remove(List<NetEventHandler<TEvent>> handlers,NetEventHandler<TEvent> handler)
-            {
-                lock (_gate)
+                private void Remove(NetEventHandler<TEvent> handler)
                 {
-                    handlers.Remove(handler);
+                    for (int i = 0; i < _handlers.Count; i++)
+                    {
+                        if (!ReferenceEquals(_handlers[i], handler))
+                        {
+                            continue;
+                        }
+
+                        _handlerCount--;
+                        if (_dispatchDepth == 0)
+                        {
+                            _handlers.RemoveAt(i);
+                        }
+                        else
+                        {
+                            _handlers[i] = null;
+                        }
+
+                        return;
+                    }
+                }
+
+                private void RemoveInactiveHandlers()
+                {
+                    for (int i = _handlers.Count - 1; i >= 0; i--)
+                    {
+                        if (_handlers[i] == null)
+                        {
+                            _handlers.RemoveAt(i);
+                        }
+                    }
                 }
             }
         }

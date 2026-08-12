@@ -1,9 +1,9 @@
-using System;
+ï»¿using System;
 
 namespace ProjectGame.HotFix.Core.Events
 {
     /// <summary>
-    /// ±¾µØÊÂ¼ş×ÜÏßµÄÈ«¾Ö·ÃÎÊÃÅÃæ¡£
+    /// æœ¬åœ°äº‹ä»¶æ€»çº¿çš„å…¨å±€è®¿é—®é—¨é¢ã€‚
     /// </summary>
     public static class LocalEvents
     {

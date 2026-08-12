@@ -1,17 +1,17 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 
 namespace ProjectGame.HotFix.Core.Events
 {
     /// <summary>
-    /// Ç¿ÀàĞÍ±¾µØÊÂ¼ş×ÜÏß
+    /// å¼ºç±»å‹æœ¬åœ°äº‹ä»¶æ€»çº¿
     /// </summary>
     public sealed class LocalEventBus : IEventBus
     {
         public static LocalEventBus Global { get; } = new LocalEventBus("GlobalLocalEventBus");
 
-        //Ïß³Ì°²È«µÄËø¶ÔÏó£¬ÓÃÓÚ±£»¤¶Ô_streams×ÖµäµÄ·ÃÎÊ£¬ÈÎºÎ¶Ô×Öµä_streamsµÄÔöÉ¾¸Ä²é¶¯×÷£¬¶¼±ØĞëÉêÇëÕâ°ÑËø
-        private readonly object _gate = new();
+        //çº¿ç¨‹å®‰å…¨çš„é”å¯¹è±¡ï¼Œç”¨äºä¿æŠ¤å¯¹_streamså­—å…¸çš„è®¿é—®ï¼Œä»»ä½•å¯¹å­—å…¸_streamsçš„å¢åˆ æ”¹æŸ¥åŠ¨ä½œï¼Œéƒ½å¿…é¡»ç”³è¯·è¿™æŠŠé”
+        //å½“å‰æ€»çº¿æŒ‰ Unity ä¸»çº¿ç¨‹æ¨¡å‹è¿è¡Œï¼Œå·²ç§»é™¤æ—§å®ç°ä¸­çš„é”å¯¹è±¡ã€‚
         private readonly Dictionary<Type, IEventStream> _streams = new();
         private readonly Action<Exception> _exceptionHandler;
         private readonly string _busName;
@@ -23,7 +23,7 @@ namespace ProjectGame.HotFix.Core.Events
             _exceptionHandler = exceptionHandler ?? DefaultExceptionHandler;
         }
 
-        //ÓĞ²Î¶©ÔÄ·½·¨
+        //æœ‰å‚è®¢é˜…æ–¹æ³•
         public IDisposable Subscribe<TEvent>(Action<TEvent> handler) where TEvent : struct, ILocalEvent
         {
             if (handler == null)
@@ -33,7 +33,7 @@ namespace ProjectGame.HotFix.Core.Events
 
             return GetOrCreateStream<TEvent>().Subscribe(handler);
         }
-        //ÎŞ²Î¶©ÔÄ·½·¨
+        //æ— å‚è®¢é˜…æ–¹æ³•
         public IDisposable Subscribe<TEvent>(Action handler) where TEvent : struct, ILocalEvent
         {
             if (handler == null)
@@ -52,7 +52,7 @@ namespace ProjectGame.HotFix.Core.Events
 
         public void Publish<TEvent>() where TEvent : struct, ILocalEvent
         {
-            //ÎŞ²ÎÊÂ¼ş»á°ü×°Ò»¸öÄ¬ÈÏµÄTEventÊµÀı²¢·¢²¼
+            //æ— å‚äº‹ä»¶ä¼šåŒ…è£…ä¸€ä¸ªé»˜è®¤çš„TEventå®ä¾‹å¹¶å‘å¸ƒ
             Publish(default(TEvent));
         }
 
@@ -69,64 +69,45 @@ namespace ProjectGame.HotFix.Core.Events
 
         public void Clear<TEvent>() where TEvent : struct, ILocalEvent
         {
-            IEventStream stream = null;
-
-            lock(_gate)
+            var type = typeof(TEvent);
+            if (_streams.TryGetValue(type, out var stream))
             {
-                var type = typeof(TEvent);
-
-                if(_streams.TryGetValue(type, out stream))
-                {
-                    _streams.Remove(type);
-                }
+                _streams.Remove(type);
+                stream.Clear();
             }
-
-            stream?.Clear();
         }
 
         public void Clear()
         {
-            List<IEventStream> streams;
-
-            lock (_gate)
+            foreach (var stream in _streams.Values)
             {
-                streams = new List<IEventStream>(_streams.Values);
-                _streams.Clear();
+                stream.Clear();
             }
 
-            for (int i = 0; i < streams.Count; i++)
-            {
-                streams[i].Clear();
-            }
+            _streams.Clear();
         }
 
         private EventStream<TEvent> GetOrCreateStream<TEvent>() where TEvent : struct, ILocalEvent
         {
             var type = typeof(TEvent);
 
-            lock (_gate)
+            //_streamsä¸­å­˜çš„æ˜¯IEventStreamæ¥å£ç±»å‹çš„å¯¹è±¡ï¼Œå®é™…å­˜å‚¨çš„æ˜¯EventStream<TEvent>å¯¹è±¡ï¼Œæ‰€ä»¥æœ‰ä¸€å±‚è¿˜åŸã€‚
+            if (_streams.TryGetValue(type, out var existingStream))
             {
-                //_streamsÖĞ´æµÄÊÇIEventStream½Ó¿ÚÀàĞÍµÄ¶ÔÏó£¬Êµ¼Ê´æ´¢µÄÊÇEventStream<TEvent>¶ÔÏó£¬ËùÒÔÓĞÒ»²ã»¹Ô­¡£
-                if (_streams.TryGetValue(type, out var existingStream))
-                {
-                    return (EventStream<TEvent>)existingStream;
-                }
-
-                var newStream = new EventStream<TEvent>(_busName,_exceptionHandler);
-
-                _streams.Add(type, newStream);
-                return newStream;
+                return (EventStream<TEvent>)existingStream;
             }
+
+            var newStream = new EventStream<TEvent>(_busName,_exceptionHandler);
+
+            _streams.Add(type, newStream);
+            return newStream;
         }
 
         private EventStream<TEvent> TryGetStream<TEvent>() where TEvent : struct, ILocalEvent
         {
             var type = typeof(TEvent);
 
-            lock (_gate)
-            {
-                return _streams.TryGetValue(type, out var stream) ? (EventStream<TEvent>)stream : null;
-            }
+            return _streams.TryGetValue(type, out var stream) ? (EventStream<TEvent>)stream : null;
         }
 
         private static void DefaultExceptionHandler(Exception exception)
@@ -141,26 +122,18 @@ namespace ProjectGame.HotFix.Core.Events
             void Clear();
         }
 
-        //Ò»¸öÊÂ¼ş¶ÔÓ¦Ò»¸öEventStream<T>£¬±»Í³Ò»´æÔÚ_streams×ÖµäÖĞ¡£
+        //ä¸€ä¸ªäº‹ä»¶å¯¹åº”ä¸€ä¸ªEventStream<T>ï¼Œè¢«ç»Ÿä¸€å­˜åœ¨_streamså­—å…¸ä¸­ã€‚
         private sealed class EventStream<TEvent> : IEventStream where TEvent : struct, ILocalEvent
         {
-            private readonly object _gate = new();
             private readonly List<EventSubscriber> _subscribers = new();
             private readonly Action<Exception> _exceptionHandler;
             private readonly string _busName;
 
+            private int _dispatchDepth;
             private int _nextSubscriberId;
+            private int _subscriberCount;
 
-            public int Count
-            {
-                get
-                {
-                    lock (_gate)
-                    {
-                        return _subscribers.Count;
-                    }
-                }
-            }
+            public int Count => _subscriberCount;
 
             public EventStream(string busName,Action<Exception> exceptionHandler)
             {
@@ -170,73 +143,121 @@ namespace ProjectGame.HotFix.Core.Events
 
             public IDisposable Subscribe(Action<TEvent> handler)
             {
-                var subscriber = new EventSubscriber(++_nextSubscriberId,handler);
+                var subscriberId = ++_nextSubscriberId;
+                _subscribers.Add(new EventSubscriber(subscriberId, handler));
+                _subscriberCount++;
 
-                lock (_gate)
-                {
-                    _subscribers.Add(subscriber);
-                }
-
-                return new EventSubscription(() => RemoveSubscriber(subscriber.Id));
+                return new EventSubscription(() => RemoveSubscriber(subscriberId));
             }
 
             public void Publish(TEvent eventData)
             {
-                EventSubscriber[] snapshot;
-                //²»ÈÃÏµÍ³´øËø½øĞĞ·ÑÊ±±éÀú£¬ËùÒÔÏÈ°Ñ_subscribersµÄ¿ìÕÕÈ¡³öÀ´£¬È»ºóÔÚ¿ìÕÕÉÏ½øĞĞ±éÀú
-                //ÕâÑù¿ÉÒÔ¼õÉÙÔÚÊÂ¼ş´¦Àí¹ı³ÌÖĞ×èÈûÆäËûÏß³Ì²Ù×÷µÄÇé¿ö¡£
-                //µ«Ïà¶ÔµÄ£¬»á³öÏÖToArrayµÄÊı×é·ÖÅä¿ªÏú
-                lock (_gate)
+                //ä¸è®©ç³»ç»Ÿå¸¦é”è¿›è¡Œè´¹æ—¶éå†ï¼Œæ‰€ä»¥å…ˆæŠŠ_subscribersçš„å¿«ç…§å–å‡ºæ¥ï¼Œç„¶ååœ¨å¿«ç…§ä¸Šè¿›è¡Œéå†
+                //è¿™æ ·å¯ä»¥å‡å°‘åœ¨äº‹ä»¶å¤„ç†è¿‡ç¨‹ä¸­é˜»å¡å…¶ä»–çº¿ç¨‹æ“ä½œçš„æƒ…å†µã€‚
+                //ä½†ç›¸å¯¹çš„ï¼Œä¼šå‡ºç°ToArrayçš„æ•°ç»„åˆ†é…å¼€é”€
+                if (_subscriberCount == 0)
                 {
-                    if (_subscribers.Count == 0)
-                    {
-                        return;
-                    }
-                    //ÕâÀïÊÇ¸´ÖÆÒ»·İ_subscribers£¬±£Ö¤±¾´ÎÅÉ·¢Ê¹ÓÃ¹Ì¶¨µÄ¶©ÔÄÁĞ±í²»»á³öÏÖÍ»È»¶àÊÂ¼şºÍÉÙÊÂ¼şµÄÇé¿ö
-                    //Ïà¶ÔÓÚList£¬Êı×é¶ÁÈ¡¸ü¿ì
-                    snapshot = _subscribers.ToArray();
+                    return;
                 }
 
-                for (int i = 0; i < snapshot.Length; i++)
+                //è¿™é‡Œæ˜¯å¤åˆ¶ä¸€ä»½_subscribersï¼Œä¿è¯æœ¬æ¬¡æ´¾å‘ä½¿ç”¨å›ºå®šçš„è®¢é˜…åˆ—è¡¨ä¸ä¼šå‡ºç°çªç„¶å¤šäº‹ä»¶å’Œå°‘äº‹ä»¶çš„æƒ…å†µ
+                //ç›¸å¯¹äºListï¼Œæ•°ç»„è¯»å–æ›´å¿«
+                //å½“å‰å®ç°åªè®°å½•æ´¾å‘å¼€å§‹æ—¶çš„æ•°é‡ï¼›æ´¾å‘æœŸé—´å–æ¶ˆçš„é¡¹ç½®ç©ºï¼Œç»“æŸåå†åŸåœ°å‹ç¼©ï¼Œå› æ­¤ä¸å†åˆ†é…æ•°ç»„å¿«ç…§ã€‚
+                var publishCount = _subscribers.Count;
+                _dispatchDepth++;
+
+                try
                 {
-                    try
+                    for (int i = 0; i < publishCount; i++)
                     {
-                        snapshot[i].Handler.Invoke(eventData);
+                        var handler = _subscribers[i].Handler;
+                        if (handler == null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            handler.Invoke(eventData);
+                        }
+                        catch (Exception exception)
+                        {
+                            _exceptionHandler?.Invoke(new EventDispatchException(_busName,typeof(TEvent),exception));
+                        }
                     }
-                    catch (Exception exception)
+                }
+                finally
+                {
+                    _dispatchDepth--;
+                    if (_dispatchDepth == 0)
                     {
-                        _exceptionHandler?.Invoke(new EventDispatchException(_busName,typeof(TEvent),exception));
+                        RemoveInactiveSubscribers();
                     }
                 }
             }
 
             public void Clear()
             {
-                lock (_gate)
+                if (_subscriberCount == 0)
+                {
+                    return;
+                }
+
+                _subscriberCount = 0;
+                if (_dispatchDepth == 0)
                 {
                     _subscribers.Clear();
+                    return;
+                }
+
+                for (int i = 0; i < _subscribers.Count; i++)
+                {
+                    var subscriber = _subscribers[i];
+                    subscriber.Handler = null;
+                    _subscribers[i] = subscriber;
                 }
             }
 
             private void RemoveSubscriber(int subscriberId)
             {
-                lock (_gate)
+                for (int i = 0; i < _subscribers.Count; i++)
                 {
-                    for (int i = _subscribers.Count - 1; i >= 0; i--)
+                    if (_subscribers[i].Id != subscriberId)
                     {
-                        if (_subscribers[i].Id == subscriberId)
-                        {
-                            _subscribers.RemoveAt(i);
-                            return;
-                        }
+                        continue;
+                    }
+
+                    _subscriberCount--;
+                    if (_dispatchDepth == 0)
+                    {
+                        _subscribers.RemoveAt(i);
+                    }
+                    else
+                    {
+                        var subscriber = _subscribers[i];
+                        subscriber.Handler = null;
+                        _subscribers[i] = subscriber;
+                    }
+
+                    return;
+                }
+            }
+
+            private void RemoveInactiveSubscribers()
+            {
+                for (int i = _subscribers.Count - 1; i >= 0; i--)
+                {
+                    if (_subscribers[i].Handler == null)
+                    {
+                        _subscribers.RemoveAt(i);
                     }
                 }
             }
 
-            private readonly struct EventSubscriber
+            private struct EventSubscriber
             {
                 public readonly int Id;
-                public readonly Action<TEvent> Handler;
+                public Action<TEvent> Handler;
 
                 public EventSubscriber(int id, Action<TEvent> handler)
                 {

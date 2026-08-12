@@ -1,11 +1,11 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 
 namespace ProjectGame.HotFix.Core.Events
 {
     /// <summary>
-    /// ÅúÁ¿¹ÜÀíÊÂ¼ş¶©ÔÄ¡£
-    /// ³£ÓÃÓÚ MonoBehaviour µÄ OnEnable / OnDisable ÉúÃüÖÜÆÚ¡£
+    /// æ‰¹é‡ç®¡ç†äº‹ä»¶è®¢é˜…ã€‚
+    /// å¸¸ç”¨äº MonoBehaviour çš„ OnEnable / OnDisable ç”Ÿå‘½å‘¨æœŸã€‚
     /// </summary>
     public sealed class EventSubscriptionGroup : IDisposable
     {
@@ -32,7 +32,7 @@ namespace ProjectGame.HotFix.Core.Events
 
         public void Clear()
         {
-            //µ¹Ğò±éÀú£¬±ÜÃâÔÚDispose¹ı³ÌÖĞĞŞ¸Ä¼¯ºÏµ¼ÖÂÒì³£
+            //å€’åºéå†ï¼Œé¿å…åœ¨Disposeè¿‡ç¨‹ä¸­ä¿®æ”¹é›†åˆå¯¼è‡´å¼‚å¸¸
             for (int i = _subscriptions.Count - 1; i >= 0; i--)
             {
                 _subscriptions[i]?.Dispose();
@@ -55,8 +55,8 @@ namespace ProjectGame.HotFix.Core.Events
 
     public static class EventSubscriptionExtensions
     {
-        //ÔÊĞíÊ¹ÓÃÁ´Ê½µ÷ÓÃ£¬ÔÚ°ó¶¨ÊÂ¼şµÄÍ¬Ê±¿ÉÒÔÖ±½Ó.AddTo(group)¼ÓÈëÊÂ¼ş¶©ÔÄ×éÖĞ¡£
-        //subscription²ÎÊıÇ°¼ÓÁËthis¹Ø¼ü×Ö£¬±íÊ¾ÕâÊÇÒ»¸öÀ©Õ¹·½·¨£¬¿ÉÒÔÖ±½ÓÔÚIDisposable¶ÔÏóÉÏµ÷ÓÃ¡£
+        //å…è®¸ä½¿ç”¨é“¾å¼è°ƒç”¨ï¼Œåœ¨ç»‘å®šäº‹ä»¶çš„åŒæ—¶å¯ä»¥ç›´æ¥.AddTo(group)åŠ å…¥äº‹ä»¶è®¢é˜…ç»„ä¸­ã€‚
+        //subscriptionå‚æ•°å‰åŠ äº†thiså…³é”®å­—ï¼Œè¡¨ç¤ºè¿™æ˜¯ä¸€ä¸ªæ‰©å±•æ–¹æ³•ï¼Œå¯ä»¥ç›´æ¥åœ¨IDisposableå¯¹è±¡ä¸Šè°ƒç”¨ã€‚
         public static IDisposable AddTo(this IDisposable subscription,EventSubscriptionGroup group)
         {
             if (group == null)

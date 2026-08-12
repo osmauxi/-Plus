@@ -1,13 +1,13 @@
-using System;
+ï»¿using System;
 
 namespace ProjectGame.HotFix.Core.Events
 {
-    //Exception±ê¼ÇEventDispatchExceptionÎªÒ»¸öºÏ·¨µÄÒì³£ÀàĞÍ£¬¿ÉÒÔ±»try-catch²¶»ñºÍ´¦Àí¡£
+    //Exceptionæ ‡è®°EventDispatchExceptionä¸ºä¸€ä¸ªåˆæ³•çš„å¼‚å¸¸ç±»å‹ï¼Œå¯ä»¥è¢«try-catchæ•è·å’Œå¤„ç†ã€‚
     public sealed class EventDispatchException : Exception
     {
-        //BusNameÊôĞÔ±íÊ¾·¢ÉúÒì³£µÄÊÂ¼ş×ÜÏßÃû³Æ£¬ÀàĞÍÎªstring¡£
+        //BusNameå±æ€§è¡¨ç¤ºå‘ç”Ÿå¼‚å¸¸çš„äº‹ä»¶æ€»çº¿åç§°ï¼Œç±»å‹ä¸ºstringã€‚
         public string BusName { get; }
-        //EventTypeÊôĞÔ±íÊ¾·¢ÉúÒì³£µÄÊÂ¼şÀàĞÍ£¬ÀàĞÍÎªType¡£
+        //EventTypeå±æ€§è¡¨ç¤ºå‘ç”Ÿå¼‚å¸¸çš„äº‹ä»¶ç±»å‹ï¼Œç±»å‹ä¸ºTypeã€‚
         public Type EventType { get; }
 
         public EventDispatchException(string busName,Type eventType,Exception innerException)

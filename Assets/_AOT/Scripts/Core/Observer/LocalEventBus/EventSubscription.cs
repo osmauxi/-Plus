@@ -1,15 +1,14 @@
-using System;
-using System.Threading;
+ï»¿using System;
 
 namespace ProjectGame.HotFix.Core.Events
 {
     /// <summary>
-    /// µ¥¸öÊÂ¼ş¶©ÔÄ¾ä±ú¡£
-    /// Disposeºó»á×Ô¶¯´ÓÊÂ¼ş×ÜÏßÖĞÈ¡Ïû¶©ÔÄ¡£
+    /// å•ä¸ªäº‹ä»¶è®¢é˜…å¥æŸ„ã€‚
+    /// Disposeåä¼šè‡ªåŠ¨ä»äº‹ä»¶æ€»çº¿ä¸­å–æ¶ˆè®¢é˜…ã€‚
     /// </summary>
     public sealed class EventSubscription : IDisposable
     {
-        //¶©ÔÄºó·½·¨»á×Ô¶¯·â×°Ò»¸öÈ¡Ïû¶©ÔÄÎ¯ÍĞ£¬±£´æÔÚ_disposeActionÖĞ
+        //è®¢é˜…åæ–¹æ³•ä¼šè‡ªåŠ¨å°è£…ä¸€ä¸ªå–æ¶ˆè®¢é˜…å§”æ‰˜ï¼Œä¿å­˜åœ¨_disposeActionä¸­
         private Action _disposeAction;
 
         public bool IsDisposed => _disposeAction == null;
@@ -21,10 +20,17 @@ namespace ProjectGame.HotFix.Core.Events
 
         public void Dispose()
         {
-            //Ô­×Ó²Ù×÷£¬±£Ö¤Ïß³Ì°²È«£¬·ÀÖ¹¶àÏß³ÌÍ¬Ê±µ÷ÓÃDisposeµ¼ÖÂÖØ¸´È¡Ïû¶©ÔÄ
-            //Interlocked.Exchange»á½«_disposeActionÉèÖÃÎªnull£¬²¢·µ»ØÔ­À´µÄÖµ
-            var action = Interlocked.Exchange(ref _disposeAction, null);
-            action?.Invoke();
+            //åŸå­æ“ä½œï¼Œä¿è¯çº¿ç¨‹å®‰å…¨ï¼Œé˜²æ­¢å¤šçº¿ç¨‹åŒæ—¶è°ƒç”¨Disposeå¯¼è‡´é‡å¤å–æ¶ˆè®¢é˜…
+            //Interlocked.Exchangeä¼šå°†_disposeActionè®¾ç½®ä¸ºnullï¼Œå¹¶è¿”å›åŸæ¥çš„å€¼
+            //å½“å‰äº‹ä»¶ç³»ç»Ÿåªåœ¨æ¸¸æˆä¸»çº¿ç¨‹ä½¿ç”¨ï¼Œä¸å†ä¸ºå¤šçº¿ç¨‹ Dispose æ”¯ä»˜åŸå­æ“ä½œæˆæœ¬ã€‚
+            if (_disposeAction == null)
+            {
+                return;
+            }
+
+            var action = _disposeAction;
+            _disposeAction = null;
+            action.Invoke();
         }
     }
 }

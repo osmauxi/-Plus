@@ -47,12 +47,17 @@ namespace ProjectGame.HotFix.Resolvers.Resolvers
 
         static GeneratedResolverGetFormatterHelper()
         {
-            lookup = new global::System.Collections.Generic.Dictionary<global::System.Type, int>(4)
+            lookup = new global::System.Collections.Generic.Dictionary<global::System.Type, int>(9)
             {
                 { typeof(global::Config_Item), 0 },
                 { typeof(global::Config_Lobby_Items), 1 },
                 { typeof(global::Config_Lobby_Skins), 2 },
                 { typeof(global::Config_Lobby_Weapons), 3 },
+                { typeof(global::Config_LocalObjectPool), 4 },
+                { typeof(global::Config_LocalVFXPool), 5 },
+                { typeof(global::Config_RoomTemplate), 6 },
+                { typeof(global::Config_SyncObjectPool), 7 },
+                { typeof(global::Config_Weapon), 8 },
             };
         }
 
@@ -70,6 +75,11 @@ namespace ProjectGame.HotFix.Resolvers.Resolvers
                 case 1: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_ItemsFormatter();
                 case 2: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_SkinsFormatter();
                 case 3: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_WeaponsFormatter();
+                case 4: return new ProjectGame.HotFix.Resolvers.Formatters.Config_LocalObjectPoolFormatter();
+                case 5: return new ProjectGame.HotFix.Resolvers.Formatters.Config_LocalVFXPoolFormatter();
+                case 6: return new ProjectGame.HotFix.Resolvers.Formatters.Config_RoomTemplateFormatter();
+                case 7: return new ProjectGame.HotFix.Resolvers.Formatters.Config_SyncObjectPoolFormatter();
+                case 8: return new ProjectGame.HotFix.Resolvers.Formatters.Config_WeaponFormatter();
                 default: return null;
             }
         }
@@ -328,6 +338,352 @@ namespace ProjectGame.HotFix.Resolvers.Formatters
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             var length = reader.ReadArrayHeader();
             var ____result = new global::Config_Lobby_Weapons();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.WeaponID = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.Name = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.ModleName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 3:
+                        ____result.IconName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 4:
+                        ____result.Description = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 5:
+                        ____result.WeaponSpawnSlot = reader.ReadInt32();
+                        break;
+                    case 6:
+                        ____result.WeaponEquipAnim = reader.ReadInt32();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
+    public sealed class Config_LocalObjectPoolFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_LocalObjectPool>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_LocalObjectPool value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(6);
+            writer.Write(value.ConfigId);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PoolId, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.GroupName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PrefabAddress, options);
+            writer.Write(value.InitialCapacity);
+            writer.Write(value.MaxSize);
+        }
+
+        public global::Config_LocalObjectPool Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_LocalObjectPool();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.ConfigId = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.PoolId = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.GroupName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 3:
+                        ____result.PrefabAddress = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 4:
+                        ____result.InitialCapacity = reader.ReadInt32();
+                        break;
+                    case 5:
+                        ____result.MaxSize = reader.ReadInt32();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
+    public sealed class Config_LocalVFXPoolFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_LocalVFXPool>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_LocalVFXPool value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(6);
+            writer.Write(value.ConfigId);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PoolId, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.GroupName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PrefabAddress, options);
+            writer.Write(value.InitialCapacity);
+            writer.Write(value.MaxSize);
+        }
+
+        public global::Config_LocalVFXPool Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_LocalVFXPool();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.ConfigId = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.PoolId = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.GroupName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 3:
+                        ____result.PrefabAddress = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 4:
+                        ____result.InitialCapacity = reader.ReadInt32();
+                        break;
+                    case 5:
+                        ____result.MaxSize = reader.ReadInt32();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
+    public sealed class Config_RoomTemplateFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_RoomTemplate>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_RoomTemplate value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(9);
+            writer.Write(value.TemplateId);
+            writer.Write(value.RoomType);
+            writer.Write(value.AllowedStrategyMask);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PoolId, options);
+            writer.Write(value.SupportedConnectorMask);
+            writer.Write(value.AllowUnusedConnectors);
+            writer.Write(value.AllowedRotations);
+            writer.Write(value.Priority);
+            writer.Write(value.Weight);
+        }
+
+        public global::Config_RoomTemplate Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_RoomTemplate();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.TemplateId = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.RoomType = reader.ReadInt32();
+                        break;
+                    case 2:
+                        ____result.AllowedStrategyMask = reader.ReadInt32();
+                        break;
+                    case 3:
+                        ____result.PoolId = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 4:
+                        ____result.SupportedConnectorMask = reader.ReadInt32();
+                        break;
+                    case 5:
+                        ____result.AllowUnusedConnectors = reader.ReadBoolean();
+                        break;
+                    case 6:
+                        ____result.AllowedRotations = reader.ReadInt32();
+                        break;
+                    case 7:
+                        ____result.Priority = reader.ReadInt32();
+                        break;
+                    case 8:
+                        ____result.Weight = reader.ReadSingle();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
+    public sealed class Config_SyncObjectPoolFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_SyncObjectPool>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_SyncObjectPool value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(6);
+            writer.Write(value.ConfigId);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PoolId, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.GroupName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PrefabAddress, options);
+            writer.Write(value.InitialCapacity);
+            writer.Write(value.MaxSize);
+        }
+
+        public global::Config_SyncObjectPool Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_SyncObjectPool();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.ConfigId = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.PoolId = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.GroupName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 3:
+                        ____result.PrefabAddress = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 4:
+                        ____result.InitialCapacity = reader.ReadInt32();
+                        break;
+                    case 5:
+                        ____result.MaxSize = reader.ReadInt32();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
+    public sealed class Config_WeaponFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_Weapon>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_Weapon value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(7);
+            writer.Write(value.WeaponID);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.Name, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.ModleName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.IconName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.Description, options);
+            writer.Write(value.WeaponSpawnSlot);
+            writer.Write(value.WeaponEquipAnim);
+        }
+
+        public global::Config_Weapon Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_Weapon();
 
             for (int i = 0; i < length; i++)
             {

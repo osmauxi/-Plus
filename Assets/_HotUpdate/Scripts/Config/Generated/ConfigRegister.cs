@@ -14,6 +14,10 @@ namespace ProjectGame.HotFix.Config
         {
             switch (addressableName)
             {
+                case "Config_Weapon":
+                    var dict_Config_Weapon = MessagePackSerializer.Deserialize<Dictionary<int, Config_Weapon>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Weapon);
+                    break;
                 case "Config_Item":
                     var dict_Config_Item = MessagePackSerializer.Deserialize<Dictionary<int, Config_Item>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_Item);
@@ -29,6 +33,22 @@ namespace ProjectGame.HotFix.Config
                 case "Config_Lobby_Items":
                     var dict_Config_Lobby_Items = MessagePackSerializer.Deserialize<Dictionary<int, Config_Lobby_Items>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_Lobby_Items);
+                    break;
+                case "Config_LocalObjectPool":
+                    var dict_Config_LocalObjectPool = MessagePackSerializer.Deserialize<Dictionary<int, Config_LocalObjectPool>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_LocalObjectPool);
+                    break;
+                case "Config_LocalVFXPool":
+                    var dict_Config_LocalVFXPool = MessagePackSerializer.Deserialize<Dictionary<int, Config_LocalVFXPool>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_LocalVFXPool);
+                    break;
+                case "Config_SyncObjectPool":
+                    var dict_Config_SyncObjectPool = MessagePackSerializer.Deserialize<Dictionary<int, Config_SyncObjectPool>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_SyncObjectPool);
+                    break;
+                case "Config_RoomTemplate":
+                    var dict_Config_RoomTemplate = MessagePackSerializer.Deserialize<Dictionary<int, Config_RoomTemplate>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_RoomTemplate);
                     break;
                 default:
                     Debug.LogWarning($"[ConfigRegister] 未知的配置表名: {addressableName}，检查Address标签是否打错");

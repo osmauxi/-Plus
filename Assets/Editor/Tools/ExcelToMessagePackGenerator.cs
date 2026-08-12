@@ -268,8 +268,8 @@ public class ExcelToMessagePackGenerator : EditorWindow
         string className = "Config_" + rawTableName.Split('|')[0];
         //通过反射找到第一步生成的那个类
         //注意：如果生成的类放进了特定的namespace（比如 ProjectGame.HotFix），这里也要加上命名空间
-        //当前脚本被_HotUpdate.Config程序集管辖，所以要加入程序集名称
-        Type configType = Type.GetType(className + ", _HotUpdate.Config"); 
+        //生成类位于 HotFix.Config.asmdef 中，反射时必须使用程序集的实际名称。
+        Type configType = Type.GetType(className + ", HotFix.Config");
 
         if (configType == null)
         {

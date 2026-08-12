@@ -1,8 +1,9 @@
-using System;
-using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Character;
 using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Core.Network;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -31,14 +32,15 @@ namespace ProjectGame.HotFix.Lobby
             public int DesiredItemId = -1;
 
             public GameObject CharacterInstance;
-            public GameObject WeaponInstance;
+            public WeaponView WeaponView;
             public GameObject ItemInstance;
 
             public AsyncOperationHandle<GameObject> CharacterHandle;
             public AsyncOperationHandle<GameObject> WeaponHandle;
             public AsyncOperationHandle<GameObject> ItemHandle;
 
-            public CharacterSocketProvider SocketProvider;
+            public PlayerModelView ModelView;
+            public CharacterAnimationBridge AnimationBridge;
         }
 
         private StationRuntime[] _stations;
@@ -154,10 +156,12 @@ namespace ProjectGame.HotFix.Lobby
         private async UniTask UpdateWeaponAsync(StationRuntime station, int weaponId, int revision)
         {
             ReleaseWeapon(station);
+
             Config_Lobby_Weapons config = GetWeaponConfig(weaponId);
-            EquipmentSlot equipmentSlot = ParseEquipmentSlot(config.WeaponSpawnSlot,nameof(config.WeaponSpawnSlot));
-            int equipmentPose = ValidateEquipmentPose(config.WeaponEquipAnim);
-            Transform parent = station.SocketProvider.GetEquipmentSocket(equipmentSlot);
+            EquipmentSlot equipmentSlot = ParseEquipmentSlot(config.WeaponSpawnSlot, nameof(config.WeaponSpawnSlot));
+            WeaponPose weaponPose = ParseWeaponPose(config.WeaponEquipAnim);
+
+            Transform parent = station.ModelView.GetEquipmentSocket(equipmentSlot);
 
             AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(config.ModleName, parent);
             bool loadSucceeded = await TryCompleteLoadAsync(handle, $"武器 WeaponId={weaponId}");
@@ -174,12 +178,23 @@ namespace ProjectGame.HotFix.Lobby
                 return;
             }
 
+            WeaponView weaponView = handle.Result.GetComponent<WeaponView>();
+
+            if (weaponView == null)
+            {
+                ReleaseLoadedHandle(handle);
+                throw new InvalidOperationException($"武器 WeaponId={weaponId} 缺少 {nameof(WeaponView)}。");
+            }
+
+            weaponView.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+
             station.WeaponHandle = handle;
-            station.WeaponInstance = handle.Result;
-            station.WeaponInstance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-            station.SocketProvider.SetEquipmentPose(equipmentPose);
-            station.SocketProvider.TriggerEquip();
+            station.WeaponView = weaponView;
             station.WeaponId = weaponId;
+
+            station.AnimationBridge.BindWeapon(weaponView, weaponPose);
+            station.AnimationBridge.TriggerEquip();
         }
 
         /// <summary>
@@ -192,7 +207,7 @@ namespace ProjectGame.HotFix.Lobby
             EquipmentSlot equipmentSlot = ParseEquipmentSlot(
                 config.ItemSpawnSlot,
                 nameof(config.ItemSpawnSlot));
-            Transform parent = station.SocketProvider.GetEquipmentSocket(equipmentSlot);
+            Transform parent = station.ModelView.GetEquipmentSocket(equipmentSlot);
 
             AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(
                 config.ModleName, parent);
@@ -214,6 +229,14 @@ namespace ProjectGame.HotFix.Lobby
             station.ItemInstance = handle.Result;
             station.ItemInstance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             station.ItemId = itemId;
+        }
+
+        private static WeaponPose ParseWeaponPose(int value)
+        {
+            if (value < byte.MinValue || value > byte.MaxValue || !Enum.IsDefined(typeof(WeaponPose), (byte)value))
+                throw new ArgumentOutOfRangeException(nameof(value), value, "无效的武器动画姿势。");
+
+            return (WeaponPose)value;
         }
 
         /// <summary>
@@ -257,7 +280,15 @@ namespace ProjectGame.HotFix.Lobby
         /// </summary>
         private static EquipmentSlot ParseEquipmentSlot(int value, string fieldName)
         {
-            return (EquipmentSlot)value;
+            if (value < byte.MinValue || value > byte.MaxValue || !Enum.IsDefined(typeof(EquipmentSlot), (byte)value))
+                throw new ArgumentOutOfRangeException(fieldName, value, "无效的装备槽位。");
+
+            EquipmentSlot slot = (EquipmentSlot)(byte)value;
+
+            if (slot == EquipmentSlot.None)
+                throw new ArgumentOutOfRangeException(fieldName, value, "装备槽位不能为 None。");
+
+            return slot;
         }
 
         /// <summary>
@@ -265,12 +296,12 @@ namespace ProjectGame.HotFix.Lobby
         /// </summary>
         private static int ValidateEquipmentPose(int value)
         {
-            if (value < (int)EquipmentPose.Rifle || value > (int)EquipmentPose.Pistol)
+            if (value < 0 || value > (int)WeaponPose.Pistol)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(value),
                     value,
-                    $"武器动画必须位于 {(int)EquipmentPose.Rifle}~{(int)EquipmentPose.Pistol}");
+                    $"武器动画必须位于 {(int)WeaponPose.Rifle}~{(int)WeaponPose.Pistol}");
             }
 
             return value;
@@ -281,8 +312,18 @@ namespace ProjectGame.HotFix.Lobby
         /// </summary>
         private static void BindCharacterComponents(StationRuntime station)
         {
-            station.SocketProvider = station.CharacterInstance.GetComponent<CharacterSocketProvider>();
+            if (!station.CharacterInstance.TryGetComponent(out PlayerModelView modelView))
+                throw new InvalidOperationException(
+                    $"角色预制体 {station.CharacterInstance.name} 缺少 {nameof(PlayerModelView)}。");
+
+            if (modelView.AnimationBridge == null)
+                throw new InvalidOperationException(
+                    $"角色预制体 {station.CharacterInstance.name} 的 {nameof(PlayerModelView)} 没有配置 {nameof(CharacterAnimationBridge)}。");
+
+            station.ModelView = modelView;
+            station.AnimationBridge = modelView.AnimationBridge;
         }
+        
 
         /// <summary>
         /// 释放一个展位的全部资源并重置身份。
@@ -312,11 +353,13 @@ namespace ProjectGame.HotFix.Lobby
         /// </summary>
         private static void ReleaseWeapon(StationRuntime station)
         {
+            station.AnimationBridge?.UnbindWeapon();
+
             if (station.WeaponHandle.IsValid())
                 Addressables.ReleaseInstance(station.WeaponHandle);
 
             station.WeaponHandle = default;
-            station.WeaponInstance = null;
+            station.WeaponView = null;
             station.WeaponId = -1;
         }
 
@@ -344,7 +387,9 @@ namespace ProjectGame.HotFix.Lobby
             station.CharacterHandle = default;
             station.CharacterInstance = null;
             station.CharacterId = -1;
-            station.SocketProvider = null;
+
+            station.ModelView = null;
+            station.AnimationBridge = null;
         }
 
         /// <summary>

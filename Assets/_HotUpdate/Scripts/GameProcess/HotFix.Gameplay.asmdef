@@ -2,6 +2,9 @@
     "name": "HotFix.Gameplay",
     "rootNamespace": "",
     "references": [
+        "HotFix.Settings",
+        "GUID:75469ad4d38634e559750d17036d5f7c",
+        "GUID:65e1f9a98235de0478d5c4590a742bf6",
         "GUID:a26e6a9ad58f0394eab2d125d50ed570",
         "GUID:1491147abca9d7d4bb7105af628b223e",
         "GUID:3b8ed52f1b5c64994af4c4e0aa4b6c4b",
@@ -13,7 +16,10 @@
         "GUID:9e24947de15b9834991c9d8411ea37cf",
         "GUID:84651a3751eca9349aac36a66bba901b",
         "GUID:f51ebe6a0ceec4240a699833d6309b23",
-        "GUID:db93f0cd8f43a614db8f4cd6f0b62dd3"
+        "GUID:db93f0cd8f43a614db8f4cd6f0b62dd3",
+        "GUID:593a5b492d29ac6448b1ebf7f035ef33",
+        "GUID:83268041917490b408096b79ba5d007a",
+        "GUID:384b44c77e8980c4b8f34f5830a470d7"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

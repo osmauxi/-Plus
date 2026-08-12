@@ -61,7 +61,10 @@ namespace ProjectGame.HotFix.UI.Lobby
         public void WakeUp(bool showViewImmediately = true)
         {
             _isWorking = true;
-            SetViewVisible(showViewImmediately);
+            if (showViewImmediately)
+                ShowView();
+            else
+                SetViewVisible(false);
 
             //提升虚拟相机优先级，使用Cinemachine自动计算推拉摇移
             _virtualCamera.Priority = 10;
@@ -72,7 +75,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         /// <summary>
         /// 只显示 Presenter 视图，不改变工作状态或虚拟相机。
         /// </summary>
-        public void ShowView()
+        public virtual void ShowView()
         {
             SetViewVisible(true);
         }

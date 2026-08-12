@@ -1,7 +1,8 @@
-using Cysharp.Threading.Tasks;
+ï»¿using Cysharp.Threading.Tasks;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using Unity.Netcode;
 using UnityEngine;
@@ -9,33 +10,36 @@ using UnityEngine.SceneManagement;
 
 namespace ProjectGame.HotFix.SceneFlow
 {
-    //½«NGOµÄ³¡¾°¼ÓÔØÂß¼­·â×°³ÉÒ»¸öUniTask·şÎñÀà£¬Ìá¹©¸øGameSceneFlowControllerÊ¹ÓÃ¡£
+    //å°†NGOçš„åœºæ™¯åŠ è½½é€»è¾‘å°è£…æˆä¸€ä¸ªUniTaskæœåŠ¡ç±»ï¼Œæä¾›ç»™GameSceneFlowControllerä½¿ç”¨ã€‚
     public sealed class NetworkSceneLoadService
     {
-        public async UniTask LoadSceneAsync(string sceneName,CancellationToken ct,LoadSceneMode loadMode = LoadSceneMode.Single)
+        public async UniTask LoadSceneAsync(string sceneNameOrPath,CancellationToken ct,LoadSceneMode loadMode = LoadSceneMode.Single)
         {
             EnsureServer();
 
+            string scenePath = ResolveBuildScenePath(sceneNameOrPath);
+            string expectedSceneName = Path.GetFileNameWithoutExtension(scenePath);
+
             NetworkSceneManager sceneManager = NetworkManager.Singleton.SceneManager;
-            //Ô­Éú³¡¾°¼ÓÔØ·½·¨ÊÇ¾ÉÊ½µÄ·Ç×èÈûÊÂ¼şÇı¶¯·½·¨£¬Ã»°ì·¨·µ»ØTask²¢await
-            //UniTaskCompletionSource±©Â¶³öÒ»¸öTask½Ó¿Ú£¬ÔÊĞíÎÒÃÇÔÚÊÂ¼ş»Øµ÷ÖĞÊÖ¶¯´¥·¢Íê³ÉĞÅºÅ£¬´Ó¶øÊµÏÖÒì²½µÈ´ı¡£
-            //Ëü¶ÔÄÚ±£ÁôÒ»Ì×´¥·¢°´Å¥£º°üÀ¨.TrySetResult()£¨Ğû¸æ³É¹¦£©¡¢.TrySetCanceled()£¨Ğû¸æÈ¡Ïû£©ºÍ.TrySetException()£¨Ğû¸æÊ§°Ü£©
-            //Í¬CTS£¬ËûÊÇÒ»´ÎĞÔµÄ£¬´¥·¢Ò»´Îºó¾ÍÊ§Ğ§ÁË£¬ºóĞøÔÙ´¥·¢»á·µ»Øfalse¡£
+            //åŸç”Ÿåœºæ™¯åŠ è½½æ–¹æ³•æ˜¯æ—§å¼çš„éé˜»å¡äº‹ä»¶é©±åŠ¨æ–¹æ³•ï¼Œæ²¡åŠæ³•è¿”å›Taskå¹¶await
+            //UniTaskCompletionSourceæš´éœ²å‡ºä¸€ä¸ªTaskæ¥å£ï¼Œå…è®¸æˆ‘ä»¬åœ¨äº‹ä»¶å›è°ƒä¸­æ‰‹åŠ¨è§¦å‘å®Œæˆä¿¡å·ï¼Œä»è€Œå®ç°å¼‚æ­¥ç­‰å¾…ã€‚
+            //å®ƒå¯¹å†…ä¿ç•™ä¸€å¥—è§¦å‘æŒ‰é’®ï¼šåŒ…æ‹¬.TrySetResult()ï¼ˆå®£å‘ŠæˆåŠŸï¼‰ã€.TrySetCanceled()ï¼ˆå®£å‘Šå–æ¶ˆï¼‰å’Œ.TrySetException()ï¼ˆå®£å‘Šå¤±è´¥ï¼‰
+            //åŒCTSï¼Œä»–æ˜¯ä¸€æ¬¡æ€§çš„ï¼Œè§¦å‘ä¸€æ¬¡åå°±å¤±æ•ˆäº†ï¼Œåç»­å†è§¦å‘ä¼šè¿”å›falseã€‚
             UniTaskCompletionSource completion = new UniTaskCompletionSource();
 
-            //¶Ô±ÈLambda±í´ïÊ½sceneManager.OnSceneEvent += (sceneEvent) => { /* ´¦ÀíÂß¼­ */ };
-            //¾Ö²¿º¯ÊıÊ×ÏÈ¿ÉÒÔÖ±½Ó·ÃÎÊ·½·¨ÄÚ¾Ö²¿±äÁ¿£¬Æä´ÎÒòÎªÓĞÈ·ÇĞ·½·¨ÃûÏà±ÈLambda¿ÉÒÔÖ±½Ó-=È¡Ïû°ó¶¨
+            //å¯¹æ¯”Lambdaè¡¨è¾¾å¼sceneManager.OnSceneEvent += (sceneEvent) => { /* å¤„ç†é€»è¾‘ */ };
+            //å±€éƒ¨å‡½æ•°é¦–å…ˆå¯ä»¥ç›´æ¥è®¿é—®æ–¹æ³•å†…å±€éƒ¨å˜é‡ï¼Œå…¶æ¬¡å› ä¸ºæœ‰ç¡®åˆ‡æ–¹æ³•åç›¸æ¯”Lambdaå¯ä»¥ç›´æ¥-=å–æ¶ˆç»‘å®š
             void OnSceneEvent(SceneEvent sceneEvent)
             {
-                //OnSceneEventÊÇÈ«¾ÖµÄÊÂ¼ş»Øµ÷£¬±äÈÎÒâ³¡¾°¾Í»á´¥·¢£¬ËùÒÔÏÈÅĞ¶ÏÊÇ·ñÊÇÎÒÃÇĞèÒªµÄ³¡¾°
-                if(sceneEvent.SceneName != sceneName)
+                //OnSceneEventæ˜¯å…¨å±€çš„äº‹ä»¶å›è°ƒï¼Œå˜ä»»æ„åœºæ™¯å°±ä¼šè§¦å‘ï¼Œæ‰€ä»¥å…ˆåˆ¤æ–­æ˜¯å¦æ˜¯æˆ‘ä»¬éœ€è¦çš„åœºæ™¯
+                if (!string.Equals(sceneEvent.SceneName, expectedSceneName, StringComparison.Ordinal))
                 {
                     return;
                 }
-                //LoadEventCompletedÖ¸ËùÓĞ¿Í»§¶Ë¾ù¼ÓÔØÍê³ÉÇÒ±Ë´ËÈ·ÈÏ¡£
+                //LoadEventCompletedæŒ‡æ‰€æœ‰å®¢æˆ·ç«¯å‡åŠ è½½å®Œæˆä¸”å½¼æ­¤ç¡®è®¤ã€‚
                 if(sceneEvent.SceneEventType == SceneEventType.LoadEventCompleted) 
                 {
-                    //±ê¼Ç³¡¾°¼ÓÔØÍê³É£¬´¥·¢completionµÄTaskÍê³ÉĞÅºÅ£¬´Ó¶øÈÃLoadSceneAsync·½·¨µÄawaitÓï¾ä¼ÌĞøÖ´ĞĞ¡£
+                    //æ ‡è®°åœºæ™¯åŠ è½½å®Œæˆï¼Œè§¦å‘completionçš„Taskå®Œæˆä¿¡å·ï¼Œä»è€Œè®©LoadSceneAsyncæ–¹æ³•çš„awaitè¯­å¥ç»§ç»­æ‰§è¡Œã€‚
                     completion.TrySetResult();
                 }
             }
@@ -44,38 +48,43 @@ namespace ProjectGame.HotFix.SceneFlow
 
             try 
             {
-                var status = sceneManager.LoadScene(sceneName, loadMode);
+                var status = sceneManager.LoadScene(scenePath, loadMode);
 
                 if(status != SceneEventProgressStatus.Started) 
                 {
-                    throw new InvalidOperationException($"ÍøÂç³¡¾°¼ÓÔØÆô¶¯Ê§°Ü: {sceneName}, Status: {status}");
+                    throw new InvalidOperationException($"ç½‘ç»œåœºæ™¯åŠ è½½å¯åŠ¨å¤±è´¥: {scenePath}, Status: {status}");
                 }
 
-                //½«ct×¢²á½øUniTaskCompletionSource£¬µ±Íâ²¿´«ÈëµÄCancellationToken´¥·¢ÁËÈ¡ÏûĞÅºÅÊ±£¬¾Í´¥·¢completionµÄÈ¡ÏûĞû¸æ¡£
-                //ÒòÎªRegister·µ»ØµÄÊÇÒ»¸öIDisposable¶ÔÏó£¬ËùÒÔ±ØĞëÓÃusing°ü¹ü£¬È·±£ÔÚ·½·¨½áÊøÊ±½â³ı×¢²á¡£
+                //å°†ctæ³¨å†Œè¿›UniTaskCompletionSourceï¼Œå½“å¤–éƒ¨ä¼ å…¥çš„CancellationTokenè§¦å‘äº†å–æ¶ˆä¿¡å·æ—¶ï¼Œå°±è§¦å‘completionçš„å–æ¶ˆå®£å‘Šã€‚
+                //å› ä¸ºRegisterè¿”å›çš„æ˜¯ä¸€ä¸ªIDisposableå¯¹è±¡ï¼Œæ‰€ä»¥å¿…é¡»ç”¨usingåŒ…è£¹ï¼Œç¡®ä¿åœ¨æ–¹æ³•ç»“æŸæ—¶è§£é™¤æ³¨å†Œã€‚
                 using (ct.Register(() => completion.TrySetCanceled(ct)))
                 {
-                    //³É¹¦×¢²á½øÁËOnSceneEvent£¬Ê§°Ü×¢²á½øÁËCancellationToken£¬ÕâÀï¿ªÊ¼µÈ´ıLoadSceneÖ´ĞĞ£¬¸ù
-                    //¾İ½á¹û´¥·¢completionµÄ²»Í¬×´Ì¬£¬LoadSceneAsync·½·¨µÄawaitÓï¾ä»á¼ÌĞøÖ´ĞĞ¡£   
+                    //æˆåŠŸæ³¨å†Œè¿›äº†OnSceneEventï¼Œå¤±è´¥æ³¨å†Œè¿›äº†CancellationTokenï¼Œè¿™é‡Œå¼€å§‹ç­‰å¾…LoadSceneæ‰§è¡Œï¼Œæ ¹
+                    //æ®ç»“æœè§¦å‘completionçš„ä¸åŒçŠ¶æ€ï¼ŒLoadSceneAsyncæ–¹æ³•çš„awaitè¯­å¥ä¼šç»§ç»­æ‰§è¡Œã€‚   
                     await completion.Task;                   
                 }
             }
             finally 
             {
-                //²»ÂÛÈçºÎ±ØĞë½â³ı°ó¶¨¡£
+                //ä¸è®ºå¦‚ä½•å¿…é¡»è§£é™¤ç»‘å®šã€‚
                 sceneManager.OnSceneEvent -= OnSceneEvent;
             }
         }
 
-        public async UniTask UnloadSceneAsync(string sceneName,CancellationToken ct) 
+        public async UniTask UnloadSceneAsync(string sceneNameOrPath,CancellationToken ct) 
         {
             EnsureServer();
 
-            Scene unityScene = SceneManager.GetSceneByName(sceneName);
+            string scenePath = ResolveBuildScenePath(sceneNameOrPath);
+            string expectedSceneName = Path.GetFileNameWithoutExtension(scenePath);
+            Scene unityScene = SceneManager.GetSceneByPath(scenePath);
+
+            if (!unityScene.IsValid())
+                unityScene = SceneManager.GetSceneByName(expectedSceneName);
 
             if (!unityScene.IsValid() || !unityScene.isLoaded)
             {
-                Debug.LogWarning($"³¢ÊÔĞ¶ÔØ²»´æÔÚ»òÎ´¼ÓÔØµÄ³¡¾°: {sceneName}");
+                Debug.LogWarning($"å°è¯•å¸è½½ä¸å­˜åœ¨æˆ–æœªåŠ è½½çš„åœºæ™¯: {scenePath}");
                 return;
             }
 
@@ -84,7 +93,7 @@ namespace ProjectGame.HotFix.SceneFlow
 
             void OnSceneEvent(SceneEvent sceneEvent)
             {
-                if (sceneEvent.SceneName != sceneName)
+                if (!string.Equals(sceneEvent.SceneName, expectedSceneName, StringComparison.Ordinal))
                 {
                     return;
                 }
@@ -104,7 +113,7 @@ namespace ProjectGame.HotFix.SceneFlow
                 if (status != SceneEventProgressStatus.Started)
                 {
                     throw new InvalidOperationException(
-                        $"ÍøÂç³¡¾°Ğ¶ÔØÆô¶¯Ê§°Ü: {sceneName}, Status: {status}");
+                        $"ç½‘ç»œåœºæ™¯å¸è½½å¯åŠ¨å¤±è´¥: {scenePath}, Status: {status}");
                 }
 
                 using (ct.Register(() => completion.TrySetCanceled(ct)))
@@ -118,21 +127,68 @@ namespace ProjectGame.HotFix.SceneFlow
             }
         }
 
+        /// <summary>
+        /// NGO 1.x ä¼šä½¿ç”¨ Build Scene Path è®¡ç®—åœºæ™¯å“ˆå¸Œï¼›çŸ­åœºæ™¯ååœ¨å½“å‰ç‰ˆæœ¬ä¸­ä¼šå¾—åˆ°æ— æ•ˆ Build Indexã€‚
+        /// è¿™é‡Œç»Ÿä¸€æŠŠ Inspector è¾“å…¥è§£æä¸ºå”¯ä¸€çš„ Build Scene Pathï¼Œå¹¶åœ¨å‘èµ·ç½‘ç»œåˆ‡åœºæ™¯å‰å¤±è´¥å¾—æ›´æ˜ç¡®ã€‚
+        /// </summary>
+        private static string ResolveBuildScenePath(string sceneNameOrPath)
+        {
+            if (string.IsNullOrWhiteSpace(sceneNameOrPath))
+                throw new ArgumentException("åœºæ™¯åæˆ– Build Scene Path ä¸èƒ½ä¸ºç©ºã€‚", nameof(sceneNameOrPath));
+
+            string normalizedInput = sceneNameOrPath.Replace('\\', '/');
+
+            if (SceneUtility.GetBuildIndexByScenePath(normalizedInput) >= 0)
+                return normalizedInput;
+
+            string requestedSceneName = Path.GetFileNameWithoutExtension(normalizedInput);
+            string matchedPath = null;
+
+            for (int buildIndex = 0; ; buildIndex++)
+            {
+                string candidatePath = SceneUtility.GetScenePathByBuildIndex(buildIndex);
+
+                if (string.IsNullOrEmpty(candidatePath))
+                    break;
+
+                string candidateName = Path.GetFileNameWithoutExtension(candidatePath);
+
+                if (!string.Equals(candidateName, requestedSceneName, StringComparison.Ordinal))
+                    continue;
+
+                if (matchedPath != null)
+                {
+                    throw new InvalidOperationException(
+                        $"Build Settings ä¸­å­˜åœ¨é‡ååœºæ™¯ï¼Œå¿…é¡»ä½¿ç”¨å®Œæ•´è·¯å¾„ï¼š{requestedSceneName}");
+                }
+
+                matchedPath = candidatePath;
+            }
+
+            if (matchedPath == null)
+            {
+                throw new InvalidOperationException(
+                    $"åœºæ™¯æœªåŠ å…¥ Build Settingsï¼Œæˆ–åœºæ™¯åå¤§å°å†™ä¸åŒ¹é…ï¼š{sceneNameOrPath}");
+            }
+
+            return matchedPath;
+        }
+
         private void EnsureServer()
         {
             if (NetworkManager.Singleton == null)
             {
-                throw new InvalidOperationException("NetworkManager.Singleton Îª¿Õ¡£");
+                throw new InvalidOperationException("NetworkManager.Singleton ä¸ºç©ºã€‚");
             }
 
             if (!NetworkManager.Singleton.IsServer)
             {
-                throw new InvalidOperationException("Ö»ÓĞ Server/Host ¿ÉÒÔ·¢Æğ NGO ³¡¾°ÇĞ»»¡£");
+                throw new InvalidOperationException("åªæœ‰ Server/Host å¯ä»¥å‘èµ· NGO åœºæ™¯åˆ‡æ¢ã€‚");
             }
 
             if (NetworkManager.Singleton.SceneManager == null)
             {
-                throw new InvalidOperationException("NetworkSceneManager Îª¿Õ£¬¿ÉÄÜ NetworkManager ÉĞÎ´Æô¶¯¡£");
+                throw new InvalidOperationException("NetworkSceneManager ä¸ºç©ºï¼Œå¯èƒ½ NetworkManager å°šæœªå¯åŠ¨ã€‚");
             }
         }
     }

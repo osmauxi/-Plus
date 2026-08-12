@@ -13,6 +13,10 @@ namespace ProjectGame.HotFix.UI.Lobby
     [RequireComponent(typeof(ItemSelectView))]
     public class ItemSelectPresenter : BaseLobbyPresenter
     {
+        [Header("Panel Animation Views")]
+        [SerializeField] private ItemSelectPanelSlideView _infoPanelSlideView;
+        [SerializeField] private ItemSelectPanelSlideView _chosePanelSlideView;
+
         private ItemSelectView _view;
         private readonly Dictionary<ItemCategory, List<ItemSlotData>> _catalog =
             new Dictionary<ItemCategory, List<ItemSlotData>>();
@@ -21,6 +25,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private LobbyPlayerState _readonlyPlayerData;
         private ItemCategory _currentCategory = ItemCategory.Weapon;
         private int _currentSelectedId = -1;
+        private bool _isExiting;
 
         /// <summary>
         /// 缓存 View、加载配置目录并绑定界面事件。
@@ -132,6 +137,24 @@ namespace ProjectGame.HotFix.UI.Lobby
             FullRefreshUI();
         }
 
+        /// <summary>页面真正显示时，由 P 层触发两个子面板的入场动画。</summary>
+        public override void ShowView()
+        {
+            base.ShowView();
+            _isExiting = false;
+            _infoPanelSlideView.Show();
+            _chosePanelSlideView.Show();
+        }
+
+        /// <summary>页面休眠时停止动画并把两个子面板复位到隐藏位置。</summary>
+        public override void Sleep()
+        {
+            base.Sleep();
+            _isExiting = false;
+            _infoPanelSlideView.ResetHiddenImmediately();
+            _chosePanelSlideView.ResetHiddenImmediately();
+        }
+
         /// <summary>让返回键复用确认按钮的退出流程并返回 Overview。</summary>
         public override bool TryHandleBackRequest()
         {
@@ -226,6 +249,18 @@ namespace ProjectGame.HotFix.UI.Lobby
         /// </summary>
         private void HandleConfirm()
         {
+            if (_isExiting)
+                return;
+
+            _isExiting = true;
+            _infoPanelSlideView.Hide(CompleteExit);
+            _chosePanelSlideView.Hide();
+        }
+
+        /// <summary>两个面板退场后完成数据复位并切回 Overview。</summary>
+        private void CompleteExit()
+        {
+            _isExiting = false;
             _isReadonly = false;
             _readonlyPlayerData = default;
             LobbyUIManager.Instance.ChangeScreen(LobbyScreenState.Overview);

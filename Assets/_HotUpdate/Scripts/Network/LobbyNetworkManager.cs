@@ -1,5 +1,8 @@
-﻿using ProjectGame.HotFix.Core.Network;
+﻿using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Config;
+using ProjectGame.HotFix.Core.Network;
+using ProjectGame.HotFix.Core.Session;
+using ProjectGame.HotFix.SceneFlow;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -21,14 +24,19 @@ namespace ProjectGame.HotFix.Netcode
 
         [Header("大厅网络配置")]
         [SerializeField] private int _maxPlayers = 4;
-        [SerializeField] private string _gameSceneName = "GamePlay";
         [SerializeField] private float _readyCountdownSeconds = 3f;
+        [SerializeField, Min(1f)] private float _sessionPreparationTimeoutSeconds = 10f;
 
         //当前使用的联机策略 (通过按钮UI注入)
         private IMatchmakingStrategy _matchmakingStrategy;
         //房间是否可加入
         private bool _isRoomLocked = false;
+        private bool _isStartingGame;
         private Coroutine _readyCountdownCoroutine;
+        private readonly HashSet<ulong> _profileSubmittedClientIds = new HashSet<ulong>();
+        private readonly HashSet<ulong> _sessionPreparedClientIds = new HashSet<ulong>();
+        private int _sessionRevision;
+        private string _sessionPreparationError;
         // 倒计时事件：UI监听展示剩余秒数
         public event Action<float> OnReadyCountdownUpdated;
         public event Action OnCountdownStarted;
@@ -198,10 +206,15 @@ namespace ProjectGame.HotFix.Netcode
 
             Debug.Log($"[LobbyNetworkManager] Client {clientId} 已断开连接！");
 
+            _profileSubmittedClientIds.Remove(clientId);
+            _sessionPreparedClientIds.Remove(clientId);
+
             if (clientId == NetworkManager.Singleton.LocalClientId)
             {
                 //Host自己炸了，准备解散
                 _disconnectedPlayers.Clear();
+                _profileSubmittedClientIds.Clear();
+                _sessionPreparedClientIds.Clear();
                 LobbyPlayers.Clear();
                 return;
             }
@@ -249,9 +262,10 @@ namespace ProjectGame.HotFix.Netcode
             ValidateWeaponId(weaponId);
             ValidateItemId(itemId);
 
-            int playerIndex = FindPlayerIndex(rpcParams.Receive.SenderClientId);
+            ulong senderClientId = rpcParams.Receive.SenderClientId;
+            int playerIndex = FindPlayerIndex(senderClientId);
             LobbyPlayerState state = LobbyPlayers[playerIndex];
-            if (state.IsReady)
+            if (state.IsReady && _profileSubmittedClientIds.Contains(senderClientId))
                 return;
 
             state.PlayerName = playerName;
@@ -259,6 +273,7 @@ namespace ProjectGame.HotFix.Netcode
             state.WeaponId = weaponId;
             state.ItemId = itemId;
             LobbyPlayers[playerIndex] = state;
+            _profileSubmittedClientIds.Add(senderClientId);
         }
 
         /// <summary>修改 RPC 发送者自己的玩家名字。</summary>
@@ -379,6 +394,8 @@ namespace ProjectGame.HotFix.Netcode
                 {
                     var removed = LobbyPlayers[i];
                     _disconnectedPlayers[removed.PersistentPlayerId.ToString()] = removed;
+                    _profileSubmittedClientIds.Remove(targetClientId);
+                    _sessionPreparedClientIds.Remove(targetClientId);
                     LobbyPlayers.RemoveAt(i);
                     Debug.Log($"[LobbyNetworkManager] Host移除了玩家 {targetClientId}");
                     break;
@@ -451,17 +468,249 @@ namespace ProjectGame.HotFix.Netcode
 
             OnReadyCountdownUpdated?.Invoke(0f);
             Debug.Log("<color=green>[LobbyNetworkManager] 倒计时结束，载入战斗场景！</color>");
-            StartGameClientRpc();
+            StartGameFlow(GameSessionMode.Multiplayer);
+        }
+
+        private void StartGameFlow(GameSessionMode mode)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            if (_isStartingGame)
+            {
+                Debug.LogWarning("[LobbyNetworkManager] 已经在进入游戏流程中，忽略重复调用。");
+                return;
+            }
+
+            if (GameSceneFlowController.Instance == null)
+            {
+                Debug.LogError("[LobbyNetworkManager] GameSceneFlowController 未绑定，无法进入游戏。");
+                return;
+            }
+
+            _isStartingGame = true;
+            _isRoomLocked = true;
+
+            StartGameFlowAsync(mode).Forget();
         }
 
         /// <summary>
         /// 通知所有客户端加载游戏场景
         /// </summary>
-        [ClientRpc]
-        private void StartGameClientRpc()
+        private async UniTaskVoid StartGameFlowAsync(GameSessionMode mode)
         {
-            Debug.Log("[LobbyNetworkManager] 收到服务器指令，载入游戏场景...");
-            NetworkManager.Singleton.SceneManager.LoadScene(_gameSceneName, LoadSceneMode.Single);
+            try
+            {
+                await WaitForAllPlayerProfilesAsync();
+
+                LobbyPlayerState[] lobbySnapshot = BuildLobbySnapshot();
+                await PrepareGameSessionOnAllClientsAsync(mode, lobbySnapshot);
+
+                await GameSceneFlowController.Instance.TransitionToGameSceneAsync();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[LobbyNetworkManager] 进入游戏流程异常: {e}");
+                ClearPreparedGameSession();
+                _isStartingGame = false;
+                _isRoomLocked = false;
+            }
+        }
+
+        /// <summary>等待所有已连接玩家把本地选择提交到服务器权威名单。</summary>
+        private async UniTask WaitForAllPlayerProfilesAsync()
+        {
+            float deadline = Time.realtimeSinceStartup + _sessionPreparationTimeoutSeconds;
+
+            while (!AreAllPlayerProfilesSubmitted())
+            {
+                if (Time.realtimeSinceStartup >= deadline)
+                    throw new TimeoutException("等待大厅玩家资料提交超时，无法生成游戏会话快照。");
+
+                await UniTask.Yield(PlayerLoopTiming.Update);
+            }
+        }
+
+        private bool AreAllPlayerProfilesSubmitted()
+        {
+            IReadOnlyList<ulong> connectedClientIds = NetworkManager.Singleton.ConnectedClientsIds;
+            if (connectedClientIds.Count == 0 || LobbyPlayers.Count != connectedClientIds.Count)
+                return false;
+
+            for (int i = 0; i < connectedClientIds.Count; i++)
+            {
+                ulong clientId = connectedClientIds[i];
+                if (!_profileSubmittedClientIds.Contains(clientId) || !ContainsLobbyPlayer(clientId))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private bool ContainsLobbyPlayer(ulong clientId)
+        {
+            for (int i = 0; i < LobbyPlayers.Count; i++)
+            {
+                if (LobbyPlayers[i].ClientId == clientId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private LobbyPlayerState[] BuildLobbySnapshot()
+        {
+            LobbyPlayerState[] snapshot = new LobbyPlayerState[LobbyPlayers.Count];
+            for (int i = 0; i < LobbyPlayers.Count; i++)
+                snapshot[i] = LobbyPlayers[i];
+
+            Array.Sort(snapshot, (left, right) => left.ClientId.CompareTo(right.ClientId));
+            return snapshot;
+        }
+
+        /// <summary>把同一份权威 Lobby 快照写入服务器和所有客户端的会话上下文。</summary>
+        private async UniTask PrepareGameSessionOnAllClientsAsync(
+            GameSessionMode mode,
+            LobbyPlayerState[] lobbySnapshot)
+        {
+            int revision = ++_sessionRevision;
+            _sessionPreparedClientIds.Clear();
+            _sessionPreparationError = null;
+
+            ConfigureGameSessionContext(mode, lobbySnapshot);
+            if (NetworkManager.Singleton.IsClient)
+                _sessionPreparedClientIds.Add(NetworkManager.Singleton.LocalClientId);
+
+            PrepareGameSessionClientRpc(mode, lobbySnapshot, revision);
+
+            float deadline = Time.realtimeSinceStartup + _sessionPreparationTimeoutSeconds;
+            while (!AreAllConnectedClientsSessionPrepared())
+            {
+                if (!DoesConnectedRosterMatchSnapshot(lobbySnapshot))
+                    throw new InvalidOperationException("会话准备期间玩家连接名单发生变化，已取消本次转场。");
+
+                if (!string.IsNullOrEmpty(_sessionPreparationError))
+                    throw new InvalidOperationException(_sessionPreparationError);
+
+                if (Time.realtimeSinceStartup >= deadline)
+                    throw new TimeoutException("等待客户端写入 GameSessionContext 超时。");
+
+                await UniTask.Yield(PlayerLoopTiming.Update);
+            }
+        }
+
+        private static bool DoesConnectedRosterMatchSnapshot(
+            IReadOnlyList<LobbyPlayerState> lobbySnapshot)
+        {
+            IReadOnlyList<ulong> connectedClientIds = NetworkManager.Singleton.ConnectedClientsIds;
+            if (connectedClientIds.Count != lobbySnapshot.Count)
+                return false;
+
+            for (int i = 0; i < lobbySnapshot.Count; i++)
+            {
+                bool found = false;
+                for (int j = 0; j < connectedClientIds.Count; j++)
+                {
+                    if (lobbySnapshot[i].ClientId != connectedClientIds[j])
+                        continue;
+
+                    found = true;
+                    break;
+                }
+
+                if (!found)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private bool AreAllConnectedClientsSessionPrepared()
+        {
+            IReadOnlyList<ulong> connectedClientIds = NetworkManager.Singleton.ConnectedClientsIds;
+            for (int i = 0; i < connectedClientIds.Count; i++)
+            {
+                if (!_sessionPreparedClientIds.Contains(connectedClientIds[i]))
+                    return false;
+            }
+
+            return connectedClientIds.Count > 0;
+        }
+
+        [ClientRpc]
+        private void PrepareGameSessionClientRpc(
+            GameSessionMode mode,
+            LobbyPlayerState[] lobbySnapshot,
+            int revision)
+        {
+            try
+            {
+                ConfigureGameSessionContext(mode, lobbySnapshot);
+                ConfirmGameSessionPreparedServerRpc(revision, true, string.Empty);
+            }
+            catch (Exception e)
+            {
+                ConfirmGameSessionPreparedServerRpc(revision, false, e.Message);
+            }
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void ConfirmGameSessionPreparedServerRpc(
+            int revision,
+            bool success,
+            string errorMessage,
+            ServerRpcParams rpcParams = default)
+        {
+            if (revision != _sessionRevision)
+                return;
+
+            ulong senderClientId = rpcParams.Receive.SenderClientId;
+            if (!success)
+            {
+                _sessionPreparationError =
+                    $"ClientId={senderClientId} 写入 GameSessionContext 失败：{errorMessage}";
+                return;
+            }
+
+            _sessionPreparedClientIds.Add(senderClientId);
+        }
+
+        private static void ConfigureGameSessionContext(
+            GameSessionMode mode,
+            IReadOnlyList<LobbyPlayerState> lobbySnapshot)
+        {
+            PlayerSessionData[] players = new PlayerSessionData[lobbySnapshot.Count];
+            for (int i = 0; i < lobbySnapshot.Count; i++)
+            {
+                LobbyPlayerState player = lobbySnapshot[i];
+                players[i] = new PlayerSessionData(
+                    player.ClientId,
+                    player.PersistentPlayerId.ToString(),
+                    player.PlayerName.ToString(),
+                    player.CharacterId,
+                    player.WeaponId,
+                    player.ItemId);
+            }
+
+            GameSessionContext.Configure(mode, players);
+        }
+
+        private void ClearPreparedGameSession()
+        {
+            GameSessionContext.Clear();
+            _sessionPreparedClientIds.Clear();
+            _sessionPreparationError = null;
+
+            if (IsServer && IsSpawned)
+                ClearGameSessionClientRpc();
+        }
+
+        [ClientRpc]
+        private void ClearGameSessionClientRpc()
+        {
+            GameSessionContext.Clear();
         }
         #endregion
 
@@ -502,8 +751,7 @@ namespace ProjectGame.HotFix.Netcode
 
             Debug.Log("[LobbyNetworkManager] 单人模式Host已启动，直接载入游戏场景...");
             // 单人模式不需要倒计时，直接转场
-            _isRoomLocked = true;
-            StartGameClientRpc();
+            StartGameFlow(GameSessionMode.SinglePlayer);
         }
         #endregion
 

@@ -17,6 +17,7 @@ namespace ProjectGame.HotFix.SceneFlow
         private void Awake()
         {
             _loadingPanel.SetActive(false);
+            DontDestroyOnLoad(_loadingPanel);
         }
 
         public void Show(string message = "Loading...")

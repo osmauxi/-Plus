@@ -1,124 +1,142 @@
-﻿using Unity.Netcode;
-using UnityEngine;
-using static NetEventCenter;
+﻿using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Core.Events;
+using ProjectGame.HotFix.Gameplay.Events;
+using System.Threading;
+using Unity.Netcode;
 
-public enum GameState 
+namespace ProjectGame.HotFix.Gameplay.State
 {
-    GameLoading, 
-    MapExchanging, 
-    MapGenerating,
-    GamePlaying,
-    MapClear,
-    GameOver,
-}
-public class GameStateController : NetworkBehaviour
-{
-    public static GameStateController instance;
-
-    public NetworkVariable<GameState> currentNetState = new NetworkVariable<GameState>(GameState.GameLoading);
-    public NetworkVariable<bool> isSolo = new NetworkVariable<bool>(false);
-    public NetworkVariable<int> CurrentLevel = new NetworkVariable<int>(1);
-
-
-
-    private void Awake()
+    public enum GameState : byte
     {
-        if (instance == null)
-        {
-            instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else if (instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        None = 0,
+        GameLoading = 1,
+        MapGenerating = 2,
+        GamePlaying = 3,
+        GameOver = 4,
+        ReturningLobby = 5,
+    }
+    public sealed class GameStateController : NetworkBehaviour
+    {
+        public static GameStateController Instance { get; private set; }
 
-       
-    }
-    public override void OnNetworkSpawn()
-    {
-        base.OnNetworkSpawn();
-        currentNetState.OnValueChanged += HandleNetworkState;
-        if (IsServer)
-        {
-            // 监听客户端连接
-            NetworkManager.Singleton.OnClientConnectedCallback += CheckPlayerCount;
-        }
-        NetEventCenter.Instance.Subscribe<GamePlayStartStruct>(OnGameStart);
-    }
-    private void CheckPlayerCount(ulong clientId)
-    {
-        if (!IsServer) return;
+        private readonly NetworkVariable<GameState> _currentState = new NetworkVariable<GameState>(
+            GameState.None,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server
+            );
 
-        // 当连接人数达到 2 时，且当前处于 MapExchanging (等待中)
-    
-        if (NetworkManager.Singleton.ConnectedClientsList.Count == 2 &&
-            currentNetState.Value == GameState.MapExchanging)
+        private readonly NetworkVariable<int> _currentLevel =new NetworkVariable<int>(
+            1,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server
+            );
+
+        public GameState CurrentState => _currentState.Value;
+        public int CurrentLevel => _currentLevel.Value;
+
+        public bool IsPlaying => _currentState.Value == GameState.GamePlaying;
+
+        public override void OnNetworkSpawn()
         {
-            // 触发转场至地图生成
-            ChangeState(GameState.MapGenerating);
-        }
-    }
-    public override void OnNetworkDespawn()
-    {
-        base.OnNetworkDespawn();
-        NetEventCenter.Instance.Unsubscribe<GamePlayStartStruct>(OnGameStart);
-    }
-    #region NetworkStateLogic
-        private void HandleNetworkState(GameState previousState, GameState newstate)
+            base.OnNetworkSpawn();
+            Instance = this;
+
+            _currentState.OnValueChanged += HandleStateChanged;
+            _currentLevel.OnValueChanged += HandleLevelChanged;
+
+            PublishInitialState();
+       }
+
+
+        public override void OnNetworkDespawn()
         {
-            switch (newstate)
+            _currentState.OnValueChanged -= HandleStateChanged;
+            _currentLevel.OnValueChanged -= HandleLevelChanged;
+
+            if (Instance == this)
             {
-                case GameState.GameLoading:
-                    break;
-                case GameState.MapGenerating:
-                    HandleMapSpawnState();
-                    break;
-                case GameState.GamePlaying:
-                    HandlePlayState();
-                    break;
-                case GameState.MapClear:
-                    break;
-                case GameState.MapExchanging:
-                    break;
-                case GameState.GameOver:
-                    HandleGameOver();
-                    break;
-
-        }
-        
-        }
-        private void HandleWaitingToStartState()
-        { 
-        }
-        private void HandleMapSpawnState()
-        {
-            //StartCoroutine(MapGenerator.instance.PreGenerateMap());
-        }
-        private void HandleGameOver() 
-        {
-            Debug.Log("Dead");
-        }
-    private void HandlePlayState() 
-        {
-            if(IsServer)
-                NetEventCenter.Instance.Send(new GamePlayStartStruct());
-        }
-        public void OnGameStart(GamePlayStartStruct evt,ulong sendeId) 
-        {
-            if (!NetUtils.Filter(evt, sendeId, true))
-            { 
-               return;
+                Instance = null;
             }
-            LocalEventCenter.Instance.EventTrigger(evt);
+            base.OnNetworkDespawn();
         }
-        public void ChangeState(GameState state) 
-        {
-            if(!IsServer)
-                return;
-            currentNetState.Value = state;
-        }
-        #endregion
-}
 
+        public void ChangeStateServer(GameState newState)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            if (_currentState.Value == newState)
+            {
+                return;
+            }
+
+            _currentState.Value = newState;
+        }
+        public void SetLevelServer(int level)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            if(level <= 0) 
+            {
+                return;
+            }
+
+            if (_currentLevel.Value == level)
+            {
+                return;
+            }
+
+            _currentLevel.Value = level;
+        }
+
+        public void IncreaseLevelServer() 
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _currentLevel.Value++;
+        }
+
+        /// <summary>
+        /// 等待状态切换到目标状态。
+        /// 主要给流程控制器使用。
+        /// </summary>
+        public async UniTask WaitForStateAsync(GameState targetState,CancellationToken cancellationToken) 
+        {
+            await UniTask.WaitUntil(() => _currentState.Value == targetState, cancellationToken : cancellationToken);
+        }
+
+        /// <summary>
+        /// 等待状态离开指定状态。
+        /// </summary>
+        public async UniTask WaitUntilStateExitAsync(GameState state,CancellationToken cancellationToken)
+        {
+            await UniTask.WaitUntil(() => _currentState.Value != state,cancellationToken: cancellationToken);
+        }
+
+
+        private void PublishInitialState()
+        {
+            LocalEvents.Publish(new GameStateChangedEvent(GameState.None, _currentState.Value));
+            LocalEvents.Publish(new GameLevelChangedEvent(0, _currentLevel.Value));
+
+        }
+
+        private void HandleStateChanged(GameState previousState, GameState currentState)
+        {
+            LocalEvents.Publish(new GameStateChangedEvent(previousState, currentState));
+        }
+
+        private void HandleLevelChanged(int previousLevel, int currentLevel)
+        {
+            LocalEvents.Publish(new GameLevelChangedEvent(previousLevel,currentLevel));
+        }
+    }
+}

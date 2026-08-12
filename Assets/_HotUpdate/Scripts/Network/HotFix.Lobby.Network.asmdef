@@ -2,10 +2,12 @@
     "name": "HotFix.Lobby.Network",
     "rootNamespace": "",
     "references": [
+        "HotFix.Session",
         "GUID:d403b56ef9a3aea40ae307fab3e5e834",
         "GUID:f51ebe6a0ceec4240a699833d6309b23",
         "GUID:e0cd26848372d4e5c891c569017e11f1",
-        "GUID:1491147abca9d7d4bb7105af628b223e"
+        "GUID:1491147abca9d7d4bb7105af628b223e",
+        "GUID:db93f0cd8f43a614db8f4cd6f0b62dd3"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

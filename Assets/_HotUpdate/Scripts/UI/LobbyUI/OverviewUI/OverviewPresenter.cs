@@ -5,6 +5,7 @@ using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using ProjectGame.HotFix.Netcode;
 using ProjectGame.HotFix.Lobby;
+using ProjectGame.HotFix.Core.Events;
 
 namespace ProjectGame.HotFix.UI.Lobby
 {
@@ -17,6 +18,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         [Header("V层引用")]
         [SerializeField] private OverviewView _view;
         [SerializeField] private JoinGameView _joinGameView;
+        [SerializeField] private OverviewMessageCardView _messageCardView;
 
         [Header("网络")]
         [SerializeField] private float _connectionTimeout = 10f;
@@ -36,6 +38,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private Sequence _currentTweenSeq;
         private NetworkManager _netcodeManager;
         private LobbyNetworkManager _lobbyNetworkManager;
+        private System.IDisposable _messageCardSubscription;
 
         // 端口
         private const ushort GamePort = 7777;
@@ -80,6 +83,8 @@ namespace ProjectGame.HotFix.UI.Lobby
                 _isJoinGameUIVisible = false;
             }
 
+            _messageCardView.ResetImmediately();
+
             StopConnectionTimeout();
         }
 
@@ -101,6 +106,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
             _netcodeManager.OnServerStarted += OnServerStartedCallback;
             _netcodeManager.OnClientConnectedCallback += OnClientConnectedCallback;
+            _netcodeManager.OnClientDisconnectCallback += OnClientDisconnectedCallback;
             _netcodeManager.OnClientStopped += OnClientStoppedCallback;
             _netcodeManager.OnTransportFailure += OnTransportFailureCallback;
 
@@ -108,6 +114,9 @@ namespace ProjectGame.HotFix.UI.Lobby
             _lobbyNetworkManager.OnReadyCountdownUpdated += OnCountdownUpdated;
             _lobbyNetworkManager.OnCountdownStarted += OnCountdownStarted;
             _lobbyNetworkManager.OnCountdownCancelled += OnCountdownCancelled;
+
+            _messageCardSubscription = LocalEvents.Subscribe<ShowOverviewMessageEvent>(
+                HandleMessageCardRequested);
         }
 
         /// <summary>解除 View、NGO 和倒计时事件。</summary>
@@ -126,6 +135,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             {
                 _netcodeManager.OnServerStarted -= OnServerStartedCallback;
                 _netcodeManager.OnClientConnectedCallback -= OnClientConnectedCallback;
+                _netcodeManager.OnClientDisconnectCallback -= OnClientDisconnectedCallback;
                 _netcodeManager.OnClientStopped -= OnClientStoppedCallback;
                 _netcodeManager.OnTransportFailure -= OnTransportFailureCallback;
             }
@@ -136,6 +146,9 @@ namespace ProjectGame.HotFix.UI.Lobby
                 _lobbyNetworkManager.OnCountdownStarted -= OnCountdownStarted;
                 _lobbyNetworkManager.OnCountdownCancelled -= OnCountdownCancelled;
             }
+
+            _messageCardSubscription?.Dispose();
+            _messageCardSubscription = null;
         }
 
         #endregion
@@ -146,6 +159,19 @@ namespace ProjectGame.HotFix.UI.Lobby
         protected override void RenderView()
         {
             // 留空，后续填充
+        }
+
+        #endregion
+
+        #region Overview Message Card
+
+        /// <summary>只在 Overview Presenter 工作时把消息事件转交给 View 表现。</summary>
+        private void HandleMessageCardRequested(ShowOverviewMessageEvent eventData)
+        {
+            if (!_isWorking || string.IsNullOrWhiteSpace(eventData.Message))
+                return;
+
+            _messageCardView.Show(eventData.Message, eventData.VisibleDuration);
         }
 
         #endregion
@@ -378,6 +404,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             NetworkManager.Singleton.Shutdown();
             _isReady = false;
             SetJoinBtnStateUI(JoinGameBtnState.Default);
+            LocalEvents.Publish(new ShowOverviewMessageEvent("已退出房间"));
         }
 
         #endregion
@@ -455,6 +482,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             // Host启动成功 → StartGameBtn 变为"准备就绪"
             _view.SetStartGameBtnState("准备就绪", Color.white);
             _isReady = false;
+            LocalEvents.Publish(new ShowOverviewMessageEvent("房间创建成功"));
         }
 
         /// <summary>处理本地或远端客户端连接完成。</summary>
@@ -463,6 +491,8 @@ namespace ProjectGame.HotFix.UI.Lobby
             if (NetworkManager.Singleton.IsServer)
             {
                 // Host 侧：客户端连接上来了
+                if (clientId != NetworkManager.Singleton.LocalClientId)
+                    LocalEvents.Publish(new ShowOverviewMessageEvent("有玩家加入房间"));
             }
             else if (clientId == NetworkManager.Singleton.LocalClientId)
             {
@@ -473,7 +503,18 @@ namespace ProjectGame.HotFix.UI.Lobby
                 SetJoinBtnStateUI(JoinGameBtnState.Client);
                 _view.SetStartGameBtnState("准备就绪", Color.white);
                 _isReady = false;
+                LocalEvents.Publish(new ShowOverviewMessageEvent("已成功加入房间"));
             }
+        }
+
+        /// <summary>Host 侧提示远端玩家已退出房间。</summary>
+        private void OnClientDisconnectedCallback(ulong clientId)
+        {
+            if (!NetworkManager.Singleton.IsServer
+                || clientId == NetworkManager.Singleton.LocalClientId)
+                return;
+
+            LocalEvents.Publish(new ShowOverviewMessageEvent("有玩家退出房间"));
         }
 
         /// <summary>连接停止后恢复大厅按钮状态。</summary>

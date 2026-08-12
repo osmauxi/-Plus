@@ -1,11 +1,11 @@
 ﻿using Cysharp.Threading.Tasks;
 using MessagePack;
 using MessagePack.Resolvers;
+using System;
 using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Resolvers.Resolvers;
 using ProjectGame.HotFix.UI;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.SceneManagement;
 
 namespace ProjectGame.HotFix
@@ -26,7 +26,7 @@ namespace ProjectGame.HotFix
 
             RegisterMessagePackResolver();
             ConfigManager.Instance.Init();
-            EnterLobbyScene();
+            EnterLobbySceneAsync().Forget();
         }
 
         /// <summary>
@@ -50,13 +50,34 @@ namespace ProjectGame.HotFix
         /// <summary>
         /// 加载全部配置并切换到大厅场景。
         /// </summary>
-        private static async void EnterLobbyScene()
+        private static async UniTask EnterLobbySceneAsync()
         {
-            //先加载配表，确保数据就绪后再加载场景（避免 UI Awake->GetTable 时配表尚未加载的时序问题）
-            await ConfigManager.Instance.LoadAllConfigsAsync();
-            await Addressables.LoadSceneAsync("LobbyScene", LoadSceneMode.Single).Task.AsUniTask();
+            const string lobbyScenePath = "Assets/_HotUpdate/Scenes/LobbyScene.unity";
 
-            Debug.Log("<color=yellow>【成功进入联机大厅】</color>");
+            try
+            {
+                //先加载配表，确保数据就绪后再加载场景（避免 UI Awake->GetTable 时配表尚未加载的时序问题）
+                await ConfigManager.Instance.LoadAllConfigsAsync();
+
+                int buildIndex = SceneUtility.GetBuildIndexByScenePath(lobbyScenePath);
+
+                if (buildIndex < 0)
+                    throw new InvalidOperationException($"Lobby 场景未加入 Build Settings：{lobbyScenePath}");
+
+                AsyncOperation loadOperation = SceneManager.LoadSceneAsync(buildIndex, LoadSceneMode.Single);
+
+                if (loadOperation == null)
+                    throw new InvalidOperationException($"无法启动 Lobby 场景加载：{lobbyScenePath}");
+
+                await loadOperation.ToUniTask();
+
+                Debug.Log("<color=yellow>【成功进入联机大厅】</color>");
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"[HotFixEntry] 进入 Lobby 失败：\n{exception}");
+                throw;
+            }
         }
     }
 }

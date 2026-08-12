@@ -1,0 +1,24 @@
+{
+    "name": "HotFix.Gameplay.EditModeTests",
+    "rootNamespace": "",
+    "references": [
+        "HotFix.Gameplay",
+        "Unity.InputSystem",
+        "Unity.InputSystem.TestFramework",
+        "UniTask"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

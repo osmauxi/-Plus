@@ -28,6 +28,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         public bool IsInitializing { get; private set; }
         public bool IsInitialized { get; private set; }
+        /// <summary>本次 Network Spawn 生命周期是否已经确定初始化失败。</summary>
+        public bool HasInitializationFailed { get; private set; }
+        /// <summary>用于 Ready 屏障和日志诊断的简短失败原因；完整异常仍写入 Console。</summary>
+        public string InitializationError { get; private set; }
 
         private void Awake()
         {
@@ -58,6 +62,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         {
             IsInitializing = true;
             IsInitialized = false;
+            HasInitializationFailed = false;
+            InitializationError = null;
 
             try
             {
@@ -80,6 +86,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
             }
             catch (Exception exception)
             {
+                HasInitializationFailed = true;
+                InitializationError = exception.Message;
                 Debug.LogError($"[{nameof(PlayerRuntimeInitializer)}] 玩家初始化失败：ClientId={OwnerClientId}\n{exception}");
             }
             finally
@@ -118,6 +126,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
             IsInitializing = false;
             IsInitialized = false;
+            HasInitializationFailed = false;
+            InitializationError = null;
         }
 
         private void CancelInitialization()

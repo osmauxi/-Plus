@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Core.Events;
 using ProjectGame.HotFix.Core.Session;
+using ProjectGame.HotFix.Gameplay.Events;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using Unity.Netcode;
 using UnityEngine;
@@ -26,6 +28,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private readonly List<PlayerRuntime> _orderedPlayers = new();
 
         private NetworkManager _networkManager;
+        // Camera Service 热重启或初始化顺序变化时，用观察者事件重发当前默认玩家目标。
+        private IDisposable _cameraReadySubscription;
 
         public bool IsInitialized { get; private set; }
 
@@ -82,6 +86,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
             LocalPlayer = null;
+            _cameraReadySubscription?.Dispose();
+            _cameraReadySubscription =
+                LocalEvents.Subscribe<GameplayCameraServiceReadyEvent>(HandleCameraServiceReady);
 
             IsInitialized = true;
 
@@ -105,9 +112,15 @@ namespace ProjectGame.HotFix.Gameplay.Player
             {
                 if (existingPlayer == player)
                     return;
-                
+
                 //断线重连时，新 PlayerRuntime 可能使用相同 ClientId 替换旧引用。
                 //先移除旧对象，避免同一个 ClientId 在列表中出现两次。
+                if (LocalPlayer == existingPlayer)
+                {
+                    PublishLocalPlayerCameraRelease(existingPlayer);
+                    LocalPlayer = null;
+                }
+
                 _orderedPlayers.Remove(existingPlayer);
                 Debug.LogWarning($"[{nameof(PlayerManager)}] Client {clientId} 的玩家实例已被替换。");
             }
@@ -116,10 +129,14 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _orderedPlayers.Add(player);
             _orderedPlayers.Sort((left, right) => left.ClientId.CompareTo(right.ClientId));
 
-            if (clientId == _networkManager.LocalClientId)
+            bool isLocalPlayer = clientId == _networkManager.LocalClientId;
+            if (isLocalPlayer)
                 LocalPlayer = player;
 
             PlayerRegistered?.Invoke(player);
+
+            if (isLocalPlayer)
+                PublishLocalPlayerCameraRequest(player);
 
             Debug.Log($"[{nameof(PlayerManager)}] 玩家已注册：ClientId={clientId}，当前数量={SpawnedPlayerCount}");
         }
@@ -143,7 +160,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _orderedPlayers.Remove(player);
 
             if (LocalPlayer == player)
+            {
+                PublishLocalPlayerCameraRelease(player);
                 LocalPlayer = null;
+            }
 
             PlayerUnregistered?.Invoke(player);
 
@@ -167,6 +187,49 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public async UniTask WaitUntilAllPlayersRegisteredAsync(CancellationToken cancellationToken)
         {
             await UniTask.WaitUntil(() => SpawnedPlayerCount >= ExpectedPlayerCount, cancellationToken: cancellationToken);
+        }
+
+        /// <summary>
+        /// 等待本机全部 PlayerRuntime 完成角色外观、武器和 Animator 初始化。
+        ///
+        /// Network Spawn 只说明网络身份存在，不代表 Addressables 表现资源已经可用。
+        /// 任一玩家初始化失败时立即抛出，避免 Server 永远卡在 Ready 屏障。
+        /// </summary>
+        public async UniTask WaitUntilAllPlayersInitializedAsync(CancellationToken cancellationToken)
+        {
+            await WaitUntilAllPlayersRegisteredAsync(cancellationToken);
+
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                bool allInitialized = true;
+
+                for (int i = 0; i < _orderedPlayers.Count; i++)
+                {
+                    PlayerRuntime player = _orderedPlayers[i];
+
+                    if (player == null || !player.TryGetComponent(out PlayerRuntimeInitializer initializer))
+                    {
+                        throw new InvalidOperationException(
+                            $"玩家缺少 {nameof(PlayerRuntimeInitializer)}：Index={i}");
+                    }
+
+                    if (initializer.HasInitializationFailed)
+                    {
+                        throw new InvalidOperationException(
+                            $"玩家初始化失败：ClientId={player.ClientId}，" +
+                            $"Reason={initializer.InitializationError}");
+                    }
+
+                    if (!initializer.IsInitialized)
+                        allInitialized = false;
+                }
+
+                if (allInitialized)
+                    return;
+
+                await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
+            }
         }
 
         /// <summary>
@@ -208,12 +271,17 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
 
+            if (LocalPlayer != null)
+                PublishLocalPlayerCameraRelease(LocalPlayer);
+
             LocalPlayer = null;
             _networkManager = null;
             IsInitialized = false;
 
             PlayerRegistered = null;
             PlayerUnregistered = null;
+            _cameraReadySubscription?.Dispose();
+            _cameraReadySubscription = null;
 
             Debug.Log($"[{nameof(PlayerManager)}] 已关闭并清理。");
             return UniTask.CompletedTask;
@@ -225,6 +293,35 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 throw new InvalidOperationException($"{nameof(PlayerManager)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap。");
         }
 
+        /// <summary>
+        /// PlayerManager 只发布“本地玩家成为默认观察目标”这一事实。
+        /// 它不知道由 Cinemachine、调试相机还是其他表现系统消费。
+        /// </summary>
+        private static void PublishLocalPlayerCameraRequest(PlayerRuntime player)
+        {
+            Transform cameraTarget = player.TryGetComponent(out PlayerPresentationDriver presentation)
+                ? presentation.PresentationRoot
+                : player.transform;
+
+            LocalEvents.Publish(new GameplayCameraTargetRequestedEvent(
+                player,
+                cameraTarget,
+                cameraTarget,
+                priority: 0,
+                snap: true));
+        }
+
+        private static void PublishLocalPlayerCameraRelease(PlayerRuntime player)
+        {
+            LocalEvents.Publish(new GameplayCameraTargetReleasedEvent(player));
+        }
+
+        private void HandleCameraServiceReady()
+        {
+            if (LocalPlayer != null)
+                PublishLocalPlayerCameraRequest(LocalPlayer);
+        }
+
         private void OnDestroy()
         {
             if (Instance != this)
@@ -233,7 +330,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
 
+            if (LocalPlayer != null)
+                PublishLocalPlayerCameraRelease(LocalPlayer);
+
             LocalPlayer = null;
+            _cameraReadySubscription?.Dispose();
+            _cameraReadySubscription = null;
             Instance = null;
         }
     }

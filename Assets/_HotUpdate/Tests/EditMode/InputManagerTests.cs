@@ -119,6 +119,27 @@ namespace ProjectGame.HotFix.Tests.EditMode
             Assert.That(_inputManager.Move.y, Is.EqualTo(1f).Within(0.001f));
             Release(keyboard.upArrowKey);
         }
+
+        [Test]
+        public void CameraInput_UsesDiscreteRotationAndRespectsContextIsolation()
+        {
+            Keyboard keyboard = InputSystem.AddDevice<Keyboard>();
+            Mouse mouse = InputSystem.AddDevice<Mouse>();
+            _inputManager.SetBaseContext(RuntimeInputContext.Gameplay);
+
+            Press(keyboard.qKey);
+            Assert.That(_inputManager.CameraRotateStep, Is.EqualTo(-1f));
+            Release(keyboard.qKey);
+
+            Set(mouse.scroll, new Vector2(0f, 120f));
+            Assert.That(_inputManager.CameraZoom.y, Is.EqualTo(120f).Within(0.001f));
+
+            using (_inputManager.AcquireContext(RuntimeInputContext.UI, this))
+            {
+                Assert.That(_inputManager.CameraRotateStep, Is.Zero);
+                Assert.That(_inputManager.CameraZoom, Is.EqualTo(Vector2.zero));
+            }
+        }
     }
 
     public sealed class InputManagerTestRunCallback : ICallbacks

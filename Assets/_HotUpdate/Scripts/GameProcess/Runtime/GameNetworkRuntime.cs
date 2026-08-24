@@ -1,5 +1,6 @@
 ﻿using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Core.NetworkEvents;
+using ProjectGame.HotFix.Gameplay.Player.Sync;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using System;
 using System.Threading;
@@ -14,7 +15,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
     public sealed class GameNetworkRuntime :MonoBehaviour,IGameRuntimeService
     {
         public bool IsInitialized { get; private set; }
-
+        public static PlayerSyncTransport PlayerSync { get; private set; }
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
             if (IsInitialized)
@@ -35,6 +36,8 @@ namespace ProjectGame.HotFix.Gameplay.Network
 
             // 按照你最终的 NetEvents API 调整参数。
             NetEvents.Initialize(networkManager);
+            PlayerSync = new PlayerSyncTransport(networkManager);
+            PlayerSync.Initialize();
 
             IsInitialized = true;
 
@@ -52,6 +55,8 @@ namespace ProjectGame.HotFix.Gameplay.Network
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            PlayerSync?.Shutdown();
+            PlayerSync = null;
             NetEvents.Shutdown();
 
             IsInitialized = false;

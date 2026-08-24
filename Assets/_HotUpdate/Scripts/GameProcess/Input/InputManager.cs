@@ -36,6 +36,8 @@ namespace ProjectGame.HotFix.Gameplay.Input
         private const string AimActionName = "Aim";
         private const string ReloadActionName = "Reload";
         private const string SprintActionName = "Sprint";
+        private const string CameraRotateActionName = "CameraRotate";
+        private const string CameraZoomActionName = "CameraZoom";
         public static InputManager Instance { get; private set; }
 
         [Header("Input Actions")]
@@ -61,6 +63,8 @@ namespace ProjectGame.HotFix.Gameplay.Input
         private InputAction _aimAction;
         private InputAction _reloadAction;
         private InputAction _sprintAction;
+        private InputAction _cameraRotateAction;
+        private InputAction _cameraZoomAction;
 
         private SettingSaveService _settingSaveService;
         private InputRebindService _inputRebindService;
@@ -90,6 +94,17 @@ namespace ProjectGame.HotFix.Gameplay.Input
         public bool ReloadPressedThisFrame => IsGameplayInputEnabled && _reloadAction.WasPressedThisFrame();
 
         public bool SprintHeld => IsGameplayInputEnabled && _sprintAction.IsPressed();
+        /// <summary>
+        /// 离散相机旋转输入。默认 Q=-1、E=+1，只在按下边沿返回一次，
+        /// 避免按住按键后每帧连续叠加 90 度。
+        /// </summary>
+        public float CameraRotateStep =>
+            IsGameplayInputEnabled && _cameraRotateAction.WasPressedThisFrame()
+                ? Mathf.Sign(_cameraRotateAction.ReadValue<float>())
+                : 0f;
+        /// <summary>鼠标滚轮等连续缩放输入；当前只消费 Y 分量。</summary>
+        public Vector2 CameraZoom =>
+            IsGameplayInputEnabled ? _cameraZoomAction.ReadValue<Vector2>() : Vector2.zero;
         public Vector2 PointerPosition =>
             Mouse.current == null ? Vector2.zero : Mouse.current.position.ReadValue();
 
@@ -287,6 +302,8 @@ namespace ProjectGame.HotFix.Gameplay.Input
             _aimAction = RequireGameplayAction(AimActionName);
             _reloadAction = RequireGameplayAction(ReloadActionName);
             _sprintAction = RequireGameplayAction(SprintActionName);
+            _cameraRotateAction = RequireGameplayAction(CameraRotateActionName);
+            _cameraZoomAction = RequireGameplayAction(CameraZoomActionName);
         }
 
         private InputAction RequireGameplayAction(string actionName)
@@ -418,6 +435,8 @@ namespace ProjectGame.HotFix.Gameplay.Input
             _aimAction = null;
             _reloadAction = null;
             _sprintAction = null;
+            _cameraRotateAction = null;
+            _cameraZoomAction = null;
 
             _contextRequests.Clear();
             _nextContextRequestId = 0;

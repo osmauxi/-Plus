@@ -1,0 +1,19 @@
+{
+    "name": "HotFix.Gameplay.NetworkTests",
+    "rootNamespace": "",
+    "references": [
+        "HotFix.Gameplay",
+        "Unity.Netcode.Runtime",
+        "Unity.Multiplayer.Tools.NetworkSimulator.Runtime",
+        "UniTask"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

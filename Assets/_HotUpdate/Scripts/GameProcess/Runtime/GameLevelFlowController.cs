@@ -169,7 +169,15 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             IReadOnlyList<Transform> spawnPoints = ResolveStartRoomSpawnPoints(result);
 
             if (initialLevel)
+            {
                 await _playerSpawnController.SpawnInitialPlayersAsync(spawnPoints, cancellationToken);
+                // Network Spawn 完成后还要等待每个 Peer 的角色、武器和 Animator 异步装载。
+                // 在屏障结束前保持 MapGenerating，InputManager 不会开放 Gameplay 输入。
+                if (GameRuntimeBootstrap.Instance == null)
+                    throw new InvalidOperationException("GameRuntimeBootstrap 不存在，无法等待 PlayerRuntime Ready。");
+
+                await GameRuntimeBootstrap.Instance.WaitUntilAllPlayerRuntimesReadyAsync(cancellationToken);
+            }
             else
                 _playerSpawnController.RepositionPlayers(spawnPoints);
 

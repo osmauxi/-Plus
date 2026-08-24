@@ -1,4 +1,5 @@
 ﻿using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.State;
 using System;
 using System.Collections;
@@ -28,7 +29,12 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             "UIGameUIScene"
         };
 
+        [Tooltip("首次生成玩家后，等待所有 Peer 完成角色、武器和 Animator 初始化的最长时间。")]
+        [Min(5f)]
+        [SerializeField] private float _playerRuntimeReadyTimeoutSeconds = 45f;
+
         private readonly HashSet<ulong> _readyClientIds = new();
+        private readonly HashSet<ulong> _playerRuntimeReadyClientIds = new();
 
         private IGameRuntimeService[] _runtimeServices = Array.Empty<IGameRuntimeService>();
 
@@ -38,6 +44,8 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
         private bool _isShuttingDown;
 
         public bool IsLocalRuntimeReady { get; private set; }
+        /// <summary>本机是否已完成全部 PlayerRuntime 的角色、武器和 Animator 初始化。</summary>
+        public bool IsLocalPlayerRuntimeReady { get; private set; }
 
         private void Awake()
         {
@@ -59,6 +67,10 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             CancelRuntime();
 
             _runtimeCts = new CancellationTokenSource();
+            _readyClientIds.Clear();
+            _playerRuntimeReadyClientIds.Clear();
+            IsLocalRuntimeReady = false;
+            IsLocalPlayerRuntimeReady = false;
 
             RunRuntimeAsync(_runtimeCts.Token).Forget();
         }
@@ -103,6 +115,10 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
                 IsLocalRuntimeReady = true;
                 //向服务器提交自己的Runtime加载完成
                 NotifyServerLocalRuntimeReady();
+
+                // 玩家尚未 Spawn，因此这里启动观察任务而不阻塞 Runtime Ready。
+                // 它会在玩家生成并完成异步表现初始化后自动向 Server 上报第二阶段 Ready。
+                MonitorLocalPlayerRuntimeReadyAsync(cancellationToken).Forget();
 
                 //远端客户端报告完成后，本地启动流程到此结束。
                 if (!IsServer)
@@ -229,6 +245,109 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             Debug.Log($"[GameRuntimeBootstrap] Client：{clientId} Runtime加载完成。");
         }
 
+        private async UniTaskVoid MonitorLocalPlayerRuntimeReadyAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                PlayerManager playerManager = PlayerManager.Instance;
+                if (playerManager == null || !playerManager.IsInitialized)
+                    throw new InvalidOperationException("PlayerManager 尚未初始化，无法等待玩家表现资源。");
+
+                await playerManager.WaitUntilAllPlayersInitializedAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                IsLocalPlayerRuntimeReady = true;
+                NotifyServerLocalPlayerRuntimeReady();
+
+                Debug.Log("[GameRuntimeBootstrap] 本机全部 PlayerRuntime 初始化完成。");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"[GameRuntimeBootstrap] 本机 PlayerRuntime 初始化失败：\n{exception}");
+            }
+        }
+
+        private void NotifyServerLocalPlayerRuntimeReady()
+        {
+            if (!IsClient)
+                return;
+
+            if (IsServer)
+            {
+                MarkClientPlayerRuntimeReady(NetworkManager.LocalClientId);
+                return;
+            }
+
+            ReportPlayerRuntimeReadyServerRpc();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void ReportPlayerRuntimeReadyServerRpc(ServerRpcParams rpcParams = default)
+        {
+            MarkClientPlayerRuntimeReady(rpcParams.Receive.SenderClientId);
+        }
+
+        private void MarkClientPlayerRuntimeReady(ulong clientId)
+        {
+            if (!IsServer)
+                return;
+
+            if (!_playerRuntimeReadyClientIds.Add(clientId))
+                return;
+
+            Debug.Log($"[GameRuntimeBootstrap] Client：{clientId} PlayerRuntime 初始化完成。");
+        }
+
+        /// <summary>
+        /// Server 在首次 Spawn 后调用。只有所有当前连接 Peer 都上报 PlayerRuntime Ready，
+        /// GameLevelFlowController 才能切换到 GamePlaying 并开放输入。
+        /// </summary>
+        public async UniTask WaitUntilAllPlayerRuntimesReadyAsync(CancellationToken cancellationToken)
+        {
+            if (!IsServer)
+                throw new InvalidOperationException("只有 Server 可以等待 PlayerRuntime Ready 屏障。");
+
+            float deadline = Time.realtimeSinceStartup + _playerRuntimeReadyTimeoutSeconds;
+
+            await UniTask.WaitUntil(
+                () => AreAllConnectedClientsPlayerRuntimeReady() || Time.realtimeSinceStartup >= deadline,
+                cancellationToken: cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!AreAllConnectedClientsPlayerRuntimeReady())
+            {
+                throw new TimeoutException(
+                    $"等待 PlayerRuntime Ready 超时：" +
+                    $"Ready={_playerRuntimeReadyClientIds.Count}，" +
+                    $"Connected={NetworkManager.ConnectedClientsIds.Count}，" +
+                    $"Timeout={_playerRuntimeReadyTimeoutSeconds:F1}s");
+            }
+
+            Debug.Log("[GameRuntimeBootstrap] 所有客户端 PlayerRuntime 初始化完成。");
+        }
+
+        private bool AreAllConnectedClientsPlayerRuntimeReady()
+        {
+            if (!IsServer || NetworkManager == null || !NetworkManager.IsListening)
+                return false;
+
+            var connectedClientIds = NetworkManager.ConnectedClientsIds;
+            if (connectedClientIds.Count == 0)
+                return false;
+
+            for (int i = 0; i < connectedClientIds.Count; i++)
+            {
+                if (!_playerRuntimeReadyClientIds.Contains(connectedClientIds[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
         private bool AreAllConnectedClientsReady()
         {
             if (!IsServer || NetworkManager == null || !NetworkManager.IsListening)
@@ -317,7 +436,9 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             {
                 _initializedServiceCount = 0;
                 IsLocalRuntimeReady = false;
+                IsLocalPlayerRuntimeReady = false;
                 _readyClientIds.Clear();
+                _playerRuntimeReadyClientIds.Clear();
                 _isShuttingDown = false;
             }
         }

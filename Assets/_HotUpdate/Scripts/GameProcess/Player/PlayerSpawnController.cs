@@ -4,6 +4,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Core.Session;
 using ProjectGame.HotFix.Gameplay.Pooling;
+using ProjectGame.HotFix.Gameplay.Player.Sync;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using Unity.Netcode;
 using UnityEngine;
@@ -142,7 +143,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 if (spawnPoint == null)
                     throw new InvalidOperationException($"玩家出生点为空：Index={i}");
 
-                player.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
+                if (player.TryGetComponent(out PlayerSyncController syncController))
+                    syncController.ResetAfterWarp(spawnPoint.position, spawnPoint.rotation);
+                else
+                    player.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
             }
 
             Debug.Log($"[{nameof(PlayerSpawnController)}] 已重新布置玩家：Count={sessionPlayers.Count}");

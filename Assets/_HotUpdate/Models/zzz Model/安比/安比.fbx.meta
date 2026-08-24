@@ -1250,7 +1250,7 @@ ModelImporter:
       rotation: {x: 0, y: 0, z: 0, w: 1}
       scale: {x: 1.0000002, y: 1.0000002, z: 1}
     - name: Bip001 R ForeTwist
-      parentName: Bip001 R Forearm
+      parentName: Bip001 R UpperArm
       position: {x: -0, y: 0, z: 0}
       rotation: {x: 1.657501e-15, y: 0.00000032782552, z: -0, w: 1}
       scale: {x: 1, y: 1, z: 1}
@@ -1470,7 +1470,7 @@ ModelImporter:
     legTwist: 0.5
     armStretch: 0.05
     legStretch: 0.05
-    feetSpacing: 0
+    feetSpacing: 0.059
     globalScale: 7
     rootMotionBoneName: 
     hasTranslationDoF: 1

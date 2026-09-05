@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.UI.Lobby
 {
-    /// <summary>在 Cinemachine 最终输出阶段叠加由鼠标位置驱动的小幅镜头旋转。</summary>
+    /// <summary>在 Cinemachine 最终输出阶段叠加由鼠标位置驱动的小幅镜头旋转 </summary>
     [AddComponentMenu("ProjectGame/Lobby/Camera Mouse Sway Extension")]
     [DisallowMultipleComponent]
     public sealed class LobbyCameraMouseSwayExtension : CinemachineExtension
@@ -22,7 +22,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private Vector2 _smoothVelocity;
         private Vector2 _lastTargetInput;
 
-        /// <summary>在 Cinemachine 完成运镜后叠加鼠标旋转，不修改虚拟相机 Transform。</summary>
+        /// <summary>在 Cinemachine 完成运镜后叠加鼠标旋转，不修改虚拟相机 Transform </summary>
         protected override void PostPipelineStageCallback(
             CinemachineVirtualCameraBase vcam,
             CinemachineCore.Stage stage,
@@ -57,7 +57,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             state.OrientationCorrection *= sway;
         }
 
-        /// <summary>读取鼠标屏幕位置并转换为带中心死区的 -1 到 1 输入。</summary>
+        /// <summary>读取鼠标屏幕位置并转换为带中心死区的 -1 到 1 输入 </summary>
         private Vector2 ReadMouseInput()
         {
             Vector3 mousePosition = Input.mousePosition;
@@ -79,7 +79,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             return _lastTargetInput;
         }
 
-        /// <summary>移除中心死区，并把剩余输入重新映射到完整范围。</summary>
+        /// <summary>移除中心死区，并把剩余输入重新映射到完整范围 </summary>
         private float ApplyDeadZone(float value)
         {
             float absoluteValue = Mathf.Abs(value);

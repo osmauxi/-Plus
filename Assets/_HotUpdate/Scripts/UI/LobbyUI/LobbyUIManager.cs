@@ -44,7 +44,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         public LobbyScreenState CurrentState => _currentState;
 
         /// <summary>
-        /// 建立大厅 UI 单例并初始化 Presenter 与展位事件。
+        /// 建立大厅 UI 单例并初始化 Presenter 与展位事件 
         /// </summary>
         private void Awake()
         {
@@ -59,7 +59,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             BindStandManagerEvents();
         }
 
-        /// <summary>首次进入大厅时激活 Overview 页面。</summary>
+        /// <summary>首次进入大厅时激活 Overview 页面 </summary>
         private void Start()
         {
             // 初始默认进入概览界面
@@ -67,16 +67,17 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 监听大厅通用返回键，并把请求交给当前 Presenter 处理。
+        /// 监听大厅通用返回键，并把请求交给当前 Presenter 处理 
         /// </summary>
         private void Update()
         {
-            if (Keyboard.current.escapeKey.wasPressedThisFrame)
+            if (Keyboard.current != null &&
+                Keyboard.current.escapeKey.wasPressedThisFrame)
                 TryNavigateBack();
         }
 
         /// <summary>
-        /// 销毁有效单例时解除展位事件并清空实例。
+        /// 销毁有效单例时解除展位事件并清空实例 
         /// </summary>
         private void OnDestroy()
         {
@@ -89,7 +90,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 建立页面状态到 Presenter 的映射。
+        /// 建立页面状态到 Presenter 的映射 
         /// </summary>
         private void InitializePresenters()
         {
@@ -127,7 +128,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 切换页面，并在返回 Overview 时延迟显示其 UI。
+        /// 切换页面，并在返回 Overview 时延迟显示其 UI 
         /// </summary>
         public void ChangeScreen(LobbyScreenState newState)
         {
@@ -147,7 +148,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 切换 Presenter 状态，并允许调用方控制新页面是否立即显示。
+        /// 切换 Presenter 状态，并允许调用方控制新页面是否立即显示 
         /// </summary>
         private void ChangeScreenInternal(LobbyScreenState newState, bool showViewImmediately)
         {
@@ -167,7 +168,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         #region StandManager 事件绑定
 
         /// <summary>
-        /// 绑定展位点击、改名和空位事件。
+        /// 绑定展位点击、改名和空位事件 
         /// </summary>
         private void BindStandManagerEvents()
         {
@@ -177,7 +178,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 解除展位点击、改名和空位事件。
+        /// 解除展位点击、改名和空位事件 
         /// </summary>
         private void UnbindStandManagerEvents()
         {
@@ -247,7 +248,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 等待最低延迟与 Cinemachine 运镜结束后显示目标页面。
+        /// 等待最低延迟与 Cinemachine 运镜结束后显示目标页面 
         /// </summary>
         private IEnumerator ShowViewAfterCameraBlend(BaseLobbyPresenter presenter,LobbyScreenState targetState,float minimumDelay)
         {
@@ -270,7 +271,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _delayedViewCoroutine = null;
         }
 
-        /// <summary>取消尚未完成的页面延迟显示流程。</summary>
+        /// <summary>取消尚未完成的页面延迟显示流程 </summary>
         private void CancelDelayedView()
         {
             if (_delayedViewCoroutine == null)

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// Overview 消息卡片的纯 View 表现：更新文本并控制滑入、停留和滑出动画。
+    /// Overview 消息卡片的纯 View 表现：更新文本并控制滑入、停留和滑出动画 
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     public sealed class OverviewMessageCardView : MonoBehaviour
@@ -36,8 +36,8 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 从屏幕左侧滑入，停留指定时长后再滑回屏幕外。
-        /// 新消息会立即替换当前消息并重新开始完整动画。
+        /// 从屏幕左侧滑入，停留指定时长后再滑回屏幕外 
+        /// 新消息会立即替换当前消息并重新开始完整动画 
         /// </summary>
         public void Show(string message, float visibleDuration)
         {
@@ -60,7 +60,7 @@ namespace ProjectGame.HotFix.UI.Lobby
                 .OnComplete(() => _sequence = null);
         }
 
-        /// <summary>立即终止动画并把卡片放回屏幕左侧。</summary>
+        /// <summary>立即终止动画并把卡片放回屏幕左侧 </summary>
         public void ResetImmediately()
         {
             KillSequence();

@@ -44,7 +44,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         public event Action OnCreateGameClicked;
         public event Action<string> OnJoinSubmit;
 
-        /// <summary>缓存动画位置、绑定加入房间控件并初始化收起状态。</summary>
+        /// <summary>缓存动画位置、绑定加入房间控件并初始化收起状态 </summary>
         private void Awake()
         {
             //缓存按钮RectTransform
@@ -68,7 +68,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _ipInputField.gameObject.SetActive(false);
         }
 
-        /// <summary>销毁加入房间视图时解除输入框提交事件。</summary>
+        /// <summary>销毁加入房间视图时解除输入框提交事件 </summary>
         private void OnDestroy()
         {
             _ipInputField.onSubmit.RemoveAllListeners();

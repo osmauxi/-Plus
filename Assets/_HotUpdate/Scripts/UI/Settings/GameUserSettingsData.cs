@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Settings
 {
     /// <summary>
-    /// 保存玩家本地音频和按键偏好。
+    /// 保存玩家本地音频和按键偏好 
     /// </summary>
     [Serializable]
     public sealed class GameUserSettingsData
@@ -14,7 +14,7 @@ namespace ProjectGame.HotFix.Settings
         public string InputBindingOverridesJson = string.Empty;
 
         /// <summary>
-        /// 创建一份不共享引用的默认设置。
+        /// 创建一份不共享引用的默认设置 
         /// </summary>
         public static GameUserSettingsData CreateDefault()
         {
@@ -22,7 +22,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 修复外部 JSON 中缺失或越界的数据。
+        /// 修复外部 JSON 中缺失或越界的数据 
         /// </summary>
         public void Normalize()
         {
@@ -34,7 +34,7 @@ namespace ProjectGame.HotFix.Settings
     }
 
     /// <summary>
-    /// 保存三个音频通道的线性音量。
+    /// 保存三个音频通道的线性音量 
     /// </summary>
     [Serializable]
     public sealed class AudioSettingsData
@@ -44,7 +44,7 @@ namespace ProjectGame.HotFix.Settings
         public float SfxVolume = 0.8f;
 
         /// <summary>
-        /// 把所有音量限制到 Slider 使用的有效范围。
+        /// 把所有音量限制到 Slider 使用的有效范围 
         /// </summary>
         public void Normalize()
         {
@@ -55,7 +55,7 @@ namespace ProjectGame.HotFix.Settings
     }
 
     /// <summary>
-    /// 标识 Setting 页面中的音量通道。
+    /// 标识 Setting 页面中的音量通道 
     /// </summary>
     public enum SettingVolumeChannel
     {

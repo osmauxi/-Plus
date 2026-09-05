@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 协调 Setting 页面、本地设置、音频应用和 Input System 改键。
+    /// 协调 Setting 页面、本地设置、音频应用和 Input System 改键 
     /// </summary>
     [RequireComponent(typeof(SettingView))]
     public sealed class SettingPresenter : BaseLobbyPresenter
@@ -28,7 +28,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private int _lastRebindCanceledFrame = -1;
 
         /// <summary>
-        /// 创建 Setting 服务、绑定界面事件并恢复本地设置。
+        /// 创建 Setting 服务、绑定界面事件并恢复本地设置 
         /// </summary>
         protected override void Awake()
         {
@@ -45,7 +45,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 销毁 Presenter 时解除 View 事件并释放改键操作。
+        /// 销毁 Presenter 时解除 View 事件并释放改键操作 
         /// </summary>
         protected override void OnDestroy()
         {
@@ -55,7 +55,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 离开 Setting 时取消改键、保存数据并关闭交互。
+        /// 离开 Setting 时取消改键、保存数据并关闭交互 
         /// </summary>
         public override void Sleep()
         {
@@ -66,7 +66,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 应用退出前保存当前本地设置。
+        /// 应用退出前保存当前本地设置 
         /// </summary>
         private void OnApplicationQuit()
         {
@@ -74,7 +74,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 每次唤醒 Setting 时重新读取、应用并刷新全部设置。
+        /// 每次唤醒 Setting 时重新读取、应用并刷新全部设置 
         /// </summary>
         protected override void RenderView()
         {
@@ -84,7 +84,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             RefreshView();
         }
 
-        /// <summary>取消进行中的改键；其余情况复用返回按钮流程回到 Overview。</summary>
+        /// <summary>取消进行中的改键；其余情况复用返回按钮流程回到 Overview </summary>
         public override bool TryHandleBackRequest()
         {
             if (_inputRebindService.IsRebinding)
@@ -101,7 +101,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 订阅 SettingView 抛出的全部用户操作。
+        /// 订阅 SettingView 抛出的全部用户操作 
         /// </summary>
         private void BindViewEvents()
         {
@@ -112,7 +112,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 解除 SettingView 的全部用户操作事件。
+        /// 解除 SettingView 的全部用户操作事件 
         /// </summary>
         private void UnbindViewEvents()
         {
@@ -123,7 +123,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 读取本地 JSON，并立即应用音频与按键 Override。
+        /// 读取本地 JSON，并立即应用音频与按键 Override 
         /// </summary>
         private void LoadAndApplySettings()
         {
@@ -138,7 +138,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 完整刷新音量控件和全部按键行。
+        /// 完整刷新音量控件和全部按键行 
         /// </summary>
         private void RefreshView()
         {
@@ -148,7 +148,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 实时应用音量修改并立即保存到本地。
+        /// 实时应用音量修改并立即保存到本地 
         /// </summary>
         private void HandleVolumeChanged(SettingVolumeChannel channel, float value)
         {
@@ -172,7 +172,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 锁定 Setting 交互并启动指定按键行的交互式改键。
+        /// 锁定 Setting 交互并启动指定按键行的交互式改键 
         /// </summary>
         private void HandleRebindRequested(int index)
         {
@@ -189,7 +189,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 保存成功改键后的 Override 并刷新按键列表。
+        /// 保存成功改键后的 Override 并刷新按键列表 
         /// </summary>
         private void HandleRebindCompleted()
         {
@@ -201,7 +201,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 取消改键后恢复 Setting 交互和原按键显示。
+        /// 取消改键后恢复 Setting 交互和原按键显示 
         /// </summary>
         private void HandleRebindCanceled()
         {
@@ -211,7 +211,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 恢复默认音量和默认按键并立即保存、刷新。
+        /// 恢复默认音量和默认按键并立即保存、刷新 
         /// </summary>
         private void HandleRestoreDefaultRequested()
         {
@@ -225,7 +225,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 取消可能存在的改键、保存设置并返回 Overview。
+        /// 取消可能存在的改键、保存设置并返回 Overview 
         /// </summary>
         private void HandleBackRequested()
         {
@@ -235,7 +235,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将内存中的设置数据写入 user_settings.json。
+        /// 将内存中的设置数据写入 user_settings.json 
         /// </summary>
         private void SaveSettings()
         {

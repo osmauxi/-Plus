@@ -39,7 +39,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         // 格子对象池
         private List<ItemSlotView> _activeSlots = new List<ItemSlotView>();
         private Stack<ItemSlotView> _inactivePool = new Stack<ItemSlotView>();
-        /// <summary>绑定分类、物品和确认按钮事件。</summary>
+        /// <summary>绑定分类、物品和确认按钮事件 </summary>
         private void Awake()
         {
             _tabSkin.OnClicked += () => OnTabClicked?.Invoke(ItemCategory.Skin);
@@ -112,7 +112,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             }
         }
 
-        /// <summary>把物品格点击事件转发给 Presenter。</summary>
+        /// <summary>把物品格点击事件转发给 Presenter </summary>
         private void HandleSlotClick(int id)
         {
             OnSlotClicked?.Invoke(id);

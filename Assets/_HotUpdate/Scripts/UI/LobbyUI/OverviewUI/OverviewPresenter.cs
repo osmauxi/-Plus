@@ -1,4 +1,6 @@
 using DG.Tweening;
+using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.SceneFlow;
 using System.Collections;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -45,33 +47,36 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region 生命周期
 
-        /// <summary>缓存 View 并绑定 Overview 页面事件。</summary>
+        /// <summary>缓存 View 并绑定 Overview 页面事件 </summary>
         protected override void Awake()
         {
             base.Awake();
         }
 
-        /// <summary>初始化加入房间和开始按钮的默认显示。</summary>
+        /// <summary>初始化加入房间和开始按钮的默认显示 </summary>
         protected override void Start()
         {
             base.Start();
             _netcodeManager = NetworkManager.Singleton;
-            _lobbyNetworkManager = LobbyNetworkManager.Instance;
+            LobbyNetworkManager.InstanceChanged += HandleLobbyNetworkManagerChanged;
+            HandleLobbyNetworkManagerChanged(LobbyNetworkManager.Instance);
             BindEvents();
             _joinGameView.ResetToDefault();
-            SetJoinBtnStateUI(JoinGameBtnState.Default);
+            SetJoinBtnStateUI(_netcodeManager.IsHost ? JoinGameBtnState.Hosting :
+                _netcodeManager.IsConnectedClient ? JoinGameBtnState.Client : JoinGameBtnState.Default);
             // 初始显示"开始游戏"
             _view.ResetStartGameBtnToDefault();
         }
 
-        /// <summary>销毁时解除 Overview 页面事件。</summary>
+        /// <summary>销毁时解除 Overview 页面事件 </summary>
         protected override void OnDestroy()
         {
+            LobbyNetworkManager.InstanceChanged -= HandleLobbyNetworkManagerChanged;
             UnbindEvents();
             base.OnDestroy();
         }
 
-        /// <summary>停止 Overview 页面交互并重置加入房间浮层。</summary>
+        /// <summary>停止 Overview 页面交互并重置加入房间浮层 </summary>
         public override void Sleep()
         {
             base.Sleep();
@@ -92,7 +97,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region 事件绑定
 
-        /// <summary>绑定 View、NGO 和倒计时事件。</summary>
+        /// <summary>绑定 View、NGO 和倒计时事件 </summary>
         private void BindEvents()
         {
             _view.OnReadyClicked += HandleReady;
@@ -110,16 +115,11 @@ namespace ProjectGame.HotFix.UI.Lobby
             _netcodeManager.OnClientStopped += OnClientStoppedCallback;
             _netcodeManager.OnTransportFailure += OnTransportFailureCallback;
 
-            // 监听倒计时事件
-            _lobbyNetworkManager.OnReadyCountdownUpdated += OnCountdownUpdated;
-            _lobbyNetworkManager.OnCountdownStarted += OnCountdownStarted;
-            _lobbyNetworkManager.OnCountdownCancelled += OnCountdownCancelled;
-
             _messageCardSubscription = LocalEvents.Subscribe<ShowOverviewMessageEvent>(
                 HandleMessageCardRequested);
         }
 
-        /// <summary>解除 View、NGO 和倒计时事件。</summary>
+        /// <summary>解除 View、NGO 和倒计时事件 </summary>
         private void UnbindEvents()
         {
             _view.OnReadyClicked -= HandleReady;
@@ -151,11 +151,29 @@ namespace ProjectGame.HotFix.UI.Lobby
             _messageCardSubscription = null;
         }
 
+        private void HandleLobbyNetworkManagerChanged(LobbyNetworkManager manager)
+        {
+            if (_lobbyNetworkManager == manager) return;
+            if (_lobbyNetworkManager != null)
+            {
+                _lobbyNetworkManager.OnReadyCountdownUpdated -= OnCountdownUpdated;
+                _lobbyNetworkManager.OnCountdownStarted -= OnCountdownStarted;
+                _lobbyNetworkManager.OnCountdownCancelled -= OnCountdownCancelled;
+            }
+            _lobbyNetworkManager = manager;
+            if (_lobbyNetworkManager != null)
+            {
+                _lobbyNetworkManager.OnReadyCountdownUpdated += OnCountdownUpdated;
+                _lobbyNetworkManager.OnCountdownStarted += OnCountdownStarted;
+                _lobbyNetworkManager.OnCountdownCancelled += OnCountdownCancelled;
+            }
+        }
+
         #endregion
 
         #region 抽象方法实现
 
-        /// <summary>Overview 当前没有额外的二维数据需要刷新。</summary>
+        /// <summary>Overview 当前没有额外的二维数据需要刷新 </summary>
         protected override void RenderView()
         {
             // 留空，后续填充
@@ -165,7 +183,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region Overview Message Card
 
-        /// <summary>只在 Overview Presenter 工作时把消息事件转交给 View 表现。</summary>
+        /// <summary>只在 Overview Presenter 工作时把消息事件转交给 View 表现 </summary>
         private void HandleMessageCardRequested(ShowOverviewMessageEvent eventData)
         {
             if (!_isWorking || string.IsNullOrWhiteSpace(eventData.Message))
@@ -188,20 +206,22 @@ namespace ProjectGame.HotFix.UI.Lobby
             if (!_isWorking) 
                 return;
 
-            bool isSolo = !NetworkManager.Singleton.IsConnectedClient
-                || (NetworkManager.Singleton.IsServer
-                    && LobbyNetworkManager.Instance.LobbyPlayers.Count == 1);
+            if (!NetworkManager.Singleton.IsConnectedClient)
+            {
+                StartOfflineSinglePlayerAsync().Forget();
+                return;
+            }
+
+            bool isSolo = NetworkManager.Singleton.IsServer &&
+                          LobbyNetworkManager.Instance != null &&
+                          LobbyNetworkManager.Instance.LobbyPlayers.Count == 1;
 
             if (isSolo)
             {
-                // 单人模式：确保Host已启动，然后直接转场
+                // 单人模式由 LobbyNetworkManager 统一启动 Host 并转场，
+                // 避免 StartHost 回调异常后继续执行半初始化流程。
                 if (!NetworkManager.Singleton.IsConnectedClient)
-                {
                     LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
-                    var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-                    transport.SetConnectionData("0.0.0.0", GamePort);
-                    NetworkManager.Singleton.StartHost();
-                }
 
                 // 隐藏JoinGameUI
                 if (_isJoinGameUIVisible)
@@ -225,6 +245,27 @@ namespace ProjectGame.HotFix.UI.Lobby
             }
 
             LobbyNetworkManager.Instance.ToggleReadyServerRpc();
+        }
+
+        private async UniTask StartOfflineSinglePlayerAsync()
+        {
+            try
+            {
+                LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
+                await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy());
+                UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
+                transport.SetConnectionData("127.0.0.1", GamePort, "0.0.0.0");
+                if (!NetworkManager.Singleton.StartHost())
+                    throw new System.InvalidOperationException("单人 Host 启动失败");
+                await NetworkSessionBootstrap.Instance.WaitForLobbyReadyAsync(this.GetCancellationTokenOnDestroy());
+                if (LobbyNetworkManager.Instance == null)
+                    throw new System.InvalidOperationException("LobbyNetworkRoot 尚未 Ready");
+                LobbyNetworkManager.Instance.StartSinglePlayerAndEnterGame();
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError($"[OverviewPresenter] 单人启动失败：{exception}");
+            }
         }
 
         /// <summary>
@@ -259,7 +300,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 设置按钮：切换到 Setting 面板。
+        /// 设置按钮：切换到 Setting 面板 
         /// </summary>
         private void HandleSettings()
         {
@@ -286,7 +327,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region JoinGameUI状态机
 
-        /// <summary>根据当前房间状态显示或执行加入房间操作。</summary>
+        /// <summary>根据当前房间状态显示或执行加入房间操作 </summary>
         private void HandleJoinGameToggle()
         {
             if (!_isWorking) return;
@@ -312,7 +353,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region — JoinGameUI 显隐
 
-        /// <summary>播放加入房间浮层的显示动画。</summary>
+        /// <summary>播放加入房间浮层的显示动画 </summary>
         private void ShowJoinGameUI()
         {
             if (_isJoinGameUIVisible) return;
@@ -322,7 +363,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _currentTweenSeq = _joinGameView.Show();
         }
 
-        /// <summary>隐藏加入房间浮层并停止连接超时。</summary>
+        /// <summary>隐藏加入房间浮层并停止连接超时 </summary>
         private void HideJoinGameUI()
         {
             if (!_isJoinGameUIVisible) return;
@@ -339,21 +380,31 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region — Host 流程
 
-        /// <summary>准备连接载荷并启动本地 Host。</summary>
-        private void HandleCreateGame()
+        /// <summary>准备连接载荷并启动本地 Host </summary>
+        private async void HandleCreateGame()
         {
             if (!_isWorking) return;
 
+            try { await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy()); }
+            catch (System.Exception exception) { Debug.LogError($"创建房间准备失败：{exception}"); return; }
+
             LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
             var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-            transport.SetConnectionData("0.0.0.0", GamePort);
-            NetworkManager.Singleton.StartHost();
+            // Host 自身连接到回环地址，同时在所有网卡监听，局域网客户端才能访问。
+            transport.SetConnectionData("127.0.0.1", GamePort, "0.0.0.0");
+            if (!NetworkManager.Singleton.StartHost())
+            {
+                _joinGameView.SetInfText("<color=red>创建房间失败，UDP 端口可能被占用</color>");
+                _joinGameView.ShowInputField();
+                SetJoinBtnStateUI(JoinGameBtnState.Default);
+                return;
+            }
 
             HideJoinGameUI();
             SetJoinBtnStateUI(JoinGameBtnState.Hosting);
         }
 
-        /// <summary>关闭当前 Host 房间并恢复默认 UI。</summary>
+        /// <summary>关闭当前 Host 房间并恢复默认 UI </summary>
         private void HandleDissolveRoom()
         {
             NetworkManager.Singleton.Shutdown();
@@ -365,17 +416,20 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region — Client 流程
 
-        /// <summary>显示客户端 IP 输入框。</summary>
+        /// <summary>显示客户端 IP 输入框 </summary>
         private void HandleJoinGame()
         {
             if (!_isWorking) return;
             _joinGameView.ShowInputField();
         }
 
-        /// <summary>校验 IP、设置传输端点并启动客户端连接。</summary>
-        private void HandleJoinSubmit(string ip)
+        /// <summary>校验 IP、设置传输端点并启动客户端连接 </summary>
+        private async void HandleJoinSubmit(string ip)
         {
             if (!_isWorking) return;
+
+            try { await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy()); }
+            catch (System.Exception exception) { Debug.LogError($"连接准备失败：{exception}"); return; }
 
             string cleanIP = ip.Trim().Replace("\u200B", "");
             if (string.IsNullOrWhiteSpace(cleanIP))
@@ -391,11 +445,23 @@ namespace ProjectGame.HotFix.UI.Lobby
             transport.SetConnectionData(cleanIP, GamePort);
 
             LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
-            NetworkManager.Singleton.StartClient();
+            if (!NetworkManager.Singleton.StartClient())
+            {
+                Debug.LogError(
+                    "[OverviewPresenter] NGO 拒绝启动 Client：" +
+                    $"IsListening={NetworkManager.Singleton.IsListening}, " +
+                    $"ShutdownInProgress={NetworkManager.Singleton.ShutdownInProgress}");
+                _joinGameView.SetInfText(
+                    "<color=red>上一次网络会话尚未完成关闭，请稍后重试</color>");
+                _joinGameView.ShowInputField();
+                SetJoinBtnStateUI(JoinGameBtnState.Default);
+                return;
+            }
+
             StartConnectionTimeout();
         }
 
-        /// <summary>关闭客户端连接并恢复默认 UI。</summary>
+        /// <summary>关闭客户端连接并恢复默认 UI </summary>
         private void HandleLeaveRoom()
         {
             // 通知Host删除该客户端数据，然后关闭
@@ -411,14 +477,14 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region — 连接超时
 
-        /// <summary>启动客户端连接超时计时。</summary>
+        /// <summary>启动客户端连接超时计时 </summary>
         private void StartConnectionTimeout()
         {
             StopConnectionTimeout();
             _connectionTimeoutCoroutine = StartCoroutine(ConnectionTimeoutRoutine());
         }
 
-        /// <summary>停止当前连接超时计时。</summary>
+        /// <summary>停止当前连接超时计时 </summary>
         private void StopConnectionTimeout()
         {
             if (_connectionTimeoutCoroutine != null)
@@ -428,7 +494,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             }
         }
 
-        /// <summary>在等待时间结束后关闭仍未成功的连接。</summary>
+        /// <summary>在等待时间结束后关闭仍未成功的连接 </summary>
         private IEnumerator ConnectionTimeoutRoutine()
         {
             yield return new WaitForSeconds(_connectionTimeout);
@@ -445,7 +511,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region — 按钮 UI 文字/颜色切换
 
-        /// <summary>刷新加入房间按钮的文案和颜色状态。</summary>
+        /// <summary>刷新加入房间按钮的文案和颜色状态 </summary>
         private void SetJoinBtnStateUI(JoinGameBtnState state)
         {
             _joinBtnState = state;
@@ -475,7 +541,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region 网络回调
 
-        /// <summary>处理 Host 启动成功并刷新准备按钮。</summary>
+        /// <summary>处理 Host 启动成功并刷新准备按钮 </summary>
         private void OnServerStartedCallback()
         {
             StopConnectionTimeout();
@@ -485,7 +551,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             LocalEvents.Publish(new ShowOverviewMessageEvent("房间创建成功"));
         }
 
-        /// <summary>处理本地或远端客户端连接完成。</summary>
+        /// <summary>处理本地或远端客户端连接完成 </summary>
         private void OnClientConnectedCallback(ulong clientId)
         {
             if (NetworkManager.Singleton.IsServer)
@@ -507,7 +573,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             }
         }
 
-        /// <summary>Host 侧提示远端玩家已退出房间。</summary>
+        /// <summary>Host 侧提示远端玩家已退出房间 </summary>
         private void OnClientDisconnectedCallback(ulong clientId)
         {
             if (!NetworkManager.Singleton.IsServer
@@ -517,7 +583,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             LocalEvents.Publish(new ShowOverviewMessageEvent("有玩家退出房间"));
         }
 
-        /// <summary>连接停止后恢复大厅按钮状态。</summary>
+        /// <summary>连接停止后恢复大厅按钮状态 </summary>
         private void OnClientStoppedCallback(bool wasHost)
         {
             _isReady = false;
@@ -536,7 +602,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             StopConnectionTimeout();
         }
 
-        /// <summary>传输层失败后展示错误并恢复输入。</summary>
+        /// <summary>传输层失败后展示错误并恢复输入 </summary>
         private void OnTransportFailureCallback()
         {
             _isReady = false;
@@ -551,19 +617,19 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region 倒计时回调
 
-        /// <summary>刷新准备倒计时剩余秒数。</summary>
+        /// <summary>刷新准备倒计时剩余秒数 </summary>
         private void OnCountdownUpdated(float remaining)
         {
             _view.SetStartGameBtnState($"开始…{Mathf.CeilToInt(remaining)}", Color.yellow);
         }
 
-        /// <summary>显示准备倒计时开始状态。</summary>
+        /// <summary>显示准备倒计时开始状态 </summary>
         private void OnCountdownStarted()
         {
             _view.SetStartGameBtnState("开始…", Color.yellow);
         }
 
-        /// <summary>恢复准备倒计时取消后的按钮状态。</summary>
+        /// <summary>恢复准备倒计时取消后的按钮状态 </summary>
         private void OnCountdownCancelled()
         {
             _view.SetStartGameBtnState("准备就绪", Color.white);
@@ -573,7 +639,7 @@ namespace ProjectGame.HotFix.UI.Lobby
 
         #region 工具方法
 
-        /// <summary>停止并清理当前 JoinGame 动画序列。</summary>
+        /// <summary>停止并清理当前 JoinGame 动画序列 </summary>
         private void KillActiveTween()
         {
             if (_currentTweenSeq != null && _currentTweenSeq.IsActive())

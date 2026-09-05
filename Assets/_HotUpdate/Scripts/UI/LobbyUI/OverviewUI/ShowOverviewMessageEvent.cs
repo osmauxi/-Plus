@@ -3,7 +3,7 @@ using ProjectGame.HotFix.Core.Events;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 请求在大厅 Overview 页面显示一条临时消息。
+    /// 请求在大厅 Overview 页面显示一条临时消息 
     /// </summary>
     public readonly struct ShowOverviewMessageEvent : ILocalEvent
     {

@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 管理物品分类、选中数据以及 ItemSelectView 的完整刷新。
+    /// 管理物品分类、选中数据以及 ItemSelectView 的完整刷新 
     /// </summary>
     [RequireComponent(typeof(ItemSelectView))]
     public class ItemSelectPresenter : BaseLobbyPresenter
@@ -28,7 +28,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private bool _isExiting;
 
         /// <summary>
-        /// 缓存 View、加载配置目录并绑定界面事件。
+        /// 缓存 View、加载配置目录并绑定界面事件 
         /// </summary>
         protected override void Awake()
         {
@@ -42,7 +42,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 从大厅配置表构建皮肤、武器和道具目录。
+        /// 从大厅配置表构建皮肤、武器和道具目录 
         /// </summary>
         private void InitCatalog()
         {
@@ -99,7 +99,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 设置本地玩家可编辑模式的入口分类和选中项。
+        /// 设置本地玩家可编辑模式的入口分类和选中项 
         /// </summary>
         public void EnterWithCategory(ItemCategory category, int selectedId)
         {
@@ -110,7 +110,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 设置其他玩家只读查看模式及其当前装备数据。
+        /// 设置其他玩家只读查看模式及其当前装备数据 
         /// </summary>
         public void EnterAsReadonly(LobbyPlayerState playerData)
         {
@@ -121,7 +121,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 完成基类启动流程。
+        /// 完成基类启动流程 
         /// </summary>
         protected override void Start()
         {
@@ -129,7 +129,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 按当前玩家和分类重新渲染全部选择界面状态。
+        /// 按当前玩家和分类重新渲染全部选择界面状态 
         /// </summary>
         protected override void RenderView()
         {
@@ -137,7 +137,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             FullRefreshUI();
         }
 
-        /// <summary>页面真正显示时，由 P 层触发两个子面板的入场动画。</summary>
+        /// <summary>页面真正显示时，由 P 层触发两个子面板的入场动画 </summary>
         public override void ShowView()
         {
             base.ShowView();
@@ -146,7 +146,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _chosePanelSlideView.Show();
         }
 
-        /// <summary>页面休眠时停止动画并把两个子面板复位到隐藏位置。</summary>
+        /// <summary>页面休眠时停止动画并把两个子面板复位到隐藏位置 </summary>
         public override void Sleep()
         {
             base.Sleep();
@@ -155,7 +155,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _chosePanelSlideView.ResetHiddenImmediately();
         }
 
-        /// <summary>让返回键复用确认按钮的退出流程并返回 Overview。</summary>
+        /// <summary>让返回键复用确认按钮的退出流程并返回 Overview </summary>
         public override bool TryHandleBackRequest()
         {
             HandleConfirm();
@@ -163,7 +163,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 切换分类并完整刷新 Tab、信息面板、格子和选中高亮。
+        /// 切换分类并完整刷新 Tab、信息面板、格子和选中高亮 
         /// </summary>
         private void SwitchCategory(ItemCategory newCategory)
         {
@@ -182,7 +182,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 提交本地装备变更并立即完整刷新当前分类。
+        /// 提交本地装备变更并立即完整刷新当前分类 
         /// </summary>
         private void HandleSlotSelect(int slotId)
         {
@@ -211,7 +211,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 取得当前查看玩家在指定分类下已装备的配置 ID。
+        /// 取得当前查看玩家在指定分类下已装备的配置 ID 
         /// </summary>
         private int GetSelectedId(ItemCategory category)
         {
@@ -231,7 +231,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 取得只读玩家在指定分类下已装备的配置 ID。
+        /// 取得只读玩家在指定分类下已装备的配置 ID 
         /// </summary>
         private int GetReadonlySelectedId(ItemCategory category)
         {
@@ -245,7 +245,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 退出选择状态并返回 Overview 页面。
+        /// 退出选择状态并返回 Overview 页面 
         /// </summary>
         private void HandleConfirm()
         {
@@ -257,7 +257,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _chosePanelSlideView.Hide();
         }
 
-        /// <summary>两个面板退场后完成数据复位并切回 Overview。</summary>
+        /// <summary>两个面板退场后完成数据复位并切回 Overview </summary>
         private void CompleteExit()
         {
             _isExiting = false;
@@ -267,7 +267,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 同步刷新分类高亮、详情内容、格子内容和物品高亮。
+        /// 同步刷新分类高亮、详情内容、格子内容和物品高亮 
         /// </summary>
         private void FullRefreshUI()
         {

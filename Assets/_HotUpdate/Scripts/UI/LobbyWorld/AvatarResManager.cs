@@ -11,7 +11,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace ProjectGame.HotFix.Lobby
 {
     /// <summary>
-    /// 大厅模型渲染器。只负责把指定玩家状态渲染到指定展位，不感知 UI 或 NGO。
+    /// 大厅模型渲染器 只负责把指定玩家状态渲染到指定展位，不感知 UI 或 NGO 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class AvatarResManager : MonoBehaviour
@@ -53,7 +53,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 销毁时取消异步结果并释放全部 Addressables 实例。
+        /// 销毁时取消异步结果并释放全部 Addressables 实例 
         /// </summary>
         private void OnDestroy()
         {
@@ -77,7 +77,7 @@ namespace ProjectGame.HotFix.Lobby
                 return;
             }
 
-            //进行一次快速判断，如果玩家状态与当前展位状态一致则不做任何操作。
+            //进行一次快速判断，如果玩家状态与当前展位状态一致则不做任何操作 
             LobbyPlayerState value = state.Value;
             bool isCurrent = station.DesiredClientId == value.ClientId
                 && station.DesiredCharacterId == value.CharacterId
@@ -92,12 +92,12 @@ namespace ProjectGame.HotFix.Lobby
             station.DesiredWeaponId = value.WeaponId;
             station.DesiredItemId = value.ItemId;
             int revision = ++station.Revision;
-            //用户点击是即时的，异步加载可能会延迟，所以这里不等待异步结果（.Forget()），直接丢弃。
+            //用户点击是即时的，异步加载可能会延迟，所以这里不等待异步结果（.Forget()），直接丢弃 
             UpdateStationAsync(standIndex, value, revision).Forget();
         }
 
         /// <summary>
-        /// 按角色、武器、道具顺序异步更新一个展位。
+        /// 按角色、武器、道具顺序异步更新一个展位 
         /// </summary>
         private async UniTask UpdateStationAsync(int index, LobbyPlayerState state, int revision)
         {
@@ -108,16 +108,16 @@ namespace ProjectGame.HotFix.Lobby
                 || station.CharacterId != state.CharacterId
                 || station.CharacterInstance == null;
 
-            //玩家角色发生变化时，先释放旧角色和装备，再加载新角色。
+            //玩家角色发生变化时，先释放旧角色和装备，再加载新角色 
             if (characterChanged)
             {
                 ReleaseEquipment(station);
                 ReleaseCharacter(station);
 
                 AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(ResolveSkinAddress(state.CharacterId), anchor);
-                bool loadSucceeded = await TryCompleteLoadAsync(handle,$"角色 CharacterId={state.CharacterId}");
+                bool loadSucceeded = await TryCompleteLoadAsync(handle,$"角色 CharacterId={state.CharacterId}", station, revision);
 
-                //如果在异步加载过程中展位被更新，则直接释放加载结果并返回。
+                //如果在异步加载过程中展位被更新，则直接释放加载结果并返回 
                 if (revision != station.Revision)
                 {
                     ReleaseLoadedHandle(handle);
@@ -151,7 +151,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 替换指定展位角色当前挂载的武器。
+        /// 替换指定展位角色当前挂载的武器 
         /// </summary>
         private async UniTask UpdateWeaponAsync(StationRuntime station, int weaponId, int revision)
         {
@@ -164,7 +164,7 @@ namespace ProjectGame.HotFix.Lobby
             Transform parent = station.ModelView.GetEquipmentSocket(equipmentSlot);
 
             AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(config.ModleName, parent);
-            bool loadSucceeded = await TryCompleteLoadAsync(handle, $"武器 WeaponId={weaponId}");
+            bool loadSucceeded = await TryCompleteLoadAsync(handle, $"武器 WeaponId={weaponId}", station, revision);
 
             if (revision != station.Revision)
             {
@@ -183,7 +183,7 @@ namespace ProjectGame.HotFix.Lobby
             if (weaponView == null)
             {
                 ReleaseLoadedHandle(handle);
-                throw new InvalidOperationException($"武器 WeaponId={weaponId} 缺少 {nameof(WeaponView)}。");
+                throw new InvalidOperationException($"武器 WeaponId={weaponId} 缺少 {nameof(WeaponView)} ");
             }
 
             weaponView.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
@@ -198,7 +198,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 替换指定展位角色当前挂载的道具。
+        /// 替换指定展位角色当前挂载的道具 
         /// </summary>
         private async UniTask UpdateItemAsync(StationRuntime station, int itemId, int revision)
         {
@@ -211,7 +211,7 @@ namespace ProjectGame.HotFix.Lobby
 
             AsyncOperationHandle<GameObject> handle = Addressables.InstantiateAsync(
                 config.ModleName, parent);
-            bool loadSucceeded = await TryCompleteLoadAsync(handle, $"道具 ItemId={itemId}");
+            bool loadSucceeded = await TryCompleteLoadAsync(handle, $"道具 ItemId={itemId}", station, revision);
 
             if (revision != station.Revision)
             {
@@ -234,13 +234,13 @@ namespace ProjectGame.HotFix.Lobby
         private static WeaponPose ParseWeaponPose(int value)
         {
             if (value < byte.MinValue || value > byte.MaxValue || !Enum.IsDefined(typeof(WeaponPose), (byte)value))
-                throw new ArgumentOutOfRangeException(nameof(value), value, "无效的武器动画姿势。");
+                throw new ArgumentOutOfRangeException(nameof(value), value, "无效的武器动画姿势 ");
 
             return (WeaponPose)value;
         }
 
         /// <summary>
-        /// 通过皮肤配置解析角色 Addressable 地址。
+        /// 通过皮肤配置解析角色 Addressable 地址 
         /// </summary>
         private static string ResolveSkinAddress(int skinId)
         {
@@ -252,7 +252,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 取得指定武器 ID 的大厅展示配置。
+        /// 取得指定武器 ID 的大厅展示配置 
         /// </summary>
         private static Config_Lobby_Weapons GetWeaponConfig(int weaponId)
         {
@@ -264,7 +264,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 取得指定道具 ID 的大厅展示配置。
+        /// 取得指定道具 ID 的大厅展示配置 
         /// </summary>
         private static Config_Lobby_Items GetItemConfig(int itemId)
         {
@@ -276,23 +276,23 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 把配置整数转换成有效的角色装备槽位。
+        /// 把配置整数转换成有效的角色装备槽位 
         /// </summary>
         private static EquipmentSlot ParseEquipmentSlot(int value, string fieldName)
         {
             if (value < byte.MinValue || value > byte.MaxValue || !Enum.IsDefined(typeof(EquipmentSlot), (byte)value))
-                throw new ArgumentOutOfRangeException(fieldName, value, "无效的装备槽位。");
+                throw new ArgumentOutOfRangeException(fieldName, value, "无效的装备槽位 ");
 
             EquipmentSlot slot = (EquipmentSlot)(byte)value;
 
             if (slot == EquipmentSlot.None)
-                throw new ArgumentOutOfRangeException(fieldName, value, "装备槽位不能为 None。");
+                throw new ArgumentOutOfRangeException(fieldName, value, "装备槽位不能为 None ");
 
             return slot;
         }
 
         /// <summary>
-        /// 校验武器配置中的 Animator 姿势整数。
+        /// 校验武器配置中的 Animator 姿势整数 
         /// </summary>
         private static int ValidateEquipmentPose(int value)
         {
@@ -308,17 +308,17 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 缓存角色预制件上的装备挂点组件。
+        /// 缓存角色预制件上的装备挂点组件 
         /// </summary>
         private static void BindCharacterComponents(StationRuntime station)
         {
             if (!station.CharacterInstance.TryGetComponent(out PlayerModelView modelView))
                 throw new InvalidOperationException(
-                    $"角色预制体 {station.CharacterInstance.name} 缺少 {nameof(PlayerModelView)}。");
+                    $"角色预制体 {station.CharacterInstance.name} 缺少 {nameof(PlayerModelView)} ");
 
             if (modelView.AnimationBridge == null)
                 throw new InvalidOperationException(
-                    $"角色预制体 {station.CharacterInstance.name} 的 {nameof(PlayerModelView)} 没有配置 {nameof(CharacterAnimationBridge)}。");
+                    $"角色预制体 {station.CharacterInstance.name} 的 {nameof(PlayerModelView)} 没有配置 {nameof(CharacterAnimationBridge)} ");
 
             station.ModelView = modelView;
             station.AnimationBridge = modelView.AnimationBridge;
@@ -326,7 +326,7 @@ namespace ProjectGame.HotFix.Lobby
         
 
         /// <summary>
-        /// 释放一个展位的全部资源并重置身份。
+        /// 释放一个展位的全部资源并重置身份 
         /// </summary>
         private static void ReleaseStation(StationRuntime station)
         {
@@ -340,7 +340,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 释放一个展位的武器和道具资源。
+        /// 释放一个展位的武器和道具资源 
         /// </summary>
         private static void ReleaseEquipment(StationRuntime station)
         {
@@ -349,7 +349,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 释放武器实例并重置武器状态。
+        /// 释放武器实例并重置武器状态 
         /// </summary>
         private static void ReleaseWeapon(StationRuntime station)
         {
@@ -364,7 +364,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 释放道具实例并重置道具状态。
+        /// 释放道具实例并重置道具状态 
         /// </summary>
         private static void ReleaseItem(StationRuntime station)
         {
@@ -377,7 +377,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 释放角色实例并清理角色挂点。
+        /// 释放角色实例并清理角色挂点 
         /// </summary>
         private static void ReleaseCharacter(StationRuntime station)
         {
@@ -393,15 +393,15 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 释放尚未接管或已经过期的异步实例句柄。
+        /// 释放尚未接管或已经过期的异步实例句柄 
         /// </summary>
         private static void ReleaseLoadedHandle(AsyncOperationHandle<GameObject> handle)
         {
             if (!handle.IsValid())
                 return;
 
-            //Addressable加载成功了，Gameobject已经被实例化了，直接释放实例，防止内存泄漏。
-            //如果加载失败了，Gameobject没有被实例化，直接释放句柄。
+            //Addressable加载成功了，Gameobject已经被实例化了，直接释放实例，防止内存泄漏 
+            //如果加载失败了，Gameobject没有被实例化，直接释放句柄 
             if (handle.Status == AsyncOperationStatus.Succeeded)
                 Addressables.ReleaseInstance(handle);
             else
@@ -409,18 +409,21 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 等待 Addressables 实例化结束并把资源异常记录为可定位日志。
+        /// 等待 Addressables 实例化结束并把资源异常记录为可定位日志 
         /// </summary>
-        private static async UniTask<bool> TryCompleteLoadAsync(AsyncOperationHandle<GameObject> handle,string resourceDescription)
+        private static async UniTask<bool> TryCompleteLoadAsync(AsyncOperationHandle<GameObject> handle,
+            string resourceDescription, StationRuntime station, int revision)
         {
             try
             {
                 await handle.ToUniTask();
-                return handle.Status == AsyncOperationStatus.Succeeded;
+                return handle.IsValid() && handle.Status == AsyncOperationStatus.Succeeded;
             }
             catch (Exception exception)
             {
-                Debug.LogError($"[AvatarResManager] {resourceDescription} 加载失败：{exception.Message}");
+                // 场景卸载会释放其跟踪的实例句柄；已被替换/销毁的展位不再消费这个结果。
+                if (station.Revision == revision)
+                    Debug.LogError($"[AvatarResManager] {resourceDescription} 加载失败：{exception.Message}");
                 return false;
             }
         }

@@ -11,7 +11,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Lobby
 {
     /// <summary>
-    /// 大厅 3D 概览的数据编排层。统一选择本地或 NGO 数据源，并同时驱动展位 UI 与模型。
+    /// 大厅 3D 概览的数据编排层 统一选择本地或 NGO 数据源，并同时驱动展位 UI 与模型 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class LobbyOverviewCoordinator : MonoBehaviour
@@ -33,37 +33,57 @@ namespace ProjectGame.HotFix.Lobby
         public string PersistentPlayerId => _localDraft.PersistentPlayerId.ToString();
 
         /// <summary>
-        /// 创建默认本地数据、绑定数据源事件并完成首次渲染。
+        /// 创建默认本地数据、绑定数据源事件并完成首次渲染 
         /// </summary>
         private void Start()
         {
             _visibleStates = new LobbyPlayerState?[_layout.Count];
             _localDraft = CreateDefaultLocalPlayer();
             _netcodeManager = NetworkManager.Singleton;
-
-            _networkManager.OnLobbyDataChanged += HandleLobbyDataChanged;
+            LobbyNetworkManager.InstanceChanged += HandleLobbyNetworkManagerChanged;
+            HandleLobbyNetworkManagerChanged(LobbyNetworkManager.Instance);
             _netcodeManager.OnClientStopped += HandleClientStopped;
+            _netcodeManager.OnClientConnectedCallback += HandleClientConnected;
 
-            ApplyCurrentSnapshot();
+            HandleLobbyDataChanged();
         }
 
         /// <summary>
-        /// 销毁时解除大厅与 NGO 生命周期事件。
+        /// 销毁时解除大厅与 NGO 生命周期事件 
         /// </summary>
         private void OnDestroy()
         {
-            _networkManager.OnLobbyDataChanged -= HandleLobbyDataChanged;
+            LobbyNetworkManager.InstanceChanged -= HandleLobbyNetworkManagerChanged;
+            if (_networkManager != null) _networkManager.OnLobbyDataChanged -= HandleLobbyDataChanged;
             if (_netcodeManager != null)
+            {
                 _netcodeManager.OnClientStopped -= HandleClientStopped;
+                _netcodeManager.OnClientConnectedCallback -= HandleClientConnected;
+            }
+        }
+
+        private void HandleClientConnected(ulong clientId)
+        {
+            HandleLobbyNetworkManagerChanged(LobbyNetworkManager.Instance);
+            if (_netcodeManager != null && clientId == _netcodeManager.LocalClientId) HandleLobbyDataChanged();
+        }
+
+        private void HandleLobbyNetworkManagerChanged(LobbyNetworkManager manager)
+        {
+            if (_networkManager == manager) return;
+            if (_networkManager != null) _networkManager.OnLobbyDataChanged -= HandleLobbyDataChanged;
+            _networkManager = manager;
+            if (_networkManager != null) _networkManager.OnLobbyDataChanged += HandleLobbyDataChanged;
+            if (_visibleStates != null && _networkManager != null) HandleLobbyDataChanged();
         }
 
         /// <summary>
-        /// 取得当前显示在指定展位上的玩家状态。
+        /// 取得当前显示在指定展位上的玩家状态 
         /// </summary>
         public LobbyPlayerState? GetStateForStand(int standIndex) => _visibleStates[standIndex];
 
         /// <summary>
-        /// 在启动 Host 或 Client 前写入玩家ID信息，后续连接时会被服务器读取并注册到权威名单中。
+        /// 在启动 Host 或 Client 前写入玩家ID信息，后续连接时会被服务器读取并注册到权威名单中 
         /// </summary>
         public void PrepareConnectionPayload()
         {
@@ -72,11 +92,11 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 根据当前连接状态修改本地或网络角色。
+        /// 根据当前连接状态修改本地或网络角色 
         /// </summary>
         public void RequestCharacterChange(int characterId)
         {
-            if (NetworkManager.Singleton.IsConnectedClient)
+            if (NetworkManager.Singleton.IsConnectedClient && _networkManager != null)
             {
                 _networkManager.ChangeCharacterServerRpc(characterId);
                 return;
@@ -88,11 +108,11 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 根据当前连接状态修改本地或网络武器。
+        /// 根据当前连接状态修改本地或网络武器 
         /// </summary>
         public void RequestWeaponChange(int weaponId)
         {
-            if (NetworkManager.Singleton.IsConnectedClient)
+            if (NetworkManager.Singleton.IsConnectedClient && _networkManager != null)
             {
                 _networkManager.ChangeWeaponServerRpc(weaponId);
                 return;
@@ -104,11 +124,11 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 根据当前连接状态修改本地或网络道具。
+        /// 根据当前连接状态修改本地或网络道具 
         /// </summary>
         public void RequestItemChange(int itemId)
         {
-            if (NetworkManager.Singleton.IsConnectedClient)
+            if (NetworkManager.Singleton.IsConnectedClient && _networkManager != null)
             {
                 _networkManager.ChangeItemServerRpc(itemId);
                 return;
@@ -120,14 +140,14 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 校验并修改本地玩家名字。
+        /// 校验并修改本地玩家名字 
         /// </summary>
         public void RequestPlayerNameChange(string playerName)
         {
             string sanitizedName = ValidatePlayerName(playerName);
             _localDraft.PlayerName = new FixedString32Bytes(sanitizedName);
 
-            if (NetworkManager.Singleton.IsConnectedClient)
+            if (NetworkManager.Singleton.IsConnectedClient && _networkManager != null)
             {
                 _networkManager.ChangePlayerNameServerRpc(_localDraft.PlayerName);
                 return;
@@ -137,7 +157,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 处理权威名单变化，并在首次注册后提交本地资料。
+        /// 处理权威名单变化，并在首次注册后提交本地资料 
         /// </summary>
         private void HandleLobbyDataChanged()
         {
@@ -148,6 +168,7 @@ namespace ProjectGame.HotFix.Lobby
 
             ulong localClientId = NetworkManager.Singleton.LocalClientId;
             bool localPlayerRegistered = false;
+            if (_networkManager == null) return;
             foreach (LobbyPlayerState player in _networkManager.LobbyPlayers)
             {
                 if (player.ClientId != localClientId)
@@ -169,7 +190,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 连接关闭后恢复离线显示。
+        /// 连接关闭后恢复离线显示 
         /// </summary>
         private void HandleClientStopped(bool wasHost)
         {
@@ -178,18 +199,19 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 根据 NGO 连接状态选择当前应该展示的数据源。
+        /// 根据 NGO 连接状态选择当前应该展示的数据源 
         /// </summary>
         private void ApplyCurrentSnapshot()
         {
-            if (NetworkManager.Singleton.IsConnectedClient && _networkManager.LobbyPlayers.Count > 0)
+            if (NetworkManager.Singleton.IsConnectedClient && _networkManager != null &&
+                _networkManager.LobbyPlayers.Count > 0)
                 ApplyNetworkSnapshot();
             else
                 ApplyLocalSnapshot();
         }
 
         /// <summary>
-        /// 把本地玩家渲染到默认展位。
+        /// 把本地玩家渲染到默认展位 
         /// </summary>
         private void ApplyLocalSnapshot()
         {
@@ -201,7 +223,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 按服务器分配的稳定展位构造网络快照。
+        /// 按服务器分配的稳定展位构造网络快照 
         /// </summary>
         private void ApplyNetworkSnapshot()
         {
@@ -226,7 +248,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 使用同一份快照同步刷新展位 UI 和模型。
+        /// 使用同一份快照同步刷新展位 UI 和模型 
         /// </summary>
         private void RenderVisibleStates()
         {
@@ -240,11 +262,11 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 优先返回权威名单中的本地玩家，否则返回离线草稿。
+        /// 优先返回权威名单中的本地玩家，否则返回离线草稿 
         /// </summary>
         private LobbyPlayerState GetLocalPlayerData()
         {
-            if (NetworkManager.Singleton.IsConnectedClient)
+            if (NetworkManager.Singleton.IsConnectedClient && _networkManager != null)
             {
                 ulong localClientId = NetworkManager.Singleton.LocalClientId;
                 foreach (LobbyPlayerState player in _networkManager.LobbyPlayers)
@@ -258,7 +280,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 从有效配置表创建首次进入大厅的本地默认数据。
+        /// 从有效配置表创建首次进入大厅的本地默认数据 
         /// </summary>
         private static LobbyPlayerState CreateDefaultLocalPlayer()
         {
@@ -288,7 +310,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 清理并校验玩家名字长度。
+        /// 清理并校验玩家名字长度 
         /// </summary>
         private static string ValidatePlayerName(string playerName)
         {
@@ -300,21 +322,21 @@ namespace ProjectGame.HotFix.Lobby
             return result;
         }
 
-        /// <summary>确保本地选择的皮肤 ID 存在。</summary>
+        /// <summary>确保本地选择的皮肤 ID 存在 </summary>
         private static void EnsureSkinExists(int id)
         {
             if (!ConfigManager.Instance.GetTable<Config_Lobby_Skins>().ContainsKey(id))
                 throw new ArgumentOutOfRangeException(nameof(id), id, "皮肤配置不存在");
         }
 
-        /// <summary>确保本地选择的武器 ID 存在。</summary>
+        /// <summary>确保本地选择的武器 ID 存在 </summary>
         private static void EnsureWeaponExists(int id)
         {
             if (!ConfigManager.Instance.GetTable<Config_Lobby_Weapons>().ContainsKey(id))
                 throw new ArgumentOutOfRangeException(nameof(id), id, "武器配置不存在");
         }
 
-        /// <summary>确保本地选择的道具 ID 存在。</summary>
+        /// <summary>确保本地选择的道具 ID 存在 </summary>
         private static void EnsureItemExists(int id)
         {
             if (!ConfigManager.Instance.GetTable<Config_Lobby_Items>().ContainsKey(id))

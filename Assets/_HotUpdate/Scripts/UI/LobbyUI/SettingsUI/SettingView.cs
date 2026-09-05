@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 汇总 Setting 页面子视图并向 Presenter 转发用户操作。
+    /// 汇总 Setting 页面子视图并向 Presenter 转发用户操作 
     /// </summary>
     public sealed class SettingView : MonoBehaviour
     {
@@ -24,7 +24,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         public event Action OnBackRequested;
 
         /// <summary>
-        /// 绑定所有 Setting 子视图和操作按钮事件。
+        /// 绑定所有 Setting 子视图和操作按钮事件 
         /// </summary>
         private void Awake()
         {
@@ -35,7 +35,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 销毁 Setting 页面时解除所有子视图事件。
+        /// 销毁 Setting 页面时解除所有子视图事件 
         /// </summary>
         private void OnDestroy()
         {
@@ -46,7 +46,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 使用按键目录初始化固定数量的按键行。
+        /// 使用按键目录初始化固定数量的按键行 
         /// </summary>
         public void InitializeBindings(IReadOnlyList<InputBindingDefinition> definitions)
         {
@@ -54,7 +54,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 刷新三项音量控件。
+        /// 刷新三项音量控件 
         /// </summary>
         public void RefreshAudio(AudioSettingsData data)
         {
@@ -62,7 +62,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 刷新全部按键行的当前按键文本。
+        /// 刷新全部按键行的当前按键文本 
         /// </summary>
         public void RefreshBindings(IReadOnlyList<string> displayStrings)
         {
@@ -70,7 +70,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 每次进入 Setting 时显示配置的默认分类 Panel。
+        /// 每次进入 Setting 时显示配置的默认分类 Panel 
         /// </summary>
         public void ShowDefaultPanel()
         {
@@ -78,7 +78,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 切换改键等待遮罩并锁定或恢复其他设置交互。
+        /// 切换改键等待遮罩并锁定或恢复其他设置交互 
         /// </summary>
         public void SetRebinding(bool rebinding)
         {
@@ -99,7 +99,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将音量事件转发给 Presenter。
+        /// 将音量事件转发给 Presenter 
         /// </summary>
         private void HandleVolumeChanged(SettingVolumeChannel channel, float value)
         {
@@ -107,7 +107,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将按键行请求转发给 Presenter。
+        /// 将按键行请求转发给 Presenter 
         /// </summary>
         private void HandleRebindRequested(int index)
         {
@@ -115,7 +115,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将恢复默认按钮请求转发给 Presenter。
+        /// 将恢复默认按钮请求转发给 Presenter 
         /// </summary>
         private void HandleRestoreDefaultRequested()
         {
@@ -123,7 +123,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将返回按钮请求转发给 Presenter。
+        /// 将返回按钮请求转发给 Presenter 
         /// </summary>
         private void HandleBackRequested()
         {

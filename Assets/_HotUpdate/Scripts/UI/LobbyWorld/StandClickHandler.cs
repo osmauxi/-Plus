@@ -22,19 +22,19 @@ namespace ProjectGame.HotFix.Lobby
             _standManager = manager;
         }
 
-        /// <summary>把 EventSystem 的指针点击转发到对应展位。</summary>
+        /// <summary>把 EventSystem 的指针点击转发到对应展位 </summary>
         public void OnPointerClick(PointerEventData eventData)
         {
             _standManager.OnClickColliderClicked(_standIndex);
         }
 
-        /// <summary>把 EventSystem 的指针进入事件转发到对应展位。</summary>
+        /// <summary>把 EventSystem 的指针进入事件转发到对应展位 </summary>
         public void OnPointerEnter(PointerEventData eventData)
         {
             _standManager.OnPointerEntered(_standIndex);
         }
 
-        /// <summary>把 EventSystem 的指针离开事件转发到对应展位。</summary>
+        /// <summary>把 EventSystem 的指针离开事件转发到对应展位 </summary>
         public void OnPointerExit(PointerEventData eventData)
         {
             _standManager.OnPointerExited(_standIndex);

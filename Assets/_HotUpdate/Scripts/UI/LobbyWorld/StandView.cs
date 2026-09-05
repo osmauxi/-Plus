@@ -41,28 +41,30 @@ namespace ProjectGame.HotFix.Lobby
         private string _nameBeforeEdit;
         private bool _nameInteractable;
 
-        /// <summary>初始化玩家名字的内联输入事件。</summary>
+        /// <summary>初始化玩家名字的内联输入事件 </summary>
         private void Awake()
         {
             _nameInput.enabled = false;
             _nameInput.onEndEdit.AddListener(CompleteNameEdit);
         }
 
-        /// <summary>缓存用于 Billboard 的主相机。</summary>
+        /// <summary>缓存用于 Billboard 的主相机 </summary>
         private void Start()
         {
-            _mainCamera = Camera.main.transform;
+            ResolveSceneCamera();
         }
 
-        /// <summary>销毁时解除运行时输入框事件。</summary>
+        /// <summary>销毁时解除运行时输入框事件 </summary>
         private void OnDestroy()
         {
             _nameInput.onEndEdit.RemoveListener(CompleteNameEdit);
         }
 
-        /// <summary>让可见的玩家信息始终朝向主相机。</summary>
+        /// <summary>让可见的玩家信息始终朝向主相机 </summary>
         private void LateUpdate()
         {
+            if (_mainCamera == null) ResolveSceneCamera();
+            if (_mainCamera == null) return;
             // Billboard: PlayerUIs 始终面向主相机
             if (_playerUIs.alpha > 0.01f)
             {
@@ -71,6 +73,14 @@ namespace ProjectGame.HotFix.Lobby
                     Vector3.up
                 );
             }
+        }
+
+        private void ResolveSceneCamera()
+        {
+            // 返回 Lobby 时新旧场景会短暂并存，Camera.main 可能仍然是即将卸载的游戏相机。
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                foreach (Camera camera in root.GetComponentsInChildren<Camera>(true))
+                    if (camera.CompareTag("MainCamera")) { _mainCamera = camera.transform; return; }
         }
 
         #region View 纯刷新方法
@@ -108,7 +118,7 @@ namespace ProjectGame.HotFix.Lobby
                 _playerNameText.GetComponent<Button>().interactable = interactable;
         }
 
-        /// <summary>把玩家名字文本切换为可输入状态并等待提交。</summary>
+        /// <summary>把玩家名字文本切换为可输入状态并等待提交 </summary>
         public void BeginNameEdit(Action<string> onCompleted)
         {
             _nameBeforeEdit = _playerNameText.text;
@@ -121,7 +131,7 @@ namespace ProjectGame.HotFix.Lobby
             _nameInput.MoveTextEnd(false);
         }
 
-        /// <summary>校验并提交内联输入的玩家名字。</summary>
+        /// <summary>校验并提交内联输入的玩家名字 </summary>
         private void CompleteNameEdit(string enteredName)
         {
             bool wasCanceled = _nameInput.wasCanceled;

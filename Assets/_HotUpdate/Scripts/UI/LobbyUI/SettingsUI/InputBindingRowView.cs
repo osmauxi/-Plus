@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 显示一项操作名称、当前按键和更改按钮。
+    /// 显示一项操作名称、当前按键和更改按钮 
     /// </summary>
     public sealed class InputBindingRowView : MonoBehaviour
     {
@@ -19,7 +19,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private int _index;
 
         /// <summary>
-        /// 绑定当前行的更改按钮。
+        /// 绑定当前行的更改按钮 
         /// </summary>
         private void Awake()
         {
@@ -27,7 +27,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 销毁当前行时解除按钮事件。
+        /// 销毁当前行时解除按钮事件 
         /// </summary>
         private void OnDestroy()
         {
@@ -35,7 +35,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 绑定行索引、操作名称和当前按键文本。
+        /// 绑定行索引、操作名称和当前按键文本 
         /// </summary>
         public void Bind(int index, string actionName, string bindingDisplay)
         {
@@ -45,7 +45,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 只刷新当前按键的显示文本。
+        /// 只刷新当前按键的显示文本 
         /// </summary>
         public void SetBindingDisplay(string bindingDisplay)
         {
@@ -53,7 +53,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 控制本行更改按钮是否可交互。
+        /// 控制本行更改按钮是否可交互 
         /// </summary>
         public void SetInteractable(bool interactable)
         {
@@ -61,7 +61,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将本行索引转发给按键列表视图。
+        /// 将本行索引转发给按键列表视图 
         /// </summary>
         private void HandleRebindClicked()
         {

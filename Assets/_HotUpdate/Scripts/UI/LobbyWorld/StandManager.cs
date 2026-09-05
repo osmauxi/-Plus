@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace ProjectGame.HotFix.Lobby
 {
     /// <summary>
-    /// 展位 UI 控制器。只负责状态展示和交互转发，不持有本地或网络玩家数据。
+    /// 展位 UI 控制器 只负责状态展示和交互转发，不持有本地或网络玩家数据 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class StandManager : MonoBehaviour
@@ -38,7 +38,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 把一份玩家状态渲染到指定展位 UI。
+        /// 把一份玩家状态渲染到指定展位 UI 
         /// </summary>
         public void RenderStand(int index,LobbyPlayerState? state,bool isLocalPlayer,bool showReadyState)
         {
@@ -59,7 +59,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 统一开启或关闭本地玩家的改名交互。
+        /// 统一开启或关闭本地玩家的改名交互 
         /// </summary>
         public void SetNameEditEnabled(bool enabled)
         {
@@ -72,7 +72,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 统一开启或关闭展位 BoxCollider 的点击和悬停检测。
+        /// 统一开启或关闭展位 BoxCollider 的点击和悬停检测 
         /// </summary>
         public void SetClickDetectionEnabled(bool enabled)
         {
@@ -87,7 +87,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 根据展位是否有人，把点击事件转发到上层。
+        /// 根据展位是否有人，把点击事件转发到上层 
         /// </summary>
         internal void OnClickColliderClicked(int standIndex)
         {
@@ -98,7 +98,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 把展位悬停进入事件开放给大厅上层逻辑。
+        /// 把展位悬停进入事件开放给大厅上层逻辑 
         /// </summary>
         internal void OnPointerEntered(int standIndex)
         {
@@ -113,7 +113,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 把展位悬停离开事件开放给大厅上层逻辑。
+        /// 把展位悬停离开事件开放给大厅上层逻辑 
         /// </summary>
         internal void OnPointerExited(int standIndex)
         {
@@ -125,7 +125,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 绑定所有展位的名字、空位和 3D 点击事件。
+        /// 绑定所有展位的名字、空位和 3D 点击事件 
         /// </summary>
         private void BindStandEvents()
         {
@@ -147,7 +147,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 解除所有由本控制器注册的 UI 事件。
+        /// 解除所有由本控制器注册的 UI 事件 
         /// </summary>
         private void UnbindStandEvents()
         {
@@ -160,7 +160,7 @@ namespace ProjectGame.HotFix.Lobby
         }
 
         /// <summary>
-        /// 校验名字点击目标并向上层发出改名请求。
+        /// 校验名字点击目标并向上层发出改名请求 
         /// </summary>
         private void HandleNameClicked(int standIndex)
         {

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// ItemSelect 子面板的纯 View 表现，只负责水平方向的显隐动画。
+    /// ItemSelect 子面板的纯 View 表现，只负责水平方向的显隐动画 
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     public sealed class ItemSelectPanelSlideView : MonoBehaviour
@@ -33,7 +33,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             KillTween();
         }
 
-        /// <summary>从配置的隐藏 X 坐标滑入显示位置，其他坐标保持不变。</summary>
+        /// <summary>从配置的隐藏 X 坐标滑入显示位置，其他坐标保持不变 </summary>
         public Tween Show()
         {
             KillTween();
@@ -47,7 +47,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             return _tween;
         }
 
-        /// <summary>从当前位置滑回配置的隐藏 X 坐标。</summary>
+        /// <summary>从当前位置滑回配置的隐藏 X 坐标 </summary>
         public Tween Hide(Action onComplete = null)
         {
             KillTween();
@@ -64,7 +64,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             return _tween;
         }
 
-        /// <summary>立即终止动画并复位到隐藏位置。</summary>
+        /// <summary>立即终止动画并复位到隐藏位置 </summary>
         public void ResetHiddenImmediately()
         {
             KillTween();

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace ProjectGame.HotFix.Settings
 {
     /// <summary>
-    /// 描述 Setting 中一行按键与 InputAction Binding 的映射。
+    /// 描述 Setting 中一行按键与 InputAction Binding 的映射 
     /// </summary>
     public readonly struct InputBindingDefinition
     {
@@ -12,7 +12,7 @@ namespace ProjectGame.HotFix.Settings
         public readonly string BindingName;
 
         /// <summary>
-        /// 建立显示名称、Action 名称和 Composite Part 名称的映射。
+        /// 建立显示名称、Action 名称和 Composite Part 名称的映射 
         /// </summary>
         public InputBindingDefinition(string displayName, string actionName, string bindingName = "")
         {
@@ -23,12 +23,12 @@ namespace ProjectGame.HotFix.Settings
     }
 
     /// <summary>
-    /// 提供 Setting v1.0 固定支持的按键目录。
+    /// 提供 Setting v1.0 固定支持的按键目录 
     /// </summary>
     public static class InputBindingCatalog
     {
         /// <summary>
-        /// 按 UI 展示顺序创建九个可修改按键定义。
+        /// 按 UI 展示顺序创建九个可修改按键定义 
         /// </summary>
         public static IReadOnlyList<InputBindingDefinition> CreateDefault()
         {

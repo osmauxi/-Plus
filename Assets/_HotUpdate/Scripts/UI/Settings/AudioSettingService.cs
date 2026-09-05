@@ -4,7 +4,7 @@ using UnityEngine.Audio;
 namespace ProjectGame.HotFix.Settings
 {
     /// <summary>
-    /// 把线性音量转换为 dB 并应用到大厅 AudioMixer。
+    /// 把线性音量转换为 dB 并应用到大厅 AudioMixer 
     /// </summary>
     public sealed class AudioSettingService
     {
@@ -15,7 +15,7 @@ namespace ProjectGame.HotFix.Settings
         private readonly AudioMixer _audioMixer;
 
         /// <summary>
-        /// 缓存必须由场景绑定的 AudioMixer。
+        /// 缓存必须由场景绑定的 AudioMixer 
         /// </summary>
         public AudioSettingService(AudioMixer audioMixer)
         {
@@ -23,7 +23,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 一次性应用三个音频通道的当前值。
+        /// 一次性应用三个音频通道的当前值 
         /// </summary>
         public void Apply(AudioSettingsData data)
         {
@@ -33,7 +33,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 将 0 到 1 的线性音量转换为 AudioMixer 使用的 dB。
+        /// 将 0 到 1 的线性音量转换为 AudioMixer 使用的 dB 
         /// </summary>
         private static float LinearToDecibel(float value)
         {

@@ -29,7 +29,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private Vector3 _originalScale;
         private bool _isInitialized = false;
 
-        /// <summary>在首次交互前缓存按钮的初始缩放。</summary>
+        /// <summary>在首次交互前缓存按钮的初始缩放 </summary>
         private void EnsureInitialized()
         {
             if (_isInitialized) return;
@@ -37,13 +37,13 @@ namespace ProjectGame.HotFix.UI.Lobby
             _isInitialized = true;
         }
 
-        /// <summary>启动时预先缓存按钮初始缩放。</summary>
+        /// <summary>启动时预先缓存按钮初始缩放 </summary>
         private void Start()
         {
             EnsureInitialized();
         }
 
-        /// <summary>禁用按钮时终止动效并恢复初始缩放。</summary>
+        /// <summary>禁用按钮时终止动效并恢复初始缩放 </summary>
         private void OnDisable()
         {
             if (!_isInitialized) return;
@@ -53,7 +53,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             transform.localScale = _originalScale;
         }
 
-        /// <summary>鼠标进入时平滑放大按钮。</summary>
+        /// <summary>鼠标进入时平滑放大按钮 </summary>
         public void OnPointerEnter(PointerEventData eventData)
         {
             EnsureInitialized();
@@ -61,7 +61,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             transform.DOScale(_originalScale * _hoverScale, _tweenDuration).SetEase(Ease.OutQuad);
         }
 
-        /// <summary>鼠标离开时平滑恢复按钮缩放。</summary>
+        /// <summary>鼠标离开时平滑恢复按钮缩放 </summary>
         public void OnPointerExit(PointerEventData eventData)
         {
             EnsureInitialized();
@@ -69,7 +69,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             transform.DOScale(_originalScale, _tweenDuration).SetEase(Ease.OutQuad);
         }
 
-        /// <summary>鼠标按下时缩小按钮以模拟物理按压。</summary>
+        /// <summary>鼠标按下时缩小按钮以模拟物理按压 </summary>
         public void OnPointerDown(PointerEventData eventData)
         {
             EnsureInitialized();
@@ -78,7 +78,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             transform.DOScale(_originalScale * _pressScale, _tweenDuration * 0.5f).SetEase(Ease.OutQuad);
         }
 
-        /// <summary>鼠标抬起时把按钮回弹到悬停缩放。</summary>
+        /// <summary>鼠标抬起时把按钮回弹到悬停缩放 </summary>
         public void OnPointerUp(PointerEventData eventData)
         {
             EnsureInitialized();
@@ -89,7 +89,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             transform.DOScale(_originalScale * _hoverScale, _tweenDuration).SetEase(Ease.OutBack);
         }
 
-        /// <summary>把指针点击转发为通用按钮点击事件。</summary>
+        /// <summary>把指针点击转发为通用按钮点击事件 </summary>
         public void OnPointerClick(PointerEventData eventData)
         {
             OnClicked?.Invoke();

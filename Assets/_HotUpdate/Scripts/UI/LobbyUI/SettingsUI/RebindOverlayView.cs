@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 显示改键等待提示并阻止底层 UI 交互。
+    /// 显示改键等待提示并阻止底层 UI 交互 
     /// </summary>
     [RequireComponent(typeof(CanvasGroup))]
     public sealed class RebindOverlayView : MonoBehaviour
@@ -14,7 +14,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private CanvasGroup _canvasGroup;
 
         /// <summary>
-        /// 缓存遮罩 CanvasGroup 并默认隐藏。
+        /// 缓存遮罩 CanvasGroup 并默认隐藏 
         /// </summary>
         private void Awake()
         {
@@ -23,7 +23,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 显示等待按键提示并拦截底层射线。
+        /// 显示等待按键提示并拦截底层射线 
         /// </summary>
         public void Show()
         {
@@ -34,7 +34,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 隐藏等待按键提示并释放底层交互。
+        /// 隐藏等待按键提示并释放底层交互 
         /// </summary>
         public void Hide()
         {

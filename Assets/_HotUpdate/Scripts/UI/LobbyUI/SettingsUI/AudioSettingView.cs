@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 管理三项音量 Slider、百分比文本和交互事件。
+    /// 管理三项音量 Slider、百分比文本和交互事件 
     /// </summary>
     public sealed class AudioSettingView : MonoBehaviour
     {
@@ -26,7 +26,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         public event Action<SettingVolumeChannel, float> OnVolumeChanged;
 
         /// <summary>
-        /// 配置 Slider 范围并绑定三个音量事件。
+        /// 配置 Slider 范围并绑定三个音量事件 
         /// </summary>
         private void Awake()
         {
@@ -40,7 +40,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 销毁视图时解除 Slider 事件。
+        /// 销毁视图时解除 Slider 事件 
         /// </summary>
         private void OnDestroy()
         {
@@ -50,7 +50,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 无事件地刷新三个 Slider 与百分比文本。
+        /// 无事件地刷新三个 Slider 与百分比文本 
         /// </summary>
         public void Refresh(AudioSettingsData data)
         {
@@ -63,7 +63,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 统一启用或禁用三个音量 Slider。
+        /// 统一启用或禁用三个音量 Slider 
         /// </summary>
         public void SetInteractable(bool interactable)
         {
@@ -73,7 +73,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 响应主音量修改并刷新对应百分比。
+        /// 响应主音量修改并刷新对应百分比 
         /// </summary>
         private void HandleMasterChanged(float value)
         {
@@ -82,7 +82,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 响应音乐音量修改并刷新对应百分比。
+        /// 响应音乐音量修改并刷新对应百分比 
         /// </summary>
         private void HandleMusicChanged(float value)
         {
@@ -91,7 +91,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 响应音效音量修改并刷新对应百分比。
+        /// 响应音效音量修改并刷新对应百分比 
         /// </summary>
         private void HandleSfxChanged(float value)
         {
@@ -100,7 +100,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将 Slider 固定配置为 0 到 1 的连续范围。
+        /// 将 Slider 固定配置为 0 到 1 的连续范围 
         /// </summary>
         private static void ConfigureSlider(Slider slider)
         {
@@ -110,7 +110,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 将线性音量格式化为整数百分比。
+        /// 将线性音量格式化为整数百分比 
         /// </summary>
         private static void SetPercentText(TMP_Text target, float value)
         {

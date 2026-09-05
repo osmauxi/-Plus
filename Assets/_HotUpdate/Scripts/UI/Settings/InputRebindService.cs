@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 namespace ProjectGame.HotFix.Settings
 {
     /// <summary>
-    /// 负责 Gameplay ActionMap 的显示、交互式改键和 Override 序列化。
+    /// 负责 Gameplay ActionMap 的显示、交互式改键和 Override 序列化 
     /// </summary>
     public sealed class InputRebindService : IDisposable
     {
@@ -22,7 +22,7 @@ namespace ProjectGame.HotFix.Settings
         public bool IsRebinding => _operation != null;
 
         /// <summary>
-        /// 缓存必须由场景绑定的 InputActionAsset。
+        /// 缓存必须由场景绑定的 InputActionAsset 
         /// </summary>
         public InputRebindService(InputActionAsset inputActions)
         {
@@ -30,7 +30,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 返回指定按键当前实际生效的可读名称。
+        /// 返回指定按键当前实际生效的可读名称 
         /// </summary>
         public string GetBindingDisplayString(InputBindingDefinition definition)
         {
@@ -40,7 +40,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 返回所有按键定义当前实际生效的可读名称。
+        /// 返回所有按键定义当前实际生效的可读名称 
         /// </summary>
         public IReadOnlyList<string> GetBindingDisplayStrings(IReadOnlyList<InputBindingDefinition> definitions)
         {
@@ -54,7 +54,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 启动一次键鼠交互式改键，并排除鼠标移动与 ESC。
+        /// 启动一次键鼠交互式改键，并排除鼠标移动与 ESC 
         /// </summary>
         public void StartRebind(
             InputBindingDefinition definition,
@@ -83,7 +83,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 取消当前改键操作并保留原 Binding。
+        /// 取消当前改键操作并保留原 Binding 
         /// </summary>
         public void CancelRebind()
         {
@@ -91,7 +91,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 清空所有 Binding Override 并恢复资产默认按键。
+        /// 清空所有 Binding Override 并恢复资产默认按键 
         /// </summary>
         public void RestoreDefaults()
         {
@@ -100,7 +100,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 先清空旧 Override，再从本地 JSON 恢复按键设置。
+        /// 先清空旧 Override，再从本地 JSON 恢复按键设置 
         /// </summary>
         public bool ApplyBindingOverrides(string json)
         {
@@ -119,13 +119,13 @@ namespace ProjectGame.HotFix.Settings
             catch (Exception exception)
             {
                 _inputActions.RemoveAllBindingOverrides();
-                Debug.LogWarning($"按键 Override JSON 损坏，已恢复默认按键。\n{exception}");
+                Debug.LogWarning($"按键 Override JSON 损坏，已恢复默认按键 \n{exception}");
                 return false;
             }
         }
 
         /// <summary>
-        /// 把当前所有 Binding Override 序列化为 JSON。
+        /// 把当前所有 Binding Override 序列化为 JSON 
         /// </summary>
         public string SaveBindingOverridesAsJson()
         {
@@ -133,7 +133,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 释放可能仍在等待输入的 RebindingOperation。
+        /// 释放可能仍在等待输入的 RebindingOperation 
         /// </summary>
         public void Dispose()
         {
@@ -146,7 +146,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 完成交互式改键并通知 Presenter 保存结果。
+        /// 完成交互式改键并通知 Presenter 保存结果 
         /// </summary>
         private void HandleCompleted(InputActionRebindingExtensions.RebindingOperation operation)
         {
@@ -156,7 +156,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 取消交互式改键并通知 Presenter 恢复界面。
+        /// 取消交互式改键并通知 Presenter 恢复界面 
         /// </summary>
         private void HandleCanceled(InputActionRebindingExtensions.RebindingOperation operation)
         {
@@ -166,7 +166,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 恢复 Action 原启用状态并释放操作对象。
+        /// 恢复 Action 原启用状态并释放操作对象 
         /// </summary>
         private void FinishOperation()
         {
@@ -179,7 +179,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// Dispose 当前操作并清空一次性回调引用。
+        /// Dispose 当前操作并清空一次性回调引用 
         /// </summary>
         private void DisposeOperation()
         {
@@ -191,7 +191,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 从 Gameplay ActionMap 中取得必须存在的 Action。
+        /// 从 Gameplay ActionMap 中取得必须存在的 Action 
         /// </summary>
         private InputAction FindAction(string actionName)
         {
@@ -199,7 +199,7 @@ namespace ProjectGame.HotFix.Settings
         }
 
         /// <summary>
-        /// 根据 Composite Part 名称或键鼠分组定位目标 Binding。
+        /// 根据 Composite Part 名称或键鼠分组定位目标 Binding 
         /// </summary>
         private static int FindBindingIndex(InputAction action, string bindingName)
         {
@@ -224,7 +224,7 @@ namespace ProjectGame.HotFix.Settings
             }
 
             throw new InvalidOperationException(
-                $"Action '{action.name}' 找不到 Binding '{bindingName}'。");
+                $"Action '{action.name}' 找不到 Binding '{bindingName}' ");
         }
     }
 }

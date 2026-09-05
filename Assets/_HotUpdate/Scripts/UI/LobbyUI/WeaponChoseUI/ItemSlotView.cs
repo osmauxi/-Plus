@@ -11,7 +11,7 @@ using UnityEngine.UI;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 负责显示物品格数据、选中状态和鼠标交互。
+    /// 负责显示物品格数据、选中状态和鼠标交互 
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     public class ItemSlotView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
@@ -26,7 +26,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         [SerializeField] private float _tweenDuration = 0.15f;
 
         /// <summary>
-        /// 点击时向 Presenter 返回当前物品 ID。
+        /// 点击时向 Presenter 返回当前物品 ID 
         /// </summary>
         public event Action<int> OnClicked;
 
@@ -37,7 +37,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private AsyncOperationHandle<Sprite> _iconHandle;
 
         /// <summary>
-        /// 缓存矩形组件和初始缩放，并初始化高亮状态。
+        /// 缓存矩形组件和初始缩放，并初始化高亮状态 
         /// </summary>
         private void Awake()
         {
@@ -47,7 +47,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 回收格子时复位动效，并释放当前图标资源。
+        /// 回收格子时复位动效，并释放当前图标资源 
         /// </summary>
         private void OnDisable()
         {
@@ -59,7 +59,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 销毁格子时释放仍由该格子持有的图标资源。
+        /// 销毁格子时释放仍由该格子持有的图标资源 
         /// </summary>
         private void OnDestroy()
         {
@@ -68,7 +68,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 绑定物品基础信息，并从配置中的 Addressables 地址异步加载图标。
+        /// 绑定物品基础信息，并从配置中的 Addressables 地址异步加载图标 
         /// </summary>
         public void Bind(ItemSlotData data)
         {
@@ -84,7 +84,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 设置当前格子的选中高亮状态。
+        /// 设置当前格子的选中高亮状态 
         /// </summary>
         public void SetHighlight(bool active)
         {
@@ -92,7 +92,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 鼠标进入时播放放大动效。
+        /// 鼠标进入时播放放大动效 
         /// </summary>
         public void OnPointerEnter(PointerEventData eventData)
         {
@@ -101,7 +101,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 鼠标离开时恢复初始缩放。
+        /// 鼠标离开时恢复初始缩放 
         /// </summary>
         public void OnPointerExit(PointerEventData eventData)
         {
@@ -110,7 +110,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 鼠标点击时抛出物品 ID 并播放按压反馈。
+        /// 鼠标点击时抛出物品 ID 并播放按压反馈 
         /// </summary>
         public void OnPointerClick(PointerEventData eventData)
         {
@@ -119,7 +119,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 异步加载图标，并阻止对象池复用后的旧请求覆盖新数据。
+        /// 异步加载图标，并阻止对象池复用后的旧请求覆盖新数据 
         /// </summary>
         private async UniTask LoadIconAsync(string iconAddress, int bindVersion)
         {
@@ -155,7 +155,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 释放当前 Addressables 图标句柄并清空图片显示。
+        /// 释放当前 Addressables 图标句柄并清空图片显示 
         /// </summary>
         private void ReleaseIcon()
         {

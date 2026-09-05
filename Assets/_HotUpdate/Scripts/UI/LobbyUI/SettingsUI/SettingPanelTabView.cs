@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace ProjectGame.HotFix.UI.Lobby
 {
     /// <summary>
-    /// 保存一个分类按钮与对应设置 Panel 的映射。
+    /// 保存一个分类按钮与对应设置 Panel 的映射 
     /// </summary>
     [Serializable]
     public sealed class SettingPanelTabEntry
@@ -21,7 +21,7 @@ namespace ProjectGame.HotFix.UI.Lobby
     }
 
     /// <summary>
-    /// 管理 Setting 分类按钮，并保证任意时刻只显示一个内容 Panel。
+    /// 管理 Setting 分类按钮，并保证任意时刻只显示一个内容 Panel 
     /// </summary>
     public sealed class SettingPanelTabView : MonoBehaviour
     {
@@ -36,7 +36,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         public int CurrentTabIndex => _currentTabIndex;
 
         /// <summary>
-        /// 为每个分类按钮建立固定索引回调，并显示默认 Panel。
+        /// 为每个分类按钮建立固定索引回调，并显示默认 Panel 
         /// </summary>
         private void Awake()
         {
@@ -52,7 +52,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 销毁分类栏时解除所有运行时按钮回调。
+        /// 销毁分类栏时解除所有运行时按钮回调 
         /// </summary>
         private void OnDestroy()
         {
@@ -63,7 +63,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 显示默认分类，并隐藏其余内容 Panel。
+        /// 显示默认分类，并隐藏其余内容 Panel 
         /// </summary>
         public void ShowDefaultTab()
         {
@@ -71,7 +71,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 显示指定索引的 Panel，并同步全部分类按钮高亮。
+        /// 显示指定索引的 Panel，并同步全部分类按钮高亮 
         /// </summary>
         public void ShowTab(int tabIndex)
         {
@@ -90,7 +90,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         }
 
         /// <summary>
-        /// 统一控制所有分类按钮是否可以交互。
+        /// 统一控制所有分类按钮是否可以交互 
         /// </summary>
         public void SetInteractable(bool interactable)
         {

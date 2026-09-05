@@ -11,7 +11,7 @@ namespace ProjectGame.HotFix.Core.Events
         public static LocalEventBus Global { get; } = new LocalEventBus("GlobalLocalEventBus");
 
         //线程安全的锁对象，用于保护对_streams字典的访问，任何对字典_streams的增删改查动作，都必须申请这把锁
-        //当前总线按 Unity 主线程模型运行，已移除旧实现中的锁对象。
+        //当前总线按 Unity 主线程模型运行，已移除旧实现中的锁对象 
         private readonly Dictionary<Type, IEventStream> _streams = new();
         private readonly Action<Exception> _exceptionHandler;
         private readonly string _busName;
@@ -91,7 +91,7 @@ namespace ProjectGame.HotFix.Core.Events
         {
             var type = typeof(TEvent);
 
-            //_streams中存的是IEventStream接口类型的对象，实际存储的是EventStream<TEvent>对象，所以有一层还原。
+            //_streams中存的是IEventStream接口类型的对象，实际存储的是EventStream<TEvent>对象，所以有一层还原 
             if (_streams.TryGetValue(type, out var existingStream))
             {
                 return (EventStream<TEvent>)existingStream;
@@ -122,7 +122,7 @@ namespace ProjectGame.HotFix.Core.Events
             void Clear();
         }
 
-        //一个事件对应一个EventStream<T>，被统一存在_streams字典中。
+        //一个事件对应一个EventStream<T>，被统一存在_streams字典中 
         private sealed class EventStream<TEvent> : IEventStream where TEvent : struct, ILocalEvent
         {
             private readonly List<EventSubscriber> _subscribers = new();
@@ -153,7 +153,7 @@ namespace ProjectGame.HotFix.Core.Events
             public void Publish(TEvent eventData)
             {
                 //不让系统带锁进行费时遍历，所以先把_subscribers的快照取出来，然后在快照上进行遍历
-                //这样可以减少在事件处理过程中阻塞其他线程操作的情况。
+                //这样可以减少在事件处理过程中阻塞其他线程操作的情况 
                 //但相对的，会出现ToArray的数组分配开销
                 if (_subscriberCount == 0)
                 {
@@ -162,7 +162,7 @@ namespace ProjectGame.HotFix.Core.Events
 
                 //这里是复制一份_subscribers，保证本次派发使用固定的订阅列表不会出现突然多事件和少事件的情况
                 //相对于List，数组读取更快
-                //当前实现只记录派发开始时的数量；派发期间取消的项置空，结束后再原地压缩，因此不再分配数组快照。
+                //当前实现只记录派发开始时的数量；派发期间取消的项置空，结束后再原地压缩，因此不再分配数组快照 
                 var publishCount = _subscribers.Count;
                 _dispatchDepth++;
 

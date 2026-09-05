@@ -38,7 +38,7 @@ public class NetEventCenter : NetworkBehaviour
     }
 
     //泛型委托缓存机制，旨在解决泛型解析漏斗ReceiveInternal调用的装箱问题和反射调用的性能问题，反射调用会有较大的性能开销
-    //我们用一个字典在游戏开始时缓存每个事件类型对应的委托，这样在处理收到的事件时，就可以直接从字典中获取对应的委托来调用，而不需要每次都通过反射来获取方法信息和创建委托。
+    //我们用一个字典在游戏开始时缓存每个事件类型对应的委托，这样在处理收到的事件时，就可以直接从字典中获取对应的委托来调用，而不需要每次都通过反射来获取方法信息和创建委托 
     //Key是事件的唯一ID 
     //Value是一个处理函数：接收发送者ID和字节流读取器
     private Dictionary<ushort, Action<ulong, FastBufferReader>> _messageHandlers = new Dictionary<ushort, Action<ulong, FastBufferReader>>();
@@ -60,7 +60,7 @@ public class NetEventCenter : NetworkBehaviour
 
         //使用反射，扫描当前程序集里所有实现了 INetEvent 的结构体
         var allEventTypes = new List<Type>();
-        //AppDomain：游戏运行时的整个内存空间。
+        //AppDomain：游戏运行时的整个内存空间 
         //GetAssemblies: 拿到所有 DLL（Unity引擎、系统库、自己的代码...都在这里面）
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
         var targetAssemblies = new HashSet<string>
@@ -72,7 +72,7 @@ public class NetEventCenter : NetworkBehaviour
         foreach (var assembly in assemblies)
         {
             //可以创建Assembly Definition，可以指定分包(dll)，这样能把遍历过滤范围进一步放大，更精确
-            //但是要折腾什么依赖什么的。
+            //但是要折腾什么依赖什么的 
             string name = assembly.GetName().Name;
             if (!targetAssemblies.Contains(name))
                 continue;
@@ -122,7 +122,7 @@ public class NetEventCenter : NetworkBehaviour
         //_handlers[type]取出所有委托，强制类型转换Action<T>，然后加上新的handler委托
         _handlers[type] = (Action<T, ulong>)_handlers[type] + handler;
     }
-    //为什么(Action<T>)_handlers[type]取出委托之后可以进行加减法？这里是加减法的重载。
+    //为什么(Action<T>)_handlers[type]取出委托之后可以进行加减法？这里是加减法的重载 
     //因为委托本质上是一个多播委托，也就是一个列表，可以通过+和-操作符来添加或移除方法引用，被触发时会依次调用列表中的所有方法
 
     //struct约束T必须是值类型，INetEvent约束T必须实现INetEvent接口
@@ -160,7 +160,7 @@ public class NetEventCenter : NetworkBehaviour
         {
             if (clientIds != null && clientIds.Length > 0)
             {
-                Debug.LogWarning("客户端调用 Send 时传入 clientIds 是无效的！客户端只能发给服务器。路由请在数据包内指定或由服务器决定。");
+                Debug.LogWarning("客户端调用 Send 时传入 clientIds 是无效的！客户端只能发给服务器 路由请在数据包内指定或由服务器决定 ");
             }
             SendToServer(data);
             //客户端发送后，通常不立即执行本地，而是等服务器广播回来（保证时序一致）
@@ -172,8 +172,8 @@ public class NetEventCenter : NetworkBehaviour
         private void SendToServer<T>(T data) where T : struct, INetEvent
         {
             //创建一个“快速写入器”
-            //1024:初始容量，申请一块 1024 字节的内存条来写数据。
-            //Allocator.Temp:告诉 Unity 这块内存是临时的，用完这一帧立马销毁，0GC。
+            //1024:初始容量，申请一块 1024 字节的内存条来写数据 
+            //Allocator.Temp:告诉 Unity 这块内存是临时的，用完这一帧立马销毁，0GC 
             using (var writer = new FastBufferWriter(1024, Allocator.Temp)) 
             {
                 if (!_typeToId.TryGetValue(typeof(T), out ushort eventId))
@@ -183,20 +183,20 @@ public class NetEventCenter : NetworkBehaviour
                 }
                 //写入“信封标签”
                 ////typeof(T).FullName输出此事件数据结构体的类型信息，也就是所在命名空间 + 结构体名
-                //WriteValueSafe: 把字符串转换成二进制写入内存条。
-                //也就是告诉接收方，这包数据是什么类型的事件，之后收到二进制数据流之后就按照这个类型来解析。
+                //WriteValueSafe: 把字符串转换成二进制写入内存条 
+                //也就是告诉接收方，这包数据是什么类型的事件，之后收到二进制数据流之后就按照这个类型来解析 
                 writer.WriteValueSafe(eventId);
 
                 //写入“信件内容”
                 //因为结构体都实现了INetworkSerializable，直接调用NGO的扩展方法WriteNetworkSerializable就行了
-                //这里会调用结构体T里的NetworkSerialize方法把实际数据转为二进制流。
+                //这里会调用结构体T里的NetworkSerialize方法把实际数据转为二进制流 
                 writer.WriteNetworkSerializable(data);
 
                 //发送数据包
                 //NetEvent:频道名，NetEventBus已经在OnNetworkSpawn注册了这个频道的处理器
-                //NetworkManager.ServerClientId获取服务器ID，这个方法是发给服务器的。
-                //writer:把写好的内存条交出去。
-                //所以这里服务器会收到这包数据，然后调用HandleIncomingPacket处理。
+                //NetworkManager.ServerClientId获取服务器ID，这个方法是发给服务器的 
+                //writer:把写好的内存条交出去 
+                //所以这里服务器会收到这包数据，然后调用HandleIncomingPacket处理 
                 NetworkManager.Singleton.CustomMessagingManager.SendNamedMessage("NetEvent", NetworkManager.ServerClientId, writer);
             }
         }
@@ -213,8 +213,8 @@ public class NetEventCenter : NetworkBehaviour
                 writer.WriteValueSafe(eventId);
                 writer.WriteNetworkSerializable(data);
 
-                //SendNamedMessageToAll: 这是一个群发指令。
-                //NGO会把这份二进制数据复制N份，发给所有连接的客户端。
+                //SendNamedMessageToAll: 这是一个群发指令 
+                //NGO会把这份二进制数据复制N份，发给所有连接的客户端 
                 NetworkManager.Singleton.CustomMessagingManager.SendNamedMessageToAll("NetEvent", writer);
             }
 
@@ -238,12 +238,12 @@ public class NetEventCenter : NetworkBehaviour
             {
                 Debug.LogError($"收到未知事件或委托未缓存, ID: {eventId}");
             }
-            //typeof(NetEventCenter).GetMethod:去NetEventBus类里找一个名字叫"ReceiveInternal"的方法。
-            //BindingFlags:告诉它去哪里找（NonPublic = 私有方法也找，Instance = 实例方法）。
-            //也就是拿到了ReceiveInternal方法，但是现在还没填泛型参数 T，是空的容器。
+            //typeof(NetEventCenter).GetMethod:去NetEventBus类里找一个名字叫"ReceiveInternal"的方法 
+            //BindingFlags:告诉它去哪里找（NonPublic = 私有方法也找，Instance = 实例方法） 
+            //也就是拿到了ReceiveInternal方法，但是现在还没填泛型参数 T，是空的容器 
             //var method = typeof(NetEventCenter).GetMethod("ReceiveInternal", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             //MakeGenericMethod:用反射给泛型方法补全类型参，让它从抽象的泛型模板变成可直接调用的具体方法
-            //填入泛型参数，因为上方已经获取了T的实际类型。
+            //填入泛型参数，因为上方已经获取了T的实际类型 
             //等同于：private void ReceiveInternal<PlayerFireEvent>(...)
             //var genericMethod = method.MakeGenericMethod(eventType);
             //调用方法，传入参数
@@ -255,8 +255,8 @@ public class NetEventCenter : NetworkBehaviour
         {
             T data = new T();
             //拆包
-            //reader此时的指针正好指在结构体数据的开头（因为刚才FullName已经在HandleIncomingPacket中被读走了）。
-            //调用结构体的NetworkSerialize方法进行反序列化，读出值写入data。
+            //reader此时的指针正好指在结构体数据的开头（因为刚才FullName已经在HandleIncomingPacket中被读走了） 
+            //调用结构体的NetworkSerialize方法进行反序列化，读出值写入data 
             reader.ReadNetworkSerializable(out data);
 
             //服务器最大，客户端转发到服务器，服务器视作请求，先进行审核

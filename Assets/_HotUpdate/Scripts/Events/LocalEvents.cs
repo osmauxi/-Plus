@@ -3,7 +3,7 @@
 namespace ProjectGame.HotFix.Core.Events
 {
     /// <summary>
-    /// 本地事件总线的全局访问门面。
+    /// 本地事件总线的全局访问门面 
     /// </summary>
     public static class LocalEvents
     {

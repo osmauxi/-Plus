@@ -27,7 +27,7 @@ namespace ProjectGame.HotFix.Core.Network
     }
 
     /// <summary>
-    /// 网络联机策略接口，也做伏笔。
+    /// 网络联机策略接口，也做伏笔 
     /// </summary>
     public interface IMatchmakingStrategy
     {
@@ -37,7 +37,7 @@ namespace ProjectGame.HotFix.Core.Network
         /// </summary>
         bool SupportsLobbyList { get; }
 
-        //UniTask等效协程和异步Task，但是可回调，0GC，可Try Catch。
+        //UniTask等效协程和异步Task，但是可回调，0GC，可Try Catch 
         /// <summary>
         /// 作为Host创建房间并挂起等待
         /// </summary>

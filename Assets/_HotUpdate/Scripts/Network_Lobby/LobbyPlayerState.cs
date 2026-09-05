@@ -12,7 +12,7 @@ namespace ProjectGame.HotFix.Core.Network
         //NGO分配的ID，可变但唯一
         public ulong ClientId;
 
-        //防断线重连的唯一不变ID，由第一次启动生成固定的ID串或者其他固定ID。取决于连接方式
+        //防断线重连的唯一不变ID，由第一次启动生成固定的ID串或者其他固定ID 取决于连接方式
         public FixedString64Bytes PersistentPlayerId;
 
         //玩家昵称
@@ -33,7 +33,7 @@ namespace ProjectGame.HotFix.Core.Network
         //是否已准备就绪
         public bool IsReady;
 
-        /// <summary>按固定字段顺序序列化大厅玩家状态。</summary>
+        /// <summary>按固定字段顺序序列化大厅玩家状态 </summary>
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref ClientId);
@@ -46,7 +46,7 @@ namespace ProjectGame.HotFix.Core.Network
             serializer.SerializeValue(ref IsReady);
         }
 
-        /// <summary>比较全部同步字段，用于 NetworkList 脏标记判断。</summary>
+        /// <summary>比较全部同步字段，用于 NetworkList 脏标记判断 </summary>
         public bool Equals(LobbyPlayerState other)
         {
             return ClientId == other.ClientId &&

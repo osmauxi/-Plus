@@ -3,6 +3,8 @@ using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Core.Network;
 using ProjectGame.HotFix.Core.Session;
 using ProjectGame.HotFix.SceneFlow;
+using ProjectGame.HotFix.Network.Runtime;
+using System.Threading;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,6 +12,7 @@ using System.Linq;
 using System.Text;
 using Unity.Collections;
 using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -18,16 +21,18 @@ namespace ProjectGame.HotFix.Netcode
     /// <summary>
     /// 管理大厅的连接、审批、玩家状态管理、掉线重连等网络逻辑
     /// </summary>
-    public class LobbyNetworkManager : NetworkBehaviour
+    public class LobbyNetworkManager : NetworkBehaviour, IScopeBindable
     {
         public static LobbyNetworkManager Instance { get; private set; }
+        public static event Action<LobbyNetworkManager> InstanceChanged;
+        public bool IsRoomLocked => _isRoomLocked;
 
         [Header("大厅网络配置")]
         [SerializeField] private int _maxPlayers = 4;
         [SerializeField] private float _readyCountdownSeconds = 3f;
         [SerializeField, Min(1f)] private float _sessionPreparationTimeoutSeconds = 10f;
 
-        //当前使用的联机策略 (通过按钮UI注入)
+        // 可选的联机策略；局域网直连没有外部策略时使用 UnityTransport。
         private IMatchmakingStrategy _matchmakingStrategy;
         //房间是否可加入
         private bool _isRoomLocked = false;
@@ -37,6 +42,8 @@ namespace ProjectGame.HotFix.Netcode
         private readonly HashSet<ulong> _sessionPreparedClientIds = new HashSet<ulong>();
         private int _sessionRevision;
         private string _sessionPreparationError;
+        private NetworkManager _callbackManager;
+        private NetworkScopeManager _scopeManager;
         // 倒计时事件：UI监听展示剩余秒数
         public event Action<float> OnReadyCountdownUpdated;
         public event Action OnCountdownStarted;
@@ -45,14 +52,14 @@ namespace ProjectGame.HotFix.Netcode
         //断线重连玩家信息对照表：Key = PersistentPlayerId, Value = 状态
         private Dictionary<string, LobbyPlayerState> _disconnectedPlayers = new Dictionary<string, LobbyPlayerState>(5);
         //批准连接的客户端ID与持久化ID对照表：Key = ClientId, Value = PersistentPlayerId
-        private Dictionary<ulong, string> _approvedClientIds = new Dictionary<ulong, string>();
+        private LobbyConnectionGate _connectionGate;
 
         //大厅玩家状态列表，自动同步给所有客户端
         public NetworkList<LobbyPlayerState> LobbyPlayers = new NetworkList<LobbyPlayerState>();
         //状态变更事件，供UI层监听以刷新界面
         public event Action OnLobbyDataChanged;
 
-        /// <summary>建立持久化大厅网络单例。</summary>
+        /// <summary>建立持久化大厅网络单例 </summary>
         private void Awake()
         {
             if (Instance != null)
@@ -62,98 +69,104 @@ namespace ProjectGame.HotFix.Netcode
             }
 
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            BindConnectionCallbacks();
+            InstanceChanged?.Invoke(this);
         }
 
-        /// <summary>绑定 NGO 连接审批、连接和断开事件。</summary>
+        /// <summary>绑定 NGO 连接审批、连接和断开事件 </summary>
         private void Start()
+            => BindConnectionCallbacks();
+
+        private void BindConnectionCallbacks()
         {
-            //ConnectionApprovalCallback在客户端尝试连接时触发
-            NetworkManager.Singleton.ConnectionApprovalCallback += ApprovalCheck;
-            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            if (_callbackManager != null) return;
+            _callbackManager = NetworkManager.Singleton;
+            if (_callbackManager == null) throw new InvalidOperationException("会话种子创建前必须先创建 NetworkManager");
+            _callbackManager.OnClientConnectedCallback += OnClientConnected;
+            _callbackManager.OnClientDisconnectCallback += OnClientDisconnected;
+            _connectionGate = _callbackManager.GetComponent<LobbyConnectionGate>();
+            if (_connectionGate == null)
+                throw new InvalidOperationException("NetworkBootstrap 缺少 LobbyConnectionGate");
         }
 
-        /// <summary>销毁时解除 NGO 回调并清空有效单例。</summary>
+        public UniTask BindAsync(NetworkScopeStageContext context, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!context.TryGetRoot(NetworkPrefabId.NetworkSessionRoot, out NetworkObject root) ||
+                root.GetComponent<GameSceneFlowController>() == null)
+                throw new InvalidOperationException("LobbyNetworkRoot 找不到场景流程会话 Root");
+            if (_scopeManager != null) _scopeManager.ScopeActivated -= HandleScopeActivated;
+            _scopeManager = NetworkRuntimeBootstrap.Instance.ScopeManager;
+            _scopeManager.ScopeActivated += HandleScopeActivated;
+            return UniTask.CompletedTask;
+        }
+
+        private void HandleScopeActivated(NetworkSceneMask mask)
+        {
+            if (mask != NetworkSceneMask.Lobby) return;
+            GameSessionContext.Clear();
+            if (!IsServer) return;
+            _isStartingGame = _isRoomLocked = false;
+            _sessionPreparedClientIds.Clear();
+            _sessionPreparationError = null;
+            if (_readyCountdownCoroutine != null) StopCoroutine(_readyCountdownCoroutine);
+            _readyCountdownCoroutine = null;
+            for (int i = 0; i < LobbyPlayers.Count; i++)
+            {
+                LobbyPlayerState player = LobbyPlayers[i];
+                player.IsReady = false;
+                LobbyPlayers[i] = player;
+            }
+        }
+
+        /// <summary>销毁时解除 NGO 回调并清空有效单例 </summary>
         public override void OnDestroy()
         {
-            if (NetworkManager.Singleton != null)
+            if (_callbackManager != null)
             {
-                NetworkManager.Singleton.ConnectionApprovalCallback -= ApprovalCheck;
-                NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
-                NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+                _callbackManager.OnClientConnectedCallback -= OnClientConnected;
+                _callbackManager.OnClientDisconnectCallback -= OnClientDisconnected;
             }
+            if (_scopeManager != null) _scopeManager.ScopeActivated -= HandleScopeActivated;
             if (Instance == this)
+            {
                 Instance = null;
+                InstanceChanged?.Invoke(null);
+            }
             base.OnDestroy();
         }
 
-        /// <summary>网络对象生成后监听权威玩家名单变化。</summary>
+        /// <summary>网络对象生成后监听权威玩家名单变化 </summary>
         public override void OnNetworkSpawn()
         {
+            base.OnNetworkSpawn();
+            _isStartingGame = _isRoomLocked = false;
+            _profileSubmittedClientIds.Clear();
+            _sessionPreparedClientIds.Clear();
+            _sessionRevision = 0;
+            _sessionPreparationError = null;
+            if (IsServer) LobbyPlayers.Clear();
             //绑定名单变化事件
             LobbyPlayers.OnListChanged += HandleLobbyPlayersChanged;
-            Debug.Log(1212);
+            if (IsServer)
+            {
+                foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
+                    OnClientConnected(clientId);
+            }
+            OnLobbyDataChanged?.Invoke();
         }
 
-        /// <summary>网络对象回收前解除玩家名单监听。</summary>
+        /// <summary>网络对象回收前解除玩家名单监听 </summary>
         public override void OnNetworkDespawn()
         {
             LobbyPlayers.OnListChanged -= HandleLobbyPlayersChanged;
+            if (_scopeManager != null) _scopeManager.ScopeActivated -= HandleScopeActivated;
+            _scopeManager = null;
+            base.OnNetworkDespawn();
         }
 
-        #region 连接审批回调方法
-        /// <summary>验证连接载荷、房间容量和断线重连资格。</summary>
-        private void ApprovalCheck(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
-        {
-            response.Approved = false;
-            response.CreatePlayerObject = false;
-
-            //解析客户端提交的Payload(在request中)，这里约定传入的是PersistentPlayerId的唯一标记字符串流
-            string persistentId = Encoding.UTF8.GetString(request.Payload);
-            Debug.Log($"[LobbyNetworkManager] 收到接入请求，玩家持久化ID: {persistentId}");
-
-            if (string.IsNullOrWhiteSpace(persistentId))
-            {
-                response.Reason = "缺少玩家持久化 ID";
-                return;
-            }
-
-            //判定是不是断线重连的玩家
-            if (_isRoomLocked)
-            {
-                if (_disconnectedPlayers.ContainsKey(persistentId))
-                {
-                    Debug.Log($"<color=green>[LobbyNetworkManager] 玩家重连: {persistentId}</color>");
-                    _approvedClientIds[request.ClientNetworkId] = persistentId;
-                    response.Approved = true;
-                    // TODO: 战斗场景内的重连生成逻辑
-                    return;
-                }
-                else
-                {
-                    Debug.LogWarning($"[LobbyNetworkManager] 房间已锁定，拒绝新玩家加入: {persistentId}");
-                    response.Reason = "游戏已经开始，无法加入！";
-                    return;
-                }
-            }
-
-            //检查房间人数上限
-            if (NetworkManager.Singleton.ConnectedClientsIds.Count >= _maxPlayers)
-            {
-                Debug.LogWarning("[LobbyNetworkManager] 房间人数已满，拒绝加入。");
-                response.Reason = "房间人数已满！";
-                return;
-            }
-
-            //能走到这就通过。
-            Debug.Log($"<color=green>[LobbyNetworkManager] 新玩家正在建立网络握手...</color>");
-            _approvedClientIds[request.ClientNetworkId] = persistentId;
-            response.Approved = true;
-        }
-        #endregion
         #region 玩家连接与断开连接
-        /// <summary>在服务端为新连接或重连玩家创建权威大厅状态。</summary>
+        /// <summary>在服务端为新连接或重连玩家创建权威大厅状态 </summary>
         private void OnClientConnected(ulong clientId)
         {
             if (!IsServer)
@@ -162,7 +175,7 @@ namespace ProjectGame.HotFix.Netcode
             Debug.Log($"[LobbyNetworkManager] Client {clientId} 已物理连入！");
 
             //请求连接时提前提供了唯一标识，批准后在这里根据这个标识来恢复玩家数据或者创建新玩家数据
-            if (_approvedClientIds.TryGetValue(clientId, out string persistentId))
+            if (_connectionGate != null && _connectionGate.TryConsumeApprovedPlayerId(clientId, out string persistentId))
             {
                 //断线重连恢复数据
                 if (_disconnectedPlayers.TryGetValue(persistentId, out LobbyPlayerState oldState))
@@ -185,11 +198,10 @@ namespace ProjectGame.HotFix.Netcode
                 }
 
                 // 用完即删，防止内存泄漏
-                _approvedClientIds.Remove(clientId);
             }
             else
             {
-                //Host 自身 StartHost() 时不会走 ApprovalCheck 流程，_approvedClientIds 中没有记录
+                // Host 自身若没有经过连接审批 Gate，则从本机 ConnectionData 取得身份。
                 //为 Host 本地客户端生成默认初始数据
                 string hostPersistentId = Encoding.UTF8.GetString(
                     NetworkManager.Singleton.NetworkConfig.ConnectionData);
@@ -199,7 +211,7 @@ namespace ProjectGame.HotFix.Netcode
                 Debug.Log($"[大厅] Host 本地玩家加入名单: ClientId {clientId}, PersistentId {hostPersistentId}");
             }
         }
-        /// <summary>在服务端存档并移除断开连接的玩家。</summary>
+        /// <summary>在服务端存档并移除断开连接的玩家 </summary>
         private void OnClientDisconnected(ulong clientId)
         {
             if (!IsServer) return;
@@ -239,7 +251,7 @@ namespace ProjectGame.HotFix.Netcode
         #endregion
 
         #region 全局状态管理
-        /// <summary>把 NetworkList 变化转发给大厅显示层。</summary>
+        /// <summary>把 NetworkList 变化转发给大厅显示层 </summary>
         private void HandleLobbyPlayersChanged(NetworkListEvent<LobbyPlayerState> changeEvent)
         {
             OnLobbyDataChanged?.Invoke();
@@ -247,7 +259,7 @@ namespace ProjectGame.HotFix.Netcode
         }
 
         /// <summary>
-        /// 连接建立后提交本地大厅资料，并由服务器写入名单。
+        /// 连接建立后提交本地大厅资料，并由服务器写入名单 
         /// </summary>
         [ServerRpc(RequireOwnership = false)]
         public void SubmitPlayerProfileServerRpc(
@@ -276,7 +288,7 @@ namespace ProjectGame.HotFix.Netcode
             _profileSubmittedClientIds.Add(senderClientId);
         }
 
-        /// <summary>修改 RPC 发送者自己的玩家名字。</summary>
+        /// <summary>修改 RPC 发送者自己的玩家名字 </summary>
         [ServerRpc(RequireOwnership = false)]
         public void ChangePlayerNameServerRpc(
             FixedString32Bytes playerName,
@@ -480,13 +492,13 @@ namespace ProjectGame.HotFix.Netcode
 
             if (_isStartingGame)
             {
-                Debug.LogWarning("[LobbyNetworkManager] 已经在进入游戏流程中，忽略重复调用。");
+                Debug.LogWarning("[LobbyNetworkManager] 已经在进入游戏流程中，忽略重复调用 ");
                 return;
             }
 
             if (GameSceneFlowController.Instance == null)
             {
-                Debug.LogError("[LobbyNetworkManager] GameSceneFlowController 未绑定，无法进入游戏。");
+                Debug.LogError("[LobbyNetworkManager] GameSceneFlowController 未绑定，无法进入游戏 ");
                 return;
             }
 
@@ -503,6 +515,7 @@ namespace ProjectGame.HotFix.Netcode
         {
             try
             {
+                await NetworkSessionBootstrap.Instance.WaitForLobbyReadyAsync(this.GetCancellationTokenOnDestroy());
                 await WaitForAllPlayerProfilesAsync();
 
                 LobbyPlayerState[] lobbySnapshot = BuildLobbySnapshot();
@@ -519,7 +532,7 @@ namespace ProjectGame.HotFix.Netcode
             }
         }
 
-        /// <summary>等待所有已连接玩家把本地选择提交到服务器权威名单。</summary>
+        /// <summary>等待所有已连接玩家把本地选择提交到服务器权威名单 </summary>
         private async UniTask WaitForAllPlayerProfilesAsync()
         {
             float deadline = Time.realtimeSinceStartup + _sessionPreparationTimeoutSeconds;
@@ -527,7 +540,7 @@ namespace ProjectGame.HotFix.Netcode
             while (!AreAllPlayerProfilesSubmitted())
             {
                 if (Time.realtimeSinceStartup >= deadline)
-                    throw new TimeoutException("等待大厅玩家资料提交超时，无法生成游戏会话快照。");
+                    throw new TimeoutException("等待大厅玩家资料提交超时，无法生成游戏会话快照 ");
 
                 await UniTask.Yield(PlayerLoopTiming.Update);
             }
@@ -570,7 +583,7 @@ namespace ProjectGame.HotFix.Netcode
             return snapshot;
         }
 
-        /// <summary>把同一份权威 Lobby 快照写入服务器和所有客户端的会话上下文。</summary>
+        /// <summary>把同一份权威 Lobby 快照写入服务器和所有客户端的会话上下文 </summary>
         private async UniTask PrepareGameSessionOnAllClientsAsync(
             GameSessionMode mode,
             LobbyPlayerState[] lobbySnapshot)
@@ -589,13 +602,13 @@ namespace ProjectGame.HotFix.Netcode
             while (!AreAllConnectedClientsSessionPrepared())
             {
                 if (!DoesConnectedRosterMatchSnapshot(lobbySnapshot))
-                    throw new InvalidOperationException("会话准备期间玩家连接名单发生变化，已取消本次转场。");
+                    throw new InvalidOperationException("会话准备期间玩家连接名单发生变化，已取消本次转场 ");
 
                 if (!string.IsNullOrEmpty(_sessionPreparationError))
                     throw new InvalidOperationException(_sessionPreparationError);
 
                 if (Time.realtimeSinceStartup >= deadline)
-                    throw new TimeoutException("等待客户端写入 GameSessionContext 超时。");
+                    throw new TimeoutException("等待客户端写入 GameSessionContext 超时 ");
 
                 await UniTask.Yield(PlayerLoopTiming.Update);
             }
@@ -718,29 +731,55 @@ namespace ProjectGame.HotFix.Netcode
         /// <summary>
         /// 单人模式：直接启动Host并立即转场景
         /// </summary>
-        public async void StartSinglePlayerAndEnterGame()
+        public void StartSinglePlayerAndEnterGame()
+            => StartSinglePlayerAsync().Forget(exception => Debug.LogError($"[LobbyNetworkManager] 单人启动失败：{exception}"));
+
+        private async UniTask StartSinglePlayerAsync()
         {
+            await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy());
             if (NetworkManager.Singleton.IsHost)
             {
+                await NetworkSessionBootstrap.Instance.WaitForLobbyReadyAsync(this.GetCancellationTokenOnDestroy());
                 OnSinglePlayerHostStarted(true);
                 return;
             }
 
-            if (_matchmakingStrategy == null)
-                throw new InvalidOperationException("LobbyNetworkManager 未设置匹配策略");
-
             var parameters = new MatchmakingParams
             {
-                IpAddress = "0.0.0.0",
+                IpAddress = "127.0.0.1",
                 Port = 7777,
                 MaxPlayers = 1
             };
 
-            bool success = await _matchmakingStrategy.StartHostAsync(parameters);
+            bool success;
+            if (_matchmakingStrategy != null)
+            {
+                success = await _matchmakingStrategy.StartHostAsync(parameters);
+            }
+            else
+            {
+                UnityTransport transport =
+                    NetworkManager.Singleton.GetComponent<UnityTransport>();
+                if (transport == null)
+                {
+                    Debug.LogError(
+                        "[LobbyNetworkManager] 找不到 UnityTransport，无法启动单人 Host");
+                    OnSinglePlayerHostStarted(false);
+                    return;
+                }
+
+                transport.SetConnectionData(
+                    "127.0.0.1",
+                    parameters.Port,
+                    "0.0.0.0");
+                success = NetworkManager.Singleton.StartHost();
+            }
+
+            if (success) await NetworkSessionBootstrap.Instance.WaitForLobbyReadyAsync(this.GetCancellationTokenOnDestroy());
             OnSinglePlayerHostStarted(success);
         }
 
-        /// <summary>Host 启动成功后锁定大厅并进入游戏场景。</summary>
+        /// <summary>Host 启动成功后锁定大厅并进入游戏场景 </summary>
         private void OnSinglePlayerHostStarted(bool success)
         {
             if (!success)
@@ -755,13 +794,13 @@ namespace ProjectGame.HotFix.Netcode
         }
         #endregion
 
-        /// <summary>注入大厅使用的匹配策略。</summary>
+        /// <summary>注入大厅使用的匹配策略 </summary>
         public void SetMatchmakingStrategy(IMatchmakingStrategy strategy)
         {
             _matchmakingStrategy = strategy;
         }
 
-        /// <summary>使用有效配置和最低空闲展位创建服务器默认玩家数据。</summary>
+        /// <summary>使用有效配置和最低空闲展位创建服务器默认玩家数据 </summary>
         private LobbyPlayerState CreateDefaultPlayerState(
             ulong clientId,
             string persistentId,
@@ -780,7 +819,7 @@ namespace ProjectGame.HotFix.Netcode
             };
         }
 
-        /// <summary>返回最低的未占用展位索引。</summary>
+        /// <summary>返回最低的未占用展位索引 </summary>
         private int GetFirstAvailableStandIndex()
         {
             for (int standIndex = 0; standIndex < _maxPlayers; standIndex++)
@@ -792,7 +831,7 @@ namespace ProjectGame.HotFix.Netcode
             throw new InvalidOperationException("大厅没有可用展位");
         }
 
-        /// <summary>检查指定展位是否已被大厅玩家占用。</summary>
+        /// <summary>检查指定展位是否已被大厅玩家占用 </summary>
         private bool IsStandOccupied(int standIndex)
         {
             foreach (LobbyPlayerState player in LobbyPlayers)
@@ -804,7 +843,7 @@ namespace ProjectGame.HotFix.Netcode
             return false;
         }
 
-        /// <summary>通过 ClientId 查找权威玩家列表索引。</summary>
+        /// <summary>通过 ClientId 查找权威玩家列表索引 </summary>
         private int FindPlayerIndex(ulong clientId)
         {
             for (int i = 0; i < LobbyPlayers.Count; i++)
@@ -816,28 +855,28 @@ namespace ProjectGame.HotFix.Netcode
             throw new InvalidOperationException($"大厅名单中不存在 ClientId={clientId}");
         }
 
-        /// <summary>校验玩家名字可用于网络同步。</summary>
+        /// <summary>校验玩家名字可用于网络同步 </summary>
         private static void ValidatePlayerName(FixedString32Bytes playerName)
         {
             if (playerName.Length == 0)
                 throw new ArgumentException("玩家名字不能为空", nameof(playerName));
         }
 
-        /// <summary>校验皮肤 ID 存在于配置表。</summary>
+        /// <summary>校验皮肤 ID 存在于配置表 </summary>
         private static void ValidateCharacterId(int id)
         {
             if (!ConfigManager.Instance.GetTable<Config_Lobby_Skins>().ContainsKey(id))
                 throw new ArgumentOutOfRangeException(nameof(id), id, "皮肤配置不存在");
         }
 
-        /// <summary>校验武器 ID 存在于配置表。</summary>
+        /// <summary>校验武器 ID 存在于配置表 </summary>
         private static void ValidateWeaponId(int id)
         {
             if (!ConfigManager.Instance.GetTable<Config_Lobby_Weapons>().ContainsKey(id))
                 throw new ArgumentOutOfRangeException(nameof(id), id, "武器配置不存在");
         }
 
-        /// <summary>校验道具 ID 存在于配置表。</summary>
+        /// <summary>校验道具 ID 存在于配置表 </summary>
         private static void ValidateItemId(int id)
         {
             if (!ConfigManager.Instance.GetTable<Config_Lobby_Items>().ContainsKey(id))

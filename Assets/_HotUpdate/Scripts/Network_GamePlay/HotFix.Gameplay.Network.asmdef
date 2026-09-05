@@ -1,0 +1,17 @@
+{
+    "name": "HotFix.Gameplay.Network",
+    "rootNamespace": "ProjectGame.HotFix.Gameplay.Network",
+    "references": [
+        "Unity.Collections",
+        "Unity.Netcode.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

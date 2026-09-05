@@ -105,8 +105,8 @@ namespace ProjectGame.HotFix.Gameplay.State
         }
 
         /// <summary>
-        /// 等待状态切换到目标状态。
-        /// 主要给流程控制器使用。
+        /// 等待状态切换到目标状态 
+        /// 主要给流程控制器使用 
         /// </summary>
         public async UniTask WaitForStateAsync(GameState targetState,CancellationToken cancellationToken) 
         {
@@ -114,7 +114,7 @@ namespace ProjectGame.HotFix.Gameplay.State
         }
 
         /// <summary>
-        /// 等待状态离开指定状态。
+        /// 等待状态离开指定状态 
         /// </summary>
         public async UniTask WaitUntilStateExitAsync(GameState state,CancellationToken cancellationToken)
         {

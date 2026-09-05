@@ -16,7 +16,7 @@ namespace ProjectGame.HotFix.Gameplay.Events
     }
 
     /// <summary>
-    /// 本机收到当前层数变化。
+    /// 本机收到当前层数变化 
     /// </summary>
     public readonly struct GameLevelChangedEvent : ILocalEvent
     {

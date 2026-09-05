@@ -1,0 +1,8 @@
+{
+    "name": "HotFix.SceneFlow.Tests",
+    "references": ["HotFix.Entry", "HotFix.Lobby.Network", "HotFix.Config", "HotFix.Gameplay", "HotFix.Session", "HotFix.SceneFlow", "HotFix.Network.Runtime", "Unity.Netcode.Runtime", "Unity.Networking.Transport", "Unity.Addressables", "Unity.ResourceManager", "Unity.Collections", "UniTask"],
+    "includePlatforms": [],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

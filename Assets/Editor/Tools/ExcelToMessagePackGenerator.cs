@@ -10,7 +10,7 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-//继承EditorWindow表示脚本只生存在Unity编辑器进程中，打包时会被剔除。
+//继承EditorWindow表示脚本只生存在Unity编辑器进程中，打包时会被剔除 
 public class ExcelToMessagePackGenerator : EditorWindow
 {
     private string excelFolderPath;
@@ -19,7 +19,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
 
     private List<string> validClassNames = new List<string>(10);
 
-    //类型解析字典，提前录入各数据类型的字符串转换逻辑，方便后续扩展和维护。策划在Excel里填什么类型，这里就要有对应的解析函数。
+    //类型解析字典，提前录入各数据类型的字符串转换逻辑，方便后续扩展和维护 策划在Excel里填什么类型，这里就要有对应的解析函数 
     private readonly Dictionary<string, Func<string, object>> TypeParsers = new Dictionary<string, Func<string, object>>()
     {
         { "int", (val) => int.Parse(val) },
@@ -55,8 +55,8 @@ public class ExcelToMessagePackGenerator : EditorWindow
     public static void ShowWindow()
     {
         //它会去编辑器里找有没有打开的"数据管线引擎"的面板，如果有，就把焦点切过去；
-        //如果没有，就在内存里new一个该类的实例并弹出一个新窗口。
-        //OnGUI方法就是这个窗口的核心绘制函数，Unity会在窗口需要重绘时自动调用它。
+        //如果没有，就在内存里new一个该类的实例并弹出一个新窗口 
+        //OnGUI方法就是这个窗口的核心绘制函数，Unity会在窗口需要重绘时自动调用它 
         GetWindow<ExcelToMessagePackGenerator>("数据管线引擎");
     }
 
@@ -111,9 +111,9 @@ public class ExcelToMessagePackGenerator : EditorWindow
         helpStyle.fontSize = 12;
         helpStyle.richText = true;
         GUILayout.Label("<b>日常工作流提示：</b>\n" +
-            "• 修改了Excel表头/新增表：按 <b>1 -> 2 -> 3 -> 4</b> 完整执行。\n" +
-            "• 仅修改了Excel里的数值：按 <b>2</b> 即可。\n" +
-            "• 仅修改了业务 C# 代码：按 <b>4</b> 即可。", helpStyle);
+            "• 修改了Excel表头/新增表：按 <b>1 -> 2 -> 3 -> 4</b> 完整执行 \n" +
+            "• 仅修改了Excel里的数值：按 <b>2</b> 即可 \n" +
+            "• 仅修改了业务 C# 代码：按 <b>4</b> 即可 ", helpStyle);
     }
 
     /// <summary>
@@ -160,19 +160,19 @@ public class ExcelToMessagePackGenerator : EditorWindow
             if (Path.GetFileName(file).StartsWith("~$")) 
                 continue;
 
-            //所有的文件流操作都放在using里，确保用完就关。
-            //ReadWrite防锁死，允许Excel打开状态下读取数据，避免了文件被占用无法访问的问题。
+            //所有的文件流操作都放在using里，确保用完就关 
+            //ReadWrite防锁死，允许Excel打开状态下读取数据，避免了文件被占用无法访问的问题 
             using (var stream = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                //把Excel表格数据解析成C#里可以操作的数据结构。IExcelDataReader统一封装了 .xlsx/.xls 格式的读取逻辑，无需关心底层格式差异
+                //把Excel表格数据解析成C#里可以操作的数据结构 IExcelDataReader统一封装了 .xlsx/.xls 格式的读取逻辑，无需关心底层格式差异
                 using (IExcelDataReader reader = ExcelReaderFactory.CreateReader(stream))
                 {
                     //将文件流转换成内存里的DataSet，Excel 结构 转 .NET 数据结构
                     var result = reader.AsDataSet();
-                    //DataTable代表一张内存数据表，对应 Excel 里单个工作表，TableName为表名，Rows/Columns为行列数据集合。
+                    //DataTable代表一张内存数据表，对应 Excel 里单个工作表，TableName为表名，Rows/Columns为行列数据集合 
                     foreach (DataTable table in result.Tables)
                     {
-                        //过滤掉以 # 开头的表，这些通常是Excel的隐藏工作表或者临时数据表，不是我们要处理的正式配置表。
+                        //过滤掉以 # 开头的表，这些通常是Excel的隐藏工作表或者临时数据表，不是我们要处理的正式配置表 
                         if (table.TableName.StartsWith("#")) 
                             continue;
 
@@ -199,15 +199,15 @@ public class ExcelToMessagePackGenerator : EditorWindow
         }
     }
 
-    //简易字符串拼接，生成一个带有 MessagePack 标签的 C# 类，属性和类型根据 Excel 表头自动推断。这个类就是后续反射实例化对象的模板。
+    //简易字符串拼接，生成一个带有 MessagePack 标签的 C# 类，属性和类型根据 Excel 表头自动推断 这个类就是后续反射实例化对象的模板 
     private void ExtractSchemaAndGenerateCSharp(string rawTableName, DataTable table)
     {
         //行数不够3行，说明不是标准表，这是自己的约定：
-        //第一行中文注释，第二行英文变量名，第三行数据类型，如果不满足这个结构，就直接跳过这个表，不生成代码。
+        //第一行中文注释，第二行英文变量名，第三行数据类型，如果不满足这个结构，就直接跳过这个表，不生成代码 
         if (table.Rows.Count < 3) 
             return;
 
-        //命名约定，表名如果包含 | 符号，| 前面部分作为类名，后面部分作为继承关系。例如 "Weapon|Config_Base" 会生成一个 class Config_Weapon : Config_Base
+        //命名约定，表名如果包含 | 符号，| 前面部分作为类名，后面部分作为继承关系 例如 "Weapon|Config_Base" 会生成一个 class Config_Weapon : Config_Base
         string[] nameParts = rawTableName.Split('|');
         string className = "Config_" + nameParts[0];
         string inheritance = nameParts.Length > 1 ? $" : {nameParts[1]}" : "";
@@ -221,7 +221,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
         csBuilder.AppendLine("");
 
         //[MessagePackObject]允许这个类被 MessagePack 序列化器识别和处理，
-        //这样我们后续在打包数据时就能直接把这个类的实例转换成二进制格式，满足高性能序列化的需求。
+        //这样我们后续在打包数据时就能直接把这个类的实例转换成二进制格式，满足高性能序列化的需求 
         csBuilder.AppendLine("[MessagePackObject]");
         csBuilder.AppendLine($"public class {className}{inheritance}");
         csBuilder.AppendLine("{");
@@ -268,7 +268,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
         string className = "Config_" + rawTableName.Split('|')[0];
         //通过反射找到第一步生成的那个类
         //注意：如果生成的类放进了特定的namespace（比如 ProjectGame.HotFix），这里也要加上命名空间
-        //生成类位于 HotFix.Config.asmdef 中，反射时必须使用程序集的实际名称。
+        //生成类位于 HotFix.Config.asmdef 中，反射时必须使用程序集的实际名称 
         Type configType = Type.GetType(className + ", HotFix.Config");
 
         if (configType == null)
@@ -321,7 +321,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
                         else
                         {
                             //走到这里的，说明是极其复杂的嵌套结构体，结构体在Excel表中以Json格式存在，比如 {"x":1,"y":2}
-                            //因为fieldType获取到了结构体，创建了结构体实例，所以表中直接{}填结构体具体数据就行了。
+                            //因为fieldType获取到了结构体，创建了结构体实例，所以表中直接{}填结构体具体数据就行了 
                             object parsedValue = JsonUtility.FromJson(cellValue, fieldType);
 
                             if (parsedValue != null)

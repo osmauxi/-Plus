@@ -13,7 +13,7 @@ using UnityEngine.InputSystem;
 namespace ProjectGame.HotFix.Gameplay.Input
 {
     /// <summary>
-    /// 本地输入当前由哪个层级消费。
+    /// 本地输入当前由哪个层级消费 
     /// </summary>
     public enum InputContext : byte
     {
@@ -23,8 +23,8 @@ namespace ProjectGame.HotFix.Gameplay.Input
     }
 
     /// <summary>
-    /// GameRuntimeScene 内唯一的本地输入入口。
-    /// 负责加载玩家改键、切换 ActionMap，并隔离 Gameplay 与 UI 输入。
+    /// GameRuntimeScene 内唯一的本地输入入口 
+    /// 负责加载玩家改键、切换 ActionMap，并隔离 Gameplay 与 UI 输入 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class InputManager : MonoBehaviour, IGameRuntimeService
@@ -95,14 +95,14 @@ namespace ProjectGame.HotFix.Gameplay.Input
 
         public bool SprintHeld => IsGameplayInputEnabled && _sprintAction.IsPressed();
         /// <summary>
-        /// 离散相机旋转输入。默认 Q=-1、E=+1，只在按下边沿返回一次，
-        /// 避免按住按键后每帧连续叠加 90 度。
+        /// 离散相机旋转输入 默认 Q=-1、E=+1，只在按下边沿返回一次，
+        /// 避免按住按键后每帧连续叠加 90 度 
         /// </summary>
         public float CameraRotateStep =>
             IsGameplayInputEnabled && _cameraRotateAction.WasPressedThisFrame()
                 ? Mathf.Sign(_cameraRotateAction.ReadValue<float>())
                 : 0f;
-        /// <summary>鼠标滚轮等连续缩放输入；当前只消费 Y 分量。</summary>
+        /// <summary>鼠标滚轮等连续缩放输入；当前只消费 Y 分量 </summary>
         public Vector2 CameraZoom =>
             IsGameplayInputEnabled ? _cameraZoomAction.ReadValue<Vector2>() : Vector2.zero;
         public Vector2 PointerPosition =>
@@ -137,7 +137,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
             cancellationToken.ThrowIfCancellationRequested();
 
             if (_inputActionsTemplate == null)
-                throw new InvalidOperationException($"{nameof(InputManager)} 未绑定 InputActionAsset。");
+                throw new InvalidOperationException($"{nameof(InputManager)} 未绑定 InputActionAsset ");
 
             try
             {
@@ -159,7 +159,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
                 ApplyResolvedContext(true);
 
                 Debug.Log(
-                    $"[{nameof(InputManager)}] 初始化完成。" +
+                    $"[{nameof(InputManager)}] 初始化完成 " +
                     $"Context={CurrentContext}, BindingOverrides={LastBindingLoadSucceeded}, " +
                     $"UIActionMap={HasUIActionMap}");
 
@@ -179,7 +179,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
         }
 
         /// <summary>
-        /// 设置没有临时 UI/禁用请求时使用的基础输入上下文。
+        /// 设置没有临时 UI/禁用请求时使用的基础输入上下文 
         /// </summary>
         public void SetBaseContext(InputContext context)
         {
@@ -193,8 +193,8 @@ namespace ProjectGame.HotFix.Gameplay.Input
         }
 
         /// <summary>
-        /// 临时占用输入上下文。返回的句柄释放后自动恢复到下一层请求或基础上下文。
-        /// 支持多个 UI 叠加并允许句柄乱序释放。
+        /// 临时占用输入上下文 返回的句柄释放后自动恢复到下一层请求或基础上下文 
+        /// 支持多个 UI 叠加并允许句柄乱序释放 
         /// </summary>
         public IDisposable AcquireContext(InputContext context, object owner = null)
         {
@@ -208,7 +208,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
         }
 
         /// <summary>
-        /// 清理指定拥有者创建的全部上下文请求，供 UI 被强制销毁时兜底。
+        /// 清理指定拥有者创建的全部上下文请求，供 UI 被强制销毁时兜底 
         /// </summary>
         public void ReleaseContexts(object owner)
         {
@@ -230,7 +230,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
         }
 
         /// <summary>
-        /// 从 user_settings.json 重新读取并应用当前玩家的按键预设。
+        /// 从 user_settings.json 重新读取并应用当前玩家的按键预设 
         /// </summary>
         public bool ReloadPlayerBindings()
         {
@@ -240,7 +240,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
         }
 
         /// <summary>
-        /// 应用外部设置界面产生的 Binding Override，并保持当前输入上下文不变。
+        /// 应用外部设置界面产生的 Binding Override，并保持当前输入上下文不变 
         /// </summary>
         public bool ApplyBindingOverrides(string bindingOverridesJson)
         {
@@ -456,7 +456,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(InputManager)} 尚未初始化。");
+                throw new InvalidOperationException($"{nameof(InputManager)} 尚未初始化 ");
         }
 
         private readonly struct ContextRequest

@@ -17,8 +17,8 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Tests.Runtime
 {
     /// <summary>
-    /// PlayerLocomotionTest 场景的跨进程同步实测入口。
-    /// 仅在存在测试配置文件或显式传入 --sync-test-config 时启动，不影响平时离线手感测试。
+    /// PlayerLocomotionTest 场景的跨进程同步实测入口 
+    /// 仅在存在测试配置文件或显式传入 --sync-test-config 时启动，不影响平时离线手感测试 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class PlayerSyncNetworkTestHarness : MonoBehaviour
@@ -88,7 +88,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
             _networkSimulator = FindObjectOfType<NetworkSimulator>();
             if (_networkSimulator == null)
             {
-                _failure = "当前场景未找到 NetworkSimulator。";
+                _failure = "当前场景未找到 NetworkSimulator ";
                 yield return FinishAndExit();
                 yield break;
             }
@@ -96,7 +96,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
             _playerPrefab = Resources.Load<GameObject>(PlayerPrefabResourcePath);
             if (_playerPrefab == null)
             {
-                _failure = $"找不到 Resources/{PlayerPrefabResourcePath}.prefab。";
+                _failure = $"找不到 Resources/{PlayerPrefabResourcePath}.prefab ";
                 yield return FinishAndExit();
                 yield break;
             }
@@ -109,7 +109,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
                 : _networkManager.StartClient();
             if (!started)
             {
-                _failure = $"NetworkManager.Start{_role} 返回 false。";
+                _failure = $"NetworkManager.Start{_role} 返回 false ";
                 yield return FinishAndExit();
                 yield break;
             }
@@ -128,7 +128,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
                 if (_networkManager.IsServer && _remoteClientConnected && !_playersSpawned)
                 {
                     // 等连接回调完成并进入下一帧后再生成，避免把动态对象插进
-                    // NGO 正在处理的连接同步回调。
+                    // NGO 正在处理的连接同步回调 
                     _playersSpawned = true;
                     SpawnPlayerForClient(NetworkManager.ServerClientId, new Vector3(-2f, 0f, 0f));
                     SpawnPlayerForClient(_networkManager.ConnectedClientsIds.First(id =>
@@ -145,7 +145,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
                         _networkManager.SpawnManager.SpawnedObjects.Count);
 
                 // 双网络 Actor 本身就是连接和动态 Spawn 都已完成的强证据，
-                // 不再让计时依赖 NGO 连接回调与协程首帧之间的执行先后。
+                // 不再让计时依赖 NGO 连接回调与协程首帧之间的执行先后 
                 if (actors.Length >= 2)
                     _remoteClientConnected = true;
 
@@ -161,7 +161,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
 
                 if (_measurementStartedAt < 0f && Time.realtimeSinceStartup >= _connectionDeadline)
                 {
-                    _failure = $"连接或双玩家生成超时（{_config.ConnectionTimeoutSeconds:F1}s）。";
+                    _failure = $"连接或双玩家生成超时（{_config.ConnectionTimeoutSeconds:F1}s） ";
                     yield return FinishAndExit();
                     yield break;
                 }
@@ -226,7 +226,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
                 return;
 
             if (clientId == _networkManager.LocalClientId || clientId != NetworkManager.ServerClientId)
-                _failure = $"测试期间连接断开：ClientId={clientId}。";
+                _failure = $"测试期间连接断开：ClientId={clientId} ";
         }
 
         private void SpawnPlayerForClient(ulong clientId, Vector3 position)
@@ -279,7 +279,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
             _mainThreadRecorder.Dispose();
             _gcRecorder.Dispose();
 
-            // Host 先写结果但暂不立刻断开，让 Client 有时间完成相同采样窗口并落盘。
+            // Host 先写结果但暂不立刻断开，让 Client 有时间完成相同采样窗口并落盘 
             if (string.Equals(_role, "host", StringComparison.OrdinalIgnoreCase))
                 yield return new WaitForSecondsRealtime(5f);
             else if (Application.isEditor)
@@ -343,7 +343,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
                 Profile = _config?.Profile,
                 Role = _role,
                 Passed = string.IsNullOrEmpty(_failure) && coreEvidence,
-                Failure = _failure ?? (coreEvidence ? string.Empty : "缺少输入、快照或双玩家链路证据。"),
+                Failure = _failure ?? (coreEvidence ? string.Empty : "缺少输入、快照或双玩家链路证据 "),
                 DurationSeconds = _measurementStartedAt < 0f ? 0f : Time.realtimeSinceStartup - _measurementStartedAt,
                 ConfiguredDelayMs = isClientRole ? _config.DelayMs : 0,
                 ConfiguredJitterMs = isClientRole ? _config.JitterMs : 0,
@@ -399,11 +399,11 @@ namespace ProjectGame.HotFix.Tests.Runtime
         private void ValidateConfig()
         {
             if (_config == null)
-                throw new InvalidDataException("测试配置为空。 ");
+                throw new InvalidDataException("测试配置为空  ");
             if (_config.DurationSeconds <= 0f)
-                throw new InvalidDataException("DurationSeconds 必须大于 0。 ");
+                throw new InvalidDataException("DurationSeconds 必须大于 0  ");
             if (_config.Port <= 0 || _config.Port > ushort.MaxValue)
-                throw new InvalidDataException("Port 超出范围。 ");
+                throw new InvalidDataException("Port 超出范围  ");
             if (_config.TargetFrameRate <= 0)
                 _config.TargetFrameRate = 120;
             if (string.IsNullOrWhiteSpace(_config.OutputDirectory))

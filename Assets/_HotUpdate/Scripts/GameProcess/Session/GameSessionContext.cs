@@ -4,9 +4,9 @@ using System.Collections.Generic;
 namespace ProjectGame.HotFix.Core.Session
 {
     /// <summary>
-    /// 跨LobbyScene 和 GameRuntimeScene保存本局会话快照。
-    /// 它只保存数据，不负责生成玩家、网络同步或游戏逻辑。
-    /// 返回主菜单或结束会话时需要 Clear。
+    /// 跨LobbyScene 和 GameRuntimeScene保存本局会话快照 
+    /// 它只保存数据，不负责生成玩家、网络同步或游戏逻辑 
+    /// 返回主菜单或结束会话时需要 Clear 
     /// </summary>
     public static class GameSessionContext
     {
@@ -29,10 +29,10 @@ namespace ProjectGame.HotFix.Core.Session
         public static void Configure(GameSessionMode mode, IReadOnlyList<PlayerSessionData> players)
         {
             if (mode == GameSessionMode.None)
-                throw new ArgumentException("不能使用 None 配置游戏会话。", nameof(mode));
+                throw new ArgumentException("不能使用 None 配置游戏会话 ", nameof(mode));
 
             if (players == null || players.Count == 0)
-                throw new ArgumentException("游戏会话至少需要一名玩家。", nameof(players));
+                throw new ArgumentException("游戏会话至少需要一名玩家 ", nameof(players));
 
             PlayerSessionData[] snapshot = new PlayerSessionData[players.Count];
             HashSet<ulong> clientIds = new HashSet<ulong>();
@@ -47,7 +47,7 @@ namespace ProjectGame.HotFix.Core.Session
                 snapshot[i] = player;
             }
 
-            // 固定顺序有利于生成点分配和调试结果保持一致。
+            // 固定顺序有利于生成点分配和调试结果保持一致 
             Array.Sort(snapshot, (left, right) => left.ClientId.CompareTo(right.ClientId));
 
             Mode = mode;
@@ -69,7 +69,7 @@ namespace ProjectGame.HotFix.Core.Session
             return false;
         }
 
-        /// <summary>更新指定玩家的当前武器，并通知会话数据消费者。</summary>
+        /// <summary>更新指定玩家的当前武器，并通知会话数据消费者 </summary>
         public static bool UpdateWeapon(ulong clientId, int weaponId)
         {
             return TryUpdatePlayer(
@@ -77,7 +77,7 @@ namespace ProjectGame.HotFix.Core.Session
                 player => player.WithWeaponId(weaponId));
         }
 
-        /// <summary>更新指定玩家的当前道具，并通知会话数据消费者。</summary>
+        /// <summary>更新指定玩家的当前道具，并通知会话数据消费者 </summary>
         public static bool UpdateItem(ulong clientId, int itemId)
         {
             return TryUpdatePlayer(
@@ -85,7 +85,7 @@ namespace ProjectGame.HotFix.Core.Session
                 player => player.WithItemId(itemId));
         }
 
-        /// <summary>一次性更新指定玩家的武器和道具。</summary>
+        /// <summary>一次性更新指定玩家的武器和道具 </summary>
         public static bool UpdateEquipment(ulong clientId, int weaponId, int itemId)
         {
             return TryUpdatePlayer(

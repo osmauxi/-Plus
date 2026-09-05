@@ -9,12 +9,12 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Player
 {
     /// <summary>
-    /// 单个 PlayerRuntimeRoot 的本地初始化编排器。
+    /// 单个 PlayerRuntimeRoot 的本地初始化编排器 
     ///
     /// NetworkObject 在任意 Peer 上 Spawn 后：
-    /// OwnerClientId → PlayerSessionData → Character → Weapon。
+    /// OwnerClientId → PlayerSessionData → Character → Weapon 
     ///
-    /// 不负责生成玩家，也不负责网络同步玩家状态。
+    /// 不负责生成玩家，也不负责网络同步玩家状态 
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
@@ -28,9 +28,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         public bool IsInitializing { get; private set; }
         public bool IsInitialized { get; private set; }
-        /// <summary>本次 Network Spawn 生命周期是否已经确定初始化失败。</summary>
+        /// <summary>本次 Network Spawn 生命周期是否已经确定初始化失败 </summary>
         public bool HasInitializationFailed { get; private set; }
-        /// <summary>用于 Ready 屏障和日志诊断的简短失败原因；完整异常仍写入 Console。</summary>
+        /// <summary>用于 Ready 屏障和日志诊断的简短失败原因；完整异常仍写入 Console </summary>
         public string InitializationError { get; private set; }
 
         private void Awake()
@@ -52,7 +52,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public override void OnNetworkDespawn()
         {
             // NetworkObject 已经不再代表一个有效玩家，
-            // 先终止这个 Spawn 生命周期中的异步初始化。
+            // 先终止这个 Spawn 生命周期中的异步初始化 
             CancelInitialization();
 
             base.OnNetworkDespawn();
@@ -70,7 +70,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 if (!GameSessionContext.TryGetPlayer(OwnerClientId, out PlayerSessionData sessionData))
                     throw new InvalidOperationException($"找不到玩家会话数据：ClientId={OwnerClientId}");
 
-                // 身体必须先存在，武器才有 EquipmentSocket 可以挂载。
+                // 身体必须先存在，武器才有 EquipmentSocket 可以挂载 
                 await _appearanceController.LoadAsync(sessionData, cancellationToken);
                 await _equipmentController.LoadInitialWeaponAsync(sessionData, cancellationToken);
 
@@ -82,7 +82,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             }
             catch (OperationCanceledException)
             {
-                // Despawn / 回池导致的正常取消，不需要打印错误。
+                // Despawn / 回池导致的正常取消，不需要打印错误 
             }
             catch (Exception exception)
             {
@@ -97,8 +97,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 对象从 SyncObjectPool 再次租出时，保证没有上一轮残留状态。
-        /// 此时 NetworkObject 还没有 Spawn。
+        /// 对象从 SyncObjectPool 再次租出时，保证没有上一轮残留状态 
+        /// 此时 NetworkObject 还没有 Spawn 
         /// </summary>
         public void OnRentFromPool()
         {
@@ -107,8 +107,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// NetworkObject 已完成 OnNetworkDespawn 后执行。
-        /// 清理当前玩家动态加载的本地表现资源。
+        /// NetworkObject 已完成 OnNetworkDespawn 后执行 
+        /// 清理当前玩家动态加载的本地表现资源 
         /// </summary>
         public void OnReturnToPool()
         {
@@ -118,9 +118,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         private void ClearRuntimeState()
         {
-            // 必须先卸武器。
+            // 必须先卸武器 
             // Weapon 的 AnimationBridge 位于 Character 上，
-            // 如果 Character 先释放，就无法正常 UnbindWeapon。
+            // 如果 Character 先释放，就无法正常 UnbindWeapon 
             _equipmentController?.ClearWeapon();
             _appearanceController?.Clear();
 

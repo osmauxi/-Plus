@@ -9,27 +9,28 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Pool;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.SceneManagement;
 
 namespace ProjectGame.HotFix.Gameplay.Pooling
 {
     /// <summary>
-    /// GameRuntime内的网络对象池。
+    /// GameRuntime内的网络对象池 
     /// </summary>
     //三个对象池的资源链路和控制逻辑其实基本相同，
     //网络对象池多了一个NetworkPrefab注册，但我们没有使用常规的提前在NetworkConfig里注册Prefab的方式，而是运行时动态注册/卸载Prefab，
-    //在热更情景下，如果我们更新了一个新的模型，这个包被Client拉下来时，模型是不可能被注册进NetworkPrefabList的，他没法被NGO识别。
+    //在热更情景下，如果我们更新了一个新的模型，这个包被Client拉下来时，模型是不可能被注册进NetworkPrefabList的，他没法被NGO识别 
     //所以我们在运行时动态注册Prefab，使得NGO识别这个Prefab，来实现他的同步功能，作为统一，这个pool被卸载时我们也需要明确告知NGO这个Prefab不再被使用了
-    //所以在卸载时会将对应prefab从NetworkPrefabList中移除，以及顺带删除他的handler。
+    //所以在卸载时会将对应prefab从NetworkPrefabList中移除，以及顺带删除他的handler 
     //注册NetworkPrefab，就是在Client与Server之间建立对一个对象的统一映射，他们的PrefabIdHash是一致的，
     //C/S之间通过这个hash来识别同一个对象类型，Spawn后再通过NetworkObjectId来识别实例
     //这也是为什么ForceSamePrefabs=true时NetworkList如果hash不一致是不允许你联机的，因为资源的映射关系乱了
-    //而我们这里动态加载的原因，我们需要取消NetworkConfig.ForceSamePrefabs,使NGO容许短暂的List不一致。
-    //所以，对于所有需要注册进NetworkPrefabList的Prefab，我们约定不提前在NetworkPrefabList中注册，全部交由对象池手动注册和卸载。
+    //而我们这里动态加载的原因，我们需要取消NetworkConfig.ForceSamePrefabs,使NGO容许短暂的List不一致 
+    //所以，对于所有需要注册进NetworkPrefabList的Prefab，我们约定不提前在NetworkPrefabList中注册，全部交由对象池手动注册和卸载 
     public sealed class SyncObjectPool : MonoBehaviour, IGameRuntimeService
     {
         public static SyncObjectPool Instance { get; private set; }
 
-        [Tooltip("未使用网络对象的父节点。")]
+        [Tooltip("未使用网络对象的父节点 ")]
         [SerializeField] private Transform _inactiveRoot;
 
         private readonly Dictionary<string, PoolEntry> _entriesById = new(StringComparer.Ordinal);
@@ -58,7 +59,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogError($"[{nameof(SyncObjectPool)}] 场景中存在重复实例。");
+                Debug.LogError($"[{nameof(SyncObjectPool)}] 场景中存在重复实例 ");
                 Destroy(this);
                 return;
             }
@@ -67,7 +68,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 初始化阶段只登记池定义，不加载 NetworkPrefab。
+        /// 初始化阶段只登记池定义，不加载 NetworkPrefab 
         /// </summary>
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
@@ -79,12 +80,12 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             _networkManager = NetworkManager.Singleton;
 
             if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动，无法初始化网络对象池。");
+                throw new InvalidOperationException("NGO 尚未启动，无法初始化网络对象池 ");
 
-            //当前架构是在 NGO 已启动后动态注册 NetworkPrefab。
-            //ForceSamePrefabs 开启时不允许这样使用。
+            //当前架构是在 NGO 已启动后动态注册 NetworkPrefab 
+            //ForceSamePrefabs 开启时不允许这样使用 
             if (_networkManager.NetworkConfig.ForceSamePrefabs)
-                throw new InvalidOperationException("SyncObjectPool 使用运行时动态 NetworkPrefab，请关闭 NetworkConfig.ForceSamePrefabs。");
+                throw new InvalidOperationException("SyncObjectPool 使用运行时动态 NetworkPrefab，请关闭 NetworkConfig.ForceSamePrefabs ");
 
             try
             {
@@ -94,7 +95,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
                 IsInitialized = true;
 
-                Debug.Log($"[{nameof(SyncObjectPool)}] 初始化完成，已登记 {_entriesById.Count} 个网络对象池定义。");
+                Debug.Log($"[{nameof(SyncObjectPool)}] 初始化完成，已登记 {_entriesById.Count} 个网络对象池定义 ");
 
                 return UniTask.CompletedTask;
             }
@@ -106,7 +107,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 准备一个网络对象池。
+        /// 准备一个网络对象池 
         ///
         /// 完成后保证：
         /// Prefab 已加载
@@ -119,7 +120,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记网络对象池：{poolId}");
@@ -135,13 +136,13 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 PrepareEntryAsync(entry, _lifetimeCts.Token).Forget();
             }
 
-            //调用方取消只取消自己的等待。
-            //不因为某一个调用方离开，就破坏其他调用方正在等待的共享 Prepare。
+            //调用方取消只取消自己的等待 
+            //不因为某一个调用方离开，就破坏其他调用方正在等待的共享 Prepare 
             await entry.PrepareCompletion.Task.AttachExternalCancellation(cancellationToken);
         }
 
         /// <summary>
-        /// 并行准备多个网络对象池。
+        /// 并行准备多个网络对象池 
         /// </summary>
         public async UniTask PreparePoolsAsync(IEnumerable<string> poolIds, CancellationToken cancellationToken)
         {
@@ -172,7 +173,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 准备当前配置中的全部网络对象池。
+        /// 准备当前配置中的全部网络对象池 
         /// </summary>
         public UniTask PrepareAllPoolsAsync(CancellationToken cancellationToken)
         {
@@ -212,7 +213,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// Server Despawn网络对象并返还对象池。
+        /// Server Despawn网络对象并返还对象池 
         /// </summary>
         public void DespawnAndReturn(NetworkObject instance)
         {
@@ -223,7 +224,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             if (!_networkManager.IsServer)
             {
-                Debug.LogWarning($"[{nameof(SyncObjectPool)}] 只有 Server 可以主动回收网络对象。");
+                Debug.LogWarning($"[{nameof(SyncObjectPool)}] 只有 Server 可以主动回收网络对象 ");
                 return;
             }
 
@@ -242,21 +243,21 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             }
 
             
-            //false表示NGO Despawn后不Destroy GameObject。
-            //Client通过PrefabHandler.Destroy返回自己的本地池。
+            //false表示NGO Despawn后不Destroy GameObject 
+            //Client通过PrefabHandler.Destroy返回自己的本地池 
             if (instance.IsSpawned)
                 instance.Despawn(false);
 
-            //Server 主动取得的实例需要自己返还。
-            //Host的本地Handler在某些流程中可能已经处理，所以再次检查。
+            //Server 主动取得的实例需要自己返还 
+            //Host的本地Handler在某些流程中可能已经处理，所以再次检查 
             if (_rentedInstanceIds.Contains(instanceId))
                 ReturnInstance(entry, instance);
         }
 
         public async UniTask ShutdownAsync(CancellationToken cancellationToken)
         {   
-            //Shutdown不接受外部取消。
-            //先结束当前正在进行的Addressables Prepare。
+            //Shutdown不接受外部取消 
+            //先结束当前正在进行的Addressables Prepare 
             _lifetimeCts?.Cancel();
 
             List<UniTask> pendingTasks = new();
@@ -275,11 +276,24 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 }
                 catch
                 {
-                    // Prepare 自己负责回滚 NGO 注册和 Addressables Handle。
+                    // Prepare 自己负责回滚 NGO 注册和 Addressables Handle 
                 }
             }
 
+            // 各端 Cleanup 同时开始。Client 必须等 Server 的 Despawn 到达，
+            // 才能注销 Handler/释放 Prefab，不能直接 Destroy 仍在联网的池对象。
+            while (_networkManager != null && _networkManager.IsListening && !_networkManager.IsServer &&
+                   HasSpawnedInstances())
+                await UniTask.Yield(PlayerLoopTiming.Update);
+
             ShutdownInternal();
+        }
+
+        private bool HasSpawnedInstances()
+        {
+            foreach (NetworkObject instance in _instances.Values)
+                if (instance != null && instance.IsSpawned) return true;
+            return false;
         }
 
         public bool ReleasePool(string poolId)
@@ -287,7 +301,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记网络对象池：{poolId}");
@@ -321,7 +335,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (uniquePoolIds.Count == 0)
                 return true;
 
-            //先保证整批对象都能释放。
+            //先保证整批对象都能释放 
             foreach (string poolId in uniquePoolIds)
             {
                 if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
@@ -331,7 +345,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                     return false;
             }
 
-            //所有Entry都安全后再真正修改状态。
+            //所有Entry都安全后再真正修改状态 
             foreach (string poolId in uniquePoolIds)
                 ReleasePreparedEntry(_entriesById[poolId]);
 
@@ -353,7 +367,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             foreach (PoolEntry entry in _entriesById.Values)
                 ReleasePreparedEntry(entry);
 
-            Debug.Log($"[{nameof(SyncObjectPool)}] 所有已准备网络对象池均已释放。");
+            Debug.Log($"[{nameof(SyncObjectPool)}] 所有已准备网络对象池均已释放 ");
 
             return true;
         }
@@ -375,7 +389,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             try
             {  
-                //每个Pool只发起一次Addressables Load。
+                //每个Pool只发起一次Addressables Load 
                 handle = Addressables.LoadAssetAsync<GameObject>(entry.Config.PrefabAddress);
                 hasHandle = true;
 
@@ -390,7 +404,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                     throw new InvalidOperationException($"Addressable Prefab 缺少 NetworkObject：Pool={entry.Config.Id}");
 
                 //PrefabIdHash标明一个对象类型，比如一个prefab的PrefabIdHash是固定的
-                //PrefabIdHash是一个uint类型的哈希值，NGO用它来识别不同的网络对象类型。
+                //PrefabIdHash是一个uint类型的哈希值，NGO用它来识别不同的网络对象类型 
                 //NGO的整个对象同步，本质上就是先靠PrefabIdHash找类型，Spawn后再靠NetworkObjectId找实例
                 uint prefabHash = networkPrefab.PrefabIdHash;
 
@@ -439,14 +453,14 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// Initialize时只登记数据定义。
+        /// Initialize时只登记数据定义 
         /// </summary>
         private void RegisterConfiguredDefinitions(CancellationToken cancellationToken)
         {
             Dictionary<int, Config_SyncObjectPool> table = ConfigManager.Instance.GetTable<Config_SyncObjectPool>();
 
             if (table == null)
-                throw new InvalidOperationException("未加载 SyncObjectPool 配置表。");
+                throw new InvalidOperationException("未加载 SyncObjectPool 配置表 ");
 
             var configIds = new List<int>(table.Keys);
             configIds.Sort();
@@ -494,7 +508,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         private void CreateRuntimePool(PoolEntry entry)
         {
             if (entry.NetworkPrefab == null)
-                throw new InvalidOperationException($"Pool={entry.Config.Id} 尚未加载 NetworkPrefab。");
+                throw new InvalidOperationException($"Pool={entry.Config.Id} 尚未加载 NetworkPrefab ");
 
             entry.Pool = new ObjectPool<NetworkObject>(
                 createFunc: () => CreateInstance(entry),
@@ -512,7 +526,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             if (!_networkManager.IsServer)
             {
-                Debug.LogWarning($"[{nameof(SyncObjectPool)}] 只有 Server 可以 Spawn 网络对象。");
+                Debug.LogWarning($"[{nameof(SyncObjectPool)}] 只有 Server 可以 Spawn 网络对象 ");
                 return null;
             }
 
@@ -545,14 +559,18 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
         private NetworkObject CreateInstance(PoolEntry entry)
         {
-            // 不要直接带 Parent Instantiate NetworkObject。
+            // 不要直接带 Parent Instantiate NetworkObject 
             // InactiveRoot 位于 GameRoot.NetworkObject 之下，Unity 在克隆组件尚未全部就绪时
             // 可能先触发父级相关查询，使 NetworkBehaviour 临时绑定到外层 GameRoot，
-            // NGO 随后会把空的 ChildNetworkBehaviours 缓存下来，导致 OnNetworkSpawn 不执行。
-            // 先在根层级完整实例化并停用，再临时关闭 NGO 自动父级同步后归档到池根节点。
+            // NGO 随后会把空的 ChildNetworkBehaviours 缓存下来，导致 OnNetworkSpawn 不执行 
+            // 先在根层级完整实例化并停用，再临时关闭 NGO 自动父级同步后归档到池根节点 
             NetworkObject instance = Instantiate(entry.NetworkPrefab);
             instance.name = entry.NetworkPrefab.name;
             instance.gameObject.SetActive(false);
+
+            Scene ownerScene = gameObject.scene;
+            if (ownerScene.IsValid() && ownerScene.isLoaded && instance.gameObject.scene != ownerScene)
+                SceneManager.MoveGameObjectToScene(instance.gameObject, ownerScene);
 
             bool autoObjectParentSync = instance.AutoObjectParentSync;
             instance.AutoObjectParentSync = false;
@@ -588,8 +606,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             entry.RentedCount++;
             Transform instanceTransform = instance.transform;
-            //NGO OnNetworkSpawn发生前先恢复业务状态。
-            instanceTransform.SetParent(null, false);
+            //NGO OnNetworkSpawn发生前先恢复业务状态 
+            SetUnspawnedParent(instance, null);
             instanceTransform.SetPositionAndRotation(position, rotation);
             instanceTransform.localScale = Vector3.one;
             
@@ -624,7 +642,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (entry.RentedCount < 0)
             {
                 entry.RentedCount = 0;
-                Debug.LogError($"[{nameof(SyncObjectPool)}] Pool={entry.Config.Id} 的 RentedCount 出现异常。");
+                Debug.LogError($"[{nameof(SyncObjectPool)}] Pool={entry.Config.Id} 的 RentedCount 出现异常 ");
             }
 
             if (instance.IsSpawned)
@@ -649,10 +667,18 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             Transform instanceTransform = instance.transform;
 
-            instanceTransform.SetParent(InactiveRoot, false);
+            SetUnspawnedParent(instance, InactiveRoot);
             instanceTransform.localPosition = Vector3.zero;
             instanceTransform.localRotation = Quaternion.identity;
             instanceTransform.localScale = Vector3.one;
+        }
+
+        private static void SetUnspawnedParent(NetworkObject instance, Transform parent)
+        {
+            bool synchronizeParent = instance.AutoObjectParentSync;
+            instance.AutoObjectParentSync = false;
+            try { instance.transform.SetParent(parent, false); }
+            finally { instance.AutoObjectParentSync = synchronizeParent; }
         }
 
         private void DestroyPooledInstance(NetworkObject instance)
@@ -691,11 +717,11 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
            //此时必须保证：
            //所有NetworkObject已经Despawn；
-           //所有实例已经返回Pool。
+           //所有实例已经返回Pool 
             RemoveNetworkBindings(entry);
   
             //Handler已经移除，不会再有新的NGO Instantiate / Destroy
-            //进入这个ObjectPool。
+            //进入这个ObjectPool 
             if (entry.Pool != null)
             {
                 entry.Pool.Clear();
@@ -732,7 +758,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (entry.RentedCount > 0)
             {
                 if (logWarning)
-                    Debug.LogWarning($"[{nameof(SyncObjectPool)}] Pool={entry.Config.Id} 仍有 {entry.RentedCount} 个 NetworkObject 在使用，不能 Release。");
+                    Debug.LogWarning($"[{nameof(SyncObjectPool)}] Pool={entry.Config.Id} 仍有 {entry.RentedCount} 个 NetworkObject 在使用，不能 Release ");
 
                 return false;
             }
@@ -795,7 +821,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// Prepare 中途失败时，只回滚当前Entry。
+        /// Prepare 中途失败时，只回滚当前Entry 
         /// </summary>
         private void RollbackPrepare(PoolEntry entry)
         {
@@ -855,7 +881,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             DestroyRemainingRentedInstances();
        
             //所有运行时 NetworkObject 都已经处理完毕，
-            //可以逐个释放 Prepared Pool。
+            //可以逐个释放 Prepared Pool 
             foreach (PoolEntry entry in _entriesById.Values)
                 ReleasePreparedEntry(entry);
 
@@ -865,7 +891,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             _instances.Clear();
 
             //ReleasePool不删除定义；
-            //Shutdown才删除全部定义。 
+            //Shutdown才删除全部定义  
             _entriesById.Clear();
 
             _networkManager = null;
@@ -874,7 +900,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             DisposeLifetimeToken();
 
-            Debug.Log($"[{nameof(SyncObjectPool)}] 已关闭，网络注册、实例和 Addressables Handle 已全部释放。");
+            Debug.Log($"[{nameof(SyncObjectPool)}] 已关闭，网络注册、实例和 Addressables Handle 已全部释放 ");
         }
 
         private void DestroyRemainingRentedInstances()
@@ -882,7 +908,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (_rentedInstanceIds.Count == 0)
                 return;
 
-            Debug.LogWarning($"[{nameof(SyncObjectPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个网络对象未归还。");
+            Debug.LogWarning($"[{nameof(SyncObjectPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个网络对象未归还 ");
 
             List<int> rentedIds = new(_rentedInstanceIds);
 
@@ -893,12 +919,12 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 if (!_instances.TryGetValue(instanceId, out NetworkObject instance) || instance == null)
                     continue;
 
-                //Server必须先完成网络Despawn。
-                //Client理论上应该由Server的Despawn消息正常回池。
+                //Server必须先完成网络Despawn 
+                //Client理论上应该由Server的Despawn消息正常回池 
                 if (instance.IsSpawned && _networkManager != null && _networkManager.IsServer)
                     instance.Despawn(false);
 
-                //Host可能在Despawn中已经通过Handler Return。
+                //Host可能在Despawn中已经通过Handler Return 
                 if (!_rentedInstanceIds.Contains(instanceId))
                     continue;
 
@@ -947,7 +973,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(SyncObjectPool)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap。");
+                throw new InvalidOperationException($"{nameof(SyncObjectPool)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap ");
         }
 
         private void DisposeLifetimeToken()
@@ -972,7 +998,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 一个网络 Pool 的完整运行时状态。
+        /// 一个网络 Pool 的完整运行时状态 
         /// </summary>
         private sealed class PoolEntry
         {
@@ -999,7 +1025,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// NGO在Client生成 / 销毁网络对象时调用。
+        /// NGO在Client生成 / 销毁网络对象时调用 
         /// </summary>
         private sealed class PooledPrefabInstanceHandler : INetworkPrefabInstanceHandler
         {

@@ -4,6 +4,7 @@ using MessagePack.Resolvers;
 using System;
 using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Resolvers.Resolvers;
+using ProjectGame.HotFix.SceneFlow;
 using ProjectGame.HotFix.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -16,7 +17,7 @@ namespace ProjectGame.HotFix
     public static class HotFixEntry
     {
         /// <summary>
-        /// 初始化热更域并进入大厅场景。
+        /// 初始化热更域并进入大厅场景 
         /// </summary>
         public static void StartGame()
         {
@@ -30,15 +31,12 @@ namespace ProjectGame.HotFix
         }
 
         /// <summary>
-        /// 注册预生成的 MessagePack AOT 解析器。
+        /// 注册预生成的 MessagePack AOT 解析器 
         /// </summary>
         private static void RegisterMessagePackResolver()
         {
-            //组合解析器：把我们用 mpc 生成的解析器(GeneratedResolver)和官方的基础解析器 (StandardResolver) 组合在一起。
-            StaticCompositeResolver.Instance.Register(
-                GeneratedResolver.Instance,
-                StandardResolver.Instance
-            );
+            //组合解析器：把我们用 mpc 生成的解析器(GeneratedResolver)和官方的基础解析器 (StandardResolver) 组合在一起 
+            StaticCompositeResolver.Instance.Register(GeneratedResolver.Instance,StandardResolver.Instance);
 
             //覆盖默认选项
             var options = MessagePackSerializerOptions.Standard.WithResolver(StaticCompositeResolver.Instance);
@@ -48,7 +46,7 @@ namespace ProjectGame.HotFix
         }
 
         /// <summary>
-        /// 加载全部配置并切换到大厅场景。
+        /// 加载全部配置并切换到大厅场景 
         /// </summary>
         private static async UniTask EnterLobbySceneAsync()
         {
@@ -59,19 +57,12 @@ namespace ProjectGame.HotFix
                 //先加载配表，确保数据就绪后再加载场景（避免 UI Awake->GetTable 时配表尚未加载的时序问题）
                 await ConfigManager.Instance.LoadAllConfigsAsync();
 
-                int buildIndex = SceneUtility.GetBuildIndexByScenePath(lobbyScenePath);
+                // 离线 UI 和审批在联网前就需要会话对象。先引导持久 Root，再加载纯大厅场景。
+                await NetworkSessionBootstrap.EnsureAvailableAsync(default);
+                await AddressableSceneLoadService.Shared.LoadSceneAsync(lobbyScenePath, LoadSceneMode.Single, default);
 
-                if (buildIndex < 0)
-                    throw new InvalidOperationException($"Lobby 场景未加入 Build Settings：{lobbyScenePath}");
-
-                AsyncOperation loadOperation = SceneManager.LoadSceneAsync(buildIndex, LoadSceneMode.Single);
-
-                if (loadOperation == null)
-                    throw new InvalidOperationException($"无法启动 Lobby 场景加载：{lobbyScenePath}");
-
-                await loadOperation.ToUniTask();
-
-                Debug.Log("<color=yellow>【成功进入联机大厅】</color>");
+                Debug.Log(
+                    "<color=yellow>【通过 Addressables 成功进入联机大厅】</color>");
             }
             catch (Exception exception)
             {

@@ -8,64 +8,65 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Pool;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.SceneManagement;
 
 namespace ProjectGame.HotFix.Gameplay.Pooling
 {
     /// <summary>
-    /// GameRuntime范围内的本地对象池。
+    /// GameRuntime范围内的本地对象池 
     ///
     /// 生命周期：
     /// 1. Initialize登记池配置，但不加载Prefab
     /// 2. 通过Addressables加载Prefab，创建并预热池
     /// 3. Rent / Return：同步租借和返还实例
-    /// 4. Shutdown：销毁全部实例，再释放 Addressables Handle。
+    /// 4. Shutdown：销毁全部实例，再释放 Addressables Handle 
     /// </summary>
     public sealed class LocalObjectPool : MonoBehaviour, IGameRuntimeService
     {
         public static LocalObjectPool Instance { get; private set; }
 
-        [Tooltip("池内闲置对象的父节点。")]
+        [Tooltip("池内闲置对象的父节点 ")]
         [SerializeField] private Transform _inactiveRoot;
 
         /// <summary>
-        /// PoolId → 池的完整运行时信息。
-        /// 相比于普通对象池额外保存了配置、Prefab、Addressables Handle和准备状态。
+        /// PoolId → 池的完整运行时信息 
+        /// 相比于普通对象池额外保存了配置、Prefab、Addressables Handle和准备状态 
         /// </summary>
         private readonly Dictionary<string, PoolEntry> _entriesById = new(StringComparer.Ordinal);
 
         /// <summary>
-        /// 实例ID → 所属池。
-        /// Return 时不需要调用方再次传入PoolId。
+        /// 实例ID → 所属池 
+        /// Return 时不需要调用方再次传入PoolId 
         /// </summary>
         private readonly Dictionary<int, PoolEntry> _entryByInstanceId = new();
 
         /// <summary>
-        /// 所有由当前对象池创建的实例。
-        /// 包括闲置实例和当前租出实例。
+        /// 所有由当前对象池创建的实例 
+        /// 包括闲置实例和当前租出实例 
         /// </summary>
         private readonly Dictionary<int, GameObject> _instances = new();
 
         /// <summary>
-        /// 创建实例时缓存IPoolable，避免每次租借时扫描组件。
+        /// 创建实例时缓存IPoolable，避免每次租借时扫描组件 
         /// </summary>
         private readonly Dictionary<int, IPoolable[]> _poolableCallbacks = new();
 
         /// <summary>
-        /// 当前处于池外使用状态的实例。
-        /// 同时用于阻止重复 Rent 和重复 Return。
+        /// 当前处于池外使用状态的实例 
+        /// 同时用于阻止重复 Rent 和重复 Return 
         /// </summary>
         private readonly HashSet<int> _rentedInstanceIds = new();
 
         /// <summary>
-        /// Pool自身的生命周期Token。
-        /// Shutdown时取消所有仍在进行的Addressables Prepare。
+        /// Pool自身的生命周期Token 
+        /// Shutdown时取消所有仍在进行的Addressables Prepare 
         /// </summary>
         private CancellationTokenSource _lifetimeCts;
 
         public bool IsInitialized { get; private set; }
 
         /// <summary>
-        /// 已登记配置的池数量，不代表这些池已经完成资源加载。
+        /// 已登记配置的池数量，不代表这些池已经完成资源加载 
         /// </summary>
         public int PoolCount => _entriesById.Count;
 
@@ -77,7 +78,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogError($"[{nameof(LocalObjectPool)}] 场景中存在重复实例。");
+                Debug.LogError($"[{nameof(LocalObjectPool)}] 场景中存在重复实例 ");
                 Destroy(this);
                 return;
             }
@@ -86,7 +87,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 只登记池定义，不加载Addressable Prefab。
+        /// 只登记池定义，不加载Addressable Prefab 
         /// </summary>
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
@@ -103,7 +104,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
                 IsInitialized = true;
 
-                Debug.Log($"[{nameof(LocalObjectPool)}] 初始化完成，已登记 {_entriesById.Count} 个对象池定义。");
+                Debug.Log($"[{nameof(LocalObjectPool)}] 初始化完成，已登记 {_entriesById.Count} 个对象池定义 ");
                 return UniTask.CompletedTask;
             }
             catch
@@ -118,7 +119,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记对象池定义：{poolId}");
@@ -127,17 +128,17 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 return;
 
             //已经有调用方在准备该池时，后续调用方只等待同一个结果，
-            //不重复创建 Handle 和 ObjectPool。
+            //不重复创建 Handle 和 ObjectPool 
             if (!entry.IsPreparing)
             {
                 entry.IsPreparing = true;
                 entry.PrepareCompletion = new UniTaskCompletionSource();
 
-                //真正的加载只绑定对象池生命周期。
+                //真正的加载只绑定对象池生命周期 
                 PrepareEntryAsync(entry, _lifetimeCts.Token).Forget();
             }
-            //等待先进行的任务完成，把自己的CancellationToken也绑定上去。
-            //当前调用方取消，只停止自己的等待。
+            //等待先进行的任务完成，把自己的CancellationToken也绑定上去 
+            //当前调用方取消，只停止自己的等待 
             await entry.PrepareCompletion.Task.AttachExternalCancellation(cancellationToken);
         }
         private async UniTaskVoid PrepareEntryAsync(PoolEntry entry, CancellationToken cancellationToken)
@@ -147,8 +148,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             try
             {
-                //AssetReference作为Addressables.LoadAssetAsync的Key直接指定加载对象。
-                //Pool保存返回的Handle，直到Shutdown时释放。
+                //AssetReference作为Addressables.LoadAssetAsync的Key直接指定加载对象 
+                //Pool保存返回的Handle，直到Shutdown时释放 
                 handle = Addressables.LoadAssetAsync<GameObject>(entry.Config.PrefabAddress);
                 hasHandle = true;
 
@@ -160,7 +161,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 entry.Prefab = prefab;
                 entry.PrefabHandle = handle;
                 entry.HasPrefabHandle = true;
-                //这个资源预制件被加载出来之后，进行这个池子的注册，创建和初始化，之后就可以正常使用了。
+                //这个资源预制件被加载出来之后，进行这个池子的注册，创建和初始化，之后就可以正常使用了 
                 CreateRuntimePool(entry);
                 PrewarmPool(entry.Pool, entry.Config.InitialCapacity);
 
@@ -172,11 +173,11 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             }
             catch (Exception exception)
             {
-                //创建池或Prewarm中途失败时，回收已经产生的实例。
+                //创建池或Prewarm中途失败时，回收已经产生的实例 
                 RollbackPrepare(entry);
                 
                 //如果Handle还没有转移给 entry，
-                //在这里释放当前局部 Handle。
+                //在这里释放当前局部 Handle 
                 if (hasHandle && !entry.HasPrefabHandle && handle.IsValid())
                     Addressables.Release(handle);
 
@@ -207,8 +208,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 批量准备一组池。
-        /// 重复PoolId会被去重。
+        /// 批量准备一组池 
+        /// 重复PoolId会被去重 
         /// </summary>
         public async UniTask PreparePoolsAsync(IEnumerable<string> poolIds, CancellationToken cancellationToken)
         {
@@ -239,8 +240,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 准备配置中登记的全部池。
-        /// 一般只用于明确需要全量预加载的场景。
+        /// 准备配置中登记的全部池 
+        /// 一般只用于明确需要全量预加载的场景 
         /// </summary>
         public UniTask PrepareAllPoolsAsync(CancellationToken cancellationToken)
         {
@@ -248,15 +249,15 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 从已经完成 Prepare 的池中同步租借对象。
-        /// Rent 不负责触发 Addressables 异步加载。
+        /// 从已经完成 Prepare 的池中同步租借对象 
+        /// Rent 不负责触发 Addressables 异步加载 
         /// </summary>
         public GameObject Rent(string poolId, Vector3 position, Quaternion rotation, Transform parent = null)
         {
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记对象池定义：{poolId}");
@@ -277,8 +278,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             entry.RentedCount++;
 
             Transform instanceTransform = instance.transform;
-            //先重置业务状态，再激活对象。
-            //这样 OnEnable 看到的是已经清理过的实例。
+            //先重置业务状态，再激活对象 
+            //这样 OnEnable 看到的是已经清理过的实例 
             instanceTransform.SetParent(parent, false);
             instanceTransform.SetPositionAndRotation(position, rotation);
             instanceTransform.localScale = Vector3.one;
@@ -295,7 +296,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 将实例返还给其所属对象池。
+        /// 将实例返还给其所属对象池 
         /// </summary>
         public void Return(GameObject instance)
         {
@@ -328,7 +329,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (entry.RentedCount < 0)
             {
                 entry.RentedCount = 0;
-                Debug.LogError($"[{nameof(LocalObjectPool)}] Pool={entry.Config.Id} 的 RentedCount 出现异常。");
+                Debug.LogError($"[{nameof(LocalObjectPool)}] Pool={entry.Config.Id} 的 RentedCount 出现异常 ");
             }
 
 
@@ -337,16 +338,16 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 卸载一个已经Prepare的对象池。
-        /// 要求当前池没有任何租出实例。
-        /// 成功后Poo配置仍然存在，可以再次 Prepare。
+        /// 卸载一个已经Prepare的对象池 
+        /// 要求当前池没有任何租出实例 
+        /// 成功后Poo配置仍然存在，可以再次 Prepare 
         /// </summary>
         public bool ReleasePool(string poolId)
         {
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记对象池定义：{poolId}");
@@ -381,7 +382,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (uniquePoolIds.Count == 0)
                 return true;
 
-            //这里先遍历保证能够释放所有池，如果有一个池不满足条件，就不释放任何池。
+            //这里先遍历保证能够释放所有池，如果有一个池不满足条件，就不释放任何池 
             foreach (string poolId in uniquePoolIds)
             {
                 if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
@@ -416,7 +417,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             foreach (PoolEntry entry in _entriesById.Values)
                 ReleasePreparedEntry(entry);
 
-            Debug.Log($"[{nameof(LocalObjectPool)}] 所有已准备 Pool 均已释放。");
+            Debug.Log($"[{nameof(LocalObjectPool)}] 所有已准备 Pool 均已释放 ");
 
             return true;
         }
@@ -426,16 +427,16 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (!entry.IsPrepared)
                 return;
 
-            //此时RentedCount必须为 0。
-            //所有实例都在池内，所以Clear能销毁全部实例。
+            //此时RentedCount必须为 0 
+            //所有实例都在池内，所以Clear能销毁全部实例 
             if (entry.Pool != null)
             {
                 entry.Pool.Clear();
                 entry.Pool = null;
             }
 
-            //Clear会通过DestroyPooledInstance删除所有实例缓存。
-            //实例已经不存在后，再释放Addressables Handle。
+            //Clear会通过DestroyPooledInstance删除所有实例缓存 
+            //实例已经不存在后，再释放Addressables Handle 
             entry.Prefab = null;
 
             if (entry.HasPrefabHandle && entry.PrefabHandle.IsValid())
@@ -450,7 +451,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
         private bool CanReleaseEntry(PoolEntry entry, bool logError)
         {
-            //没加载，本身就已经是Released状态。
+            //没加载，本身就已经是Released状态 
             if (!entry.IsPrepared && !entry.IsPreparing)
                 return true;
 
@@ -465,7 +466,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (entry.RentedCount > 0)
             {
                 if (logError)
-                    Debug.LogWarning($"[{nameof(LocalObjectPool)}] Pool={entry.Config.Id} 仍有 {entry.RentedCount} 个实例在使用，不能 Release。");
+                    Debug.LogWarning($"[{nameof(LocalObjectPool)}] Pool={entry.Config.Id} 仍有 {entry.RentedCount} 个实例在使用，不能 Release ");
 
                 return false;
             }
@@ -484,8 +485,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 是否存在该PoolId的配置定义。
-        /// 不代表该池已经完成Addressables加载。
+        /// 是否存在该PoolId的配置定义 
+        /// 不代表该池已经完成Addressables加载 
         /// </summary>
         public bool ContainsPool(string poolId)
         {
@@ -493,7 +494,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 是否已经完成Prefab加载、对象池创建和Prewarm。
+        /// 是否已经完成Prefab加载、对象池创建和Prewarm 
         /// </summary>
         public bool IsPoolPrepared(string poolId)
         {
@@ -504,8 +505,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
         public async UniTask ShutdownAsync(CancellationToken cancellationToken)
         {    
-            //Shutdown不能被外部Token中途打断。
-            //先取消池自身的加载任务，再等待它们结束。
+            //Shutdown不能被外部Token中途打断 
+            //先取消池自身的加载任务，再等待它们结束 
             _lifetimeCts?.Cancel();
 
             List<UniTask> pendingTasks = new();
@@ -524,7 +525,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 }
                 catch
                 {
-                    // Prepare 自己负责 Handle 回滚。
+                    // Prepare 自己负责 Handle 回滚 
                 }
             }
 
@@ -532,14 +533,14 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 初始化阶段只登记配置，不建立 ObjectPool。
+        /// 初始化阶段只登记配置，不建立 ObjectPool 
         /// </summary>
         private void RegisterConfiguredDefinitions(CancellationToken cancellationToken)
         {
             Dictionary<int, Config_LocalObjectPool> table = ConfigManager.Instance.GetTable<Config_LocalObjectPool>();
 
             if (table == null)
-                throw new InvalidOperationException("未加载 LocalObjectPool 配置表。");
+                throw new InvalidOperationException("未加载 LocalObjectPool 配置表 ");
 
             var configIds = new List<int>(table.Keys);
             configIds.Sort();
@@ -582,12 +583,12 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// Prefab 完成加载后才创建真正的 ObjectPool。
+        /// Prefab 完成加载后才创建真正的 ObjectPool 
         /// </summary>
         private void CreateRuntimePool(PoolEntry entry)
         {
             if (entry.Prefab == null)
-                throw new InvalidOperationException($"Pool={entry.Config.Id} 尚未取得 Prefab。");
+                throw new InvalidOperationException($"Pool={entry.Config.Id} 尚未取得 Prefab ");
 
             entry.Pool = new ObjectPool<GameObject>(
                 createFunc: () => CreateInstance(entry),
@@ -601,7 +602,11 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
         private GameObject CreateInstance(PoolEntry entry)
         {
-            GameObject instance = Instantiate(entry.Prefab, InactiveRoot);
+            GameObject instance = Instantiate(entry.Prefab);
+            Scene ownerScene = gameObject.scene;
+            if (ownerScene.IsValid() && ownerScene.isLoaded && instance.scene != ownerScene)
+                SceneManager.MoveGameObjectToScene(instance, ownerScene);
+            instance.transform.SetParent(InactiveRoot, false);
 
             instance.name = entry.Prefab.name;
             instance.SetActive(false);
@@ -646,7 +651,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 主动调用Get创建InitialCapacity个实例，再全部放回池。
+        /// 主动调用Get创建InitialCapacity个实例，再全部放回池 
         /// </summary>
         private static void PrewarmPool(IObjectPool<GameObject> targetPool, int amount)
         {
@@ -726,8 +731,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             DestroyRemainingRentedInstances();
   
-            //现在所有池的 RentedCount 都应该为 0。
-            //逐池释放对象、Prefab 和 Addressables Handle。
+            //现在所有池的 RentedCount 都应该为 0 
+            //逐池释放对象、Prefab 和 Addressables Handle 
             foreach (PoolEntry entry in _entriesById.Values)
                 ReleasePreparedEntry(entry);
 
@@ -736,14 +741,14 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             _entryByInstanceId.Clear();
             _instances.Clear();
 
-            //Shutdown才真正删除Pool定义。
+            //Shutdown才真正删除Pool定义 
             _entriesById.Clear();
 
             IsInitialized = false;
 
             DisposeLifetimeToken();
 
-            Debug.Log($"[{nameof(LocalObjectPool)}] 已关闭，所有对象池实例和 Addressables Handle 已释放。");
+            Debug.Log($"[{nameof(LocalObjectPool)}] 已关闭，所有对象池实例和 Addressables Handle 已释放 ");
         }
 
         private void DestroyRemainingRentedInstances()
@@ -751,7 +756,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (_rentedInstanceIds.Count == 0)
                 return;
 
-            Debug.LogWarning($"[{nameof(LocalObjectPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个对象未归还。");
+            Debug.LogWarning($"[{nameof(LocalObjectPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个对象未归还 ");
 
             List<int> rentedIds = new(_rentedInstanceIds);
 
@@ -775,7 +780,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(LocalObjectPool)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap。");
+                throw new InvalidOperationException($"{nameof(LocalObjectPool)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap ");
         }
 
         private void DisposeLifetimeToken()
@@ -793,8 +798,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (Instance != this)
                 return;
     
-           //正常流程应通过 Bootstrap 调用 ShutdownAsync。
-           //OnDestroy 只作为场景被直接销毁时的最终兜底。
+           //正常流程应通过 Bootstrap 调用 ShutdownAsync 
+           //OnDestroy 只作为场景被直接销毁时的最终兜底 
             _lifetimeCts?.Cancel();
             ShutdownInternal();
 
@@ -802,7 +807,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 单个对象池的完整运行时状态。
+        /// 单个对象池的完整运行时状态 
         /// </summary>
         private sealed class PoolEntry
         {
@@ -817,8 +822,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             public bool IsPrepared;
             public bool IsPreparing;
 
-            // 当前该池有多少实例正在外部使用。
-            // ReleasePool 时必须为 0。
+            // 当前该池有多少实例正在外部使用 
+            // ReleasePool 时必须为 0 
             public int RentedCount;
 
             public UniTaskCompletionSource PrepareCompletion;

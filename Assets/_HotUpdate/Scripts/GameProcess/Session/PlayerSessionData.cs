@@ -1,8 +1,8 @@
 ﻿namespace ProjectGame.HotFix.Core.Session
 {
     /// <summary>
-    /// 从 Lobby 带入 Gameplay 的只读玩家数据。
-    /// 这里只保留游戏阶段真正需要的信息。
+    /// 从 Lobby 带入 Gameplay 的只读玩家数据 
+    /// 这里只保留游戏阶段真正需要的信息 
     /// </summary>
     public readonly struct PlayerSessionData
     {

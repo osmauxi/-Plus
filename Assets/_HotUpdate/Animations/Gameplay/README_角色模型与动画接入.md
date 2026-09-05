@@ -39,8 +39,7 @@ Base Layer 当前状态：
 - `Idle`：普通站立和瞄准站立共用 Base Idle；瞄准上半身由专用层覆盖。
 - `Move`：直接播放 Jog。
 - `Aim Move`：角色专属二维瞄准移动 BlendTree。
-- `Sprint Start`：完整播放一次原始 Sprint，不循环。
-- `Sprint Loop`：从 Sprint 中提取的真正闭合循环。
+- `Sprint Loop`：从角色 StartForward 稳定区间提取的闭合循环，统一负责进入和持续疾跑；Animator 不再保留 `Sprint Start` 状态。
 - `Pivot`、`Hit React`、`Dead`。
 
 关键规则：
@@ -48,16 +47,18 @@ Base Layer 当前状态：
 - `Base FullBody.Idle` 是表现驱动的公共状态路径契约。
 - 松开移动输入时，不等待 Speed 归零或当前过渡结束，固定 0.12 秒 CrossFade 回 Idle。
 - Move/Sprint 模式过渡禁止互相反复重置，避免连续点按 Shift 卡在第零帧。
-- Pivot 由 Simulation 的强反向事实直接触发，不再要求目标方向仍处于快速旋转 Root 的局部 Backward 象限；最低速度 1.25 m/s、方向点积阈值 -0.15。
+- Pivot 由 Simulation 的强反向事实直接触发，不再要求目标方向仍处于快速旋转 Root 的局部 Backward 象限；最低速度 4 m/s、方向点积阈值 -0.15。
+- `MotionPhase.Start` 起步阶段明确禁止 Pivot，方向切换只修正起步速度；进入稳定 Move 后才允许按速度和方向阈值触发。
 - 转入 Pivot 固定过渡 0.2 秒，随后保留 0.1 秒完整 Pivot，再用 0.2 秒过渡回当前 Idle/Move/Sprint。瞄准时不触发 Pivot，下半身继续由 Aim Move 接管。
+- Pivot 进入边沿在权威移动 Simulation 中触发一段可回滚的短时速度爆发。Free/Move 与 Sprint 使用各自 Profile 的持续时间和速度加成；默认分别为 `0.10s / +3m/s` 与 `0.10s / +5m/s`，Aim 默认关闭。
+- 爆发参数在进入瞬间锁存，期间松开 Shift 不会把 Sprint 数值切成 Move，也不能通过高频反向输入刷新尚未结束的爆发计时；松开移动输入、死亡、传送都会立即清空。
 - Base Layer 开启 IK Pass，供 Humanoid 角色使用；Generic 角色使用自定义双骨骼 IK。
 
 ### 6. Sprint 循环修复
 
 - 原 `Anbi_Game_Sprint_Forward` 单次播放正常，但首尾不是同一步态，不能直接循环。
 - 原循环接缝右大腿旋转跳变约 90.3 度。
-- 原动画改为非循环 `Sprint Start`。
-- 从稳定跑步区间提取 `Anbi_Game_Sprint_Loop`，闭合端点后作为持续疾跑循环。
+- 从稳定跑步区间提取 `Anbi_Game_Sprint_Loop`，闭合端点后统一作为进入和持续疾跑动画；原 Sprint Forward 仅保留为源/回退资源，不再进入 Animator 状态机。
 - 新循环 60 Hz 接缝右大腿变化约 5.7 度。
 
 ### 7. 玩家移动表现修复
@@ -93,7 +94,7 @@ Base Layer 当前状态：
 可以复制安比 Controller 作为角色专属 Controller 模板，并保留：
 
 - Layer、参数、状态名和状态机拓扑。
-- Idle/Move/Aim Move/Sprint Start/Sprint Loop/Pivot/Hit/Dead 的职责划分。
+- Idle/Move/Aim Move/Sprint Loop/Pivot/Hit/Dead 的职责划分。
 - 过渡条件和公共时间设置。
 - `Base FullBody.Idle` 状态路径。
 - UpperBody Aim 层的职责、Fire/Reload 触发逻辑。
@@ -123,7 +124,8 @@ Base Layer 当前状态：
 - 检查所有动画根骨首帧方向是否一致；不能只确认根骨“没有位移”。
 - 检查 Idle、Jog、Sprint、Pivot、Hit、Dead 切换时根骨、骨盆和脚不会旋转或下沉。
 - 循环动画必须检查首尾腿、骨盆、手臂旋转差；单次播放正常不代表可以循环。
-- Sprint 若包含起步段，应拆成一次性 Start 和稳定 Loop。
+- Sprint 源动画若包含起步段，接入时只从稳定区间生成运行时 Loop；起步段可保留为源/回退资源，但不再建立独立 Animator 状态。
+- 默认动画导出包不要求单独提供 Sprint Loop。接入时从该角色自己的 StartForward 稳定区间生成角色专属 Loop；帧段按角色动作分析，不能写死，也不能复用其他角色的 Loop。
 
 ### Controller 与 AvatarMask
 
@@ -169,3 +171,32 @@ Base Layer 当前状态：
 10. Unity Console 无 Avatar、曲线、丢失引用或状态参数错误。
 
 Pivot 验收需同时覆盖低速反转（约 1.25 m/s 以上）、斜向大角度反转和 Root 正在快速转向的情况；瞄准移动反转应保持 Aim Move，不应抢占为 Pivot。
+
+## 六、扳机 Generic V4.1 接入结果
+
+- Gameplay 预制件：`Assets/_HotUpdate/Prefabs/Character/Gameplay/Character_Gameplay_Trigger_Generic.prefab`。
+- 当前动作资源目录：`Assets/_HotUpdate/Animations/Gameplay/Generic/Trigger/V4_1`；Controller 为 `Trigger_Gameplay_V4_1.controller`。V1 保留为可回退版本，并继续提供扳机基础模型 Avatar；V4.1 运行时 Motion 不再引用 V1 动画。
+- Controller、AvatarMask、左右手 IK、肘部 Hint、装备挂点和 Addressables 地址均为扳机专属，不引用安比骨骼路径或动画。
+- V4.1 包含 13 个动画 FBX，不要求额外交付 Sprint Loop。源动画在关闭 Unity Keyframe Reduction 后合计 91,646 个曲线键，所有动画均为 99 个有效路径且没有 Missing Binding。
+- V4.1 相对未经闭环改写的 V1 原动作逐帧保真验收全部通过：除文档允许修改的 Back/Left/Right 最后两帧外，最大世界旋转误差约 0.256 度、最大世界位置误差约 0.00124 游戏单位。
+- `Trigger_Game_Sprint_Loop.anim` 由本角色完整 `Game_Sprint_StartForward.fbx` 的 36–66 帧稳定步态生成，时长 1 秒，并启用 Loop Pose。该范围只属于扳机 V4.1 接入数据，不写入通用运行逻辑；其他角色必须重新分析自己的稳定区间。
+- Sprint Loop 在 Animator 中跨接缝采样时，最大单帧骨骼旋转为普通帧中位值的 1.06 倍，没有额外的甩腿尖峰。完整 StartForward 只保留为源/回退资源，不再作为 Animator 状态。
+- 安比与扳机 Controller 均已删除 `Sprint Start` 节点；原来进入 Start 的过渡全部直接进入各自的 `Sprint Loop`。
+- 这批 UE Scale7 动画在 `Bip001` 上已经包含恒定 `Scale 7` 和正确的运行时轴向。Gameplay 预制件中的 `TriggerModel` 因此保持 `Rotation (0,0,0)`，不能再叠加导入 FBX 外层的 `Rotation X=-90`；角色尺寸只通过该视觉容器的角色专属倍率调整。
+- 若直接保留导入外层 Scale7，模型到骨骼会形成 `7 × 7 = 49` 的双重缩放；武器根即使做一次 `1/7` 补偿，最终仍会是 7 倍，并且外层轴向与动画根骨轴向叠加后会让人物平躺。
+- 以安比同姿势骨架高度为基准，扳机 `TriggerModel` 的专属视觉倍率为 `2.827621`；全部装备挂点的局部缩放反向补偿为 `0.050522`，即 `1 / (7 × 2.827621)`。
+- 当前同一 Idle 采样下，安比与扳机渲染包围盒高度分别约 4.297 与 4.283 游戏单位，尺寸一致；角色 Root 保持 Scale 1，武器最终世界尺寸继续由既有挂点补偿链路控制。
+- V4.1 控制器共 2 层、11 个状态、15 个动画引用，所有引用均已替换到 V4.1；Gameplay 预制件缺失脚本为 0，Addressables 地址 `Character_Gameplay_Trigger_Generic` 实际加载成功，运行测试 Console 为 0 Error / 0 Warning。
+- 这条补偿不是所有角色通用常量。每个新角色都要先检查动画是否给根骨写入缩放和轴向，再决定视觉容器补偿；玩家 Root、Gameplay 组件和武器层始终保持世界 Scale 1。
+- 2026-09-05 运行复查修复了扳机 `CharacterAnimationBridge` 的 9 个空引用：WeaponAimPivot、左右臂三段骨骼和左右 Elbow Hint 均重新绑定到扳机预制件；UpperBody 层改回扳机专属 Mask，并删除两个未被状态引用的旧 BlendTree 子资源。Play Mode 下 Weapon00 双手 IK 权重均为 1，握点位置误差接近 0。
+
+## 七、席德 Generic V4 接入结果
+
+- Gameplay 预制件：`Assets/_HotUpdate/Prefabs/Character/Gameplay/Character_Gameplay_Xide_Generic.prefab`，Addressables 地址为 `Character_Gameplay_Xide_Generic`，对应 `CharacterId = 2`。
+- 席德资源统一整理到 `Animations/Gameplay/Generic/Xide` 与 `Models/Character/Xide`；原导入包内外两份文件哈希完全相同，重复副本已删除，旧 Lobby 模型和贴图通过 GUID 保留移动。
+- 基础模型使用 `Generic / Create From This Model / Scale Factor 1`；13 个动画全部 `Copy From Other Avatar` 到席德 V4 Avatar，没有套用 Scale7。
+- ReadyPose 与 Pivot 的源 FBX 根基准不一致。运行时 `.anim` 已统一为 Position 0、Quaternion `(-0.5, 0.5, 0.5, 0.5)`、Scale 1，并对 `Bip001` 直接子节点做逆补偿；源 FBX 保留。
+- `Xide_Game_Sprint_Loop` 从席德自己的 41–71 帧生成，只在最后 2 帧闭环；完整 Sprint Start 只保留为源，不进入 Animator，Controller 内没有 `Sprint Start` 节点。
+- Controller、五向 Aim BlendTree、AvatarMask、18 个材质、Generic 双手 IK、Elbow Hint 和装备挂点均为席德专属，对安比/扳机 Motion 或 Mask 的依赖为 0。
+- 席德源模型保持 1×，Gameplay 视觉容器倍率为 `2.706335`，Idle 高度约 4.29；挂点反向倍率为 `0.369503`，挂点和武器 world scale 均为 1。
+- 14 个运行时动画、2570 个 Binding、状态切换、双手可达性、Addressables 实际加载、旧 Lobby 引用、缺失脚本与 Console 均已完成验收。详细数据见 `Generic/Xide/V4/Docs/README_V4_Unity验收与接入.md`。

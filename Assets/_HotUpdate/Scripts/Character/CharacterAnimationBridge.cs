@@ -4,77 +4,77 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Character
 {
     /// <summary>
-    /// Character Prefab 的通用动画桥接层。
+    /// Character Prefab 的通用动画桥接层 
     ///
     /// 这里只放 Lobby 与 Gameplay 都成立的动画语义，
-    /// 不负责移动、攻击、跳跃等 Gameplay 专属状态。
+    /// 不负责移动、攻击、跳跃等 Gameplay 专属状态 
     /// </summary>
     [DefaultExecutionOrder(200)]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Animator))]
     public sealed class CharacterAnimationBridge : MonoBehaviour
     {
-        // 暂时沿用原 Animator 参数名，避免为了重构重新修改 Animator。
+        // 暂时沿用原 Animator 参数名，避免为了重构重新修改 Animator 
         private static readonly int EquipmentPoseHash = Animator.StringToHash("EquipmentPose");
         private static readonly int DoEquipHash = Animator.StringToHash("DoEquip");
 
         [Header("Weapon Horizontal Aim")]
-        [Tooltip("独立于手臂的武器水平瞄准节点。为空时保留旧挂接方式，不执行枪口方向修正。")]
+        [Tooltip("独立于手臂的武器水平瞄准节点 为空时保留旧挂接方式，不执行枪口方向修正 ")]
         [SerializeField] private Transform _weaponAimPivot;
-        [Tooltip("枪械相对动画姿势允许追加的最大水平偏角。")]
+        [Tooltip("枪械相对动画姿势允许追加的最大水平偏角 ")]
         [SerializeField, Range(0f, 180f)] private float _weaponAimMaxYaw = 65f;
-        [Tooltip("武器水平瞄准追赶目标方向的最大角速度（度/秒）。设置为 0 时立即对准。")]
+        [Tooltip("武器水平瞄准追赶目标方向的最大角速度（度/秒） 设置为 0 时立即对准 ")]
         [SerializeField, Min(0f)] private float _weaponAimAngularSpeed = 900f;
-        [Tooltip("在 Idle 自动捕获的枪口基础姿态上追加的 Pitch。当前输入仍只提供水平 AimDirection，不读取鼠标地面高度。")]
+        [Tooltip("在 Idle 自动捕获的枪口基础姿态上追加的 Pitch 当前输入仍只提供水平 AimDirection，不读取鼠标地面高度 ")]
         [SerializeField, Range(-45f, 45f)] private float _weaponAimPitch;
-        [Tooltip("在 Idle 自动捕获的枪口基础姿态上追加的 Roll；通常保持为 0。")]
+        [Tooltip("在 Idle 自动捕获的枪口基础姿态上追加的 Roll；通常保持为 0 ")]
         [SerializeField, Range(-45f, 45f)] private float _weaponAimRoll;
-        [Tooltip("完整枪械姿态渐入/渐出的权重变化速度。")]
+        [Tooltip("完整枪械姿态渐入/渐出的权重变化速度 ")]
         [SerializeField, Min(0f)] private float _weaponAimPoseBlendSpeed = 12f;
 
         [Header("Weapon IK")]
-        [Tooltip("左手 IK 权重每秒变化量；用于在换弹、受击、死亡和正常持枪之间平滑切换。")]
+        [Tooltip("左手 IK 权重每秒变化量；用于在换弹、受击、死亡和正常持枪之间平滑切换 ")]
         [SerializeField, Min(0f)] private float _leftHandIkBlendSpeed = 12f;
-        [Tooltip("右手 IK 权重每秒变化量；右手以武器主握点为目标。")]
+        [Tooltip("右手 IK 权重每秒变化量；右手以武器主握点为目标 ")]
         [SerializeField, Min(0f)] private float _rightHandIkBlendSpeed = 16f;
 
         [Header("Character Hand IK Calibration")]
-        [Tooltip("角色右手骨骼相对武器 MainHandGrip 的旋转校准。只配置在角色预制件，不修改共享武器握点。")]
+        [Tooltip("角色右手骨骼相对武器 MainHandGrip 的旋转校准 只配置在角色预制件，不修改共享武器握点 ")]
         [SerializeField] private Vector3 _rightHandRotationOffsetEuler;
-        [Tooltip("角色左手骨骼相对武器 OffHandGrip 的旋转校准。")]
+        [Tooltip("角色左手骨骼相对武器 OffHandGrip 的旋转校准 ")]
         [SerializeField] private Vector3 _leftHandRotationOffsetEuler;
         [SerializeField, Range(0f, 1f)] private float _rightHandPositionWeight = 1f;
         [SerializeField, Range(0f, 1f)] private float _rightHandRotationWeight = 1f;
         [SerializeField, Range(0f, 1f)] private float _leftHandPositionWeight = 1f;
         [SerializeField, Range(0f, 1f)] private float _leftHandRotationWeight = 1f;
-        [Tooltip("右手相对动画姿势允许的最大旋转修正角；180 表示不限制。")]
+        [Tooltip("右手相对动画姿势允许的最大旋转修正角；180 表示不限制 ")]
         [SerializeField, Range(0f, 180f)] private float _rightHandMaxRotationCorrection = 180f;
-        [Tooltip("左手相对动画姿势允许的最大旋转修正角；180 表示不限制。")]
+        [Tooltip("左手相对动画姿势允许的最大旋转修正角；180 表示不限制 ")]
         [SerializeField, Range(0f, 180f)] private float _leftHandMaxRotationCorrection = 180f;
 
         [Header("Generic Right Hand IK")]
-        [Tooltip("Generic Avatar 的右上臂。Humanoid Avatar 会忽略这些引用并使用 Animator IK。")]
+        [Tooltip("Generic Avatar 的右上臂 Humanoid Avatar 会忽略这些引用并使用 Animator IK ")]
         [SerializeField] private Transform _genericRightUpperArm;
-        [Tooltip("Generic Avatar 的右前臂。")]
+        [Tooltip("Generic Avatar 的右前臂 ")]
         [SerializeField] private Transform _genericRightForearm;
-        [Tooltip("Generic Avatar 的右手。")]
+        [Tooltip("Generic Avatar 的右手 ")]
         [SerializeField] private Transform _genericRightHand;
-        [Tooltip("可选的右肘朝向提示；为空时保持当前动画提供的弯肘平面。")]
+        [Tooltip("可选的右肘朝向提示；为空时保持当前动画提供的弯肘平面 ")]
         [SerializeField] private Transform _genericRightElbowHint;
 
         [Header("Generic Left Hand IK")]
-        [Tooltip("Generic Avatar 的左上臂。Humanoid Avatar 会忽略这些引用并使用 Animator IK。")]
+        [Tooltip("Generic Avatar 的左上臂 Humanoid Avatar 会忽略这些引用并使用 Animator IK ")]
         [SerializeField] private Transform _genericLeftUpperArm;
-        [Tooltip("Generic Avatar 的左前臂。")]
+        [Tooltip("Generic Avatar 的左前臂 ")]
         [SerializeField] private Transform _genericLeftForearm;
-        [Tooltip("Generic Avatar 的左手。")]
+        [Tooltip("Generic Avatar 的左手 ")]
         [SerializeField] private Transform _genericLeftHand;
-        [Tooltip("可选的左肘朝向提示；为空时保持当前动画提供的弯肘平面。")]
+        [Tooltip("可选的左肘朝向提示；为空时保持当前动画提供的弯肘平面 ")]
         [SerializeField] private Transform _genericLeftElbowHint;
 
         private Animator _animator;
         private WeaponView _weaponView;
-        // Gameplay 只决定当前动作是否允许 IK；目标骨骼仍由已绑定 WeaponView 提供。
+        // Gameplay 只决定当前动作是否允许 IK；目标骨骼仍由已绑定 WeaponView 提供 
         private bool _leftHandIkAllowed = true;
         private bool _rightHandIkAllowed = true;
         private bool _weaponAimAllowed;
@@ -117,8 +117,8 @@ namespace ProjectGame.HotFix.Character
         }
 
         /// <summary>
-        /// 绑定当前武器表现，并切换对应持械姿势。
-        /// WeaponPose 的数值需要保持与现有 Animator / 配表一致。
+        /// 绑定当前武器表现，并切换对应持械姿势 
+        /// WeaponPose 的数值需要保持与现有 Animator / 配表一致 
         /// </summary>
         public void BindWeapon(WeaponView weaponView, WeaponPose pose)
         {
@@ -144,8 +144,8 @@ namespace ProjectGame.HotFix.Character
         }
 
         /// <summary>
-        /// 允许上层表现驱动临时释放左手 IK。Lobby 不调用时默认启用；
-        /// Gameplay 在 Reload/Hit/Dead 期间关闭，避免 IK 把动作片段中的左手强行拉回武器握点。
+        /// 允许上层表现驱动临时释放左手 IK Lobby 不调用时默认启用；
+        /// Gameplay 在 Reload/Hit/Dead 期间关闭，避免 IK 把动作片段中的左手强行拉回武器握点 
         /// </summary>
         public void SetLeftHandIKAllowed(bool allowed)
         {
@@ -153,8 +153,8 @@ namespace ProjectGame.HotFix.Character
         }
 
         /// <summary>
-        /// 允许或释放右手主握点 IK。Gameplay 通常只在死亡时释放，
-        /// 换弹期间仍让右手持枪，由左手动画完成弹匣动作。
+        /// 允许或释放右手主握点 IK Gameplay 通常只在死亡时释放，
+        /// 换弹期间仍让右手持枪，由左手动画完成弹匣动作 
         /// </summary>
         public void SetRightHandIKAllowed(bool allowed)
         {
@@ -162,8 +162,8 @@ namespace ProjectGame.HotFix.Character
         }
 
         /// <summary>
-        /// 设置同步后的世界平面瞄准方向。这里只缓存表现意图，实际枪械旋转会在
-        /// PlayerAnimationDriver 完成 Spine Aim 后、双手 IK 求解前统一执行。
+        /// 设置同步后的世界平面瞄准方向 这里只缓存表现意图，实际枪械旋转会在
+        /// PlayerAnimationDriver 完成 Spine Aim 后、双手 IK 求解前统一执行 
         /// </summary>
         public void SetWeaponAimDirection(Vector3 worldDirection, bool allowed)
         {
@@ -175,8 +175,8 @@ namespace ProjectGame.HotFix.Character
         }
 
         /// <summary>
-        /// Lobby 与 Gameplay 共用双手武器 IK。
-        /// Animator Controller 对应 Layer 需要开启 IK Pass。
+        /// Lobby 与 Gameplay 共用双手武器 IK 
+        /// Animator Controller 对应 Layer 需要开启 IK Pass 
         /// </summary>
         private void OnAnimatorIK(int layerIndex)
         {
@@ -185,12 +185,12 @@ namespace ProjectGame.HotFix.Character
             if (animator == null || !animator.isActiveAndEnabled)
                 return;
 
-            // Humanoid 继续使用 Unity 原生 Animator IK；Generic 在 LateUpdate 走显式双骨骼求解。
+            // Humanoid 继续使用 Unity 原生 Animator IK；Generic 在 LateUpdate 走显式双骨骼求解 
             if (!animator.isHuman)
                 return;
 
             // 配置 WeaponAimPivot 的 Humanoid 也在 LateUpdate 使用统一双骨骼求解，
-            // 保证顺序为 Spine Aim -> Weapon Aim -> Hand IK，避免原生 IK 早一帧读取旧目标。
+            // 保证顺序为 Spine Aim -> Weapon Aim -> Hand IK，避免原生 IK 早一帧读取旧目标 
             if (_weaponAimPivot != null)
             {
                 animator.SetIKPositionWeight(AvatarIKGoal.RightHand, 0f);
@@ -266,7 +266,7 @@ namespace ProjectGame.HotFix.Character
 
         /// <summary>
         /// Animator 和 PlayerAnimationDriver 完成姿势后，先水平修正枪口方向，
-        /// 再依据当前 Avatar 的左右臂骨骼把双手约束到武器握点。
+        /// 再依据当前 Avatar 的左右臂骨骼把双手约束到武器握点 
         /// </summary>
         private void LateUpdate()
         {
@@ -276,7 +276,7 @@ namespace ProjectGame.HotFix.Character
 
             UpdateWeaponHorizontalAim(Time.deltaTime);
 
-            // 没有独立 Aim Pivot 的 Humanoid 保持旧的原生 OnAnimatorIK 路径。
+            // 没有独立 Aim Pivot 的 Humanoid 保持旧的原生 OnAnimatorIK 路径 
             if (animator.isHuman && _weaponAimPivot == null)
                 return;
 
@@ -318,7 +318,7 @@ namespace ProjectGame.HotFix.Character
                 _leftHandIkBlendSpeed,
                 Time.deltaTime);
 
-            // 武器挂在独立胸部根下，先把右手约束到主握点，再处理左手副握点。
+            // 武器挂在独立胸部根下，先把右手约束到主握点，再处理左手副握点 
             if (canSolveRight && _rightHandIkWeight > 0f)
             {
                 SolveTwoBoneIK(
@@ -351,9 +351,9 @@ namespace ProjectGame.HotFix.Character
         }
 
         /// <summary>
-        /// 每帧先恢复 Pivot 的预制件基准旋转。未瞄准时自动记录当前 Idle 枪口相对
-        /// 水平 Forward 的完整姿态；瞄准时只替换水平 Forward，并保留该 Pitch/Roll。
-        /// 配置 Pitch/Roll 仅作为角色专属的附加校准，不会覆盖手工调好的持枪姿势。
+        /// 每帧先恢复 Pivot 的预制件基准旋转 未瞄准时自动记录当前 Idle 枪口相对
+        /// 水平 Forward 的完整姿态；瞄准时只替换水平 Forward，并保留该 Pitch/Roll 
+        /// 配置 Pitch/Roll 仅作为角色专属的附加校准，不会覆盖手工调好的持枪姿势 
         /// </summary>
         private void UpdateWeaponHorizontalAim(float deltaTime)
         {
@@ -375,7 +375,7 @@ namespace ProjectGame.HotFix.Character
                 : Vector3.zero;
 
             // 在非瞄准 Idle 也会执行捕获，确保参考的是用户当前调好的持枪姿势，
-            // 而不是第一次按下瞄准后已经进入过渡的动画姿势。
+            // 而不是第一次按下瞄准后已经进入过渡的动画姿势 
             if (muzzle != null &&
                 neutralForward.sqrMagnitude > 0.000001f &&
                 (!_hasWeaponAimMuzzlePoseOffset || _weaponAimCalibratedWeapon != _weaponView))
@@ -492,7 +492,7 @@ namespace ProjectGame.HotFix.Character
 
         /// <summary>
         /// 武器若仍是右手骨骼的子节点，右手追武器会形成逐帧反馈漂移；
-        /// 这种旧预制件自动禁用右手 IK，只保留原有父子挂接表现。
+        /// 这种旧预制件自动禁用右手 IK，只保留原有父子挂接表现 
         /// </summary>
         private static bool IsIndependentIKTarget(Transform target, Transform hand)
         {
@@ -599,8 +599,8 @@ namespace ProjectGame.HotFix.Character
                     Mathf.Max(0f, maxRotationCorrection));
             }
 
-            // 使用动画采样后的手腕姿势作为零点。RotationWeight=0 时保持动画手腕，
-            // PositionWeight 仍可让整条手臂追随握点，避免为位置 IK 强制扭转手腕。
+            // 使用动画采样后的手腕姿势作为零点 RotationWeight=0 时保持动画手腕，
+            // PositionWeight 仍可让整条手臂追随握点，避免为位置 IK 强制扭转手腕 
             hand.rotation = Quaternion.Slerp(
                 handOriginal,
                 calibratedTargetRotation,
@@ -616,7 +616,7 @@ namespace ProjectGame.HotFix.Character
             ref Vector3 bendDirectionMemory)
         {
             // 有 Hint 时直接使用 Pole 在目标轴垂直平面上的投影，不再根据当前动画肘部
-            // 翻转符号。Fire 动画即使令手臂短暂伸直，也不会跳到另一侧。
+            // 翻转符号 Fire 动画即使令手臂短暂伸直，也不会跳到另一侧 
             Vector3 candidate = elbowHint != null
                 ? Vector3.ProjectOnPlane(
                     elbowHint.position - rootPosition,
@@ -642,7 +642,7 @@ namespace ProjectGame.HotFix.Character
 
             candidate.Normalize();
 
-            // 没有显式 Hint 的旧角色使用上一帧方向保持半球连续；有 Hint 时由 Hint 全权决定。
+            // 没有显式 Hint 的旧角色使用上一帧方向保持半球连续；有 Hint 时由 Hint 全权决定 
             if (elbowHint == null &&
                 remembered.sqrMagnitude > 0.000001f &&
                 Vector3.Dot(candidate, remembered) < 0f)

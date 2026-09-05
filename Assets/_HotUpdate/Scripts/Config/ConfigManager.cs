@@ -23,7 +23,7 @@ namespace ProjectGame.HotFix.Config
             _baseDataParser = new MessagePackBinaryParser();
             _modDataParser = new JsonModParser();
 
-            Debug.Log("[ConfigManager] 数据解析管线初始化完毕。");
+            Debug.Log("[ConfigManager] 数据解析管线初始化完毕 ");
         }
 
         /// <summary>
@@ -37,7 +37,7 @@ namespace ProjectGame.HotFix.Config
             Dictionary<int, T> baseDict = _baseDataParser.Parse<int, T>(rawData);
 
             // TODO (未来 Mod 接入点): 
-            // 如果存在对应的 JSON Mod 文件，调用 _modDataParser 解析，并覆盖到 baseDict 中。
+            // 如果存在对应的 JSON Mod 文件，调用 _modDataParser 解析，并覆盖到 baseDict 中 
             // 比如: ModMergeUtility.Merge(baseDict, _modDataParser.Parse(modJsonString));
 
             return baseDict;
@@ -88,7 +88,7 @@ namespace ProjectGame.HotFix.Config
 
             if (handle.Status == AsyncOperationStatus.Succeeded)
             {
-                Debug.Log($"<color=green>[ConfigManager] 全量配置表加载完毕！共 {_allConfigs.Count} 张表。</color>");
+                Debug.Log($"<color=green>[ConfigManager] 全量配置表加载完毕！共 {_allConfigs.Count} 张表 </color>");
             }
             else
             {

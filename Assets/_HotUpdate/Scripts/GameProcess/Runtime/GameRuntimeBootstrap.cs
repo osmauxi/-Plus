@@ -1,462 +1,345 @@
-﻿using Cysharp.Threading.Tasks;
+using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Core.Session;
 using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.State;
+using ProjectGame.HotFix.Network.Runtime;
+using ProjectGame.HotFix.SceneFlow;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+
 namespace ProjectGame.HotFix.Gameplay.Runtime
 {
-    /// <summary>
-    /// GameRuntimeScene的运行时启动入口。
-    /// </summary>
-    public class GameRuntimeBootstrap : NetworkBehaviour
+    /// <summary>GameRoot 的管线入口。子服务和关卡启动仍由 RunRuntimeAsync 统一编排。</summary>
+    public class GameRuntimeBootstrap : NetworkBehaviour, IScopeBindable, IScopeInitializable,
+        IScopeActivatable, IScopeShutdown
     {
         public static GameRuntimeBootstrap Instance { get; private set; }
-        
-        private GameStateController _gameStateController => GameStateController.Instance;
 
-        [Tooltip("按照数组顺序初始化，按照相反顺序关闭。")]
+        [Tooltip("按照数组顺序初始化，按照相反顺序关闭")]
         [SerializeField] private MonoBehaviour[] _runtimeServiceComponents;
         [SerializeField] private GameLevelFlowController _levelFlowController;
+        [SerializeField] private string[] _requiredSceneNames = { "UIGameUIScene" };
+        [Tooltip("本机子服务初始化及 Server 等待业务 RuntimeReady 的最长时间")]
+        [SerializeField, Min(1f)] private float _runtimeReadyTimeoutSeconds = 45f;
+        [Tooltip("等待角色、武器和 Animator 初始化的最长时间")]
+        [SerializeField, Min(1f)] private float _playerRuntimeReadyTimeoutSeconds = 45f;
 
-        [Tooltip("本地初始化完成后，还需要等待这些 Additive 场景加载完成。")]
-        [SerializeField] private string[] _requiredSceneNames =
-        {
-            "UIGameUIScene"
-        };
-
-        [Tooltip("首次生成玩家后，等待所有 Peer 完成角色、武器和 Animator 初始化的最长时间。")]
-        [Min(5f)]
-        [SerializeField] private float _playerRuntimeReadyTimeoutSeconds = 45f;
-
-        private readonly HashSet<ulong> _readyClientIds = new();
-        private readonly HashSet<ulong> _playerRuntimeReadyClientIds = new();
-
+        private readonly GameRuntimeReadyState _runtimeReady = new();
+        private readonly GameRuntimeReadyState _playerReady = new();
         private IGameRuntimeService[] _runtimeServices = Array.Empty<IGameRuntimeService>();
-
+        private GameStateController _gameStateController;
+        private NetworkScopeBarrier _scopeBarrier;
         private CancellationTokenSource _runtimeCts;
-
-        private int _initializedServiceCount;
-        private bool _isShuttingDown;
+        private UniTaskCompletionSource _runtimeFinished;
+        private UniTaskCompletionSource _playerMonitorFinished;
+        private UniTaskCompletionSource _shutdownFinished;
+        private int _revision;
+        private int _startedServiceCount;
+        private bool _prepared;
+        private bool _activated;
+        private bool _failed;
+        private bool _stopping;
 
         public bool IsLocalRuntimeReady { get; private set; }
-        /// <summary>本机是否已完成全部 PlayerRuntime 的角色、武器和 Animator 初始化。</summary>
         public bool IsLocalPlayerRuntimeReady { get; private set; }
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
-
-            CollectRuntimeServices();
         }
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-
-            CancelRuntime();
-
             _runtimeCts = new CancellationTokenSource();
-            _readyClientIds.Clear();
-            _playerRuntimeReadyClientIds.Clear();
-            IsLocalRuntimeReady = false;
-            IsLocalPlayerRuntimeReady = false;
-
-            RunRuntimeAsync(_runtimeCts.Token).Forget();
+            _prepared = _activated = _failed = _stopping = false;
+            _startedServiceCount = 0;
+            _revision = 0;
+            _runtimeFinished = _playerMonitorFinished = _shutdownFinished = null;
+            IsLocalRuntimeReady = IsLocalPlayerRuntimeReady = false;
+            // Spawn 仅登记；不能在这里触发子服务、地图或玩家生成。
         }
 
-        public override void OnNetworkDespawn()
+        public UniTask BindAsync(NetworkScopeStageContext context, CancellationToken cancellationToken)
         {
-            CancelRuntime();
-            ShutdownServicesAsync().Forget();
-
-            base.OnNetworkDespawn();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsSpawned) throw new InvalidOperationException("GameRoot 尚未 Spawn");
+            if (!context.TryGetRoot(NetworkPrefabId.NetworkSessionRoot, out NetworkObject sessionRoot))
+                throw new InvalidOperationException("找不到 NetworkSessionRoot");
+            _scopeBarrier = sessionRoot.GetComponent<NetworkScopeBarrier>();
+            if (_scopeBarrier == null || !_scopeBarrier.IsSpawned)
+                throw new InvalidOperationException("NetworkSessionRoot 缺少已 Spawn 的 NetworkScopeBarrier");
+            _gameStateController = NetworkObject.GetComponentInChildren<GameStateController>(true);
+            _revision = context.Revision;
+            return UniTask.CompletedTask;
         }
 
-        private void OnDestroy()
+        public UniTask InitializeAsync(NetworkScopeStageContext context, CancellationToken cancellationToken)
         {
-            CancelRuntime();
-            ShutdownServicesAsync().Forget();
-
-            if (Instance == this)
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_revision != context.Revision || _scopeBarrier == null)
+                throw new InvalidOperationException("GameRuntimeBootstrap 尚未 Bind");
+            if (_gameStateController == null || !_gameStateController.IsSpawned)
+                throw new InvalidOperationException("GameRoot 缺少已 Spawn 的 GameStateController");
+            if (!GameSessionContext.IsConfigured)
+                throw new InvalidOperationException("GameSessionContext 尚未由大厅准备完成");
+            ValidateTimeout(_runtimeReadyTimeoutSeconds);
+            ValidateTimeout(_playerRuntimeReadyTimeoutSeconds);
+            CollectRuntimeServices();
+            if (_levelFlowController == null || Array.IndexOf(_runtimeServices, _levelFlowController) < 0)
+                throw new InvalidOperationException("GameLevelFlowController 必须属于当前 Root 的服务列表");
+            if (_requiredSceneNames != null)
+                foreach (string sceneName in _requiredSceneNames)
+                    if (!string.IsNullOrWhiteSpace(sceneName) && !IsSceneLoaded(sceneName))
+                        throw new InvalidOperationException($"必要场景尚未加载：{sceneName}");
+            // 在任何端可能 Activate 前建立 Server 收件箱；Activate 不能清掉先到的结果。
+            if (IsServer)
             {
-                Instance = null;
+                _runtimeReady.Begin(NetworkManager.ConnectedClientsIds, _revision);
+                _playerReady.Begin(NetworkManager.ConnectedClientsIds, _revision);
             }
+            _prepared = true;
+            return UniTask.CompletedTask;
         }
 
-        private async UniTaskVoid RunRuntimeAsync(CancellationToken cancellationToken)
+        public void Activate(NetworkScopeStageContext context)
+        {
+            if (_activated) return;
+            if (!_prepared || _stopping || context.Revision != _revision)
+                throw new InvalidOperationException("GameRuntimeBootstrap 尚未完成本轮准备");
+            _activated = true;
+            _runtimeFinished = new UniTaskCompletionSource();
+            CancellationToken token = _runtimeCts.Token;
+            WatchLocalStartupAsync(token).Forget();
+            RunRuntimeAsync(token).Forget();
+        }
+
+        private async UniTask RunRuntimeAsync(CancellationToken cancellationToken)
         {
             try
             {
-                //等待GameStateController的初始化
                 await WaitForGameStateControllerAsync(cancellationToken);
-
-                if (IsServer)
-                {
-                    _gameStateController.ChangeStateServer(GameState.GameLoading);
-                }
-
-                //初始化注册进_runtimeServices内的所有服务。
+                if (IsServer) _gameStateController.ChangeStateServer(GameState.GameLoading);
                 await InitializeServicesAsync(cancellationToken);
-
-                //RuntimeScene 加载后显式等待必要的纯 UI Additive 场景。
                 await WaitForRequiredScenesAsync(cancellationToken);
-
+                cancellationToken.ThrowIfCancellationRequested();
                 IsLocalRuntimeReady = true;
-                //向服务器提交自己的Runtime加载完成
-                NotifyServerLocalRuntimeReady();
+                NotifyReady(false, true, string.Empty);
 
-                // 玩家尚未 Spawn，因此这里启动观察任务而不阻塞 Runtime Ready。
-                // 它会在玩家生成并完成异步表现初始化后自动向 Server 上报第二阶段 Ready。
+                // 玩家尚未 Spawn。观察任务先启动，但不能在 Server 生成玩家前阻塞等待它。
+                _playerMonitorFinished = new UniTaskCompletionSource();
                 MonitorLocalPlayerRuntimeReadyAsync(cancellationToken).Forget();
-
-                //远端客户端报告完成后，本地启动流程到此结束。
-                if (!IsServer)
-                {
-                    return;
-                }
-
-                await UniTask.WaitUntil(AreAllConnectedClientsReady,cancellationToken: cancellationToken);
-
-                Debug.Log("[GameRuntimeBootstrap] 所有客户端运行时初始化完成。");
-
+                if (!IsServer) return;
+                await _runtimeReady.WaitAsync(NetworkManager, _runtimeReadyTimeoutSeconds,
+                    "Gameplay RuntimeReady", cancellationToken);
                 if (_levelFlowController == null || !_levelFlowController.IsInitialized)
-                    throw new InvalidOperationException("GameLevelFlowController 尚未初始化。");
-
+                    throw new InvalidOperationException("GameLevelFlowController 尚未初始化");
                 await _levelFlowController.StartInitialLevelAsync(cancellationToken);
             }
-            catch (OperationCanceledException)
-            {
-                Debug.LogWarning(
-                    "[GameRuntimeBootstrap] 运行时初始化已取消。");
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError(
-                    $"[GameRuntimeBootstrap] 运行时初始化失败：{exception}");
-            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch (Exception exception) { FailRuntime(exception, false); }
+            finally { _runtimeFinished.TrySetResult(); }
         }
+
+        private async UniTask WatchLocalStartupAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                double deadline = Time.realtimeSinceStartupAsDouble + _runtimeReadyTimeoutSeconds;
+                while (!IsLocalRuntimeReady)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (Time.realtimeSinceStartupAsDouble >= deadline)
+                        throw new TimeoutException("本机 Gameplay 服务初始化超时");
+                    await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch (Exception exception) { FailRuntime(exception, false); }
+        }
+
         private async UniTask WaitForGameStateControllerAsync(CancellationToken cancellationToken)
         {
-            await UniTask.WaitUntil(() =>
-                    _gameStateController != null &&
-                    _gameStateController.IsSpawned,
+            await UniTask.WaitUntil(() => _gameStateController != null && _gameStateController.IsSpawned,
                 cancellationToken: cancellationToken);
         }
 
         private async UniTask InitializeServicesAsync(CancellationToken cancellationToken)
         {
-            _initializedServiceCount = 0;
-
             for (int i = 0; i < _runtimeServices.Length; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
                 IGameRuntimeService service = _runtimeServices[i];
-
-                if (service.IsInitialized)
-                {
-                    _initializedServiceCount++;
-                    continue;
-                }
-
-                await service.InitializeAsync(cancellationToken);
-
-                _initializedServiceCount++;
-
-                Debug.Log($"[GameRuntimeBootstrap] 已初始化服务：" + $"{service.GetType().Name}");
+                // 失败的当前服务也有机会清理已经申请的部分资源。
+                _startedServiceCount = i + 1;
+                if (!service.IsInitialized) await service.InitializeAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                Debug.Log($"[GameRuntimeBootstrap] 已初始化服务：{service.GetType().Name}");
             }
         }
 
         private async UniTask WaitForRequiredScenesAsync(CancellationToken cancellationToken)
         {
-            if (_requiredSceneNames == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < _requiredSceneNames.Length; i++)
-            {
-                string sceneName = _requiredSceneNames[i];
-
-                if (string.IsNullOrWhiteSpace(sceneName))
-                {
-                    continue;
-                }
-
-                await UniTask.WaitUntil(() => IsSceneLoaded(sceneName),cancellationToken: cancellationToken);
-
-                Debug.Log($"[GameRuntimeBootstrap] 必要场景已加载：{sceneName}");
-            }
+            if (_requiredSceneNames == null) return;
+            foreach (string sceneName in _requiredSceneNames)
+                if (!string.IsNullOrWhiteSpace(sceneName))
+                    await UniTask.WaitUntil(() => IsSceneLoaded(sceneName), cancellationToken: cancellationToken);
         }
 
         private static bool IsSceneLoaded(string sceneName)
         {
             Scene scene = SceneManager.GetSceneByName(sceneName);
-
             return scene.IsValid() && scene.isLoaded;
         }
 
-        private void NotifyServerLocalRuntimeReady()
+        private void NotifyReady(bool players, bool succeeded, string error)
         {
-            if (!IsClient)
-            {
-                return;
-            }
-
-            if (IsServer)
-            {
-                //Host不需要给发ServerRpc。
-                MarkClientReady(NetworkManager.LocalClientId);
-                return;
-            }
-
-            ReportRuntimeReadyServerRpc();
+            if (!IsClient || !IsSpawned) return;
+            if (IsServer) RecordReady(_revision, NetworkManager.LocalClientId, players, succeeded, error);
+            else ReportRuntimeReadyServerRpc(_revision, players, succeeded, GameRuntimeReadyState.LimitError(error));
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void ReportRuntimeReadyServerRpc(ServerRpcParams rpcParams = default)
+        private void ReportRuntimeReadyServerRpc(int revision, bool players, bool succeeded, string error,
+            ServerRpcParams rpcParams = default)
+            => RecordReady(revision, rpcParams.Receive.SenderClientId, players, succeeded, error);
+
+        private void RecordReady(int revision, ulong clientId, bool players, bool succeeded, string error)
         {
-            MarkClientReady(rpcParams.Receive.SenderClientId);
+            if (!IsServer || !_prepared || _stopping || revision != _revision ||
+                !NetworkManager.ConnectedClients.ContainsKey(clientId)) return;
+            (players ? _playerReady : _runtimeReady).Complete(revision, clientId, succeeded, error);
         }
 
-        private void MarkClientReady(ulong clientId)
-        {
-            if (!IsServer)
-            {
-                return;
-            }
-
-            if (!_readyClientIds.Add(clientId))
-            {
-                return;
-            }
-
-            Debug.Log($"[GameRuntimeBootstrap] Client：{clientId} Runtime加载完成。");
-        }
-
-        private async UniTaskVoid MonitorLocalPlayerRuntimeReadyAsync(CancellationToken cancellationToken)
+        private async UniTask MonitorLocalPlayerRuntimeReadyAsync(CancellationToken cancellationToken)
         {
             try
             {
                 PlayerManager playerManager = PlayerManager.Instance;
                 if (playerManager == null || !playerManager.IsInitialized)
-                    throw new InvalidOperationException("PlayerManager 尚未初始化，无法等待玩家表现资源。");
-
+                    throw new InvalidOperationException("PlayerManager 尚未初始化");
                 await playerManager.WaitUntilAllPlayersInitializedAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-
                 IsLocalPlayerRuntimeReady = true;
-                NotifyServerLocalPlayerRuntimeReady();
-
-                Debug.Log("[GameRuntimeBootstrap] 本机全部 PlayerRuntime 初始化完成。");
+                NotifyReady(true, true, string.Empty);
             }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError($"[GameRuntimeBootstrap] 本机 PlayerRuntime 初始化失败：\n{exception}");
-            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch (Exception exception) { FailRuntime(exception, true); }
+            finally { _playerMonitorFinished.TrySetResult(); }
         }
 
-        private void NotifyServerLocalPlayerRuntimeReady()
-        {
-            if (!IsClient)
-                return;
-
-            if (IsServer)
-            {
-                MarkClientPlayerRuntimeReady(NetworkManager.LocalClientId);
-                return;
-            }
-
-            ReportPlayerRuntimeReadyServerRpc();
-        }
-
-        [ServerRpc(RequireOwnership = false)]
-        private void ReportPlayerRuntimeReadyServerRpc(ServerRpcParams rpcParams = default)
-        {
-            MarkClientPlayerRuntimeReady(rpcParams.Receive.SenderClientId);
-        }
-
-        private void MarkClientPlayerRuntimeReady(ulong clientId)
-        {
-            if (!IsServer)
-                return;
-
-            if (!_playerRuntimeReadyClientIds.Add(clientId))
-                return;
-
-            Debug.Log($"[GameRuntimeBootstrap] Client：{clientId} PlayerRuntime 初始化完成。");
-        }
-
-        /// <summary>
-        /// Server 在首次 Spawn 后调用。只有所有当前连接 Peer 都上报 PlayerRuntime Ready，
-        /// GameLevelFlowController 才能切换到 GamePlaying 并开放输入。
-        /// </summary>
         public async UniTask WaitUntilAllPlayerRuntimesReadyAsync(CancellationToken cancellationToken)
         {
-            if (!IsServer)
-                throw new InvalidOperationException("只有 Server 可以等待 PlayerRuntime Ready 屏障。");
-
-            float deadline = Time.realtimeSinceStartup + _playerRuntimeReadyTimeoutSeconds;
-
-            await UniTask.WaitUntil(
-                () => AreAllConnectedClientsPlayerRuntimeReady() || Time.realtimeSinceStartup >= deadline,
-                cancellationToken: cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (!AreAllConnectedClientsPlayerRuntimeReady())
+            if (!IsServer) throw new InvalidOperationException("只有 Server 可以等待 PlayerRuntimeReady");
+            // Dedicated Server 的本机初始化不走客户端 ACK，也不能被跳过。
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtimeCts.Token);
+            using var timeout = linked.CancelAfterSlim(TimeSpan.FromSeconds(_playerRuntimeReadyTimeoutSeconds), DelayType.Realtime);
+            try
             {
-                throw new TimeoutException(
-                    $"等待 PlayerRuntime Ready 超时：" +
-                    $"Ready={_playerRuntimeReadyClientIds.Count}，" +
-                    $"Connected={NetworkManager.ConnectedClientsIds.Count}，" +
-                    $"Timeout={_playerRuntimeReadyTimeoutSeconds:F1}s");
+                await _playerReady.WaitAsync(NetworkManager, _playerRuntimeReadyTimeoutSeconds,
+                    "PlayerRuntimeReady", linked.Token);
+                await UniTask.WaitUntil(() => IsLocalPlayerRuntimeReady, cancellationToken: linked.Token);
             }
-
-            Debug.Log("[GameRuntimeBootstrap] 所有客户端 PlayerRuntime 初始化完成。");
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !_runtimeCts.IsCancellationRequested)
+            {
+                throw new TimeoutException("PlayerRuntimeReady 超时");
+            }
         }
 
-        private bool AreAllConnectedClientsPlayerRuntimeReady()
+        private void FailRuntime(Exception exception, bool players)
         {
-            if (!IsServer || NetworkManager == null || !NetworkManager.IsListening)
-                return false;
-
-            var connectedClientIds = NetworkManager.ConnectedClientsIds;
-            if (connectedClientIds.Count == 0)
-                return false;
-
-            for (int i = 0; i < connectedClientIds.Count; i++)
-            {
-                if (!_playerRuntimeReadyClientIds.Contains(connectedClientIds[i]))
-                    return false;
-            }
-
-            return true;
-        }
-
-        private bool AreAllConnectedClientsReady()
-        {
-            if (!IsServer || NetworkManager == null || !NetworkManager.IsListening)
-            {
-                return false;
-            }
-
-            var connectedClientIds = NetworkManager.ConnectedClientsIds;
-
-            if (connectedClientIds.Count == 0)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < connectedClientIds.Count; i++)
-            {
-                if (!_readyClientIds.Contains(connectedClientIds[i]))
-                {
-                    return false;
-                }
-            }
-
-            return true;
+            if (_failed || _stopping) return;
+            _failed = true;
+            Debug.LogError($"[GameRuntimeBootstrap] 运行时启动失败，返回 Lobby：{exception}");
+            NotifyReady(players, false, exception.Message);
+            _runtimeCts?.Cancel();
+            _scopeBarrier?.ReportRuntimeFailure(_revision, exception.Message);
         }
 
         private void CollectRuntimeServices()
         {
             if (_runtimeServiceComponents == null || _runtimeServiceComponents.Length == 0)
-            {
-                _runtimeServices = Array.Empty<IGameRuntimeService>();
-                return;
-            }
-
+                throw new InvalidOperationException("GameRoot 未配置运行时服务");
             var services = new List<IGameRuntimeService>(_runtimeServiceComponents.Length);
-
-            for (int i = 0;i < _runtimeServiceComponents.Length;i++)
+            var seen = new HashSet<MonoBehaviour>();
+            foreach (MonoBehaviour component in _runtimeServiceComponents)
             {
-                MonoBehaviour component = _runtimeServiceComponents[i];
-
-                if (component == null)
-                {
-                    continue;
-                }
-
+                if (component == null) throw new InvalidOperationException("运行时服务列表存在空引用");
+                if (!seen.Add(component)) throw new InvalidOperationException($"重复服务：{component.name}");
+                if (component.GetComponentInParent<NetworkObject>(true) != NetworkObject)
+                    throw new InvalidOperationException($"服务不属于当前 GameRoot：{component.name}");
                 if (!(component is IGameRuntimeService service))
-                {
-                    throw new InvalidOperationException(
-                        $"{component.GetType().FullName} 被配置为运行时服务，" +
-                        $"但没有实现 {nameof(IGameRuntimeService)}。");
-                }
-
+                    throw new InvalidOperationException($"{component.GetType().Name} 未实现 IGameRuntimeService");
+                if (component is IScopeInitializable || component is IScopeActivatable)
+                    throw new InvalidOperationException($"{component.name} 同时被 Bootstrap 与管线驱动，会重复启动");
                 services.Add(service);
             }
-
             _runtimeServices = services.ToArray();
         }
 
-        private async UniTaskVoid ShutdownServicesAsync()
+        public UniTask ShutdownScopeAsync(CancellationToken cancellationToken)
         {
-            if (_isShuttingDown)
+            if (_shutdownFinished == null)
             {
-                return;
+                _shutdownFinished = new UniTaskCompletionSource();
+                ShutdownServicesAsync().Forget();
             }
+            return _shutdownFinished.Task.AttachExternalCancellation(cancellationToken);
+        }
 
-            _isShuttingDown = true;
-
+        private async UniTask ShutdownServicesAsync()
+        {
+            _stopping = true;
+            _runtimeCts?.Cancel();
             try
             {
-                for (int i = _initializedServiceCount - 1;i >= 0;i--)
+                if (_runtimeFinished != null) await _runtimeFinished.Task;
+                if (_playerMonitorFinished != null) await _playerMonitorFinished.Task;
+                List<Exception> failures = null;
+                for (int i = _startedServiceCount - 1; i >= 0; i--)
                 {
-                    IGameRuntimeService service = _runtimeServices[i];
-
-                    try
-                    {
-                        await service.ShutdownAsync(CancellationToken.None);
-                    }
+                    try { await _runtimeServices[i].ShutdownAsync(CancellationToken.None); }
                     catch (Exception exception)
                     {
-                        Debug.LogError(
-                            $"[GameRuntimeBootstrap] 关闭服务失败：" +
-                            $"{service.GetType().Name}\n{exception}");
+                        (failures ??= new List<Exception>()).Add(exception);
+                        Debug.LogError($"[GameRuntimeBootstrap] 关闭 {_runtimeServices[i].GetType().Name} 失败：{exception}");
                     }
                 }
+                if (failures != null) throw new AggregateException("GameRoot 服务关闭失败", failures);
+                _startedServiceCount = 0;
+                _shutdownFinished.TrySetResult();
             }
+            catch (Exception exception) { _shutdownFinished.TrySetException(exception); }
             finally
             {
-                _initializedServiceCount = 0;
-                IsLocalRuntimeReady = false;
-                IsLocalPlayerRuntimeReady = false;
-                _readyClientIds.Clear();
-                _playerRuntimeReadyClientIds.Clear();
-                _isShuttingDown = false;
+                IsLocalRuntimeReady = IsLocalPlayerRuntimeReady = false;
+                _runtimeCts?.Dispose();
+                _runtimeCts = null;
             }
         }
 
-        private void CancelRuntime()
+        public override void OnNetworkDespawn()
         {
-            if (_runtimeCts == null)
-            {
-                return;
-            }
+            ShutdownScopeAsync(CancellationToken.None).Forget();
+            base.OnNetworkDespawn();
+        }
 
-            if (!_runtimeCts.IsCancellationRequested)
-            {
-                _runtimeCts.Cancel();
-            }
+        public override void OnDestroy()
+        {
+            ShutdownScopeAsync(CancellationToken.None).Forget();
+            if (Instance == this) Instance = null;
+            base.OnDestroy();
+        }
 
-            _runtimeCts.Dispose();
-            _runtimeCts = null;
+        private static void ValidateTimeout(float seconds)
+        {
+            if (float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds <= 0)
+                throw new InvalidOperationException("Gameplay Ready 超时必须是有限正数");
         }
     }
 }

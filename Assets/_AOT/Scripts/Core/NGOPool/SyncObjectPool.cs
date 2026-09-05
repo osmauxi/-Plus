@@ -84,7 +84,7 @@ public class SyncObjectPool : NetworkBehaviour
 
         if (pool.ContainsKey(id))
         {
-            Debug.LogWarning($"[对象池] ID {id} 已存在，跳过动态注册。");
+            Debug.LogWarning($"[对象池] ID {id} 已存在，跳过动态注册 ");
             return;
         }
 
@@ -128,7 +128,7 @@ public class SyncObjectPool : NetworkBehaviour
             return obj;
         }
 
-        Debug.LogError($"找不到 ID 为 '{id}' 的对象池！请检查 Inspector 配置。");
+        Debug.LogError($"找不到 ID 为 '{id}' 的对象池！请检查 Inspector 配置 ");
         return null;
     }
     public void RetToPool(NetworkObject obj, string poolId)

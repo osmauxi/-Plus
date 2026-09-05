@@ -12,9 +12,9 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace ProjectGame.HotFix.Gameplay.Player
 {
     /// <summary>
-    /// 玩家装备表现控制器。
-    /// 第一版只负责根据 WeaponId 加载并挂载武器模型。
-    /// 不负责射击、弹药、伤害等战斗逻辑。
+    /// 玩家装备表现控制器 
+    /// 第一版只负责根据 WeaponId 加载并挂载武器模型 
+    /// 不负责射击、弹药、伤害等战斗逻辑 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class PlayerEquipmentController : MonoBehaviour
@@ -29,8 +29,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public WeaponView CurrentWeaponView { get; private set; }
 
         /// <summary>
-        /// 加载 Lobby 带入 Gameplay 的初始武器。
-        /// 第一版 WeaponId 同样视为固定初始数据。
+        /// 加载 Lobby 带入 Gameplay 的初始武器 
+        /// 第一版 WeaponId 同样视为固定初始数据 
         /// </summary>
         public async UniTask LoadInitialWeaponAsync(PlayerSessionData sessionData, CancellationToken cancellationToken)
         {
@@ -43,10 +43,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
             }
 
             if (_loadCts != null)
-                throw new InvalidOperationException("武器模型正在加载中，不能重复调用。");
+                throw new InvalidOperationException("武器模型正在加载中，不能重复调用 ");
 
             if (_appearanceController == null || !_appearanceController.IsLoaded)
-                throw new InvalidOperationException("角色模型尚未加载，无法挂载武器。");
+                throw new InvalidOperationException("角色模型尚未加载，无法挂载武器 ");
 
             PlayerModelView modelView = _appearanceController.ModelView;
             CharacterAnimationBridge animationBridge = _appearanceController.AnimationBridge;
@@ -83,7 +83,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 if (!weaponInstance.TryGetComponent(out WeaponView weaponView))
                 {
                     ReleaseLoadedHandle(handle);
-                    throw new InvalidOperationException($"武器 WeaponId={sessionData.WeaponId} 缺少 {nameof(WeaponView)}。");
+                    throw new InvalidOperationException($"武器 WeaponId={sessionData.WeaponId} 缺少 {nameof(WeaponView)} ");
                 }
 
                 weaponView.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
@@ -134,12 +134,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private static EquipmentSlot ParseEquipmentSlot(int value, string fieldName)
         {
             if (value < byte.MinValue || value > byte.MaxValue || !Enum.IsDefined(typeof(EquipmentSlot), (byte)value))
-                throw new ArgumentOutOfRangeException(fieldName, value, "无效的装备槽位。");
+                throw new ArgumentOutOfRangeException(fieldName, value, "无效的装备槽位 ");
 
             EquipmentSlot slot = (EquipmentSlot)(byte)value;
 
             if (slot == EquipmentSlot.None)
-                throw new ArgumentOutOfRangeException(fieldName, value, "装备槽位不能为 None。");
+                throw new ArgumentOutOfRangeException(fieldName, value, "装备槽位不能为 None ");
 
             return slot;
         }
@@ -147,7 +147,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private static WeaponPose ParseWeaponPose(int value)
         {
             if (value < byte.MinValue || value > byte.MaxValue || !Enum.IsDefined(typeof(WeaponPose), (byte)value))
-                throw new ArgumentOutOfRangeException(nameof(value), value, "无效的武器动画姿势。");
+                throw new ArgumentOutOfRangeException(nameof(value), value, "无效的武器动画姿势 ");
 
             return (WeaponPose)(byte)value;
         }

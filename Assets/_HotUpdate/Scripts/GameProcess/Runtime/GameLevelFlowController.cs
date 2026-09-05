@@ -15,13 +15,13 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Runtime
 {
     /// <summary>
-    /// 一局 Gameplay 内的层级流程控制器。
+    /// 一局 Gameplay 内的层级流程控制器 
     ///
     /// 负责：
     /// 初始地图生成 → 首次玩家生成；
-    /// 下一层事件 → 新地图生成 → 玩家重新定位。
+    /// 下一层事件 → 新地图生成 → 玩家重新定位 
     ///
-    /// 不负责地图算法、玩家实例化细节和房间逻辑。
+    /// 不负责地图算法、玩家实例化细节和房间逻辑 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class GameLevelFlowController : MonoBehaviour, IGameRuntimeService
@@ -52,22 +52,22 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             _gameStateController = GameStateController.Instance;
 
             if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动。");
+                throw new InvalidOperationException("NGO 尚未启动 ");
 
             if (_gameStateController == null || !_gameStateController.IsSpawned)
-                throw new InvalidOperationException("GameStateController 尚未准备完成。");
+                throw new InvalidOperationException("GameStateController 尚未准备完成 ");
 
             if (_mapGenerationController == null || !_mapGenerationController.IsInitialized)
-                throw new InvalidOperationException("MapGenerationController 尚未初始化。");
+                throw new InvalidOperationException("MapGenerationController 尚未初始化 ");
 
             if (_mapVisualBuilder == null || !_mapVisualBuilder.IsInitialized)
-                throw new InvalidOperationException("MapVisualBuilder 尚未初始化。");
+                throw new InvalidOperationException("MapVisualBuilder 尚未初始化 ");
 
             if (_playerSpawnController == null || !_playerSpawnController.IsInitialized)
-                throw new InvalidOperationException("PlayerSpawnController 尚未初始化。");
+                throw new InvalidOperationException("PlayerSpawnController 尚未初始化 ");
 
-            // LocalEvent 是本机事件。
-            // 只有 Server 才拥有 Gameplay Flow 决策权，所以只有 Server 订阅。
+            // LocalEvent 是本机事件 
+            // 只有 Server 才拥有 Gameplay Flow 决策权，所以只有 Server 订阅 
             if (_networkManager.IsServer)
                 _nextLevelSubscription = LocalEvents.Subscribe<NextLevelRequestedEvent>(HandleNextLevelRequested);
 
@@ -77,13 +77,13 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             _isTransitioning = false;
             IsInitialized = true;
 
-            Debug.Log($"[{nameof(GameLevelFlowController)}] 初始化完成。");
+            Debug.Log($"[{nameof(GameLevelFlowController)}] 初始化完成 ");
 
             return UniTask.CompletedTask;
         }
 
         /// <summary>
-        /// RuntimeReady 屏障结束后，由 GameRuntimeBootstrap 在 Server 上调用一次。
+        /// RuntimeReady 屏障结束后，由 GameRuntimeBootstrap 在 Server 上调用一次 
         /// </summary>
         public async UniTask StartInitialLevelAsync(CancellationToken cancellationToken)
         {
@@ -91,7 +91,7 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             EnsureServer();
 
             if (_runStarted)
-                throw new InvalidOperationException("Gameplay Run 已经启动。");
+                throw new InvalidOperationException("Gameplay Run 已经启动 ");
 
             _runStarted = true;
 
@@ -171,10 +171,10 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
             if (initialLevel)
             {
                 await _playerSpawnController.SpawnInitialPlayersAsync(spawnPoints, cancellationToken);
-                // Network Spawn 完成后还要等待每个 Peer 的角色、武器和 Animator 异步装载。
-                // 在屏障结束前保持 MapGenerating，InputManager 不会开放 Gameplay 输入。
+                // Network Spawn 完成后还要等待每个 Peer 的角色、武器和 Animator 异步装载 
+                // 在屏障结束前保持 MapGenerating，InputManager 不会开放 Gameplay 输入 
                 if (GameRuntimeBootstrap.Instance == null)
-                    throw new InvalidOperationException("GameRuntimeBootstrap 不存在，无法等待 PlayerRuntime Ready。");
+                    throw new InvalidOperationException("GameRuntimeBootstrap 不存在，无法等待 PlayerRuntime Ready ");
 
                 await GameRuntimeBootstrap.Instance.WaitUntilAllPlayerRuntimesReadyAsync(cancellationToken);
             }
@@ -230,7 +230,7 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
 
             IsInitialized = false;
 
-            Debug.Log($"[{nameof(GameLevelFlowController)}] 已关闭。");
+            Debug.Log($"[{nameof(GameLevelFlowController)}] 已关闭 ");
 
             return UniTask.CompletedTask;
         }
@@ -238,13 +238,13 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(GameLevelFlowController)} 尚未初始化。");
+                throw new InvalidOperationException($"{nameof(GameLevelFlowController)} 尚未初始化 ");
         }
 
         private void EnsureServer()
         {
             if (_networkManager == null || !_networkManager.IsServer)
-                throw new InvalidOperationException("只有 Server 可以驱动关卡流程。");
+                throw new InvalidOperationException("只有 Server 可以驱动关卡流程 ");
         }
     }
 }

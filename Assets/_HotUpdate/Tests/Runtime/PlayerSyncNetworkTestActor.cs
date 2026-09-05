@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.Tests.Runtime
 {
-    /// <summary>为跨进程同步实测提供确定性连续输入，并采样远端表现。</summary>
+    /// <summary>为跨进程同步实测提供确定性连续输入，并采样远端表现 </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(PlayerSyncController))]
     public sealed class PlayerSyncNetworkTestActor : NetworkBehaviour

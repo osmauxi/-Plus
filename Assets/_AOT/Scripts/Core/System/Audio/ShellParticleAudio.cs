@@ -8,7 +8,7 @@ public class ShellParticleAudio : MonoBehaviour
     private List<ParticleCollisionEvent> collisionEvents;
 
     [Header("弹壳音效配置")]
-    [Tooltip("触发第一下落地声音的速度阈值。先设为 0.1 测试")]
+    [Tooltip("触发第一下落地声音的速度阈值 先设为 0.1 测试")]
     public float firstBounceVelocityThreshold = 0.90f; // 【修改点 1】：默认值降到极低
 
     [Tooltip("声音冷却，防止散弹枪一瞬间掉出 8 个弹壳导致严重的音效爆音")]

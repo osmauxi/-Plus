@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Pool;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.SceneManagement;
 using UnityEngine.VFX;
 
 namespace ProjectGame.HotFix.Gameplay.Pooling
@@ -16,37 +17,37 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
     {
         public static LocalVFXPool Instance { get; private set; }
 
-        [Tooltip("未使用特效的父节点。")]
+        [Tooltip("未使用特效的父节点 ")]
         [SerializeField] private Transform _inactiveRoot;
 
         /// <summary>
-        /// PoolId → 完整运行时状态。
+        /// PoolId → 完整运行时状态 
         /// </summary>
         private readonly Dictionary<string, PoolEntry> _entriesById = new(StringComparer.Ordinal);
 
         /// <summary>
-        /// 实例ID → 所属池。
-        /// Return 时不需要调用方保存 PoolId。
+        /// 实例ID → 所属池 
+        /// Return 时不需要调用方保存 PoolId 
         /// </summary>
         private readonly Dictionary<int, PoolEntry> _entryByInstanceId = new();
 
         /// <summary>
-        /// 当前Pool创建的全部实例。
+        /// 当前Pool创建的全部实例 
         /// </summary>
         private readonly Dictionary<int, GameObject> _instances = new();
 
         /// <summary>
-        /// 粒子、Trail、VFX Graph、Rigidbody等表现组件缓存。
+        /// 粒子、Trail、VFX Graph、Rigidbody等表现组件缓存 
         /// </summary>
         private readonly Dictionary<int, VFXRuntimeCache> _runtimeCaches = new();
 
         /// <summary>
-        /// IPoolable生命周期缓存。
+        /// IPoolable生命周期缓存 
         /// </summary>
         private readonly Dictionary<int, IPoolable[]> _poolableCallbacks = new();
 
         /// <summary>
-        /// 当前正在外部播放的实例。
+        /// 当前正在外部播放的实例 
         /// </summary>
         private readonly HashSet<int> _rentedInstanceIds = new();
 
@@ -64,7 +65,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogError($"[{nameof(LocalVFXPool)}] 场景中存在重复实例。");
+                Debug.LogError($"[{nameof(LocalVFXPool)}] 场景中存在重复实例 ");
                 Destroy(this);
                 return;
             }
@@ -73,7 +74,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 初始化时只登记配置，不加载任何 Addressable VFX Prefab。
+        /// 初始化时只登记配置，不加载任何 Addressable VFX Prefab 
         /// </summary>
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
@@ -90,7 +91,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
                 IsInitialized = true;
 
-                Debug.Log($"[{nameof(LocalVFXPool)}] 初始化完成，已登记 {_entriesById.Count} 个特效池定义。");
+                Debug.Log($"[{nameof(LocalVFXPool)}] 初始化完成，已登记 {_entriesById.Count} 个特效池定义 ");
 
                 return UniTask.CompletedTask;
             }
@@ -102,17 +103,17 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 准备一个特效池。
+        /// 准备一个特效池 
         ///
-        /// 真正的加载只绑定 Pool 生命周期。
-        /// 调用者取消时只停止自己的等待，不破坏其他调用者共享的 Prepare。
+        /// 真正的加载只绑定 Pool 生命周期 
+        /// 调用者取消时只停止自己的等待，不破坏其他调用者共享的 Prepare 
         /// </summary>
         public async UniTask PreparePoolAsync(string poolId, CancellationToken cancellationToken)
         {
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记特效池定义：{poolId}");
@@ -132,7 +133,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 批量并行准备特效池。
+        /// 批量并行准备特效池 
         /// </summary>
         public async UniTask PreparePoolsAsync(IEnumerable<string> poolIds, CancellationToken cancellationToken)
         {
@@ -168,7 +169,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 使用单位旋转播放特效。
+        /// 使用单位旋转播放特效 
         /// </summary>
         public GameObject Play(string poolId, Vector3 position, float weight = 1f, Transform parent = null)
         {
@@ -176,16 +177,16 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 从已经完成 Prepare 的池中同步取得并播放特效。
+        /// 从已经完成 Prepare 的池中同步取得并播放特效 
         ///
-        /// Play 不负责触发 Addressables 加载。
+        /// Play 不负责触发 Addressables 加载 
         /// </summary>
         public GameObject Play(string poolId, Vector3 position, Quaternion rotation, float weight = 1f, Transform parent = null)
         {
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记特效池定义：{poolId}");
@@ -211,8 +212,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             instanceTransform.SetPositionAndRotation(position, rotation);
 
             
-            //先清除上一次播放的数据，再调用业务复用回调。
-            //此时GameObject仍然处于关闭状态。
+            //先清除上一次播放的数据，再调用业务复用回调 
+            //此时GameObject仍然处于关闭状态 
             VFXRuntimeCache cache = _runtimeCaches[instanceId];
 
             cache.PrepareForPlay(weight);
@@ -220,14 +221,14 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             instance.SetActive(true);
             
-            //ParticleSystem / VisualEffect 必须在激活之后播放。  
+            //ParticleSystem / VisualEffect 必须在激活之后播放   
             cache.Play(entry.EffectEventId);
 
             return instance;
         }
 
         /// <summary>
-        /// 停止并返还特效。
+        /// 停止并返还特效 
         /// </summary>
         public void Return(GameObject instance)
         {
@@ -261,10 +262,10 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (entry.PlayingCount < 0)
             {
                 entry.PlayingCount = 0;
-                Debug.LogError($"[{nameof(LocalVFXPool)}] Pool={entry.Config.Id} 的 PlayingCount 出现异常。");
+                Debug.LogError($"[{nameof(LocalVFXPool)}] Pool={entry.Config.Id} 的 PlayingCount 出现异常 ");
             }
   
-            //先停止表现，再清理业务状态，最后放回ObjectPool。 
+            //先停止表现，再清理业务状态，最后放回ObjectPool  
             _runtimeCaches[instanceId].PrepareForReturn();
             InvokeReturnCallbacks(instanceId);
 
@@ -294,17 +295,17 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 释放一个特效池。
+        /// 释放一个特效池 
         ///
-        /// 只有不存在正在播放的实例时才允许释放。
-        /// Pool配置不会删除，因此之后仍可以再次 Prepare。
+        /// 只有不存在正在播放的实例时才允许释放 
+        /// Pool配置不会删除，因此之后仍可以再次 Prepare 
         /// </summary>
         public bool ReleasePool(string poolId)
         {
             EnsureInitialized();
 
             if (string.IsNullOrWhiteSpace(poolId))
-                throw new ArgumentException("PoolId 不能为空。", nameof(poolId));
+                throw new ArgumentException("PoolId 不能为空 ", nameof(poolId));
 
             if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
                 throw new KeyNotFoundException($"没有登记特效池定义：{poolId}");
@@ -320,10 +321,10 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 批量释放特效池。
+        /// 批量释放特效池 
         ///
         /// 先检查整个集合，只有全部满足释放条件后才真正执行，
-        /// 防止出现只释放一半的状态。
+        /// 防止出现只释放一半的状态 
         /// </summary>
         public bool ReleasePools(IEnumerable<string> poolIds)
         {
@@ -373,15 +374,15 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             foreach (PoolEntry entry in _entriesById.Values)
                 ReleasePreparedEntry(entry);
 
-            Debug.Log($"[{nameof(LocalVFXPool)}] 所有已准备特效池均已释放。");
+            Debug.Log($"[{nameof(LocalVFXPool)}] 所有已准备特效池均已释放 ");
 
             return true;
         }
 
         public async UniTask ShutdownAsync(CancellationToken cancellationToken)
         {
-            //Shutdown不使用外部Token中断。
-            //先通知全部后台Prepare生命周期结束。
+            //Shutdown不使用外部Token中断 
+            //先通知全部后台Prepare生命周期结束 
             _lifetimeCts?.Cancel();
 
             List<UniTask> pendingTasks = new();
@@ -400,7 +401,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 }
                 catch
                 {
-                    // Prepare 自己负责资源回滚。
+                    // Prepare 自己负责资源回滚 
                 }
             }
 
@@ -408,7 +409,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 真正执行单个Entry的Addressables Prepare。
+        /// 真正执行单个Entry的Addressables Prepare 
         /// </summary>
         private async UniTaskVoid PrepareEntryAsync(PoolEntry entry, CancellationToken cancellationToken)
         {
@@ -455,7 +456,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// Initialize 阶段只登记配置。
+        /// Initialize 阶段只登记配置 
         /// </summary>
         private void RegisterConfiguredDefinitions(CancellationToken cancellationToken)
         {
@@ -463,7 +464,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 ConfigManager.Instance.GetTable<Config_LocalVFXPool>();
 
             if (table == null)
-                throw new InvalidOperationException("未加载 LocalVFXPool 配置表。");
+                throw new InvalidOperationException("未加载 LocalVFXPool 配置表 ");
 
             var configIds = new List<int>(table.Keys);
             configIds.Sort();
@@ -503,18 +504,18 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             {
                 Config = config,
 
-                //PoolId同时作为VFX Graph Event名称。
+                //PoolId同时作为VFX Graph Event名称 
                 EffectEventId = Shader.PropertyToID(config.Id)
             });
         }
 
         /// <summary>
-        /// Addressable Prefab 已加载完成后才创建真正 ObjectPool。
+        /// Addressable Prefab 已加载完成后才创建真正 ObjectPool 
         /// </summary>
         private void CreateRuntimePool(PoolEntry entry)
         {
             if (entry.Prefab == null)
-                throw new InvalidOperationException($"Pool={entry.Config.Id} 尚未取得 VFX Prefab。");
+                throw new InvalidOperationException($"Pool={entry.Config.Id} 尚未取得 VFX Prefab ");
 
             entry.Pool = new ObjectPool<GameObject>(
                 createFunc: () => CreateInstance(entry),
@@ -528,7 +529,11 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
         private GameObject CreateInstance(PoolEntry entry)
         {
-            GameObject instance = Instantiate(entry.Prefab, InactiveRoot);
+            GameObject instance = Instantiate(entry.Prefab);
+            Scene ownerScene = gameObject.scene;
+            if (ownerScene.IsValid() && ownerScene.isLoaded && instance.scene != ownerScene)
+                SceneManager.MoveGameObjectToScene(instance, ownerScene);
+            instance.transform.SetParent(InactiveRoot, false);
 
             instance.name = entry.Prefab.name;
             instance.SetActive(false);
@@ -538,7 +543,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             _entryByInstanceId.Add(instanceId, entry);
             _instances.Add(instanceId, instance);
   
-            //这些扫描只在实例真正创建时执行一次。
+            //这些扫描只在实例真正创建时执行一次 
             _runtimeCaches.Add(instanceId, new VFXRuntimeCache(instance));
             _poolableCallbacks.Add(instanceId, CollectPoolableCallbacks(instance));
 
@@ -597,7 +602,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (entry.PlayingCount > 0)
             {
                 if (logWarning)
-                    Debug.LogWarning($"[{nameof(LocalVFXPool)}] Pool={entry.Config.Id} 仍有 {entry.PlayingCount} 个特效正在播放，不能 Release。");
+                    Debug.LogWarning($"[{nameof(LocalVFXPool)}] Pool={entry.Config.Id} 仍有 {entry.PlayingCount} 个特效正在播放，不能 Release ");
 
                 return false;
             }
@@ -606,8 +611,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 真正销毁单个Pool的全部实例并释放Addressables Handle。
-        /// Pool Definition本身仍然保留。
+        /// 真正销毁单个Pool的全部实例并释放Addressables Handle 
+        /// Pool Definition本身仍然保留 
         /// </summary>
         private void ReleasePreparedEntry(PoolEntry entry)
         {
@@ -724,7 +729,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (_rentedInstanceIds.Count == 0)
                 return;
 
-            Debug.LogWarning($"[{nameof(LocalVFXPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个特效正在播放。");
+            Debug.LogWarning($"[{nameof(LocalVFXPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个特效正在播放 ");
 
             List<int> rentedIds = new(_rentedInstanceIds);
 
@@ -757,7 +762,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             DestroyRemainingPlayingInstances();
 
             //此时所有外部实例已经销毁，
-            //可以安全Clear各池并Release Handle。
+            //可以安全Clear各池并Release Handle 
             foreach (PoolEntry entry in _entriesById.Values)
                 ReleasePreparedEntry(entry);
 
@@ -773,13 +778,13 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             DisposeLifetimeToken();
 
-            Debug.Log($"[{nameof(LocalVFXPool)}] 已关闭，全部实例和 Addressables Handle 已释放。");
+            Debug.Log($"[{nameof(LocalVFXPool)}] 已关闭，全部实例和 Addressables Handle 已释放 ");
         }
 
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(LocalVFXPool)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap。");
+                throw new InvalidOperationException($"{nameof(LocalVFXPool)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap ");
         }
 
         private void DisposeLifetimeToken()
@@ -805,7 +810,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 一个 VFX Pool 的完整运行时状态。
+        /// 一个 VFX Pool 的完整运行时状态 
         /// </summary>
         private sealed class PoolEntry
         {
@@ -827,7 +832,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 单个特效实例的运行时表现缓存。
+        /// 单个特效实例的运行时表现缓存 
         /// </summary>
         private sealed class VFXRuntimeCache
         {

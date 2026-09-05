@@ -12,13 +12,13 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Player
 {
     /// <summary>
-    /// Gameplay 玩家 NetworkObject 的生成控制器。
+    /// Gameplay 玩家 NetworkObject 的生成控制器 
     ///
     /// 所有 Peer：
-    /// 提前 Prepare Player NetworkPrefab。
+    /// 提前 Prepare Player NetworkPrefab 
     ///
     /// Server：
-    /// 根据 GameSessionContext 生成玩家并分配 Ownership。
+    /// 根据 GameSessionContext 生成玩家并分配 Ownership 
     /// </summary>
     public sealed class PlayerSpawnController : MonoBehaviour, IGameRuntimeService
     {
@@ -40,23 +40,23 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _networkManager = NetworkManager.Singleton;
 
             if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动，无法初始化 PlayerSpawnController。");
+                throw new InvalidOperationException("NGO 尚未启动，无法初始化 PlayerSpawnController ");
 
             if (!GameSessionContext.IsConfigured)
-                throw new InvalidOperationException("GameSessionContext 尚未配置。");
+                throw new InvalidOperationException("GameSessionContext 尚未配置 ");
 
             if (PlayerManager.Instance == null || !PlayerManager.Instance.IsInitialized)
-                throw new InvalidOperationException("PlayerManager 尚未初始化。");
+                throw new InvalidOperationException("PlayerManager 尚未初始化 ");
 
             if (Pooling.SyncObjectPool.Instance == null || !Pooling.SyncObjectPool.Instance.IsInitialized)
-                throw new InvalidOperationException("SyncObjectPool 尚未初始化。");
+                throw new InvalidOperationException("SyncObjectPool 尚未初始化 ");
 
             if (!Pooling.SyncObjectPool.Instance.ContainsPool(_playerPoolId))
                 throw new InvalidOperationException($"不存在玩家网络对象池：{_playerPoolId}");
 
-            // 不是只有 Server Prepare。
+            // 不是只有 Server Prepare 
             // 每个 Peer 都必须认识这个动态 NetworkPrefab，
-            // 否则 Server Spawn 后 Client 无法通过 PrefabHandler 创建对应实例。
+            // 否则 Server Spawn 后 Client 无法通过 PrefabHandler 创建对应实例 
             await Pooling.SyncObjectPool.Instance.PreparePoolAsync(_playerPoolId, cancellationToken);
 
             IsInitialized = true;
@@ -65,8 +65,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 本局首次生成玩家。
-        /// 只允许 Server 调用。
+        /// 本局首次生成玩家 
+        /// 只允许 Server 调用 
         /// </summary>
         public async UniTask SpawnInitialPlayersAsync(IReadOnlyList<Transform> spawnPoints, CancellationToken cancellationToken)
         {
@@ -82,7 +82,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 throw new InvalidOperationException($"出生点不足：SpawnPoints={spawnPoints.Count}，Players={sessionPlayers.Count}");
 
             if (PlayerManager.Instance.SpawnedPlayerCount > 0)
-                throw new InvalidOperationException("当前已经存在玩家，不能重复执行首次 Spawn。");
+                throw new InvalidOperationException("当前已经存在玩家，不能重复执行首次 Spawn ");
 
             for (int i = 0; i < sessionPlayers.Count; i++)
             {
@@ -108,15 +108,15 @@ namespace ProjectGame.HotFix.Gameplay.Player
                     throw new InvalidOperationException($"玩家 NetworkObject 生成失败：ClientId={sessionData.ClientId}");
             }
 
-            // Server 本机确认所有 PlayerRuntime 已完成 OnNetworkSpawn 注册。
+            // Server 本机确认所有 PlayerRuntime 已完成 OnNetworkSpawn 注册 
             await PlayerManager.Instance.WaitUntilAllPlayersRegisteredAsync(cancellationToken);
 
             Debug.Log($"[{nameof(PlayerSpawnController)}] 玩家生成完成：Count={PlayerManager.Instance.SpawnedPlayerCount}");
         }
 
         /// <summary>
-        /// 普通换层时把已经存在的 PlayerRuntime 移动到新起点。
-        /// 不重新 Spawn，也不重新加载角色和武器。
+        /// 普通换层时把已经存在的 PlayerRuntime 移动到新起点 
+        /// 不重新 Spawn，也不重新加载角色和武器 
         /// </summary>
         public void RepositionPlayers(IReadOnlyList<Transform> spawnPoints)
         {
@@ -153,8 +153,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// Gameplay 最终退出时统一回收玩家。
-        /// 普通楼层切换不要调用。
+        /// Gameplay 最终退出时统一回收玩家 
+        /// 普通楼层切换不要调用 
         /// </summary>
         public void DespawnAllPlayers()
         {
@@ -166,7 +166,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             IReadOnlyList<PlayerRuntime> players = PlayerManager.Instance.RuntimePlayers;
 
             // Despawn 会触发 UnregisterPlayer，
-            // 所以必须先复制 NetworkObject，不能直接边遍历 RuntimePlayers 边删除。
+            // 所以必须先复制 NetworkObject，不能直接边遍历 RuntimePlayers 边删除 
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerRuntime player = players[i];
@@ -193,7 +193,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _networkManager = null;
             IsInitialized = false;
 
-            Debug.Log($"[{nameof(PlayerSpawnController)}] 已关闭。");
+            Debug.Log($"[{nameof(PlayerSpawnController)}] 已关闭 ");
 
             return UniTask.CompletedTask;
         }
@@ -214,13 +214,13 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(PlayerSpawnController)} 尚未初始化。");
+                throw new InvalidOperationException($"{nameof(PlayerSpawnController)} 尚未初始化 ");
         }
 
         private void EnsureServer()
         {
             if (_networkManager == null || !_networkManager.IsServer)
-                throw new InvalidOperationException("只有 Server 可以生成玩家。");
+                throw new InvalidOperationException("只有 Server 可以生成玩家 ");
         }
     }
 }

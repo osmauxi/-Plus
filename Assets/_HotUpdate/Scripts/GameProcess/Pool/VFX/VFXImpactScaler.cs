@@ -5,10 +5,10 @@ using UnityEngine.Serialization;
 namespace ProjectGame.HotFix.Gameplay.Pooling
 {
     /// <summary>
-    /// 根据特效权重调整粒子范围和 Burst 数量。
+    /// 根据特效权重调整粒子范围和 Burst 数量 
     ///
     /// LocalVFXPool 在播放时调用 ApplyWeight，
-    /// 回收时调用 ResetToOriginal，防止状态污染下一次播放。
+    /// 回收时调用 ResetToOriginal，防止状态污染下一次播放 
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(ParticleSystem))]
@@ -16,10 +16,10 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
     {
         [Header("Impact Scale")]
         [FormerlySerializedAs("visualMultiplier")]
-        [Tooltip("表现夸张系数。最终表现权重 = 外部权重 × 该系数。")]
+        [Tooltip("表现夸张系数 最终表现权重 = 外部权重 × 该系数 ")]
         [SerializeField, Min(0f)] private float _visualMultiplier = 1f;
 
-        [Tooltip("单个 Burst 允许的最大粒子数量，防止权重过大造成瞬时卡顿。")]
+        [Tooltip("单个 Burst 允许的最大粒子数量，防止权重过大造成瞬时卡顿 ")]
         [SerializeField, Min(1)] private int _maxBurstCount = 500;
 
         private ParticleSystem _particleSystem;
@@ -37,8 +37,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 根据外部权重调整整体缩放和 Burst 数量。
-        /// 每次都基于预制体原始值计算，不会叠乘上一次结果。
+        /// 根据外部权重调整整体缩放和 Burst 数量 
+        /// 每次都基于预制体原始值计算，不会叠乘上一次结果 
         /// </summary>
         public void ApplyWeight(float baseWeight)
         {
@@ -60,7 +60,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
         }
 
         /// <summary>
-        /// 恢复预制体原始缩放和 Burst 配置。
+        /// 恢复预制体原始缩放和 Burst 配置 
         /// </summary>
         public void ResetToOriginal()
         {
@@ -100,7 +100,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             float minimum = Mathf.Clamp(originalCount.constantMin * weight, 1f, _maxBurstCount);
             float maximum = Mathf.Clamp(originalCount.constantMax * weight, 1f, _maxBurstCount);
 
-            // Burst 通常使用 Constant 或 TwoConstants，其他模式统一按最大值处理。
+            // Burst 通常使用 Constant 或 TwoConstants，其他模式统一按最大值处理 
             if (originalCount.mode == ParticleSystemCurveMode.TwoConstants)
                 return new ParticleSystem.MinMaxCurve(minimum, maximum);
 

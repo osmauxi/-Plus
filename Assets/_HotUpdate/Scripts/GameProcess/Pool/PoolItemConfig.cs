@@ -3,7 +3,7 @@ using System;
 namespace ProjectGame.HotFix.Gameplay.Pooling
 {
     /// <summary>
-    /// 单个对象池的运行时配置，由 Excel 配表转换而来。
+    /// 单个对象池的运行时配置，由 Excel 配表转换而来 
     /// </summary>
     public sealed class PoolItemConfig
     {
@@ -29,13 +29,13 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                 throw new InvalidOperationException($"Pool={Id} 没有配置有效的 Addressable Prefab，Group={groupName}");
 
             if (InitialCapacity < 0)
-                throw new InvalidOperationException($"Pool={Id} 的 InitialCapacity 不能小于 0。");
+                throw new InvalidOperationException($"Pool={Id} 的 InitialCapacity 不能小于 0 ");
 
             if (MaxSize < 1)
-                throw new InvalidOperationException($"Pool={Id} 的 MaxSize 必须大于 0。");
+                throw new InvalidOperationException($"Pool={Id} 的 MaxSize 必须大于 0 ");
 
             if (InitialCapacity > MaxSize)
-                throw new InvalidOperationException($"Pool={Id} 的 InitialCapacity 不能大于 MaxSize。");
+                throw new InvalidOperationException($"Pool={Id} 的 InitialCapacity 不能大于 MaxSize ");
         }
     }
 }

@@ -6,37 +6,37 @@ using UnityEngine.InputSystem;
 namespace ProjectGame.HotFix.Gameplay.Player.Movement
 {
     /// <summary>
-    /// 独立移动测试场景使用的输入适配器。
+    /// 独立移动测试场景使用的输入适配器 
     ///
     /// 它只负责把键鼠输入转换成 PlayerLocomotionInput，实际状态、体力和
-    /// CharacterController 移动仍全部走正式的纯 C# PlayerLocomotionController → PlayerMotor 链。
-    /// 这样无需启动 NetworkManager 或完整 GameRuntimeScene 也能测试移动手感。
+    /// CharacterController 移动仍全部走正式的纯 C# PlayerLocomotionController → PlayerMotor 链 
+    /// 这样无需启动 NetworkManager 或完整 GameRuntimeScene 也能测试移动手感 
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
     public sealed class PlayerLocomotionTestDriver : MonoBehaviour
     {
         [Header("移动测试场景")]
-        [Tooltip("用于将键鼠输入转换到世界空间的相机。未指定时自动使用带 MainCamera 标签的相机。")]
+        [Tooltip("用于将键鼠输入转换到世界空间的相机 未指定时自动使用带 MainCamera 标签的相机 ")]
         [InspectorName("世界相机")]
         [SerializeField] private Camera _worldCamera;
-        [Tooltip("启用后，相机会保持初始偏移并跟随玩家移动；关闭后，相机固定在场景中的初始位置。")]
+        [Tooltip("启用后，相机会保持初始偏移并跟随玩家移动；关闭后，相机固定在场景中的初始位置 ")]
         [InspectorName("相机跟随玩家")]
         [SerializeField] private bool _followPlayerWithCamera = true;
-        [Tooltip("启用后在 Game 视图左上角显示按键说明、移动模式、运动阶段、速度和体力；关闭后隐藏测试信息面板。")]
+        [Tooltip("启用后在 Game 视图左上角显示按键说明、移动模式、运动阶段、速度和体力；关闭后隐藏测试信息面板 ")]
         [InspectorName("显示诊断信息")]
         [SerializeField] private bool _showDiagnostics = true;
 
         [Header("移动模拟配置")]
-        [Tooltip("独立测试场景构造纯 C# PlayerMotor 时使用的移动参数。")]
+        [Tooltip("独立测试场景构造纯 C# PlayerMotor 时使用的移动参数 ")]
         [InspectorName("玩家移动参数")]
         [SerializeField] private PlayerMovementConfig _movementConfig = new();
 
-        [Tooltip("独立测试场景构造纯 C# PlayerLocomotionController 时使用的体力参数。")]
+        [Tooltip("独立测试场景构造纯 C# PlayerLocomotionController 时使用的体力参数 ")]
         [InspectorName("玩家体力参数")]
         [SerializeField] private PlayerStaminaConfig _staminaConfig = new();
 
-        [Tooltip("独立测试场景构造玩家动作状态机时使用的受击、射击和换弹参数。")]
+        [Tooltip("独立测试场景构造玩家动作状态机时使用的受击、射击和换弹参数 ")]
         [InspectorName("玩家动作参数")]
         [SerializeField] private PlayerActionConfig _actionConfig = new();
 

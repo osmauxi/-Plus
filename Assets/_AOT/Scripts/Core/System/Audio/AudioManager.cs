@@ -74,7 +74,7 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 创建音频源、连接 Mixer Group 并恢复 AudioManager 自身状态。
+    /// 创建音频源、连接 Mixer Group 并恢复 AudioManager 自身状态 
     /// </summary>
     private void Initialize()
     {

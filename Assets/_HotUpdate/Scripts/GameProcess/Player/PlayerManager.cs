@@ -12,13 +12,13 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Player
 {
     /// <summary>
-    /// GameRuntimeScene 内的玩家运行时注册表。
+    /// GameRuntimeScene 内的玩家运行时注册表 
     ///
     /// 负责：
-    /// 1. 保存本机已经生成的玩家实例。
-    /// 2. 提供 ClientId 到 PlayerRuntime 的查询。
-    /// 3. 维护本地玩家引用。
-    /// 4. 提供常用玩家集合查询。
+    /// 1. 保存本机已经生成的玩家实例 
+    /// 2. 提供 ClientId 到 PlayerRuntime 的查询 
+    /// 3. 维护本地玩家引用 
+    /// 4. 提供常用玩家集合查询 
     /// </summary>
     public sealed class PlayerManager : MonoBehaviour, IGameRuntimeService
     {
@@ -28,7 +28,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private readonly List<PlayerRuntime> _orderedPlayers = new();
 
         private NetworkManager _networkManager;
-        // Camera Service 热重启或初始化顺序变化时，用观察者事件重发当前默认玩家目标。
+        // Camera Service 热重启或初始化顺序变化时，用观察者事件重发当前默认玩家目标 
         private IDisposable _cameraReadySubscription;
 
         public bool IsInitialized { get; private set; }
@@ -38,12 +38,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public bool IsMultiplayer => GameSessionContext.IsMultiplayer;
 
         /// <summary>
-        /// Lobby 阶段确定的预期玩家数量。
+        /// Lobby 阶段确定的预期玩家数量 
         /// </summary>
         public int ExpectedPlayerCount => GameSessionContext.PlayerCount;
 
         /// <summary>
-        /// 当前本机已经生成并注册的玩家实例数量。
+        /// 当前本机已经生成并注册的玩家实例数量 
         /// </summary>
         public int SpawnedPlayerCount => _orderedPlayers.Count;
 
@@ -60,7 +60,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogError($"[{nameof(PlayerManager)}] GameRuntimeScene 中存在重复实例。");
+                Debug.LogError($"[{nameof(PlayerManager)}] GameRuntimeScene 中存在重复实例 ");
                 Destroy(this);
                 return;
             }
@@ -78,10 +78,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _networkManager = NetworkManager.Singleton;
 
             if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动，无法初始化 PlayerManager。");
+                throw new InvalidOperationException("NGO 尚未启动，无法初始化 PlayerManager ");
 
             if (!GameSessionContext.IsConfigured)
-                throw new InvalidOperationException("GameSessionContext 尚未配置，无法建立 Gameplay 玩家数据。");
+                throw new InvalidOperationException("GameSessionContext 尚未配置，无法建立 Gameplay 玩家数据 ");
 
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
@@ -97,7 +97,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 由 PlayerRuntime.OnNetworkSpawn 调用。
+        /// 由 PlayerRuntime.OnNetworkSpawn 调用 
         /// </summary>
         public void RegisterPlayer(PlayerRuntime player)
         {
@@ -113,8 +113,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 if (existingPlayer == player)
                     return;
 
-                //断线重连时，新 PlayerRuntime 可能使用相同 ClientId 替换旧引用。
-                //先移除旧对象，避免同一个 ClientId 在列表中出现两次。
+                //断线重连时，新 PlayerRuntime 可能使用相同 ClientId 替换旧引用 
+                //先移除旧对象，避免同一个 ClientId 在列表中出现两次 
                 if (LocalPlayer == existingPlayer)
                 {
                     PublishLocalPlayerCameraRelease(existingPlayer);
@@ -122,7 +122,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 }
 
                 _orderedPlayers.Remove(existingPlayer);
-                Debug.LogWarning($"[{nameof(PlayerManager)}] Client {clientId} 的玩家实例已被替换。");
+                Debug.LogWarning($"[{nameof(PlayerManager)}] Client {clientId} 的玩家实例已被替换 ");
             }
 
             _playersByClientId[clientId] = player;
@@ -142,7 +142,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 由 PlayerRuntime.OnNetworkDespawn 调用。
+        /// 由 PlayerRuntime.OnNetworkDespawn 调用 
         /// </summary>
         public void UnregisterPlayer(PlayerRuntime player)
         {
@@ -152,7 +152,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             ulong clientId = player.ClientId;
 
             
-             //旧重连对象晚于新对象 Despawn 时，不能错误删除新玩家引用。
+             //旧重连对象晚于新对象 Despawn 时，不能错误删除新玩家引用 
             if (!_playersByClientId.TryGetValue(clientId, out PlayerRuntime registeredPlayer) || registeredPlayer != player)
                 return;
 
@@ -181,8 +181,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 等待所有会话玩家的 NetworkObject 在本机完成 Spawn。
-        /// PlayerSpawnController 后续会使用这个方法作为生成完成条件。
+        /// 等待所有会话玩家的 NetworkObject 在本机完成 Spawn 
+        /// PlayerSpawnController 后续会使用这个方法作为生成完成条件 
         /// </summary>
         public async UniTask WaitUntilAllPlayersRegisteredAsync(CancellationToken cancellationToken)
         {
@@ -190,10 +190,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 等待本机全部 PlayerRuntime 完成角色外观、武器和 Animator 初始化。
+        /// 等待本机全部 PlayerRuntime 完成角色外观、武器和 Animator 初始化 
         ///
-        /// Network Spawn 只说明网络身份存在，不代表 Addressables 表现资源已经可用。
-        /// 任一玩家初始化失败时立即抛出，避免 Server 永远卡在 Ready 屏障。
+        /// Network Spawn 只说明网络身份存在，不代表 Addressables 表现资源已经可用 
+        /// 任一玩家初始化失败时立即抛出，避免 Server 永远卡在 Ready 屏障 
         /// </summary>
         public async UniTask WaitUntilAllPlayersInitializedAsync(CancellationToken cancellationToken)
         {
@@ -233,8 +233,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
 
         /// <summary>
-        /// 获取距离指定位置最近的有效玩家。
-        /// 更复杂的仇恨、隐身和阵营过滤应由 AI 目标选择系统处理。
+        /// 获取距离指定位置最近的有效玩家 
+        /// 更复杂的仇恨、隐身和阵营过滤应由 AI 目标选择系统处理 
         /// </summary>
         public PlayerRuntime GetNearestPlayer(Vector3 searchPosition)
         {
@@ -266,7 +266,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 return UniTask.CompletedTask;
 
             if (_orderedPlayers.Count > 0)
-                Debug.LogWarning($"[{nameof(PlayerManager)}] Shutdown 时仍有 {_orderedPlayers.Count} 个玩家实例尚未注销。");
+                Debug.LogWarning($"[{nameof(PlayerManager)}] Shutdown 时仍有 {_orderedPlayers.Count} 个玩家实例尚未注销 ");
 
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
@@ -283,19 +283,19 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _cameraReadySubscription?.Dispose();
             _cameraReadySubscription = null;
 
-            Debug.Log($"[{nameof(PlayerManager)}] 已关闭并清理。");
+            Debug.Log($"[{nameof(PlayerManager)}] 已关闭并清理 ");
             return UniTask.CompletedTask;
         }
 
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(PlayerManager)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap。");
+                throw new InvalidOperationException($"{nameof(PlayerManager)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap ");
         }
 
         /// <summary>
-        /// PlayerManager 只发布“本地玩家成为默认观察目标”这一事实。
-        /// 它不知道由 Cinemachine、调试相机还是其他表现系统消费。
+        /// PlayerManager 只发布“本地玩家成为默认观察目标”这一事实 
+        /// 它不知道由 Cinemachine、调试相机还是其他表现系统消费 
         /// </summary>
         private static void PublishLocalPlayerCameraRequest(PlayerRuntime player)
         {

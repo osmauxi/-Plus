@@ -16,7 +16,7 @@ public class CharacterStatCollectionEditor : Editor
         if (!Application.isPlaying)
         {
             EditorGUILayout.Space(10);
-            EditorGUILayout.HelpBox("进入运行模式 (Play Mode) 后，此处将显示实时面板数值。", MessageType.Info);
+            EditorGUILayout.HelpBox("进入运行模式 (Play Mode) 后，此处将显示实时面板数值 ", MessageType.Info);
             return;
         }
 

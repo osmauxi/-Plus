@@ -2,7 +2,9 @@
     "name": "HotFix.Gameplay.EditModeTests",
     "rootNamespace": "",
     "references": [
+        "HotFix.Gameplay.Network",
         "HotFix.Gameplay",
+        "Unity.Netcode.Runtime",
         "Unity.InputSystem",
         "Unity.InputSystem.TestFramework",
         "UniTask"

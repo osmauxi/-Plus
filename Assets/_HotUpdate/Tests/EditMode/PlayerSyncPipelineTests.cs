@@ -194,7 +194,7 @@ namespace ProjectGame.HotFix.Tests.EditMode
         // 1. FireHeld 只按固定冷却递增事件序号；
         // 2. Reload 边沿只消费一次并压制 Fire；
         // 3. Hit 中断 Reload，Dead 再压制 Hit；
-        // 4. ActionState 必须进入 Delta，并在预测不一致时触发回滚。
+        // 4. ActionState 必须进入 Delta，并在预测不一致时触发回滚 
         [Test]
         public void FireHeld_ProducesSequenceAtFixedCadence()
         {

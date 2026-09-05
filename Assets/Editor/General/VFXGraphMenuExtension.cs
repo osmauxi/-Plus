@@ -30,7 +30,7 @@ public static class VFXGraphAssetCreator
 
             if (string.IsNullOrEmpty(newGuid))
             {
-                Debug.LogWarning("未能找到新创建的 VFX Graph 资源。");
+                Debug.LogWarning("未能找到新创建的 VFX Graph 资源 ");
                 return;
             }
 

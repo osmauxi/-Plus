@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace ProjectGame.HotFix.Config
 {
     /// <summary>
-    /// 数据解析管线策略模式接口，以后同时支持Excel，Json，Xml等数据的读取解析。
+    /// 数据解析管线策略模式接口，以后同时支持Excel，Json，Xml等数据的读取解析 
     /// </summary>
     public interface IDataParser
     {

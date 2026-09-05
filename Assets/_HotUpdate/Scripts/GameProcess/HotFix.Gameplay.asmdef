@@ -2,6 +2,8 @@
     "name": "HotFix.Gameplay",
     "rootNamespace": "",
     "references": [
+        "HotFix.Network.Runtime",
+        "HotFix.Gameplay.Network",
         "HotFix.Settings",
         "GUID:75469ad4d38634e559750d17036d5f7c",
         "GUID:65e1f9a98235de0478d5c4590a742bf6",

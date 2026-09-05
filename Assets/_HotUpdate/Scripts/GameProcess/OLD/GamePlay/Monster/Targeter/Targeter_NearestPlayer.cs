@@ -54,9 +54,9 @@ public class Targeter_NearestPlayer : MonoBehaviour, ITargetingModule
         }
 
         // 视线遮挡检测 (可选的高级逻辑)：
-        // 如果想做“掩体系统”，这里可以从怪物发射一条射线(Raycast)到玩家。
-        // 如果打中墙壁，就把 bb.CanSeeTarget 设为 false，否则设为 true。
-        // 这里为了简单，我们假设只要有目标就能看到。
+        // 如果想做“掩体系统”，这里可以从怪物发射一条射线(Raycast)到玩家 
+        // 如果打中墙壁，就把 bb.CanSeeTarget 设为 false，否则设为 true 
+        // 这里为了简单，我们假设只要有目标就能看到 
         bb.CanSeeTarget = bb.HasTarget;
     }
 }

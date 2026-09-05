@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 /// <summary>
-/// 高级索敌插件：基于仇恨值驱动，带有粘性阈值防抽搐，且支持无仇恨时就近索敌兜底。
+/// 高级索敌插件：基于仇恨值驱动，带有粘性阈值防抽搐，且支持无仇恨时就近索敌兜底 
 /// </summary>
 public class Targeter_AggroDriven : MonoBehaviour, ITargetingModule
 {
@@ -95,8 +95,8 @@ public class Targeter_AggroDriven : MonoBehaviour, ITargetingModule
                 //            bb.CurrentTarget = nearest;
                 //            bb.TargetPosition = nearest.position;
 
-                //            // 极小细节：给他强行塞一点初始仇恨。
-                //            // 这样即便另外一个远处的玩家用小手枪刮了一滴血，怪物也不会因为 1 > 0 立刻回头。
+                //            // 极小细节：给他强行塞一点初始仇恨 
+                //            // 这样即便另外一个远处的玩家用小手枪刮了一滴血，怪物也不会因为 1 > 0 立刻回头 
                 //            bb.AddThreat(nearest, initialAggro);
                 //        }
                 //    }

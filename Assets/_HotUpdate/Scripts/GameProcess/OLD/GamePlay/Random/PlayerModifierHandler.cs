@@ -87,7 +87,7 @@ public class PlayerModifierHandler : NetworkBehaviour
         // 兜底校验：如果卡池已经被玩家抽空了
         if (choices == null || choices.Count == 0)
         {
-            Debug.LogWarning("[词条UI] 没有抽到任何可用的词条（卡池已空），应当转化为金币/血量补偿。");
+            Debug.LogWarning("[词条UI] 没有抽到任何可用的词条（卡池已空），应当转化为金币/血量补偿 ");
             return;
         }
 

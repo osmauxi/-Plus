@@ -68,7 +68,7 @@ public class ModifierPoolManager : MonoBehaviour
     // ======================================================================
     public List<ModifierDataSO> RollStandardModifiersChaos(int amount, Dictionary<string, int> stackCounts, HashSet<string> playerTags)
     {
-        // 关闭冲突检测，关闭权重加成 (纯随机)。但注意，MaxStacks 的底线限制依然生效，防止游戏崩溃！
+        // 关闭冲突检测，关闭权重加成 (纯随机) 但注意，MaxStacks 的底线限制依然生效，防止游戏崩溃！
         return GenerateCandidatesAndRoll(amount, allModifiers, stackCounts, playerTags, checkConflicts: false, applyWeightBonus: false);
     }
 

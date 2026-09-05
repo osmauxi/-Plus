@@ -190,7 +190,7 @@ public class PlayerController : NetworkBehaviour, IKnockbackable
 
         // ==========================================
         // 世界坐标输入转局部坐标
-        // currentMoveInput 是世界坐标方向。
+        // currentMoveInput 是世界坐标方向 
         // 用它和角色的正前方(forward)做点乘，算出他在往自己眼前的哪个方向走 (-1 到 1)
         // 用它和角色的正右方(right)做点乘，算出他在往自己身体的哪侧走 (-1 到 1)
         // ==========================================

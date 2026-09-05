@@ -48,7 +48,7 @@ public interface IInteractable
     // 玩家靠近时，UI 上显示的提示词（例如 "按 F 开启宝箱", "按 F 献祭 30% 生命值"）
     string InteractPrompt { get; }
 
-    // 当玩家按下交互键时触发。传入触发者的 GameObject，方便溯源。
+    // 当玩家按下交互键时触发 传入触发者的 GameObject，方便溯源 
     void OnInteract(GameObject interactor);
 }
 public interface IKnockbackable

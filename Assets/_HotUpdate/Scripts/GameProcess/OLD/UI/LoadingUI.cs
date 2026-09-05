@@ -16,7 +16,7 @@ namespace ProjectGame.HotFix.UI
         private static bool _isInitializing = false;
 
         /// <summary>
-        /// 异步显示加载 UI。
+        /// 异步显示加载 UI 
         /// </summary>
         public static async UniTask Show(string message = "加载中...")
         {

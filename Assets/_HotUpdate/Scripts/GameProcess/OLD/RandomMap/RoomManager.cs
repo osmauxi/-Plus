@@ -322,7 +322,7 @@ public class RoomManager : NetworkBehaviour
             Vector3 spawnPos = roomObj.transform.position + dir.localPos;
             Quaternion spawnRot = Quaternion.Euler(0, dir.yRot, 0);
 
-            // 情况 A：如果没有邻居，生成实心墙。
+            // 情况 A：如果没有邻居，生成实心墙 
             if (!hasNeighbor)
             {
                 GameObject wallObj = LocalObjectPool.instance.GetT("Door", spawnPos, roomObj.transform);

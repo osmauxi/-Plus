@@ -19,7 +19,7 @@ public class ModifierDataSO : ScriptableObject
     [TextArea] public string description;
 
     [Header("堆叠与互斥")]
-    [Tooltip("允许获取的最大次数。1为不可重复拿。")]
+    [Tooltip("允许获取的最大次数 1为不可重复拿 ")]
     public int maxStacks = 1;
 
     [Tooltip("该词条自身的标签 (如 'Fire', 'Projectile')")]

@@ -14,7 +14,7 @@ public class MonsterBrain : NetworkBehaviour, IKnockbackable
     private IAttackModule attacker;
 
     [Header("顿帧与霸体配置")]
-    [Tooltip("怪物最多能忍受的累计顿帧时间(秒)。超过此值将触发霸体反扑！")]
+    [Tooltip("怪物最多能忍受的累计顿帧时间(秒) 超过此值将触发霸体反扑！")]
     public float maxHitStopTolerance = 0.6f;
     [Tooltip("触发霸体后，霸体持续的时间(秒)")]
     public float immunityDuration = 1.5f;

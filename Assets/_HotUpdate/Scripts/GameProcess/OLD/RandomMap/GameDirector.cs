@@ -136,7 +136,7 @@ public class GameDirector : NetworkBehaviour
         int maxEliteBudget = (int)(totalBudget * maxEliteBudgetRatio);
         int spentOnElites = 0;
 
-        Debug.Log($"[发牌员] 批复预算：{totalBudget} (战力膨胀: {powerMult}x)。开始智能采购...");
+        Debug.Log($"[发牌员] 批复预算：{totalBudget} (战力膨胀: {powerMult}x) 开始智能采购...");
 
         int safeCounter = 0;
         while (currentBudget > 0 && safeCounter < 1000)
@@ -181,7 +181,7 @@ public class GameDirector : NetworkBehaviour
             if (IsElite(selectedCard.cost)) spentOnElites += selectedCard.cost;
         }
 
-        Debug.Log($"[发牌员] 买了 {shoppingList.Count} 只怪。剩余零钱: {currentBudget}。");
+        Debug.Log($"[发牌员] 买了 {shoppingList.Count} 只怪 剩余零钱: {currentBudget} ");
         return shoppingList;
     }
 

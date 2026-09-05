@@ -136,14 +136,14 @@ public class Health : NetworkBehaviour
         }
 
         TriggerHitFeedbackClientRpc(hitPoint, hitDirection);
-        ///击退逻辑：伤害越高、权重越大，击退越狠；怪越肉，击退越弱。并且只有横向击退，没有竖向（起飞）效果。
+        ///击退逻辑：伤害越高、权重越大，击退越狠；怪越肉，击退越弱 并且只有横向击退，没有竖向（起飞）效果 
         if (hitWeight > 0f)
         {
             // 1. 提取纯横向方向，拒绝起飞
             Vector3 flatDir = new Vector3(hitDirection.x, 0, hitDirection.z).normalized;
 
             //击退公式：(基础伤害 * 击退权重 * 全局倍率) / (护甲/重量 + 10)
-            //伤害越高、权重越大，击退越狠；怪越肉，击退越弱。10f 是倍率常数，可凭手感微调。
+            //伤害越高、权重越大，击退越狠；怪越肉，击退越弱 10f 是倍率常数，可凭手感微调 
             float knockbackMagnitude = (rawDamage * hitWeight * 10f) / (defense + 10f);
 
             // 3. 施加小门槛，过滤掉机枪刮痧那种微不可察的抖动，节省性能

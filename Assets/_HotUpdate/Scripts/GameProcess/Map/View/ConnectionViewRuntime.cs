@@ -4,9 +4,9 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary>
-    /// 一个已实例化地图连接的运行时包装，将ID与实际View对象关联起来。
+    /// 一个已实例化地图连接的运行时包装，将ID与实际View对象关联起来 
     /// ConnectionView只保存预制体引用；
-    /// ConnectionId、房间关系、Portal和原始缩放保存在这里。
+    /// ConnectionId、房间关系、Portal和原始缩放保存在这里 
     /// </summary>
     public sealed class ConnectionViewRuntime
     {
@@ -40,10 +40,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             ValidateRoomScale(roomScale);
 
             if (view.StretchRoot == null)
-                throw new InvalidOperationException($"Connection {connectionId} 的 ConnectionView 缺少 StretchRoot。");
+                throw new InvalidOperationException($"Connection {connectionId} 的 ConnectionView 缺少 StretchRoot ");
 
             if (view.PortalA == null || view.PortalB == null)
-                throw new InvalidOperationException($"Connection {connectionId} 的 ConnectionView 缺少 PortalA 或 PortalB。");
+                throw new InvalidOperationException($"Connection {connectionId} 的 ConnectionView 缺少 PortalA 或 PortalB ");
 
             ConnectionId = connectionId;
             RoomAId = roomAId;
@@ -140,7 +140,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         }
 
         /// <summary>
-        /// 获取从当前房间出发、进入另一个房间的 Portal。
+        /// 获取从当前房间出发、进入另一个房间的 Portal 
         /// </summary>
         public RoomPortalRuntime GetPortalLeavingRoom(int currentRoomId)
         {
@@ -150,13 +150,13 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             if (currentRoomId == RoomBId)
                 return PortalToRoomA;
 
-            throw new ArgumentException($"Room {currentRoomId} 不属于 Connection {ConnectionId}。", nameof(currentRoomId));
+            throw new ArgumentException($"Room {currentRoomId} 不属于 Connection {ConnectionId} ", nameof(currentRoomId));
         }
 
         private static void ValidateRoomScale(float roomScale)
         {
             if (roomScale <= 0f || float.IsNaN(roomScale) || float.IsInfinity(roomScale))
-                throw new ArgumentOutOfRangeException(nameof(roomScale), "房间缩放必须是大于 0 的有限数值。");
+                throw new ArgumentOutOfRangeException(nameof(roomScale), "房间缩放必须是大于 0 的有限数值 ");
         }
 
         private static void SetActive(GameObject target, bool active)

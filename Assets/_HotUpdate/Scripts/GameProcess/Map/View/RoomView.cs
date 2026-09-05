@@ -4,8 +4,8 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary> 
-    /// 房间预制体的静态资源描述，作为锚点挂载载体。
-    /// RoomConnectorSlot由MapVisualBuilder在实例注册时自动收集。
+    /// 房间预制体的静态资源描述，作为锚点挂载载体 
+    /// RoomConnectorSlot由MapVisualBuilder在实例注册时自动收集 
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RoomView : MonoBehaviour

@@ -7,11 +7,11 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary>
-    /// 已完成模板选择、可直接用于构建房间的最终数据。
+    /// 已完成模板选择、可直接用于构建房间的最终数据 
     ///
     /// 与 MapRoomDefinition 的职责不同：
     /// MapRoomDefinition 只服务于地图生成；
-    /// MapRoomBuildDefinition 同时服务于本地构建和网络同步。
+    /// MapRoomBuildDefinition 同时服务于本地构建和网络同步 
     /// </summary>
     public readonly struct MapRoomBuildDefinition
     {
@@ -25,12 +25,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         public int RotationIndex { get; }
 
         /// <summary>
-        /// 当前房间模板只允许四分之一圈旋转，因此无需额外同步 Quaternion。
+        /// 当前房间模板只允许四分之一圈旋转，因此无需额外同步 Quaternion 
         /// </summary>
         public Quaternion WorldRotation => Quaternion.Euler(0f, RotationIndex * 90f, 0f);
 
         /// <summary>
-        /// 本地连接掩码完全由世界连接掩码和旋转次数决定，不重复存储。
+        /// 本地连接掩码完全由世界连接掩码和旋转次数决定，不重复存储 
         /// </summary>
         public ConnectorMask RequiredLocalConnectors => ConnectorMaskUtility.WorldToLocal(RequiredWorldConnectors, RotationIndex);
 
@@ -47,7 +47,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         )
         {
             if (rotationIndex < 0 || rotationIndex > 3)
-                throw new ArgumentOutOfRangeException(nameof(rotationIndex), "房间旋转索引必须在 0 到 3 之间。");
+                throw new ArgumentOutOfRangeException(nameof(rotationIndex), "房间旋转索引必须在 0 到 3 之间 ");
 
             RoomId = roomId;
             RoomType = roomType;
@@ -61,10 +61,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
     }
 
     /// <summary>
-    /// 一层地图完成生成和模板选择后的唯一构建数据。
+    /// 一层地图完成生成和模板选择后的唯一构建数据 
     ///
     /// Server 将同一份 MapBuildPlan 用于本地构建和 ClientRpc；
-    /// Client 接收后直接构建，不再经过 Snapshot 与 VisualPlan 的双向转换。
+    /// Client 接收后直接构建，不再经过 Snapshot 与 VisualPlan 的双向转换 
     /// </summary>
     public struct MapBuildPlan : INetworkSerializable
     {
@@ -107,7 +107,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 throw new ArgumentNullException(nameof(layout));
 
             if (rooms == null || rooms.Count != layout.Rooms.Count)
-                throw new ArgumentException("构建房间数量必须与 MapLayout 一致。", nameof(rooms));
+                throw new ArgumentException("构建房间数量必须与 MapLayout 一致 ", nameof(rooms));
 
             _seed = layout.Seed;
             _generationAttempt = layout.GenerationAttempt;
@@ -131,8 +131,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         }
 
         /// <summary>
-        /// Client 在需要逻辑布局查询时，可由最终构建数据恢复 MapLayout。
-        /// 这里只恢复数据，不重新执行地图生成或模板选择。
+        /// Client 在需要逻辑布局查询时，可由最终构建数据恢复 MapLayout 
+        /// 这里只恢复数据，不重新执行地图生成或模板选择 
         /// </summary>
         public MapLayout ToLayout()
         {
@@ -219,10 +219,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                     throw new InvalidOperationException($"MapBuildPlan 中存在重复 ConnectionId：{connection.ConnectionId}");
 
                 if (connection.RoomAId == connection.RoomBId)
-                    throw new InvalidOperationException($"Connection {connection.ConnectionId} 连接到了同一个房间。");
+                    throw new InvalidOperationException($"Connection {connection.ConnectionId} 连接到了同一个房间 ");
 
                 if (!roomIds.Contains(connection.RoomAId) || !roomIds.Contains(connection.RoomBId))
-                    throw new InvalidOperationException($"Connection {connection.ConnectionId} 引用了不存在的房间。");
+                    throw new InvalidOperationException($"Connection {connection.ConnectionId} 引用了不存在的房间 ");
             }
         }
 

@@ -19,7 +19,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 throw new ArgumentNullException(nameof(layout));
 
             if (templates == null || templates.Count == 0)
-                throw new ArgumentException("房间模板列表不能为空。", nameof(templates));
+                throw new ArgumentException("房间模板列表不能为空 ", nameof(templates));
 
             List<MapRoomBuildDefinition> buildRooms = new List<MapRoomBuildDefinition>(layout.Rooms.Count);
 
@@ -65,13 +65,13 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
 
                 Vector3 offset = neighbor.WorldPosition - room.WorldPosition;
 
-                //GridGraph的连接必须是水平或垂直方向。
-                //出现明显斜向偏移，说明布局数据不符合当前选择器规范。
+                //GridGraph的连接必须是水平或垂直方向 
+                //出现明显斜向偏移，说明布局数据不符合当前选择器规范 
                 bool hasX = Mathf.Abs(offset.x) > 0.01f;
                 bool hasZ = Mathf.Abs(offset.z) > 0.01f;
 
                 if (hasX == hasZ)
-                    throw new InvalidOperationException($"Room {room.RoomId} 到 Room {neighbor.RoomId} 不是有效的网格正交连接。");
+                    throw new InvalidOperationException($"Room {room.RoomId} 到 Room {neighbor.RoomId} 不是有效的网格正交连接 ");
 
                 if (hasX)
                     mask |= offset.x > 0f ? ConnectorMask.East : ConnectorMask.West;
@@ -122,8 +122,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                     $"找不到兼容房间模板：Room={room.RoomId}，Type={room.RoomType}，" +
                     $"Strategy={strategyType}，Mask={requiredWorldMask}");
 
-            //每个房间使用独立随机种子。
-            //即使以后调整其他房间的选择顺序，也不会改变当前房间的结果。
+            //每个房间使用独立随机种子 
+            //即使以后调整其他房间的选择顺序，也不会改变当前房间的结果 
             int roomSeed = unchecked(mapSeed * 486187739 + room.RoomId * 16777619 + (int)room.RoomType * 7919);
             System.Random random = new System.Random(roomSeed);
 

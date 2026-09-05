@@ -5,8 +5,8 @@ using UnityEngine.Serialization;
 namespace ProjectGame.HotFix.Gameplay.Map.Generation
 {
     /// <summary>
-    /// GridGraph策略的Inspector 配置。
-    /// 后续接入 Excel 后，可以直接由表数据构造MapGenerationSettings。
+    /// GridGraph策略的Inspector 配置 
+    /// 后续接入 Excel 后，可以直接由表数据构造MapGenerationSettings 
     /// </summary>
     [Serializable]
     public sealed class GridMapGenerationProfile
@@ -18,7 +18,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         [FormerlySerializedAs("_roomSpacing")]
         [SerializeField, Min(1f)] private float _baseRoomSize = 70f;
 
-        [Tooltip("每层地图生成前确定一次统一缩放；该层的所有房间共享此 Scale。")]
+        [Tooltip("每层地图生成前确定一次统一缩放；该层的所有房间共享此 Scale ")]
         [SerializeField] private float[] _allowedRoomScales = { 0.75f, 1f, 1.25f };
 
         [SerializeField, Min(1)] private int _maxGenerationAttempts = 20;
@@ -26,7 +26,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         public void Validate()
         {
             if (_allowedRoomScales == null || _allowedRoomScales.Length == 0)
-                throw new InvalidOperationException("GridGraph 至少需要配置一个房间缩放值。");
+                throw new InvalidOperationException("GridGraph 至少需要配置一个房间缩放值 ");
 
             for (int i = 0; i < _allowedRoomScales.Length; i++)
             {
@@ -43,7 +43,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         {
             ValidateScaleCandidates();
 
-            // 使用独立随机流选择整层统一 Scale，避免影响拓扑随机序列。
+            // 使用独立随机流选择整层统一 Scale，避免影响拓扑随机序列 
             int scaleSeed = unchecked(seed * 486187739 + 104729);
             System.Random scaleRandom = new System.Random(scaleSeed);
             float roomScale = _allowedRoomScales[scaleRandom.Next(_allowedRoomScales.Length)];
@@ -63,7 +63,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         private void ValidateScaleCandidates()
         {
             if (_allowedRoomScales == null || _allowedRoomScales.Length == 0)
-                throw new InvalidOperationException("GridGraph 至少需要配置一个房间缩放值。");
+                throw new InvalidOperationException("GridGraph 至少需要配置一个房间缩放值 ");
 
             for (int i = 0; i < _allowedRoomScales.Length; i++)
             {

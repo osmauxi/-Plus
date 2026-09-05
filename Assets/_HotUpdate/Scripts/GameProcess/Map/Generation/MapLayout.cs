@@ -5,8 +5,8 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Map.Generation
 {
     /// <summary>
-    /// 一个未选择视觉模板的房间定义。
-    /// 这是不可变生成数据，不保存IsCleared、IsDiscovered等运行时状态。
+    /// 一个未选择视觉模板的房间定义 
+    /// 这是不可变生成数据，不保存IsCleared、IsDiscovered等运行时状态 
     /// </summary>
     public readonly struct MapRoomDefinition
     {
@@ -27,10 +27,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
     }
 
     /// <summary>
-    /// 两个房间之间的一条逻辑连接。
+    /// 两个房间之间的一条逻辑连接 
     ///
     /// 这里暂时不指定门口或走廊模板，
-    /// 那些信息由后续 MapVisualBuilder 根据具体房间资源决定。
+    /// 那些信息由后续 MapVisualBuilder 根据具体房间资源决定 
     /// </summary>
     public readonly struct MapConnectionDefinition
     {
@@ -41,7 +41,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         public MapConnectionDefinition(int connectionId, int roomAId, int roomBId)
         {
             if (roomAId == roomBId)
-                throw new ArgumentException("房间不能连接到自己。");
+                throw new ArgumentException("房间不能连接到自己 ");
 
             ConnectionId = connectionId;
             RoomAId = roomAId;
@@ -56,12 +56,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             if (roomId == RoomBId)
                 return RoomAId;
 
-            throw new ArgumentException($"Room {roomId} 不属于 Connection {ConnectionId}。", nameof(roomId));
+            throw new ArgumentException($"Room {roomId} 不属于 Connection {ConnectionId} ", nameof(roomId));
         }
     }
 
     /// <summary>
-    /// 一层地图的完整、不可变布局结果。
+    /// 一层地图的完整、不可变布局结果 
     /// </summary>
     public sealed class MapLayout
     {
@@ -95,13 +95,13 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             )
         {
             if (rooms == null || rooms.Count == 0)
-                throw new ArgumentException("地图至少需要一个房间。", nameof(rooms));
+                throw new ArgumentException("地图至少需要一个房间 ", nameof(rooms));
 
             if (connections == null)
                 throw new ArgumentNullException(nameof(connections));
 
             if (roomScale <= 0f || float.IsNaN(roomScale) || float.IsInfinity(roomScale))
-                throw new ArgumentOutOfRangeException(nameof(roomScale), "房间缩放必须是大于 0 的有限数值。");
+                throw new ArgumentOutOfRangeException(nameof(roomScale), "房间缩放必须是大于 0 的有限数值 ");
 
             Seed = seed;
             GenerationAttempt = generationAttempt;
@@ -160,7 +160,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
                 MapConnectionDefinition connection = _connections[i];
 
                 if (!temporaryLookup.ContainsKey(connection.RoomAId) || !temporaryLookup.ContainsKey(connection.RoomBId))
-                    throw new InvalidOperationException($"Connection {connection.ConnectionId} 引用了不存在的房间。");
+                    throw new InvalidOperationException($"Connection {connection.ConnectionId} 引用了不存在的房间 ");
 
                 temporaryLookup[connection.RoomAId].Add(connection.RoomBId);
                 temporaryLookup[connection.RoomBId].Add(connection.RoomAId);

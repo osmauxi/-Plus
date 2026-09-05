@@ -10,7 +10,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary>
-    /// 从 ConfigManager 的 RoomTemplate 配表建立房间模板运行时索引。
+    /// 从 ConfigManager 的 RoomTemplate 配表建立房间模板运行时索引 
     /// </summary>
     public sealed class RoomTemplateCatalog : MonoBehaviour, IGameRuntimeService
     {
@@ -32,10 +32,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 ConfigManager.Instance.GetTable<Config_RoomTemplate>();
 
             if (table == null)
-                throw new InvalidOperationException("未加载 RoomTemplate 配置表。");
+                throw new InvalidOperationException("未加载 RoomTemplate 配置表 ");
 
             if (table.Count == 0)
-                throw new InvalidOperationException("RoomTemplate 配置表没有任何房间模板。");
+                throw new InvalidOperationException("RoomTemplate 配置表没有任何房间模板 ");
 
             _templates.Clear();
             _templatesById.Clear();

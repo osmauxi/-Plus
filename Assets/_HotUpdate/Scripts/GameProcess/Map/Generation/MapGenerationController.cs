@@ -10,19 +10,19 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Map.Generation
 {
     /// <summary>
-    /// 地图阶段的网络编排器。
+    /// 地图阶段的网络编排器 
     ///
     /// Server：
-    /// 1. 生成地图拓扑。
-    /// 2. 选择视觉模板。
-    /// 3. 构建本地地图。
-    /// 4. 向 Client 发送同一份构建方案。
-    /// 5. 等待所有 Client 完成地图构建。
+    /// 1. 生成地图拓扑 
+    /// 2. 选择视觉模板 
+    /// 3. 构建本地地图 
+    /// 4. 向 Client 发送同一份构建方案 
+    /// 5. 等待所有 Client 完成地图构建 
     ///
     /// Client：
-    /// 1. 接收 Server 的 MapBuildPlan。
-    /// 2. 直接构建本地地图视觉。
-    /// 3. 向 Server 报告 Ready。
+    /// 1. 接收 Server 的 MapBuildPlan 
+    /// 2. 直接构建本地地图视觉 
+    /// 3. 向 Server 报告 Ready 
     /// </summary>
     public sealed class MapGenerationController : NetworkBehaviour, IGameRuntimeService
     {
@@ -33,7 +33,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         [SerializeField] private GridMapGenerationProfile _gridProfile = new GridMapGenerationProfile();
 
         [Header("网络设置")]
-        [Tooltip("Server 等待所有客户端完成地图视觉构建的最长时间。")]
+        [Tooltip("Server 等待所有客户端完成地图视觉构建的最长时间 ")]
         [SerializeField, Min(1f)] private float _clientReadyTimeoutSeconds = 20f;
 
         private readonly HashSet<ulong> _readyClientIds = new HashSet<ulong>();
@@ -64,19 +64,19 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             if (IsInitialized)
                 return;
 
-            // NetworkBehaviour 必须已经完成 Spawn，才能安全使用 RPC。
+            // NetworkBehaviour 必须已经完成 Spawn，才能安全使用 RPC 
             await UniTask.WaitUntil(() => IsSpawned, cancellationToken: cancellationToken);
 
             _networkManager = NetworkManager;
 
             if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动，无法初始化 MapGenerationController。");
+                throw new InvalidOperationException("NGO 尚未启动，无法初始化 MapGenerationController ");
 
             if (_templateCatalog == null || !_templateCatalog.IsInitialized)
-                throw new InvalidOperationException("RoomTemplateCatalog 尚未初始化。");
+                throw new InvalidOperationException("RoomTemplateCatalog 尚未初始化 ");
 
             if (_visualBuilder == null || !_visualBuilder.IsInitialized)
-                throw new InvalidOperationException("MapVisualBuilder 尚未初始化。");
+                throw new InvalidOperationException("MapVisualBuilder 尚未初始化 ");
 
             _gridProfile.Validate();
 
@@ -87,12 +87,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
             IsInitialized = true;
 
-            Debug.Log($"[{nameof(MapGenerationController)}] 初始化完成。");
+            Debug.Log($"[{nameof(MapGenerationController)}] 初始化完成 ");
         }
 
         /// <summary>
-        /// Server 生成并构建当前层地图。
-        /// 返回时保证当前所有已连接客户端都完成了地图视觉构建。
+        /// Server 生成并构建当前层地图 
+        /// 返回时保证当前所有已连接客户端都完成了地图视觉构建 
         /// </summary>
         public async UniTask<MapBuildResult> GenerateAndBuildAsync(int level, int playerCount, CancellationToken cancellationToken, int? seedOverride = null)
         {
@@ -113,14 +113,14 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
             _readyClientIds.Clear();
 
-            // Server 先完成自己的地图构建。
-            // 构建失败时不会向其他客户端发送一份无效方案。
+            // Server 先完成自己的地图构建 
+            // 构建失败时不会向其他客户端发送一份无效方案 
             await _visualBuilder.BuildAsync(buildPlan, cancellationToken);
 
             CurrentLayout = layout;
             CurrentBuildPlan = buildPlan;
 
-            // Host同时也是一个Client，需要记录本地地图已经完成。
+            // Host同时也是一个Client，需要记录本地地图已经完成 
             if (_networkManager.IsClient)
                 _readyClientIds.Add(_networkManager.LocalClientId);
 
@@ -136,7 +136,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
         /// <summary>
         /// 在客户端完成 Runtime Ready 后，可由上层重连流程调用，
-        /// 向指定客户端重新发送当前地图构建方案。
+        /// 向指定客户端重新发送当前地图构建方案 
         /// </summary>
         public void SendCurrentMapToClientServer(ulong clientId)
         {
@@ -145,13 +145,13 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
             if (!CurrentBuildPlan.IsValid)
             {
-                Debug.LogWarning($"[{nameof(MapGenerationController)}] 当前没有可发送的地图构建方案。");
+                Debug.LogWarning($"[{nameof(MapGenerationController)}] 当前没有可发送的地图构建方案 ");
                 return;
             }
 
             if (!IsConnectedClient(clientId))
             {
-                Debug.LogWarning($"[{nameof(MapGenerationController)}] Client {clientId} 当前未连接。");
+                Debug.LogWarning($"[{nameof(MapGenerationController)}] Client {clientId} 当前未连接 ");
                 return;
             }
 
@@ -160,8 +160,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         }
 
         /// <summary>
-        /// Server 和所有 Client 清理当前地图。
-        /// 通常在返回大厅或切换到下一层前调用。
+        /// Server 和所有 Client 清理当前地图 
+        /// 通常在返回大厅或切换到下一层前调用 
         /// </summary>
         public async UniTask ClearCurrentMapAsync(CancellationToken cancellationToken)
         {
@@ -189,7 +189,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             {
                 ulong clientId = connectedClientIds[i];
 
-                // Host 已经在本机直接 Build，不需要再接收自己的 ClientRpc。
+                // Host 已经在本机直接 Build，不需要再接收自己的 ClientRpc 
                 if (_networkManager.IsClient && clientId == _networkManager.LocalClientId)
                     continue;
 
@@ -225,7 +225,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             {
                 await UniTask.WaitUntil(() => IsInitialized, cancellationToken: lifetimeToken);
 
-                //过滤迟到包。
+                //过滤迟到包 
                 if (generationId < _currentGenerationId)
                     return;
 
@@ -281,7 +281,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
                 if (Time.realtimeSinceStartup >= deadline)
                 {
                     string waitingClients = BuildWaitingClientText();
-                    throw new TimeoutException($"等待客户端地图 Ready 超时。Generation={generationId}，Waiting={waitingClients}");
+                    throw new TimeoutException($"等待客户端地图 Ready 超时 Generation={generationId}，Waiting={waitingClients}");
                 }
 
                 await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
@@ -380,8 +380,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
         private void OnClientDisconnected(ulong clientId)
         {       
-            //已断开的客户端不应继续阻塞当前地图 Ready 屏障。
-            //是否结束游戏或等待重连，交给更上层的会话规则决定。
+            //已断开的客户端不应继续阻塞当前地图 Ready 屏障 
+            //是否结束游戏或等待重连，交给更上层的会话规则决定 
             _readyClientIds.Remove(clientId);
         }
 
@@ -409,19 +409,19 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
             IsInitialized = false;
 
-            Debug.Log($"[{nameof(MapGenerationController)}] 已关闭并清理。");
+            Debug.Log($"[{nameof(MapGenerationController)}] 已关闭并清理 ");
         }
 
         private void EnsureInitialized()
         {
             if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(MapGenerationController)} 尚未初始化。");
+                throw new InvalidOperationException($"{nameof(MapGenerationController)} 尚未初始化 ");
         }
 
         private void EnsureServer()
         {
             if (_networkManager == null || !_networkManager.IsServer)
-                throw new InvalidOperationException("只有 Server 可以生成或清理地图。");
+                throw new InvalidOperationException("只有 Server 可以生成或清理地图 ");
         }
 
         private void CancelClientBuild()

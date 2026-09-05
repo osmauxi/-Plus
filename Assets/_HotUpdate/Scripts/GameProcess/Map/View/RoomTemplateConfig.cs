@@ -4,8 +4,8 @@ using ProjectGame.HotFix.Gameplay.Map.Generation;
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary>
-    /// 配表数据在地图运行时的只读房间模板。
-    /// TemplateId 用于网络构建方案和配置查找，PoolId 用于 LocalObjectPool 实例化预制体。
+    /// 配表数据在地图运行时的只读房间模板 
+    /// TemplateId 用于网络构建方案和配置查找，PoolId 用于 LocalObjectPool 实例化预制体 
     /// </summary>
     public sealed class RoomTemplateConfig
     {
@@ -44,7 +44,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         public void Validate()
         {
             if (TemplateId <= 0)
-                throw new InvalidOperationException("Room TemplateId 必须大于 0。");
+                throw new InvalidOperationException("Room TemplateId 必须大于 0 ");
 
             if (RoomType == RoomType.None || !Enum.IsDefined(typeof(RoomType), RoomType))
                 throw new InvalidOperationException($"Template {TemplateId} 的 RoomType 非法：{(int)RoomType}");
@@ -57,7 +57,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             }
 
             if (string.IsNullOrWhiteSpace(PoolId))
-                throw new InvalidOperationException($"Template {TemplateId} 没有配置 PoolId。");
+                throw new InvalidOperationException($"Template {TemplateId} 没有配置 PoolId ");
 
             if (SupportedConnectorMask == ConnectorMask.None ||
                 (SupportedConnectorMask & ~ConnectorMask.All) != ConnectorMask.None)
@@ -74,7 +74,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             }
 
             if (Weight <= 0f || float.IsNaN(Weight) || float.IsInfinity(Weight))
-                throw new InvalidOperationException($"Template {TemplateId} 的权重必须是大于 0 的有限数值。");
+                throw new InvalidOperationException($"Template {TemplateId} 的权重必须是大于 0 的有限数值 ");
         }
 
         public bool SupportsStrategy(MapLayoutStrategyType strategyType)

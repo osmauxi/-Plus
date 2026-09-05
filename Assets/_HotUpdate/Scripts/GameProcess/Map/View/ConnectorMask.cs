@@ -3,8 +3,8 @@
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary>
-    /// 网格房间的四方向连接掩码。
-    /// 可以通过位运算同时表示多个方向。
+    /// 网格房间的四方向连接掩码 
+    /// 可以通过位运算同时表示多个方向 
     /// </summary>
     //flags标签标明该枚举可以作为位域使用，允许组合多个值
     [Flags]
@@ -19,8 +19,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
     }
 
     /// <summary>
-    /// 房间模板允许使用的旋转角度。
-    /// 一个Quarter Turn等于顺时针旋转 90 度。
+    /// 房间模板允许使用的旋转角度 
+    /// 一个Quarter Turn等于顺时针旋转 90 度 
     /// </summary>
     [Flags]
     public enum QuarterTurnMask : byte
@@ -33,12 +33,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         All = Turn0 | Turn90 | Turn180 | Turn270
     }
     /// <summary>
-    /// 负责方向表示、方向组合和房间旋转之间的转换与判断。
+    /// 负责方向表示、方向组合和房间旋转之间的转换与判断 
     /// </summary>
     public static class ConnectorMaskUtility
     {
         /// <summary>
-        /// 把一个单独的ConnectorDirection转换成对应的ConnectorMask。
+        /// 把一个单独的ConnectorDirection转换成对应的ConnectorMask 
         /// </summary>
         public static ConnectorMask FromDirection(ConnectorDirection direction)
         {
@@ -53,7 +53,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         }
 
         /// <summary>
-        /// /将房间局部连接结构顺时针旋转指定次数。
+        /// /将房间局部连接结构顺时针旋转指定次数 
         /// </summary>
         /// <param name="mask"></param> 旋转前的房间局部连接掩码
         /// <param name="quarterTurns"></param> 顺时针旋转的次数（每次旋转90度）
@@ -86,7 +86,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         }
 
         /// <summary>
-        /// 将世界方向掩码逆向转换为旋转前的房间局部掩码。
+        /// 将世界方向掩码逆向转换为旋转前的房间局部掩码 
         /// </summary>
         //存在原因为房间生成会旋转，但是我们又需要预制体未旋转时的连接方向，以确定门的位置等，所以要反向把世界方向转换为房间局部方向
         //roomRotationIndex是房间旋转的次数，这里是反向转回来，所以是4-roomRotationIndex
@@ -96,15 +96,15 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         }
 
         /// <summary>
-        /// 判断available是否包含required中的全部方向。
-        /// 用在判定房间门插槽是否支持所有当前需要的连接方向。
+        /// 判断available是否包含required中的全部方向 
+        /// 用在判定房间门插槽是否支持所有当前需要的连接方向 
         /// </summary>
         public static bool ContainsAll(ConnectorMask available, ConnectorMask required)
         {
             return (available & required) == required;
         }
         /// <summary>
-        /// 统计一个连接掩码中包含多少个方向。
+        /// 统计一个连接掩码中包含多少个方向 
         /// </summary>
         public static int Count(ConnectorMask mask)
         {

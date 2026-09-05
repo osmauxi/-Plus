@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
     /// <summary>
-    /// 一个已实例化房间的运行时包装，由MapVisualBuilder创建和持有。
-    /// 将RoomID与具体View绑定，并缓存RoomConnectorSlot，便于后续连接逻辑使用。
+    /// 一个已实例化房间的运行时包装，由MapVisualBuilder创建和持有 
+    /// 将RoomID与具体View绑定，并缓存RoomConnectorSlot，便于后续连接逻辑使用 
     /// </summary>
     public sealed class RoomViewRuntime
     {
@@ -21,7 +21,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             View = view != null ? view : throw new ArgumentNullException(nameof(view));
             RoomId = roomId;
 
-            // 房间实例注册时只扫描一次，后续全部使用缓存。
+            // 房间实例注册时只扫描一次，后续全部使用缓存 
             _connectors = view.GetComponentsInChildren<RoomConnectorSlot>(true);
 
             for (int i = 0; i < _connectors.Length; i++)

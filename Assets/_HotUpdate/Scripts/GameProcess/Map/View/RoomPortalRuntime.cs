@@ -35,7 +35,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 throw new ArgumentNullException(nameof(portalTransform));
 
             if (inwardNormal.sqrMagnitude < 0.01f)
-                throw new ArgumentException("Portal 朝向向量不能为空。", nameof(inwardNormal));
+                throw new ArgumentException("Portal 朝向向量不能为空 ", nameof(inwardNormal));
 
             ConnectionId = connectionId;
             TargetRoomId = targetRoomId;

@@ -89,3 +89,8 @@ crashlytics-build.properties
 /[Aa]ssets/InitTestScene*.unity
 /[Aa]ssets/InitTestScene*.unity.meta
 
+# 本地草稿与临时产物（不提交）
+/.codex-tmp/
+/outputs/
+/[Aa]ssets/_HotUpdate/Tests/Temp/
+

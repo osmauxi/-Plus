@@ -584,6 +584,7 @@ namespace ProjectGame.Bootstrap
                 case "HotFix.Gameplay":
                     return 40;
                 case "HotFix.Lobby.UI":
+                case "HotFix.Gameplay.UI":
                     return 50;
                 case "HotFix.Entry":
                     return 1000;

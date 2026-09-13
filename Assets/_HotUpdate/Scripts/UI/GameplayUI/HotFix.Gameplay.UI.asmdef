@@ -1,0 +1,17 @@
+{
+    "name": "HotFix.Gameplay.UI",
+    "rootNamespace": "ProjectGame.HotFix.UI.Gameplay",
+    "references": [
+        "HotFix.Gameplay",
+        "HotFix.Session",
+        "HotFix.SceneFlow",
+        "HotFix.Events",
+        "Unity.Netcode.Runtime",
+        "Unity.InputSystem",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
+    ],
+    "autoReferenced": true
+}

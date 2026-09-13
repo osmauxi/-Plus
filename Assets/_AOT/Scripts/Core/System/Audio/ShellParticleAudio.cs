@@ -30,6 +30,9 @@ public class ShellParticleAudio : MonoBehaviour
 
     private void OnParticleCollision(GameObject other)
     {
+        if (partSystem == null)
+            return;
+
         int numCollisionEvents = partSystem.GetCollisionEvents(other, collisionEvents);
 
         for (int i = 0; i < numCollisionEvents; i++)
@@ -42,11 +45,16 @@ public class ShellParticleAudio : MonoBehaviour
                 {
                     lastPlayTime = Time.time;
 
-                    if (shellDropClips != null && shellDropClips.Length > 0)
+                    AudioManager audioManager = AudioManager.instance;
+                    if (audioManager != null && shellDropClips != null && shellDropClips.Length > 0)
                     {
+                        AudioClip clip = shellDropClips[Random.Range(0, shellDropClips.Length)];
+                        if (clip == null)
+                            continue;
+
                         // 【修改】：使用你可以在面板上拉动的 shellVolume
-                        AudioManager.instance.PlaySFXAtPosition(
-                            shellDropClips[Random.Range(0, shellDropClips.Length)],
+                        audioManager.PlaySFXAtPosition(
+                            clip,
                             collisionEvents[i].intersection,
                             shellVolume, // <--- 这里！
                             1f + Random.Range(-0.15f, 0.15f)

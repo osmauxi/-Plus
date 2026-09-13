@@ -93,4 +93,5 @@ crashlytics-build.properties
 /.codex-tmp/
 /outputs/
 /[Aa]ssets/_HotUpdate/Tests/Temp/
+/[Aa]ssets/_HotUpdate/Tests/Temp.meta
 

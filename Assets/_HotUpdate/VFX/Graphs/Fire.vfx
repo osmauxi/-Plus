@@ -189,7 +189,7 @@ MonoBehaviour:
   m_Parent: {fileID: 114350483966674976}
   m_Children:
   - {fileID: 8926484042661614606}
-  m_UIPosition: {x: 931, y: -415}
+  m_UIPosition: {x: 515, y: -403}
   m_UICollapsed: 0
   m_UISuperCollapsed: 0
   m_InputSlots: []
@@ -505,7 +505,7 @@ MonoBehaviour:
     linkedSlots:
     - outputSlot: {fileID: 8926484042661614625}
       inputSlot: {fileID: 8926484042661614607}
-    position: {x: 743.3333, y: -248.66666}
+    position: {x: 197, y: -238}
     expandedSlots: []
     expanded: 0
 --- !u!114 &8926484042661614625

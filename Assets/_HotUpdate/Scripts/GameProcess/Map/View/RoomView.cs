@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using ProjectGame.HotFix.Gameplay.Spawning;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Map.View
@@ -10,15 +11,28 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
     [DisallowMultipleComponent]
     public sealed class RoomView : MonoBehaviour
     {
-        [Header("Spawn Points")]
-        [SerializeField] private Transform[] _enemySpawnPoints;
-        [SerializeField] private Transform[] _playerSpawnPoints;
+        [Header("Spawn Region")]
+        [SerializeField] private Vector3 _spawnRegionCenter = new Vector3(0f, 5f, 0f);
+        [SerializeField] private Vector3 _spawnRegionSize = new Vector3(60f, 20f, 60f);
+        [SerializeField] private LayerMask _spawnProbeMask = ~0;
+        [SerializeField] private LayerMask _groundMask = 1 << 3;
+
+        [Header("Semantic Anchors")]
         [SerializeField] private Transform[] _chestSpawnPoints;
         [SerializeField] private Transform[] _nextLevelPoints;
 
-        public IReadOnlyList<Transform> EnemySpawnPoints => _enemySpawnPoints;
-        public IReadOnlyList<Transform> PlayerSpawnPoints => _playerSpawnPoints;
-        public IReadOnlyList<Transform> ChestSpawnPoints => _chestSpawnPoints;
-        public IReadOnlyList<Transform> NextLevelPoints => _nextLevelPoints;
+        public RoomSpawnRegion SpawnRegion => new RoomSpawnRegion(transform,
+            _spawnRegionCenter, _spawnRegionSize, _spawnProbeMask, _groundMask);
+
+        private void OnDrawGizmosSelected()
+        {
+            Matrix4x4 previousMatrix = Gizmos.matrix;
+            Color previousColor = Gizmos.color;
+            Gizmos.matrix = transform.localToWorldMatrix;
+            Gizmos.color = new Color(0.15f, 0.85f, 0.35f, 1f);
+            Gizmos.DrawWireCube(_spawnRegionCenter, _spawnRegionSize);
+            Gizmos.matrix = previousMatrix;
+            Gizmos.color = previousColor;
+        }
     }
 }

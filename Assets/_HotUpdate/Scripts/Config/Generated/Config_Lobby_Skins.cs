@@ -1,6 +1,7 @@
 ﻿using System;
 using MessagePack;
 using System.Collections.Generic;
+using UnityEngine;
 
 [MessagePackObject]
 public class Config_Lobby_Skins

@@ -17,12 +17,10 @@ public class MessagePackCompilerTool
         // 输出文件：生成的静态解析器，放在 HotFix 目录下参与热更编译
         string outputPath = Path.Combine(Application.dataPath, "_HotUpdate", "Scripts", "Config", "MessagePackGenerated.cs");
 
-        // 清理旧的生成文件，避免残留过时代码导致编译报错
-        if (File.Exists(outputPath))
-        {
-            File.Delete(outputPath);
-            UnityEngine.Debug.Log($"[清理] 已删除旧的 MessagePackGenerated.cs，准备重新生成");
-        }
+        // 先生成临时产物，失败时保留上一版可用解析器。
+        string temporaryFolder = Path.Combine(projectRoot, "Temp", "ConfigMPC");
+        Directory.CreateDirectory(temporaryFolder);
+        string temporaryOutput = Path.Combine(temporaryFolder, "MessagePackGenerated.cs");
 
         // mpc 的可执行文件路径（dotnet 全局工具）
 #if UNITY_EDITOR_WIN
@@ -35,7 +33,7 @@ public class MessagePackCompilerTool
 
         // 组装 mpc 命令行参数
         // -i 指定输入目录，-o 指定输出文件，-n 指定命名空间
-        string arguments = $"-i \"{inputPath}\" -o \"{outputPath}\" -n ProjectGame.HotFix.Resolvers";
+        string arguments = $"-i \"{inputPath}\" -o \"{temporaryOutput}\" -n ProjectGame.HotFix.Resolvers";
 
         UnityEngine.Debug.Log($"[MPC] 执行命令: {mpcPath} {arguments}");
 
@@ -52,6 +50,9 @@ public class MessagePackCompilerTool
             WorkingDirectory = projectRoot
         };
 
+        // 旧 mpc 的 MSBuildLocator 在旧运行时下看不到新 SDK；允许使用本机最新运行时。
+        startInfo.EnvironmentVariables["DOTNET_ROLL_FORWARD"] = "LatestMajor";
+
         using (Process process = Process.Start(startInfo))
         {
             string output = process.StandardOutput.ReadToEnd();
@@ -60,6 +61,7 @@ public class MessagePackCompilerTool
 
             if (process.ExitCode == 0)
             {
+                File.Copy(temporaryOutput, outputPath, true);
                 UnityEngine.Debug.Log("<color=green>[MPC] AOT 静态代码生成成功！无惧 IL2CPP！</color>\n" + output);
                 AssetDatabase.Refresh();
             }

@@ -63,7 +63,7 @@ namespace ProjectGame.HotFix.Config
             {
                 return dictObj as Dictionary<int, T>;
             }
-            Debug.LogError($"[ConfigManager] 找不到表 {t.Name}，请检查是否打上了 ConfigData 标签！");
+            Debug.LogError($"[ConfigManager] 找不到表 {t.Name}，请检查 .bytes 是否已注册到 Configs 分组并打上 Config 标签！");
             return null;
         }
 
@@ -75,7 +75,7 @@ namespace ProjectGame.HotFix.Config
             if (_baseDataParser == null) 
                 Init();
 
-            Debug.Log("[ConfigManager] 开始批量拉取 ConfigData 标签下的所有二进制配表...");
+            Debug.Log("[ConfigManager] 开始批量加载 Config 标签下的所有二进制配表...");
 
             // Addressables结合UniTask的丝滑写法
             var handle = Addressables.LoadAssetsAsync<TextAsset>("Config", (asset) =>

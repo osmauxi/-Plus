@@ -8,11 +8,35 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
 using UnityEngine;
 
 //继承EditorWindow表示脚本只生存在Unity编辑器进程中，打包时会被剔除 
 public class ExcelToMessagePackGenerator : EditorWindow
 {
+    // 显式指定唯一数据源，避免 Game_Config/ItemTable 中两个结构不同的 Item 页互相覆盖。
+    private static readonly (string Workbook, string Sheet)[] ConfigSources =
+    {
+        ("Game_Config.xlsx", "Weapon"),
+        ("Game_Config.xlsx", "Health"),
+        ("Game_Config.xlsx", "MonsterAttack"),
+        ("Game_Config.xlsx", "MonsterRuntime"),
+        ("Game_Config.xlsx", "MonsterSpawn"),
+        ("Game_Config.xlsx", "MonsterView"),
+        ("EffectConfig.xlsx", "Effect"),
+        ("EffectConfig.xlsx", "Modifier"),
+        ("EffectConfig.xlsx", "EffectRoll"),
+        ("ItemTable.xlsx", "Item"),
+        ("ItemTable.xlsx", "Lobby_Skins"),
+        ("ItemTable.xlsx", "Lobby_Weapons"),
+        ("ItemTable.xlsx", "Lobby_Items"),
+        ("PoolConfig.xlsx", "LocalObjectPool"),
+        ("PoolConfig.xlsx", "LocalVFXPool"),
+        ("PoolConfig.xlsx", "SyncObjectPool"),
+        ("RoomConfig.xlsx", "RoomTemplate"),
+    };
+
     private string excelFolderPath;
     private string csOutputFolderPath;
     private string bytesOutputFolderPath;
@@ -23,9 +47,11 @@ public class ExcelToMessagePackGenerator : EditorWindow
     private readonly Dictionary<string, Func<string, object>> TypeParsers = new Dictionary<string, Func<string, object>>()
     {
         { "int", (val) => int.Parse(val) },
-        { "float", (val) => float.Parse(val) },
+        { "float", (val) => float.Parse(val, System.Globalization.CultureInfo.InvariantCulture) },
         { "string", (val) => val },
-        { "bool", (val) => val.ToLower() == "true" || val == "1" },
+        { "bool", (val) => val.Trim().ToLowerInvariant() switch
+            { "true" => true, "1" => true, "false" => false, "0" => false,
+                _ => throw new FormatException("bool 只接受 true/false/1/0") } },
         
         //整数数组 (在 Excel 里填 "101,102,103")
         { "int[]", (val) => {
@@ -40,12 +66,17 @@ public class ExcelToMessagePackGenerator : EditorWindow
 
         { "Vector2", (val) => {
         string[] p = val.Split(',');
-        return new Vector2(float.Parse(p[0]), float.Parse(p[1]));
+        return new Vector2(
+            float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture),
+            float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture));
         }},
 
         { "Vector3", (val) => {
         string[] p = val.Split(',');
-        return new Vector3(float.Parse(p[0]), float.Parse(p[1]), float.Parse(p[2]));
+        return new Vector3(
+            float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture),
+            float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture),
+            float.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture));
         }}
 
         // TODO: 以后如果要加 Vector3 或者 Enum 枚举，直接在这里加代码
@@ -67,6 +98,79 @@ public class ExcelToMessagePackGenerator : EditorWindow
         bytesOutputFolderPath = Application.dataPath + "/AddressableResources/Config/"; // Addressables 预留目录
     }
 
+    // Weapon 日常迭代只生成这一张表，不清理或覆盖其他工作簿的同名表。
+    [MenuItem("Tools/Weapon/1 生成 Weapon 配置结构")]
+    public static void GenerateWeaponSchema() => ProcessWeaponOnly(true);
+
+    [MenuItem("Tools/Weapon/2 导出 Weapon 数据")]
+    public static void ExportWeaponData() => ProcessWeaponOnly(false);
+
+    [MenuItem("Tools/Weapon/3 导出 Lobby 武器资源")]
+    public static void ExportLobbyWeaponData() => ProcessWeaponOnly(false, true);
+
+    [MenuItem("Tools/Config/导出并注册全部配置")]
+    public static void ExportAllConfigData() => ProcessKnownConfigs(false, true);
+
+    [MenuItem("Tools/Config/生成全部配置结构")]
+    public static void GenerateAllConfigSchemas() => ProcessKnownConfigs(true, false);
+
+    [MenuItem("Tools/Config/同步 Addressables 注册")]
+    public static void SyncConfigAddressables()
+    {
+        string folder = Application.dataPath + "/AddressableResources/Config/";
+        foreach (string path in Directory.GetFiles(folder, "Config_*.bytes"))
+            RegisterConfigAddressable(path, Path.GetFileNameWithoutExtension(path));
+        AssetDatabase.SaveAssets();
+        Debug.Log("<color=green>[Config] Configs 分组与 Config 标签同步完成。</color>");
+    }
+
+    private static void ProcessKnownConfigs(bool generateCS, bool exportBytes)
+    {
+        var generator = CreateInstance<ExcelToMessagePackGenerator>();
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            generator.validClassNames.Clear();
+            foreach (var source in ConfigSources)
+            {
+                using var stream = File.Open(Path.Combine(generator.excelFolderPath, source.Workbook),
+                    FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = ExcelReaderFactory.CreateReader(stream);
+                DataTable table = reader.AsDataSet().Tables[source.Sheet]
+                    ?? throw new InvalidOperationException($"{source.Workbook} 缺少 {source.Sheet} 页。");
+                string className = "Config_" + source.Sheet;
+                generator.validClassNames.Add(className);
+                if (generateCS) generator.ExtractSchemaAndGenerateCSharp(source.Sheet, table);
+                if (exportBytes) generator.PackDataToBinary(source.Sheet, table);
+            }
+            if (generateCS) generator.GenerateConfigRegisterScript(generator.validClassNames);
+            AssetDatabase.Refresh();
+            if (exportBytes) SyncConfigAddressables();
+        }
+        finally { DestroyImmediate(generator); }
+    }
+
+    private static void ProcessWeaponOnly(bool schema, bool lobby = false)
+    {
+        var generator = CreateInstance<ExcelToMessagePackGenerator>();
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            string workbook = lobby ? "ItemTable.xlsx" : "Game_Config.xlsx";
+            string sheet = lobby ? "Lobby_Weapons" : "Weapon";
+            using var stream = File.Open(Path.Combine(generator.excelFolderPath, workbook),
+                FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            DataTable table = reader.AsDataSet().Tables[sheet]
+                ?? throw new InvalidOperationException($"{workbook} 缺少 {sheet} 页。");
+            if (schema) generator.ExtractSchemaAndGenerateCSharp(sheet, table);
+            else generator.PackDataToBinary(sheet, table);
+            AssetDatabase.Refresh();
+            if (!schema) AssetDatabase.SaveAssets();
+        }
+        finally { DestroyImmediate(generator); }
+    }
+
     private void OnGUI()
     {
         GUILayout.Space(10);
@@ -76,7 +180,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
 
         if (GUILayout.Button("1. 读表生成C#脚本", GUILayout.Height(40)))
         {
-            ProcessExcels(generateCS: true, exportBytes: false);
+            ProcessKnownConfigs(generateCS: true, exportBytes: false);
         }
 
         GUILayout.Space(15);
@@ -86,7 +190,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
 
         if (GUILayout.Button("2. 导出二进制数据(.bytes)", GUILayout.Height(40)))
         {
-            ProcessExcels(generateCS: false, exportBytes: true);
+            ExportAllConfigData();
         }
 
         GUILayout.Space(5);
@@ -133,7 +237,9 @@ public class ExcelToMessagePackGenerator : EditorWindow
         }
     }
 
-    private void ProcessExcels(bool generateCS, bool exportBytes)
+    // 旧扫描实现已从 UI 断开，仅保留一段时间便于审阅历史；禁止重新接入。
+    [Obsolete("请使用 ProcessKnownConfigs；旧扫描会遇到重名工作表。", true)]
+    private void ProcessExcelsLegacyUnsafe(bool generateCS, bool exportBytes)
     {
         //每次扫描前清空类名列表，避免删除的Excel工作表残留无效case
         validClassNames.Clear();
@@ -218,6 +324,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
         csBuilder.AppendLine("using System;");
         csBuilder.AppendLine("using MessagePack;");
         csBuilder.AppendLine("using System.Collections.Generic;");
+        csBuilder.AppendLine("using UnityEngine;");
         csBuilder.AppendLine("");
 
         //[MessagePackObject]允许这个类被 MessagePack 序列化器识别和处理，
@@ -273,8 +380,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
 
         if (configType == null)
         {
-            Debug.LogError($"找不到类 {className}，可能是Unity编译未完成或程序集名称不对");
-            return;
+            throw new InvalidOperationException($"找不到类 {className}，请先生成结构并等待 Unity 编译完成。");
         }
 
         //创建一个泛型字典实例，类型为Dictionary<int, configType>
@@ -293,13 +399,15 @@ public class ExcelToMessagePackGenerator : EditorWindow
                 //从Excel表中拿出这个标签的具体数值填进去
                 string varName = table.Rows[1][col].ToString();
                 string typeName = table.Rows[2][col].ToString(); //提取第3行填写的类型字符串
-                string cellValue = table.Rows[row][col].ToString();
+                string cellValue = Convert.ToString(table.Rows[row][col], System.Globalization.CultureInfo.InvariantCulture);
 
                 if (string.IsNullOrWhiteSpace(varName) || string.IsNullOrWhiteSpace(cellValue)) 
                     continue;
 
                 //使用Excel表中读出的字段名反射获取字段，并将字符串转换为目标类型并赋值
                 FieldInfo field = configType.GetField(varName);
+                if (field == null)
+                    throw new InvalidDataException($"{className}.{varName} 不存在，请先生成结构并等待编译完成，再导出数据。");
                 if (field != null)
                 {
                     try
@@ -339,7 +447,7 @@ public class ExcelToMessagePackGenerator : EditorWindow
                     }
                     catch(Exception e)
                     {
-                        Debug.LogError($"解析错误! 表:{className} 行:{row + 1} 列:{varName} 数据:{cellValue}. 错误:{e.Message}");
+                        throw new InvalidDataException($"解析错误! 表:{className} 行:{row + 1} 列:{varName} 数据:{cellValue}", e);
                     }
                 }
             }
@@ -350,11 +458,50 @@ public class ExcelToMessagePackGenerator : EditorWindow
         }
 
         //调用MessagePack的极速序列化，把整个字典压缩成 byte[]
+        // 校验失败不覆盖已有 bytes；校验类型通过反射保持 Editor 与热更配置程序集解耦。
+        if (className == "Config_Weapon")
+        {
+            Type rules = Type.GetType("ProjectGame.HotFix.Config.WeaponConfigRules, HotFix.Config");
+            if (rules == null) throw new InvalidOperationException("请先等待 Weapon 配置结构及校验器编译完成。");
+            MethodInfo validate = rules.GetMethod("Validate");
+            foreach (DictionaryEntry entry in dataDict) validate.Invoke(null, new[] { entry.Value });
+        }
+        else if (className == "Config_Effect" || className == "Config_Modifier" || className == "Config_EffectRoll")
+        {
+            Type rules = Type.GetType("ProjectGame.HotFix.Config.EffectConfigRules, HotFix.Config");
+            if (rules == null) throw new InvalidOperationException("请先等待 Effect 配置结构及校验器编译完成。");
+            string methodName = className == "Config_Effect" ? "ValidateEffect" :
+                className == "Config_Modifier" ? "ValidateModifier" : "ValidateRoll";
+            MethodInfo validate = rules.GetMethod(methodName)
+                ?? throw new MissingMethodException(rules.FullName, methodName);
+            foreach (DictionaryEntry entry in dataDict) validate.Invoke(null, new[] { entry.Value });
+        }
         byte[] bytes = MessagePackSerializer.Serialize(dictType, dataDict);
 
         //存入本地，加上.bytes后缀供Addressables读取
         string outPath = bytesOutputFolderPath + className + ".bytes";
         File.WriteAllBytes(outPath, bytes);
+        RegisterConfigAddressable(outPath, className);
+    }
+
+    private static void RegisterConfigAddressable(string absolutePath, string address)
+    {
+        string assetPath = "Assets" + absolutePath.Substring(Application.dataPath.Length).Replace('\\', '/');
+        AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+        string guid = AssetDatabase.AssetPathToGUID(assetPath);
+        if (string.IsNullOrEmpty(guid))
+            throw new InvalidOperationException($"配置资产导入失败：{assetPath}");
+
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
+        if (settings == null) throw new InvalidOperationException("找不到 AddressableAssetSettings。");
+        AddressableAssetGroup group = settings.FindGroup("Configs");
+        if (group == null) throw new InvalidOperationException("Addressables 缺少 Configs 分组。");
+
+        settings.AddLabel("Config");
+        AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
+        entry.address = address;
+        entry.SetLabel("Config", true, true, false);
+        settings.SetDirty(AddressableAssetSettings.ModificationEvent.EntryMoved, entry, true);
     }
 
     /// <summary>

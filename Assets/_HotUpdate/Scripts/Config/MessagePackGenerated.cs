@@ -47,17 +47,20 @@ namespace ProjectGame.HotFix.Resolvers.Resolvers
 
         static GeneratedResolverGetFormatterHelper()
         {
-            lookup = new global::System.Collections.Generic.Dictionary<global::System.Type, int>(9)
+            lookup = new global::System.Collections.Generic.Dictionary<global::System.Type, int>(12)
             {
-                { typeof(global::Config_Item), 0 },
-                { typeof(global::Config_Lobby_Items), 1 },
-                { typeof(global::Config_Lobby_Skins), 2 },
-                { typeof(global::Config_Lobby_Weapons), 3 },
-                { typeof(global::Config_LocalObjectPool), 4 },
-                { typeof(global::Config_LocalVFXPool), 5 },
-                { typeof(global::Config_RoomTemplate), 6 },
-                { typeof(global::Config_SyncObjectPool), 7 },
-                { typeof(global::Config_Weapon), 8 },
+                { typeof(global::Config_Effect), 0 },
+                { typeof(global::Config_EffectRoll), 1 },
+                { typeof(global::Config_Item), 2 },
+                { typeof(global::Config_Lobby_Items), 3 },
+                { typeof(global::Config_Lobby_Skins), 4 },
+                { typeof(global::Config_Lobby_Weapons), 5 },
+                { typeof(global::Config_LocalObjectPool), 6 },
+                { typeof(global::Config_LocalVFXPool), 7 },
+                { typeof(global::Config_Modifier), 8 },
+                { typeof(global::Config_RoomTemplate), 9 },
+                { typeof(global::Config_SyncObjectPool), 10 },
+                { typeof(global::Config_Weapon), 11 },
             };
         }
 
@@ -71,15 +74,18 @@ namespace ProjectGame.HotFix.Resolvers.Resolvers
 
             switch (key)
             {
-                case 0: return new ProjectGame.HotFix.Resolvers.Formatters.Config_ItemFormatter();
-                case 1: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_ItemsFormatter();
-                case 2: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_SkinsFormatter();
-                case 3: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_WeaponsFormatter();
-                case 4: return new ProjectGame.HotFix.Resolvers.Formatters.Config_LocalObjectPoolFormatter();
-                case 5: return new ProjectGame.HotFix.Resolvers.Formatters.Config_LocalVFXPoolFormatter();
-                case 6: return new ProjectGame.HotFix.Resolvers.Formatters.Config_RoomTemplateFormatter();
-                case 7: return new ProjectGame.HotFix.Resolvers.Formatters.Config_SyncObjectPoolFormatter();
-                case 8: return new ProjectGame.HotFix.Resolvers.Formatters.Config_WeaponFormatter();
+                case 0: return new ProjectGame.HotFix.Resolvers.Formatters.Config_EffectFormatter();
+                case 1: return new ProjectGame.HotFix.Resolvers.Formatters.Config_EffectRollFormatter();
+                case 2: return new ProjectGame.HotFix.Resolvers.Formatters.Config_ItemFormatter();
+                case 3: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_ItemsFormatter();
+                case 4: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_SkinsFormatter();
+                case 5: return new ProjectGame.HotFix.Resolvers.Formatters.Config_Lobby_WeaponsFormatter();
+                case 6: return new ProjectGame.HotFix.Resolvers.Formatters.Config_LocalObjectPoolFormatter();
+                case 7: return new ProjectGame.HotFix.Resolvers.Formatters.Config_LocalVFXPoolFormatter();
+                case 8: return new ProjectGame.HotFix.Resolvers.Formatters.Config_ModifierFormatter();
+                case 9: return new ProjectGame.HotFix.Resolvers.Formatters.Config_RoomTemplateFormatter();
+                case 10: return new ProjectGame.HotFix.Resolvers.Formatters.Config_SyncObjectPoolFormatter();
+                case 11: return new ProjectGame.HotFix.Resolvers.Formatters.Config_WeaponFormatter();
                 default: return null;
             }
         }
@@ -115,6 +121,162 @@ namespace ProjectGame.HotFix.Resolvers.Resolvers
 
 namespace ProjectGame.HotFix.Resolvers.Formatters
 {
+    public sealed class Config_EffectFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_Effect>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_Effect value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(12);
+            writer.Write(value.EffectID);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.CodeName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<int[]>(formatterResolver).Serialize(ref writer, value.ModifierIDs, options);
+            writer.Write(value.Repeatable);
+            writer.Write(value.MaxLevel);
+            writer.Write(value.EffectType);
+            writer.Write(value.RollPool);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<int[]>(formatterResolver).Serialize(ref writer, value.SchoolIDs, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<int[]>(formatterResolver).Serialize(ref writer, value.ConflictSchoolIDs, options);
+            writer.Write(value.BaseWeight);
+            writer.Write(value.SchoolWeightBonus);
+            writer.Write(value.Enabled);
+        }
+
+        public global::Config_Effect Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_Effect();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.EffectID = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.CodeName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.ModifierIDs = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<int[]>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 3:
+                        ____result.Repeatable = reader.ReadBoolean();
+                        break;
+                    case 4:
+                        ____result.MaxLevel = reader.ReadInt32();
+                        break;
+                    case 5:
+                        ____result.EffectType = reader.ReadInt32();
+                        break;
+                    case 6:
+                        ____result.RollPool = reader.ReadInt32();
+                        break;
+                    case 7:
+                        ____result.SchoolIDs = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<int[]>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 8:
+                        ____result.ConflictSchoolIDs = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<int[]>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 9:
+                        ____result.BaseWeight = reader.ReadSingle();
+                        break;
+                    case 10:
+                        ____result.SchoolWeightBonus = reader.ReadSingle();
+                        break;
+                    case 11:
+                        ____result.Enabled = reader.ReadBoolean();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
+    public sealed class Config_EffectRollFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_EffectRoll>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_EffectRoll value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(6);
+            writer.Write(value.EffectID);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.DisplayName, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.Description, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.UpgradeDescription, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.IconAddress, options);
+            writer.Write(value.Enabled);
+        }
+
+        public global::Config_EffectRoll Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_EffectRoll();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.EffectID = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.DisplayName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.Description = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 3:
+                        ____result.UpgradeDescription = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 4:
+                        ____result.IconAddress = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 5:
+                        ____result.Enabled = reader.ReadBoolean();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
     public sealed class Config_ItemFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_Item>
     {
 
@@ -507,6 +669,72 @@ namespace ProjectGame.HotFix.Resolvers.Formatters
         }
     }
 
+    public sealed class Config_ModifierFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_Modifier>
+    {
+
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Config_Modifier value, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNil();
+                return;
+            }
+
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(6);
+            writer.Write(value.ModifierID);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.CodeName, options);
+            writer.Write(value.StatType);
+            writer.Write(value.Operation);
+            writer.Write(value.BaseValue);
+            writer.Write(value.Enabled);
+        }
+
+        public global::Config_Modifier Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        {
+            if (reader.TryReadNil())
+            {
+                return null;
+            }
+
+            options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
+            var ____result = new global::Config_Modifier();
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        ____result.ModifierID = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.CodeName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.StatType = reader.ReadInt32();
+                        break;
+                    case 3:
+                        ____result.Operation = reader.ReadInt32();
+                        break;
+                    case 4:
+                        ____result.BaseValue = reader.ReadSingle();
+                        break;
+                    case 5:
+                        ____result.Enabled = reader.ReadBoolean();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+
+            reader.Depth--;
+            return ____result;
+        }
+    }
+
     public sealed class Config_RoomTemplateFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::Config_RoomTemplate>
     {
 
@@ -663,7 +891,7 @@ namespace ProjectGame.HotFix.Resolvers.Formatters
             }
 
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(7);
+            writer.WriteArrayHeader(23);
             writer.Write(value.WeaponID);
             global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.Name, options);
             global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.ModleName, options);
@@ -671,6 +899,22 @@ namespace ProjectGame.HotFix.Resolvers.Formatters
             global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.Description, options);
             writer.Write(value.WeaponSpawnSlot);
             writer.Write(value.WeaponEquipAnim);
+            writer.Write(value.Enabled);
+            writer.Write(value.Damage);
+            writer.Write(value.FireRate);
+            writer.Write(value.ReloadTime);
+            writer.Write(value.MagSize);
+            writer.Write(value.ReserveAmmo);
+            writer.Write(value.AutoReload);
+            writer.Write(value.CritChance);
+            writer.Write(value.CritMultiplier);
+            writer.Write(value.ProjectileSpeed);
+            writer.Write(value.ProjectileCount);
+            writer.Write(value.SpreadAngle);
+            writer.Write(value.BounceCount);
+            writer.Write(value.PierceCount);
+            writer.Write(value.ProjectileSize);
+            writer.Write(value.ProjectileLifeTime);
         }
 
         public global::Config_Weapon Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
@@ -709,6 +953,54 @@ namespace ProjectGame.HotFix.Resolvers.Formatters
                         break;
                     case 6:
                         ____result.WeaponEquipAnim = reader.ReadInt32();
+                        break;
+                    case 7:
+                        ____result.Enabled = reader.ReadBoolean();
+                        break;
+                    case 8:
+                        ____result.Damage = reader.ReadSingle();
+                        break;
+                    case 9:
+                        ____result.FireRate = reader.ReadSingle();
+                        break;
+                    case 10:
+                        ____result.ReloadTime = reader.ReadSingle();
+                        break;
+                    case 11:
+                        ____result.MagSize = reader.ReadInt32();
+                        break;
+                    case 12:
+                        ____result.ReserveAmmo = reader.ReadInt32();
+                        break;
+                    case 13:
+                        ____result.AutoReload = reader.ReadBoolean();
+                        break;
+                    case 14:
+                        ____result.CritChance = reader.ReadSingle();
+                        break;
+                    case 15:
+                        ____result.CritMultiplier = reader.ReadSingle();
+                        break;
+                    case 16:
+                        ____result.ProjectileSpeed = reader.ReadSingle();
+                        break;
+                    case 17:
+                        ____result.ProjectileCount = reader.ReadInt32();
+                        break;
+                    case 18:
+                        ____result.SpreadAngle = reader.ReadSingle();
+                        break;
+                    case 19:
+                        ____result.BounceCount = reader.ReadInt32();
+                        break;
+                    case 20:
+                        ____result.PierceCount = reader.ReadInt32();
+                        break;
+                    case 21:
+                        ____result.ProjectileSize = reader.ReadSingle();
+                        break;
+                    case 22:
+                        ____result.ProjectileLifeTime = reader.ReadSingle();
                         break;
                     default:
                         reader.Skip();

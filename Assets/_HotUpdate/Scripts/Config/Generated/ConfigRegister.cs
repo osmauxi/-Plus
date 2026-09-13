@@ -18,6 +18,38 @@ namespace ProjectGame.HotFix.Config
                     var dict_Config_Weapon = MessagePackSerializer.Deserialize<Dictionary<int, Config_Weapon>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_Weapon);
                     break;
+                case "Config_Health":
+                    var dict_Config_Health = MessagePackSerializer.Deserialize<Dictionary<int, Config_Health>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Health);
+                    break;
+                case "Config_MonsterAttack":
+                    var dict_Config_MonsterAttack = MessagePackSerializer.Deserialize<Dictionary<int, Config_MonsterAttack>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_MonsterAttack);
+                    break;
+                case "Config_MonsterRuntime":
+                    var dict_Config_MonsterRuntime = MessagePackSerializer.Deserialize<Dictionary<int, Config_MonsterRuntime>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_MonsterRuntime);
+                    break;
+                case "Config_MonsterSpawn":
+                    var dict_Config_MonsterSpawn = MessagePackSerializer.Deserialize<Dictionary<int, Config_MonsterSpawn>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_MonsterSpawn);
+                    break;
+                case "Config_MonsterView":
+                    var dict_Config_MonsterView = MessagePackSerializer.Deserialize<Dictionary<int, Config_MonsterView>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_MonsterView);
+                    break;
+                case "Config_Effect":
+                    var dict_Config_Effect = MessagePackSerializer.Deserialize<Dictionary<int, Config_Effect>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Effect);
+                    break;
+                case "Config_Modifier":
+                    var dict_Config_Modifier = MessagePackSerializer.Deserialize<Dictionary<int, Config_Modifier>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_Modifier);
+                    break;
+                case "Config_EffectRoll":
+                    var dict_Config_EffectRoll = MessagePackSerializer.Deserialize<Dictionary<int, Config_EffectRoll>>(bytes);
+                    ConfigManager.Instance.RegisterTable(dict_Config_EffectRoll);
+                    break;
                 case "Config_Item":
                     var dict_Config_Item = MessagePackSerializer.Deserialize<Dictionary<int, Config_Item>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_Item);

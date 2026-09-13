@@ -68,11 +68,13 @@ namespace ProjectGame.HotFix.UI.Lobby
             foreach (var pair in weaponTable)
             {
                 Config_Lobby_Weapons config = pair.Value;
+                if (!WeaponConfigRules.IsSelectable(config.WeaponID)) continue;
+                Config_Weapon weapon = ConfigManager.Instance.GetTable<Config_Weapon>()[config.WeaponID];
                 weaponList.Add(new ItemSlotData
                 {
                     Id = config.WeaponID,
-                    Name = config.Name,
-                    Description = config.Description,
+                    Name = weapon.Name,
+                    Description = weapon.Description,
                     Category = ItemCategory.Weapon,
                     ResourcePath = config.ModleName,
                     IconPath = config.IconName,

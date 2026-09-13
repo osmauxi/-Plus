@@ -293,7 +293,7 @@ namespace ProjectGame.HotFix.Lobby
             }
 
             int skinId = ConfigManager.Instance.GetTable<Config_Lobby_Skins>().Keys.Min();
-            int weaponId = ConfigManager.Instance.GetTable<Config_Lobby_Weapons>().Keys.Min();
+            int weaponId = WeaponConfigRules.DefaultWeaponId();
             int itemId = ConfigManager.Instance.GetTable<Config_Lobby_Items>().Keys.Min();
 
             return new LobbyPlayerState
@@ -332,7 +332,7 @@ namespace ProjectGame.HotFix.Lobby
         /// <summary>确保本地选择的武器 ID 存在 </summary>
         private static void EnsureWeaponExists(int id)
         {
-            if (!ConfigManager.Instance.GetTable<Config_Lobby_Weapons>().ContainsKey(id))
+            if (!WeaponConfigRules.IsSelectable(id))
                 throw new ArgumentOutOfRangeException(nameof(id), id, "武器配置不存在");
         }
 

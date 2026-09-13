@@ -6,6 +6,7 @@ using ProjectGame.HotFix.Core.Session;
 using ProjectGame.HotFix.Gameplay.Pooling;
 using ProjectGame.HotFix.Gameplay.Player.Sync;
 using ProjectGame.HotFix.Gameplay.Runtime;
+using ProjectGame.HotFix.Gameplay.Spawning;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -68,7 +69,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// 本局首次生成玩家 
         /// 只允许 Server 调用 
         /// </summary>
-        public async UniTask SpawnInitialPlayersAsync(IReadOnlyList<Transform> spawnPoints, CancellationToken cancellationToken)
+        public async UniTask SpawnInitialPlayersAsync(IReadOnlyList<SpawnPose> spawnPoints, CancellationToken cancellationToken)
         {
             EnsureInitialized();
             EnsureServer();
@@ -93,16 +94,13 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 if (!IsClientConnected(sessionData.ClientId))
                     throw new InvalidOperationException($"玩家已经不在连接列表中：ClientId={sessionData.ClientId}");
 
-                Transform spawnPoint = spawnPoints[i];
-
-                if (spawnPoint == null)
-                    throw new InvalidOperationException($"玩家出生点为空：Index={i}");
+                SpawnPose spawnPoint = spawnPoints[i];
 
                 NetworkObject playerObject = Pooling.SyncObjectPool.Instance.SpawnWithOwnership(
                     _playerPoolId,
                     sessionData.ClientId,
-                    spawnPoint.position,
-                    spawnPoint.rotation);
+                    spawnPoint.Position,
+                    spawnPoint.Rotation);
 
                 if (playerObject == null)
                     throw new InvalidOperationException($"玩家 NetworkObject 生成失败：ClientId={sessionData.ClientId}");
@@ -118,7 +116,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// 普通换层时把已经存在的 PlayerRuntime 移动到新起点 
         /// 不重新 Spawn，也不重新加载角色和武器 
         /// </summary>
-        public void RepositionPlayers(IReadOnlyList<Transform> spawnPoints)
+        public void RepositionPlayers(IReadOnlyList<SpawnPose> spawnPoints)
         {
             EnsureInitialized();
             EnsureServer();
@@ -138,15 +136,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 if (!PlayerManager.Instance.TryGetRuntimePlayer(sessionData.ClientId, out PlayerRuntime player))
                     throw new InvalidOperationException($"找不到玩家运行时对象：ClientId={sessionData.ClientId}");
 
-                Transform spawnPoint = spawnPoints[i];
-
-                if (spawnPoint == null)
-                    throw new InvalidOperationException($"玩家出生点为空：Index={i}");
+                SpawnPose spawnPoint = spawnPoints[i];
 
                 if (player.TryGetComponent(out PlayerSyncController syncController))
-                    syncController.ResetAfterWarp(spawnPoint.position, spawnPoint.rotation);
+                    syncController.ResetAfterWarp(spawnPoint.Position, spawnPoint.Rotation);
                 else
-                    player.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
+                    player.transform.SetPositionAndRotation(spawnPoint.Position, spawnPoint.Rotation);
             }
 
             Debug.Log($"[{nameof(PlayerSpawnController)}] 已重新布置玩家：Count={sessionPlayers.Count}");

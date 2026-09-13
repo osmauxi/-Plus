@@ -96,7 +96,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         private bool _initialized;
 
         /// <summary>是否已经订阅通用 Gameplay Network Clock，用于安全且仅一次地退订。</summary>
-        private bool _subscribedToNetworkTick;
+        private bool _subscribedToGameplayTick;
 
         /// <summary>服务器构造 Delta Snapshot（差量快照）时使用的最近 Full Snapshot（完整快照）基准状态 </summary>
         private PlayerSimulationState _snapshotBaseline;
@@ -194,6 +194,57 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public PlayerActionRuntimeState ActionState => _simulation?.ActionState ?? default;
 
+        public bool IsSimulationInitialized => _initialized;
+        // 只在服务器实际推进 Tick 后通知；预测重放不会触发弹丸副作用。
+        public event Action<PlayerSimulationState> ServerTickCompleted;
+
+        public void ConfigureWeapon(Weapon.WeaponDefinition definition)
+        {
+            if (!_initialized) throw new InvalidOperationException("玩家模拟尚未初始化。");
+            _simulation.ConfigureWeapon(definition);
+            uint tick = _simulationClock.CurrentTick;
+            var state = _simulation.CaptureState(tick);
+            _serverAuthority?.Reset(state);
+            _prediction?.Reset(tick);
+            _remoteInterpolation?.Reset();
+            ResetSnapshotBaseline();
+        }
+
+        public void ConfigureWeaponStats(in Weapon.WeaponStatSnapshot stats)
+        {
+            if (!_initialized) 
+                throw new InvalidOperationException("玩家模拟尚未初始化。");
+            _simulation.ConfigureWeaponStats(stats);
+            uint tick = _simulationClock.CurrentTick;
+            _prediction?.Reset(tick);
+            _remoteInterpolation?.Reset();
+        }
+        /// <summary>
+        /// 负责把新WeaponStats交给武器模拟
+        /// 将StatSnapshotId写进WeaponRuntimeState
+        /// 把EffectSetId写进WeaponRuntimeState
+        /// 把SnapshotVersion更新到新版本
+        /// </summary>
+        public void ConfigureWeaponRuntime(
+            in Weapon.WeaponStatSnapshot stats,
+            ushort effectSetId,
+            ushort snapshotVersion)
+        {
+            if (!_initialized) 
+                throw new InvalidOperationException("玩家模拟尚未初始化。");
+            _simulation.ConfigureWeaponRuntime(stats, effectSetId, snapshotVersion);
+            uint tick = _simulationClock.CurrentTick;
+            var state = _simulation.CaptureState(tick);
+            //将模拟恢复到新状态，清理输入缓冲，更新当前状态
+            _serverAuthority?.Reset(state);
+            //更新预测的时钟，清空过往状态历史等
+            _prediction?.Reset(tick);
+            //清空远端玩家的插值缓冲
+            _remoteInterpolation?.Reset();
+            //强制发一次全量包，重建增量基线
+            ResetSnapshotBaseline();
+        }
+
         /// <summary>当前体力相对最大体力的 0~1 比例 </summary>
         public float NormalizedStamina => _simulation?.NormalizedStamina ?? 0f;
 
@@ -259,9 +310,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             if (IsOwner && !IsServer)
             {
                 _prediction = new PlayerPrediction(_simulation, _simulationClock, _config);
-                uint confirmedTick = NetworkManager != null
-                    ? unchecked((uint)NetworkManager.ServerTime.Tick)
-                    : initialState.Tick;
+                uint confirmedTick = _networkRuntime.Clock.EstimatedServerTick;
                 _prediction.Reset(initialState.Tick, confirmedTick);
             }
 
@@ -274,10 +323,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
             if (IsServer || IsOwner)
             {
-                // NGO Tick 只由 GameplayNetworkBootstrap 订阅一次；所有 Gameplay 系统消费同一全局 Tick 事件。
+                // 独立 TickDriver 统一派发 Gameplay Tick，玩家不直接依赖 NGO Tick。
                 // PlayerSimulationClock 仍是玩家专用游标，Owner Hard Resync 不会重置全局会话时间轴。
-                _networkRuntime.Clock.TickAdvanced += HandleNetworkTick;
-                _subscribedToNetworkTick = true;
+                _networkRuntime.Clock.TickAdvanced += HandleGameplayTick;
+                _subscribedToGameplayTick = true;
             }
             ResetSnapshotBaseline();
             _snapshotSendBudget = 0;
@@ -287,10 +336,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>网络对象销毁时退订 Tick、注销路由，并清空各身份模块保存的历史状态 </summary>
         public override void OnNetworkDespawn()
         {
-            if (_subscribedToNetworkTick && _networkRuntime != null)
-                _networkRuntime.Clock.TickAdvanced -= HandleNetworkTick;
+            if (_subscribedToGameplayTick && _networkRuntime != null)
+                _networkRuntime.Clock.TickAdvanced -= HandleGameplayTick;
 
-            _subscribedToNetworkTick = false;
+            _subscribedToGameplayTick = false;
 
             if (_initialized)
                 _transport?.UnregisterEndpoint(NetworkObjectId);
@@ -368,7 +417,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// 通用 Gameplay Network Clock 的玩家同步入口。
         /// Server 直接对齐全局权威 Tick；普通 Owner 保留可被 Reconciliation 重置的本地预测游标。
         /// </summary>
-        private void HandleNetworkTick(uint sessionTick)
+        private void HandleGameplayTick(uint sessionTick)
         {
             if (!_initialized)
                 return;
@@ -455,6 +504,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             }
 
             PlayerSimulationState serverState = _serverAuthority.SimulateNextTick(tick);
+            ServerTickCompleted?.Invoke(serverState);
             TrySendSnapshot(serverState);
         }
 
@@ -562,8 +612,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void ResetAfterWarp(Vector3 position, Quaternion rotation)
         {
-            uint tick = IsSpawned && NetworkManager != null
-                ? unchecked((uint)NetworkManager.ServerTime.Tick)
+            uint tick = IsSpawned && _networkRuntime != null
+                ? (IsServer ? _networkRuntime.Clock.CurrentTick : _networkRuntime.Clock.EstimatedServerTick)
                 : 0u;
             _simulationClock.Reset(tick);
             PlayerSimulationState state = _simulation.CaptureState(tick);
@@ -584,6 +634,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             actionState.HitTicksRemaining = 0;
             actionState.ReloadTicksRemaining = 0;
             actionState.FireCooldownTicks = 0;
+            ProjectGame.HotFix.Gameplay.Weapon.WeaponSystem.Interrupt(ref actionState.Weapon);
             state.ActionState = actionState;
 
             _simulation.RestoreState(state);
@@ -640,22 +691,17 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         }
 
         /// <summary>
-        /// 选择生成时的同步起点 普通拥有者客户端采用通常领先的 LocalTime（本地网络时间），
-        /// 服务器和观察者采用 ServerTime（服务器网络时间） 
+        /// 选择生成时的 Gameplay Tick：Server/Owner 使用本机会话游标，Observer 使用服务器估计游标。
         /// </summary>
         private uint ResolveInitialTick()
         {
             if (_networkRuntime == null)
                 return 0u;
 
-            // Runtime Clock 在 Server/Owner 上已经选择了对应的 ServerTime/LocalTime 起点。
             if (IsServer || IsOwner)
                 return _networkRuntime.Clock.CurrentTick;
 
-            // Observer 不驱动模拟游标，仍以 ServerTime 标记初始展示状态，保持迁移前语义。
-            return NetworkManager != null
-                ? unchecked((uint)NetworkManager.ServerTime.Tick)
-                : _networkRuntime.Clock.CurrentTick;
+            return _networkRuntime.Clock.EstimatedServerTick;
         }
 
         /// <summary>检查玩家专用模拟频率是否与通用 Gameplay 网络时钟一致。</summary>

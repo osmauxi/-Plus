@@ -5,6 +5,7 @@
         "HotFix.Network.Runtime",
         "HotFix.Gameplay.Network",
         "HotFix.Settings",
+        "Unity.Collections",
         "GUID:75469ad4d38634e559750d17036d5f7c",
         "GUID:65e1f9a98235de0478d5c4590a742bf6",
         "GUID:a26e6a9ad58f0394eab2d125d50ed570",

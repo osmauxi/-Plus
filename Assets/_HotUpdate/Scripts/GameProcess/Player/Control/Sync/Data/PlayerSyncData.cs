@@ -474,7 +474,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
                 state.ActionState.FireCooldownTicks != baseline.ActionState.FireCooldownTicks ||
                 state.ActionState.ShotSequence != baseline.ActionState.ShotSequence ||
                 state.ActionState.HitSequence != baseline.ActionState.HitSequence ||
-                state.ActionState.LastReloadRequestSequence != baseline.ActionState.LastReloadRequestSequence)
+                state.ActionState.LastReloadRequestSequence != baseline.ActionState.LastReloadRequestSequence ||
+                !state.ActionState.Weapon.Equals(baseline.ActionState.Weapon))
                 mask |= PlayerStateDirtyMask.ActionState;
 
             return mask;

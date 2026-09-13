@@ -14,8 +14,33 @@ namespace ProjectGame.HotFix.Tests.Editor
         private const string NetworkTestRoleArgument = "--sync-test-role=client";
         private const string NetworkTestScene = "Assets/_HotUpdate/Scenes/Tests/PlayerLocomotionTest.unity";
         private const string ClientRunTokenKey = "ProjectGame.PlayerSyncNetworkTest.ClientRunToken";
-        private static TestRunnerApi _runner;
-        private static ResultCallbacks _callbacks;
+        private static TestRunnerApi _playModeRunner;
+
+        [InitializeOnLoadMethod]
+        private static void RegisterPlayModeResults()
+        {
+            if (_playModeRunner != null) return;
+            _playModeRunner = ScriptableObject.CreateInstance<TestRunnerApi>();
+            _playModeRunner.RegisterCallbacks(new ResultCallbacks(
+                Path.GetFullPath("Temp/PlayerSyncNetworkTest/tick-playmode-results.xml"),
+                "HotFix.Gameplay.NetworkTests"));
+        }
+
+        [MenuItem("Tools/ProjectGame/Run Gameplay Clock PlayMode Tests")]
+        public static void RunGameplayClockPlayMode()
+        {
+            RegisterPlayModeResults();
+            _playModeRunner.Execute(new ExecutionSettings(new Filter
+            {
+                testMode = TestMode.PlayMode,
+                testNames = new[]
+                {
+                    "ProjectGame.HotFix.Tests.Runtime.GameplayNetworkRuntimeTests",
+                    "ProjectGame.HotFix.Tests.Runtime.GameplayNetworkPeerTests",
+                    "ProjectGame.HotFix.Tests.Runtime.PlayerHealthNetworkTests",
+                },
+            }));
+        }
 
         [InitializeOnLoadMethod]
         private static void RegisterCloneClientAutoStart()
@@ -77,41 +102,69 @@ namespace ProjectGame.HotFix.Tests.Editor
         [MenuItem("Tools/ProjectGame/Run Player Sync EditMode Tests")]
         public static void Run()
         {
-            string resultPath = Path.GetFullPath(ResultRelativePath);
+            RunEditMode(new Filter
+            {
+                testMode = TestMode.EditMode,
+                assemblyNames = new[] { "HotFix.Gameplay.EditModeTests" },
+            }, ResultRelativePath);
+        }
+
+        [MenuItem("Tools/ProjectGame/Run Gameplay Clock EditMode Tests")]
+        public static void RunGameplayClockEditMode()
+        {
+            RunEditMode(new Filter
+            {
+                testMode = TestMode.EditMode,
+                testNames = new[]
+                {
+                    "ProjectGame.HotFix.Gameplay.Tests.GameplayNetworkFrameworkTests",
+                    "ProjectGame.HotFix.Gameplay.Tests.GameplayNetworkTickDriverTests",
+                    "ProjectGame.HotFix.Tests.EditMode.PlayerSyncPipelineTests",
+                },
+            }, "Temp/PlayerSyncNetworkTest/tick-editmode-results.xml");
+        }
+
+        private static void RunEditMode(Filter filter, string relativeResultPath)
+        {
+            string resultPath = Path.GetFullPath(relativeResultPath);
             Directory.CreateDirectory(Path.GetDirectoryName(resultPath));
             if (File.Exists(resultPath))
                 File.Delete(resultPath);
 
-            _runner = ScriptableObject.CreateInstance<TestRunnerApi>();
-            _callbacks = new ResultCallbacks(resultPath);
-            _runner.RegisterCallbacks(_callbacks);
-
-            ExecutionSettings settings = new(new Filter
+            var runner = ScriptableObject.CreateInstance<TestRunnerApi>();
+            var callbacks = new ResultCallbacks(resultPath, "HotFix.Gameplay.EditModeTests");
+            runner.RegisterCallbacks(callbacks);
+            try
             {
-                testMode = TestMode.EditMode,
-                assemblyNames = new[] { "HotFix.Gameplay.EditModeTests" },
-            })
+                runner.Execute(new ExecutionSettings(filter) { runSynchronously = true });
+            }
+            finally
             {
-                runSynchronously = true,
-            };
-
-            _runner.Execute(settings);
+                // EditMode 同步运行完就退订，避免下次专用回归覆盖全量报告或反过来。
+                runner.UnregisterCallbacks(callbacks);
+                UnityEngine.Object.DestroyImmediate(runner);
+            }
         }
 
         private sealed class ResultCallbacks : ICallbacks
         {
             private readonly string _resultPath;
+            private readonly string _assemblyFilter;
 
-            public ResultCallbacks(string resultPath)
+            public ResultCallbacks(string resultPath, string assemblyFilter = null)
             {
                 _resultPath = resultPath;
+                _assemblyFilter = assemblyFilter;
             }
 
             public void RunStarted(ITestAdaptor testsToRun) { }
 
             public void RunFinished(ITestResultAdaptor result)
             {
-                File.WriteAllText(_resultPath, result.ToXml().OuterXml);
+                string xml = result.ToXml().OuterXml;
+                if (_assemblyFilter != null && !xml.Contains(_assemblyFilter)) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(_resultPath));
+                File.WriteAllText(_resultPath, xml);
                 Debug.Log($"[PlayerSyncEditModeTests] Passed={result.PassCount}, Failed={result.FailCount}, Result={_resultPath}");
             }
 

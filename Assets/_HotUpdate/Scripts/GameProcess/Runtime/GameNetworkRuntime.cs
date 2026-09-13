@@ -13,9 +13,11 @@ namespace ProjectGame.HotFix.Gameplay.Network
     /// Gameplay 阶段网络服务的 Unity 生命周期入口。
     /// 负责建立通用 GameplayNetworkRuntime，并在其上注册当前仍属 Player 专用的同步协议。
     /// </summary>
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(GameplayNetworkTickDriver))]
     public sealed class GameNetworkRuntime : MonoBehaviour, IGameRuntimeService
     {
-        [Tooltip("整个 Gameplay 网络会话共享的 Tick 配置，必须与 NGO TickRate 一致。")]
+        [Tooltip("整个 Gameplay 网络会话共享的独立 Tick 配置，须与各 Peer 和 Player 配置一致。")]
         [SerializeField] private NetworkSimulationConfig _networkSimulationConfig = new();
 
         public bool IsInitialized { get; private set; }
@@ -27,6 +29,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
         public static PlayerSyncTransport PlayerSync { get; private set; }
 
         private GameplayNetworkBootstrap _gameplayNetworkBootstrap;
+        private GameplayNetworkTickDriver _tickDriver;
 
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
@@ -44,6 +47,13 @@ namespace ProjectGame.HotFix.Gameplay.Network
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (Gameplay != null)
+                throw new InvalidOperationException("当前会话已经存在 GameNetworkRuntime，不能重复启动 Tick。");
+
+            _tickDriver = GetComponent<GameplayNetworkTickDriver>();
+            if (_tickDriver == null)
+                throw new InvalidOperationException("GameNetworkRuntime 缺少 GameplayNetworkTickDriver。");
+
             RegisterGameplayEvents();
 
             NetEvents.Initialize(networkManager);
@@ -58,9 +68,11 @@ namespace ProjectGame.HotFix.Gameplay.Network
 
                 PlayerSync = new PlayerSyncTransport(Gameplay.Transport);
                 PlayerSync.Initialize();
+                _tickDriver.Initialize(Gameplay.Clock);
             }
             catch
             {
+                _tickDriver.Shutdown();
                 PlayerSync?.Shutdown();
                 PlayerSync = null;
                 Gameplay = null;
@@ -86,6 +98,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            _tickDriver?.Shutdown();
             PlayerSync?.Shutdown();
             PlayerSync = null;
 
@@ -100,6 +113,11 @@ namespace ProjectGame.HotFix.Gameplay.Network
             Debug.Log("[GameNetworkRuntime] Gameplay 网络运行时已关闭 ");
 
             return UniTask.CompletedTask;
+        }
+
+        private void OnDestroy()
+        {
+            ShutdownAsync(CancellationToken.None).Forget();
         }
 
         private static void RegisterGameplayEvents()

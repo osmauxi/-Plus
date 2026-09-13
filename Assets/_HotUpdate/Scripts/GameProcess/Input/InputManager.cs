@@ -55,6 +55,11 @@ namespace ProjectGame.HotFix.Gameplay.Input
         private InputActionAsset _runtimeInputActions;
         private InputActionMap _gameplayActionMap;
         private InputActionMap _uiActionMap;
+        private InputActionMap _menuActionMap;
+        private InputAction _menuBackAction;
+        private InputAction _playerStatusAction;
+        private InputAction _effectRollStandardAction;
+        private InputAction _effectRollMutationAction;
 
         private InputAction _moveAction;
         private InputAction _jumpAction;
@@ -84,6 +89,17 @@ namespace ProjectGame.HotFix.Gameplay.Input
             (_uiActionMap == null || _uiActionMap.enabled);
         public bool HasUIActionMap => _uiActionMap != null;
         public InputActionAsset RuntimeInputActions => _runtimeInputActions;
+        /// <summary>Menu 独立于 Gameplay/UI 地图，在两种上下文均可导航；Disabled 时不可使用。</summary>
+        public bool MenuBackPressedThisFrame =>
+            _menuBackAction != null && _menuBackAction.enabled && _menuBackAction.WasPressedThisFrame();
+        public bool PlayerStatusPressedThisFrame =>
+            _playerStatusAction != null && _playerStatusAction.enabled && _playerStatusAction.WasPressedThisFrame();
+        public bool EffectRollStandardPressedThisFrame =>
+            _effectRollStandardAction != null && _effectRollStandardAction.enabled &&
+            _effectRollStandardAction.WasPressedThisFrame();
+        public bool EffectRollMutationPressedThisFrame =>
+            _effectRollMutationAction != null && _effectRollMutationAction.enabled &&
+            _effectRollMutationAction.WasPressedThisFrame();
 
         public Vector2 Move => IsGameplayInputEnabled ? _moveAction.ReadValue<Vector2>() : Vector2.zero;
         public bool JumpPressedThisFrame => IsGameplayInputEnabled && _jumpAction.WasPressedThisFrame();
@@ -190,6 +206,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
 
             _baseContext = context;
             ApplyResolvedContext(false);
+            ApplyMenuActionMapState(CurrentContext);
         }
 
         /// <summary>
@@ -294,6 +311,12 @@ namespace ProjectGame.HotFix.Gameplay.Input
             _uiActionMap = string.IsNullOrWhiteSpace(_uiActionMapName)
                 ? null
                 : _runtimeInputActions.FindActionMap(_uiActionMapName, false);
+            // 可选地图保留对旧输入模板的兼容；正式 GameplayInputActions 已配置 Menu。
+            _menuActionMap = _runtimeInputActions.FindActionMap("Menu", false);
+            _menuBackAction = _menuActionMap?.FindAction("Back", false);
+            _playerStatusAction = _menuActionMap?.FindAction("PlayerStatus", false);
+            _effectRollStandardAction = _menuActionMap?.FindAction("EffectRollStandard", false);
+            _effectRollMutationAction = _menuActionMap?.FindAction("EffectRollMutation", false);
 
             _moveAction = RequireGameplayAction(MoveActionName);
             _jumpAction = RequireGameplayAction(JumpActionName);
@@ -381,6 +404,16 @@ namespace ProjectGame.HotFix.Gameplay.Input
                 default:
                     throw new ArgumentOutOfRangeException(nameof(context), context, null);
             }
+            ApplyMenuActionMapState(context);
+        }
+
+        private void ApplyMenuActionMapState(InputContext context)
+        {
+            if (_menuActionMap == null) return;
+            if (_baseContext == InputContext.Gameplay && context != InputContext.Disabled)
+                _menuActionMap.Enable();
+            else
+                _menuActionMap.Disable();
         }
 
         private void ApplyCursorState(InputContext context)
@@ -428,6 +461,11 @@ namespace ProjectGame.HotFix.Gameplay.Input
             _runtimeInputActions = null;
             _gameplayActionMap = null;
             _uiActionMap = null;
+            _menuActionMap = null;
+            _menuBackAction = null;
+            _playerStatusAction = null;
+            _effectRollStandardAction = null;
+            _effectRollMutationAction = null;
             _moveAction = null;
             _jumpAction = null;
             _interactAction = null;
@@ -439,7 +477,7 @@ namespace ProjectGame.HotFix.Gameplay.Input
             _cameraZoomAction = null;
 
             _contextRequests.Clear();
-            _nextContextRequestId = 0;
+            // 同一组件重新初始化时保留递增 ID，避免旧租约释放掉新会话的同号请求。
             _baseContext = InputContext.Disabled;
             CurrentContext = InputContext.Disabled;
             LastBindingLoadSucceeded = false;

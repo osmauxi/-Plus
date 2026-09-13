@@ -245,6 +245,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
     /// </summary>
     public struct PlayerActionRuntimeState : INetworkSerializable
     {
+        // Weapon 是弹药与计时的唯一事实；旧动作字段仅保留为动画投影。
+        public Weapon.WeaponRuntimeState Weapon;
         // 剩余受击占用 Tick 大于 0 时 Reaction=HitReaction，并压制 Combat 与移动 
         public ushort HitTicksRemaining;
         // 剩余换弹占用 Tick 大于 0 时 Combat=Reloading；开始 Tick 已计入，所以创建时通常写入 totalTicks-1 
@@ -270,6 +272,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
             serializer.SerializeValue(ref ShotSequence);
             serializer.SerializeValue(ref HitSequence);
             serializer.SerializeValue(ref LastReloadRequestSequence);
+            serializer.SerializeValue(ref Weapon);
         }
     }
 }

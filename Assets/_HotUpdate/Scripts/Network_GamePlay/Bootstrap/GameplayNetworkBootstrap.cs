@@ -4,14 +4,12 @@ using Unity.Netcode;
 namespace ProjectGame.HotFix.Gameplay.Network
 {
     /// <summary>
-    /// NGO与此上层网络框架之间唯一的Tick/Lifecycle桥梁
-    /// 维护Tick运行和生命周期的初始化/销毁
-    /// 运行时理论上只能创建并初始化一个实例，所有下层网络模块都依赖这个实例的生命周期来驱动Tick和生命周期
+    /// 初始化通用 Transport 和会话时间锚点；不订阅 NGO Tick。
+    /// Gameplay 的推进由独立 TickDriver 负责。
     /// </summary>
     public sealed class GameplayNetworkBootstrap
     {
         private readonly NetworkManager _networkManager;
-        private bool _subscribedToNetworkTick;
 
         public GameplayNetworkRuntime Runtime { get; }
 
@@ -28,45 +26,24 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (IsInitialized)
                 return;
 
-            if (!_networkManager.IsListening || _networkManager.NetworkTickSystem == null)
+            if (!_networkManager.IsListening)
                 throw new InvalidOperationException("NGO 尚未开始监听，无法初始化 Gameplay 网络运行时。");
 
-            int ngoTickRate = (int)_networkManager.NetworkConfig.TickRate;
-            if (ngoTickRate != Runtime.Config.TickRate)
-            {
-                throw new InvalidOperationException(
-                    $"Gameplay 网络 TickRate={Runtime.Config.TickRate}，NGO TickRate={ngoTickRate}，两者必须一致。");
-            }
+            if (!_networkManager.IsServer && !_networkManager.IsConnectedClient)
+                throw new InvalidOperationException("客户端尚未完成连接，无法取得 Gameplay 会话时间锚点。");
 
-            Runtime.Initialize(ResolveStartingTick());
+            // 只在启动时读一次同步秒数，按 Gameplay 频率换算，不能复用 NGO 的 Tick 编号。
+            double serverTime = _networkManager.ServerTime.Time;
+            double localTime = _networkManager.IsServer ? serverTime : _networkManager.LocalTime.Time;
+            Runtime.Initialize(Runtime.Clock.GetTickAtTime(localTime), Runtime.Clock.GetTickAtTime(serverTime));
 
-            _networkManager.NetworkTickSystem.Tick += HandleNetworkTick;
-            _subscribedToNetworkTick = true;
             IsInitialized = true;
         }
 
         public void Shutdown()
         {
-            if (_subscribedToNetworkTick && _networkManager.NetworkTickSystem != null)
-                _networkManager.NetworkTickSystem.Tick -= HandleNetworkTick;
-
-            _subscribedToNetworkTick = false;
             Runtime.Shutdown();
             IsInitialized = false;
-        }
-
-        private void HandleNetworkTick()
-        {
-            if (IsInitialized)
-                Runtime.Clock.AdvanceOneTick();
-        }
-
-        private uint ResolveStartingTick()
-        {
-            int networkTick = _networkManager.IsServer
-                ? _networkManager.ServerTime.Tick
-                : _networkManager.LocalTime.Tick;
-            return unchecked((uint)networkTick);
         }
     }
 }

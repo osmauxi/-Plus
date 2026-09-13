@@ -8,6 +8,7 @@ using ProjectGame.HotFix.Gameplay.Events;
 using ProjectGame.HotFix.Gameplay.Map.Generation;
 using ProjectGame.HotFix.Gameplay.Map.View;
 using ProjectGame.HotFix.Gameplay.Player;
+using ProjectGame.HotFix.Gameplay.Spawning;
 using ProjectGame.HotFix.Gameplay.State;
 using Unity.Netcode;
 using UnityEngine;
@@ -29,9 +30,16 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
         [SerializeField] private MapGenerationController _mapGenerationController;
         [SerializeField] private MapVisualBuilder _mapVisualBuilder;
         [SerializeField] private PlayerSpawnController _playerSpawnController;
+        [SerializeField, Range(0.05f, 1f)] private float _playerSpawnAreaScale = 0.2f;
+        [SerializeField, Min(0f)] private float _playerSpawnMinimumSpacing = 2f;
+        [SerializeField, Min(1)] private int _playerSpawnAttemptsPerPoint = 64;
+        [SerializeField, Min(0f)] private float _playerGroundOffset = 0.1f;
 
         private NetworkManager _networkManager;
         private GameStateController _gameStateController;
+        private readonly RoomGroundPointSampler _groundSampler = new();
+        private readonly List<Vector3> _sampledPlayerPositions = new(4);
+        private readonly List<SpawnPose> _sampledPlayerPoses = new(4);
 
         private IDisposable _nextLevelSubscription;
         private CancellationTokenSource _flowCts;
@@ -136,7 +144,7 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
                     GameSessionContext.PlayerCount,
                     cancellationToken);
 
-                IReadOnlyList<Transform> spawnPoints = ResolveStartRoomSpawnPoints(result);
+                IReadOnlyList<SpawnPose> spawnPoints = ResolveStartRoomSpawnPoints(result);
 
                 _playerSpawnController.RepositionPlayers(spawnPoints);
 
@@ -166,7 +174,7 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
                 GameSessionContext.PlayerCount,
                 cancellationToken);
 
-            IReadOnlyList<Transform> spawnPoints = ResolveStartRoomSpawnPoints(result);
+            IReadOnlyList<SpawnPose> spawnPoints = ResolveStartRoomSpawnPoints(result);
 
             if (initialLevel)
             {
@@ -188,23 +196,27 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
                 $"Initial={initialLevel}，Generation={result.GenerationId}");
         }
 
-        private IReadOnlyList<Transform> ResolveStartRoomSpawnPoints(MapBuildResult result)
+        private IReadOnlyList<SpawnPose> ResolveStartRoomSpawnPoints(MapBuildResult result)
         {
             int startRoomId = result.BuildPlan.StartRoomId;
 
             if (!_mapVisualBuilder.TryGetRoom(startRoomId, out RoomViewRuntime roomRuntime))
                 throw new InvalidOperationException($"找不到起始房间运行时对象：RoomId={startRoomId}");
 
-            IReadOnlyList<Transform> spawnPoints = roomRuntime.View.PlayerSpawnPoints;
-
-            if (spawnPoints == null || spawnPoints.Count < GameSessionContext.PlayerCount)
-            {
+            int playerCount = GameSessionContext.PlayerCount;
+            int seed = unchecked(result.BuildPlan.Seed * 486187739 + result.GenerationId * 16777619 + 32452843);
+            if (!_groundSampler.TrySampleMany(roomRuntime.View.SpawnRegion, playerCount,
+                    _playerSpawnAreaScale, _playerSpawnMinimumSpacing, new System.Random(seed),
+                    _sampledPlayerPositions, _playerSpawnAttemptsPerPoint))
                 throw new InvalidOperationException(
-                    $"起始房间玩家出生点不足：" +
-                    $"RoomId={startRoomId}，SpawnPoints={spawnPoints?.Count ?? 0}，Players={GameSessionContext.PlayerCount}");
-            }
+                    $"起始房间中心区域无法找到足够的玩家地面出生点：RoomId={startRoomId}，Players={playerCount}");
 
-            return spawnPoints;
+            _sampledPlayerPoses.Clear();
+            Quaternion rotation = roomRuntime.View.transform.rotation;
+            for (int i = 0; i < _sampledPlayerPositions.Count; i++)
+                _sampledPlayerPoses.Add(new SpawnPose(
+                    _sampledPlayerPositions[i] + Vector3.up * _playerGroundOffset, rotation));
+            return _sampledPlayerPoses;
         }
 
         public UniTask ShutdownAsync(CancellationToken cancellationToken)
@@ -227,6 +239,8 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
 
             _networkManager = null;
             _gameStateController = null;
+            _sampledPlayerPositions.Clear();
+            _sampledPlayerPoses.Clear();
 
             IsInitialized = false;
 

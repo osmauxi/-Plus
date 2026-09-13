@@ -3,6 +3,7 @@ using ProjectGame.HotFix.Gameplay.Player.Movement;
 using ProjectGame.HotFix.Gameplay.Player.Stamina;
 using ProjectGame.HotFix.Gameplay.Player.State;
 using ProjectGame.HotFix.Gameplay.Player.Sync;
+using ProjectGame.HotFix.Gameplay.Network;
 using System.Reflection;
 using UnityEngine;
 
@@ -190,8 +191,39 @@ namespace ProjectGame.HotFix.Tests.EditMode
             Assert.That(_playerObject.transform.position, Is.EqualTo(serverState.Position));
         }
 
+        [Test]
+        public void HardResync_ResetsOnlyOwnerCursor_AndPredictionContinuesFromAuthority()
+        {
+            var session = new NetworkSimulationClock(30);
+            session.ResetSession(100u, 97u);
+            var prediction = new PlayerPrediction(_simulation, _clock, _config);
+            prediction.Reset(100u, 97u);
+            var driver = _playerObject.AddComponent<GameplayNetworkTickDriver>();
+            driver.Initialize(session);
+            session.TickAdvanced += _ =>
+            {
+                uint tick = _clock.AdvanceOneTick();
+                PlayerInputCommand input = PlayerInputCommand.CreateNeutral(tick);
+                prediction.Predict(ref input, tick);
+            };
+            driver.Advance(1d / 30d);
+            var authority = _simulation.CaptureState(105u);
+            authority.Position = new Vector3(7f, 0f, -3f);
+            Assert.That(prediction.Reconcile(authority), Is.True);
+            Assert.That(prediction.HardResyncCount, Is.EqualTo(1));
+            Assert.That(_clock.CurrentTick, Is.EqualTo(105u));
+            Assert.That(session.CurrentTick, Is.EqualTo(101u));
+            Assert.That(session.EstimatedServerTick, Is.EqualTo(98u));
+
+            driver.Advance(1d / 30d);
+            Assert.That(session.CurrentTick, Is.EqualTo(102u));
+            Assert.That(prediction.CurrentTick, Is.EqualTo(106u));
+            Assert.That(prediction.TryGetInput(106u, out var nextInput), Is.True);
+            Assert.That(nextInput.Tick, Is.EqualTo(106u));
+        }
+
         // Action HFSM / rollback contract:
-        // 1. FireHeld 只按固定冷却递增事件序号；
+        // 1. AimHeld + FireHeld 只按固定冷却递增事件序号；
         // 2. Reload 边沿只消费一次并压制 Fire；
         // 3. Hit 中断 Reload，Dead 再压制 Hit；
         // 4. ActionState 必须进入 Delta，并在预测不一致时触发回滚 
@@ -199,7 +231,7 @@ namespace ProjectGame.HotFix.Tests.EditMode
         public void FireHeld_ProducesSequenceAtFixedCadence()
         {
             PlayerInputCommand input = PlayerInputCommand.CreateNeutral(1u);
-            input.Buttons = PlayerInputButtons.FireHeld;
+            input.Buttons = PlayerInputButtons.AimHeld | PlayerInputButtons.FireHeld;
 
             PlayerSimulationState first = _simulation.Simulate(input, 1f / 30f);
             Assert.That(first.ControlState.CombatMode, Is.EqualTo(PlayerCombatMode.Firing));

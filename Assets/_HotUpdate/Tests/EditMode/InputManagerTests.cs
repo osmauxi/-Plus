@@ -140,6 +140,31 @@ namespace ProjectGame.HotFix.Tests.EditMode
                 Assert.That(_inputManager.CameraZoom, Is.EqualTo(Vector2.zero));
             }
         }
+
+        [Test]
+        public void EffectRollDebugBindings_UseNAndM_FromMenuMap()
+        {
+            Keyboard keyboard = InputSystem.AddDevice<Keyboard>();
+            _inputManager.SetBaseContext(RuntimeInputContext.Gameplay);
+
+            InputActionMap menu = _inputManager.RuntimeInputActions.FindActionMap("Menu", true);
+            Assert.That(menu.FindAction("EffectRollStandard", true).bindings
+                .Any(binding => binding.path == "<Keyboard>/n"), Is.True);
+            Assert.That(menu.FindAction("EffectRollMutation", true).bindings
+                .Any(binding => binding.path == "<Keyboard>/m"), Is.True);
+
+            Press(keyboard.nKey);
+            Assert.That(_inputManager.EffectRollStandardPressedThisFrame, Is.True);
+            Release(keyboard.nKey);
+
+            using (_inputManager.AcquireContext(RuntimeInputContext.UI, this))
+            {
+                Press(keyboard.mKey);
+                Assert.That(_inputManager.EffectRollMutationPressedThisFrame, Is.True,
+                    "Menu 映射应在 Effect Roll 接管 Gameplay 输入后继续工作");
+                Release(keyboard.mKey);
+            }
+        }
     }
 
     public sealed class InputManagerTestRunCallback : ICallbacks

@@ -1,16 +1,22 @@
 using System;
+using ProjectGame.HotFix.Gameplay.Weapon;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Player.State
 {
     /// <summary>
-    /// 轻量数据驱动 HFSM：只根据输入事实和可回滚运行状态求出 Life / Reaction / Combat / Locomotion 
+    /// 轻量数据驱动HFSM：只根据输入事实和可回滚运行状态求出 Life / Reaction / Combat / Locomotion 
     /// 不持有隐藏状态，也不调用 Animator、网络或输入设备 
     /// </summary>
     public sealed class PlayerStateMachine
     {
         // 将设计秒数转换为固定 Tick；状态机自身不读取 Time.time 或 Animator 时间 
         private readonly PlayerActionConfig _config;
+        public WeaponDefinition WeaponDefinition { get; set; }
+        /// <summary>
+        /// 这是供每个Tick的武器模拟读取的完整属性值
+        /// </summary>
+        public WeaponStatSnapshot? WeaponStats { get; set; }
 
         /// <summary>注入动作时间规则并立即校验，避免模拟开始后出现零时长状态 </summary>
         public PlayerStateMachine(PlayerActionConfig config)
@@ -34,6 +40,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
             // Reload 是渲染帧边沿，使用累计序号跨越多个网络 Tick 可靠传递 
             // 先记录已消费值，即使玩家已死亡也不会在复活后补执行死亡期间按下的旧请求 
             bool hasNewReloadRequest = input.ReloadRequestSequence != actionState.LastReloadRequestSequence;
+            // Aim 是射击的硬门槛；预测与 Server 共用本状态机，不能只在本地输入层过滤。
+            bool fireHeld = input.AimHeld && input.FireHeld;
 
             if (hasNewReloadRequest)
                 actionState.LastReloadRequestSequence = input.ReloadRequestSequence;
@@ -52,6 +60,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
             // Reaction 高于 Combat：受击会取消换弹，并阻止本 Tick 继续进入射击与移动解析 
             if (actionState.HitTicksRemaining > 0)
             {
+                WeaponSystem.Interrupt(ref actionState.Weapon);
+                if (actionState.Weapon.FireCooldownTicks > 0) 
+                    actionState.Weapon.FireCooldownTicks--;
                 controlState.ReactionMode = PlayerReactionMode.HitReaction;
                 controlState.CombatMode = PlayerCombatMode.Ready;
                 actionState.ReloadTicksRemaining = 0;
@@ -60,6 +71,21 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
             }
 
             controlState.ReactionMode = PlayerReactionMode.Normal;
+
+            if (WeaponDefinition != null)
+            {
+                WeaponStatSnapshot stats = WeaponStats ?? WeaponDefinition.Stats;
+                bool fired = WeaponSystem.Simulate(ref actionState.Weapon, WeaponDefinition, stats,
+                    fireHeld, hasNewReloadRequest, deltaTime);
+                actionState.ShotSequence = actionState.Weapon.ShotSequence;
+                actionState.ReloadTicksRemaining = actionState.Weapon.ReloadTicksRemaining;
+                actionState.FireCooldownTicks = actionState.Weapon.FireCooldownTicks;
+                controlState.CombatMode = actionState.Weapon.IsReloading ? PlayerCombatMode.Reloading :
+                    fired || (fireHeld && actionState.Weapon.CurrentAmmo > 0 && !actionState.Weapon.IsDisabled)
+                        ? PlayerCombatMode.Firing : PlayerCombatMode.Ready;
+                ResolveLocomotion(ref controlState, input, canSprint && !actionState.Weapon.IsReloading);
+                return;
+            }
 
             // 已经进入 Reloading 时优先继续消耗剩余 Tick，不能被按住 Fire 抢占 
             if (controlState.CombatMode == PlayerCombatMode.Reloading)
@@ -84,7 +110,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
                 return;
             }
 
-            if (input.FireHeld)
+            if (fireHeld)
             {
                 controlState.CombatMode = PlayerCombatMode.Firing;
 
@@ -119,6 +145,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
 
             if (lifeState == PlayerLifeState.Dead)
             {
+                actionState.Weapon.Flags |= WeaponRuntimeFlags.Disabled;
                 controlState.LocomotionMode = PlayerLocomotionMode.Free;
                 ClearInterruptibleActions(ref controlState, ref actionState);
                 return;
@@ -127,6 +154,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
             controlState.ReactionMode = PlayerReactionMode.Normal;
             controlState.CombatMode = PlayerCombatMode.Ready;
             controlState.LocomotionMode = PlayerLocomotionMode.Free;
+            actionState.Weapon.Flags &= ~WeaponRuntimeFlags.Disabled;
         }
 
         /// <summary>
@@ -142,6 +170,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
                 return false;
 
             actionState.HitSequence = unchecked(actionState.HitSequence + 1u);
+            WeaponSystem.Interrupt(ref actionState.Weapon);
             actionState.HitTicksRemaining = _config.ResolveHitTicks(deltaTime);
             actionState.ReloadTicksRemaining = 0;
             controlState.ReactionMode = PlayerReactionMode.HitReaction;
@@ -174,6 +203,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
             ref PlayerControlState controlState,
             ref PlayerActionRuntimeState actionState)
         {
+            WeaponSystem.Interrupt(ref actionState.Weapon);
             controlState.ReactionMode = PlayerReactionMode.Normal;
             controlState.CombatMode = PlayerCombatMode.Ready;
             actionState.HitTicksRemaining = 0;

@@ -3,6 +3,8 @@
     "rootNamespace": "",
     "references": [
         "HotFix.Gameplay",
+        "HotFix.Gameplay.Network",
+        "Unity.Collections",
         "Unity.Netcode.Runtime",
         "Unity.Multiplayer.Tools.NetworkSimulator.Runtime",
         "UniTask"

@@ -46,7 +46,7 @@ namespace ProjectGame.HotFix.Core.Network
             serializer.SerializeValue(ref IsReady);
         }
 
-        /// <summary>比较全部同步字段，用于 NetworkList 脏标记判断 </summary>
+        /// <summary>比较全部同步字段，用于脏标记判断 </summary>
         public bool Equals(LobbyPlayerState other)
         {
             return ClientId == other.ClientId &&

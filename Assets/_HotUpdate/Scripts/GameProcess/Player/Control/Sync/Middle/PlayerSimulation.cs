@@ -42,6 +42,18 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>当前受击、射击冷却、换弹计时与动作序号 </summary>
         public PlayerActionRuntimeState ActionState => _locomotion.ActionState;
 
+        public void ConfigureWeapon(Weapon.WeaponDefinition definition)
+            => _locomotion.ConfigureWeapon(definition);
+
+        public void ConfigureWeaponStats(in Weapon.WeaponStatSnapshot stats)
+                                        => _locomotion.ConfigureWeaponStats(stats);
+
+        public void ConfigureWeaponRuntime(
+            in Weapon.WeaponStatSnapshot stats,
+            ushort effectSetId,
+            ushort snapshotVersion)
+            => _locomotion.ConfigureWeaponRuntime(stats, effectSetId, snapshotVersion);
+
         /// <summary>当前体力相对最大体力的 0~1 比例 </summary>
         public float NormalizedStamina => _locomotion.NormalizedStamina;
 

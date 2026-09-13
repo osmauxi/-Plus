@@ -20,10 +20,14 @@ namespace ProjectGame.HotFix.Gameplay.Player
     [RequireComponent(typeof(NetworkObject))]
     [RequireComponent(typeof(PlayerAppearanceController))]
     [RequireComponent(typeof(PlayerEquipmentController))]
+    [RequireComponent(typeof(PlayerWeaponController))]
+    [RequireComponent(typeof(PlayerWeaponPresentationController))]
     public sealed class PlayerRuntimeInitializer : NetworkBehaviour, IPoolable
     {
         private PlayerAppearanceController _appearanceController;
         private PlayerEquipmentController _equipmentController;
+        private PlayerWeaponController _weaponController;
+        private PlayerWeaponPresentationController _weaponPresentationController;
         private CancellationTokenSource _initializeCts;
 
         public bool IsInitializing { get; private set; }
@@ -37,6 +41,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         {
             _appearanceController = GetComponent<PlayerAppearanceController>();
             _equipmentController = GetComponent<PlayerEquipmentController>();
+            _weaponController = GetComponent<PlayerWeaponController>();
+            _weaponPresentationController = GetComponent<PlayerWeaponPresentationController>();
         }
 
         public override void OnNetworkSpawn()
@@ -51,6 +57,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         public override void OnNetworkDespawn()
         {
+            _weaponPresentationController?.Unbind();
+            _weaponController?.Unbind();
             // NetworkObject 已经不再代表一个有效玩家，
             // 先终止这个 Spawn 生命周期中的异步初始化 
             CancelInitialization();
@@ -75,6 +83,15 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 await _equipmentController.LoadInitialWeaponAsync(sessionData, cancellationToken);
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                var sync = GetComponent<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncController>();
+                await UniTask.WaitUntil(() => sync.IsSimulationInitialized, cancellationToken: cancellationToken);
+                _weaponController.Bind(sessionData.WeaponId, _equipmentController.CurrentWeaponView.Muzzle,
+                    ProjectGame.HotFix.Gameplay.Weapon.WeaponRuntimeService.Instance);
+                _weaponPresentationController.Bind(
+                    NetworkObjectId,
+                    _equipmentController.CurrentWeaponView,
+                    ProjectGame.HotFix.Gameplay.Weapon.Presentation.WeaponPresentationService.Instance);
 
                 IsInitialized = true;
 
@@ -118,6 +135,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         private void ClearRuntimeState()
         {
+            _weaponPresentationController?.Unbind();
+            _weaponController?.Unbind();
             // 必须先卸武器 
             // Weapon 的 AnimationBridge 位于 Character 上，
             // 如果 Character 先释放，就无法正常 UnbindWeapon 

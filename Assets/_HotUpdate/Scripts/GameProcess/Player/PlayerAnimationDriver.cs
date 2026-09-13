@@ -426,13 +426,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
             {
                 if (TickMath.IsNewer(action.ShotSequence, _lastShotSequence))
                 {
-                    // 设计要求非瞄准时不启用上层；只有瞄准射击才进入 Generic 上半身 Fire 
-                    if (control.IsAiming)
-                    {
-                        _animator.SetTrigger(ShootHash);
-                        _fireOverlayRequested = true;
-                        _fireOverlayRequestFrame = Time.frameCount;
-                    }
+                    // ShotSequence 已由模拟层确认射击成立；非瞄准射击同样播放上半身开火表现。
+                    _animator.SetTrigger(ShootHash);
+                    _fireOverlayRequested = true;
+                    _fireOverlayRequestFrame = Time.frameCount;
                 }
 
                 _lastShotSequence = action.ShotSequence;
@@ -450,7 +447,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 return;
 
             bool allowUpperBody =
-                control.IsAiming &&
+                (control.IsAiming || _fireOverlayRequested || control.IsReloading) &&
                 control.IsAlive &&
                 !control.IsHitReacting;
             if (!allowUpperBody)

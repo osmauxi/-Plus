@@ -31,13 +31,13 @@ namespace ProjectGame.HotFix.Gameplay.Network
                 Stats);
         }
 
-        public void Initialize(uint startingTick)
+        public void Initialize(uint startingTick, uint? startingServerTick = null)
         {
             if (IsInitialized)
                 return;
 
             Config.Validate();
-            Clock.ResetSession(startingTick);
+            Clock.ResetSession(startingTick, startingServerTick);
             Transport.Initialize();
             IsInitialized = true;
         }

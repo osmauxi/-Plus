@@ -279,7 +279,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
                    predicted.FireCooldownTicks != server.FireCooldownTicks ||
                    predicted.ShotSequence != server.ShotSequence ||
                    predicted.HitSequence != server.HitSequence ||
-                   predicted.LastReloadRequestSequence != server.LastReloadRequestSequence;
+                   predicted.LastReloadRequestSequence != server.LastReloadRequestSequence ||
+                   !predicted.Weapon.Equals(server.Weapon);
         }
 
         /// <summary>计算同 Tick 预测状态与权威状态的连续数值误差，供阈值判定和调试展示 </summary>

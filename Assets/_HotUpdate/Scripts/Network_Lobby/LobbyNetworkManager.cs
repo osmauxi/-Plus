@@ -813,7 +813,7 @@ namespace ProjectGame.HotFix.Netcode
                 PlayerName = new FixedString32Bytes(playerName),
                 StandIndex = GetFirstAvailableStandIndex(),
                 CharacterId = ConfigManager.Instance.GetTable<Config_Lobby_Skins>().Keys.Min(),
-                WeaponId = ConfigManager.Instance.GetTable<Config_Lobby_Weapons>().Keys.Min(),
+                WeaponId = WeaponConfigRules.DefaultWeaponId(),
                 ItemId = ConfigManager.Instance.GetTable<Config_Lobby_Items>().Keys.Min(),
                 IsReady = false
             };
@@ -872,7 +872,7 @@ namespace ProjectGame.HotFix.Netcode
         /// <summary>校验武器 ID 存在于配置表 </summary>
         private static void ValidateWeaponId(int id)
         {
-            if (!ConfigManager.Instance.GetTable<Config_Lobby_Weapons>().ContainsKey(id))
+            if (!WeaponConfigRules.IsSelectable(id))
                 throw new ArgumentOutOfRangeException(nameof(id), id, "武器配置不存在");
         }
 

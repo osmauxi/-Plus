@@ -26,18 +26,25 @@ namespace ProjectGame.HotFix.Tests.EditMode
                 fovSmoothTime: 0f);
 
             _composition = new CameraCompositionModel();
-            //_composition.Reset(
-            //    maxAimOffset: 3f,
-            //    aimDeadZone: 1f,
-            //    fullAimDistance: 8f,
-            //    aimSmoothTime: 0f,
-            //    aimReturnSmoothTime: 0f,
-            //    maxMovementOffset: 1.5f,
-            //    movementDeadZoneSpeed: 0.5f,
-            //    fullMovementSpeed: 7f,
-            //    movementSmoothTime: 0f,
-            //    movementReturnSmoothTime: 0f,
-            //    aimMovementWeight: 0f);
+            _composition.Reset(
+                maxAimOffset: 3f,
+                aimDeadZone: 1f,
+                fullAimDistance: 8f,
+                aimSmoothTime: 0f,
+                aimReturnSmoothTime: 0f,
+                maxMovementOffset: 1.5f,
+                movementDeadZoneSpeed: 0.5f,
+                fullMovementSpeed: 7f,
+                movementSmoothTime: 0f,
+                movementReturnSmoothTime: 0f,
+                velocitySmoothTime: 0f,
+                maxAccelerationOffset: 0f,
+                accelerationDeadZone: 0.5f,
+                fullAcceleration: 7f,
+                accelerationSmoothTime: 0f,
+                accelerationReturnSmoothTime: 0f,
+                movementTurnSpeed: 720f,
+                aimMovementWeight: 0f);
         }
 
         [Test]

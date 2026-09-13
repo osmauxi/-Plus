@@ -8,6 +8,7 @@ using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Player.Movement;
 using ProjectGame.HotFix.Gameplay.Player.Sync;
+using Unity.Collections;
 using Unity.Multiplayer.Tools.NetworkSimulator.Runtime;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -25,6 +26,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
     {
         private const string DefaultConfigRelativePath = "Temp/PlayerSyncNetworkTest/config.json";
         private const string PlayerPrefabResourcePath = "PlayerSyncNetworkTestPlayer";
+        private const string RuntimeReadyMessage = "PG.PlayerSyncTest.RuntimeReady";
 
         private readonly List<float> _frameTimesMs = new();
         private readonly List<long> _mainThreadTimesNs = new();
@@ -47,6 +49,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
         private float _connectionDeadline;
         private float _measurementStartedAt = -1f;
         private bool _remoteClientConnected;
+        private bool _remoteRuntimeReady;
         private bool _playersSpawned;
         private bool _simulatorAvailableDuringMeasurement;
         private int _maxActorCount;
@@ -114,8 +117,33 @@ namespace ProjectGame.HotFix.Tests.Runtime
                 yield break;
             }
 
+            _connectionDeadline = Time.realtimeSinceStartup + _config.ConnectionTimeoutSeconds;
+            // 客户端必须等连接同步结束后再取得一次性时间锚点。
+            while (!_networkManager.IsServer && !_networkManager.IsConnectedClient)
+            {
+                if (Time.realtimeSinceStartup >= _connectionDeadline)
+                {
+                    _failure = "等待客户端完成连接超时，未启动 Gameplay 时钟。";
+                    yield return FinishAndExit();
+                    yield break;
+                }
+                yield return null;
+            }
+
             _gameNetworkRuntime = gameObject.AddComponent<GameNetworkRuntime>();
-            _gameNetworkRuntime.InitializeAsync(CancellationToken.None).Forget();
+            _gameNetworkRuntime.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();
+            if (_networkManager.IsServer)
+            {
+                GameNetworkRuntime.Gameplay.Transport.RegisterHandler(RuntimeReadyMessage,
+                    (sender, _) => _remoteRuntimeReady = sender != NetworkManager.ServerClientId &&
+                        _networkManager.ConnectedClients.ContainsKey(sender));
+            }
+            else
+            {
+                using var writer = new FastBufferWriter(1, Allocator.Temp);
+                GameNetworkRuntime.Gameplay.Transport.SendToServer(
+                    RuntimeReadyMessage, writer, NetworkDeliveryClass.ReliableEvent);
+            }
 
             if (string.Equals(_role, "host", StringComparison.OrdinalIgnoreCase))
                 File.WriteAllText(_hostReadyPath, _runToken);
@@ -125,7 +153,7 @@ namespace ProjectGame.HotFix.Tests.Runtime
 
             while (!_finished)
             {
-                if (_networkManager.IsServer && _remoteClientConnected && !_playersSpawned)
+                if (_networkManager.IsServer && _remoteClientConnected && _remoteRuntimeReady && !_playersSpawned)
                 {
                     // 等连接回调完成并进入下一帧后再生成，避免把动态对象插进
                     // NGO 正在处理的连接同步回调 
@@ -183,7 +211,8 @@ namespace ProjectGame.HotFix.Tests.Runtime
             NetworkConfig networkConfig = new()
             {
                 NetworkTransport = _transport,
-                TickRate = 30,
+                // 有意与 Gameplay 的 30Hz 不同，验证模拟已经脱离 NGO Tick。
+                TickRate = 60,
                 EnableSceneManagement = false,
                 ForceSamePrefabs = true,
                 ConnectionApproval = false,

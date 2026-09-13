@@ -10,7 +10,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
     [Serializable]
     public sealed class NetworkSimulationConfig
     {
-        [Tooltip("Gameplay 网络模拟每秒推进的 Tick 数，必须与 NGO TickRate 一致。")]
+        [Tooltip("Gameplay 独立模拟每秒推进的 Tick 数，各 Peer 与 Player 配置须一致，可独立于 NGO TickRate 设置。")]
         [InspectorName("网络模拟 Tick 率")]
         [SerializeField, Range(20, 120)] private int _tickRate = 30;
 

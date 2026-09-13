@@ -158,6 +158,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// </summary>
         public void ResetRuntimeState()
         {
+            _stateMachine.WeaponDefinition = null;
+            _stateMachine.WeaponStats = null;
             _controlState = PlayerControlState.CreateDefault();
             _staminaState = new PlayerStaminaState
             {
@@ -169,6 +171,43 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             _aimDirection = Vector3.zero;
             _isAimBodyTurning = false;
             _motor.ResetMotion();
+        }
+
+        public void ConfigureWeapon(ProjectGame.HotFix.Gameplay.Weapon.WeaponDefinition definition)
+        {
+            _stateMachine.WeaponDefinition = definition;
+            _stateMachine.WeaponStats = definition.Stats;
+            // 观察者可能在模型加载前已经收到同一武器的权威状态，不覆盖弹药。
+            if (_actionState.Weapon.IsEquipped && _actionState.Weapon.WeaponId == definition.WeaponId) return;
+            _actionState.Weapon = ProjectGame.HotFix.Gameplay.Weapon.WeaponSystem.Equip(definition);
+            _actionState.ShotSequence = 0;
+            _actionState.ReloadTicksRemaining = 0;
+            _actionState.FireCooldownTicks = 0;
+            _controlState.CombatMode = PlayerCombatMode.Ready;
+        }
+
+        public void ConfigureWeaponStats(in Weapon.WeaponStatSnapshot stats)
+        {
+            if (_stateMachine.WeaponDefinition == null)
+                throw new InvalidOperationException("必须先配置 WeaponDefinition。");
+            _stateMachine.WeaponStats = stats;
+        }
+
+        public void ConfigureWeaponRuntime(
+            in Weapon.WeaponStatSnapshot stats,
+            ushort effectSetId,
+            ushort snapshotVersion)
+        {
+            if (_stateMachine.WeaponDefinition == null)
+                throw new InvalidOperationException("必须先配置 WeaponDefinition。");
+            _stateMachine.WeaponStats = stats;
+            //修改当前状态
+            Weapon.WeaponSystem.Reconfigure(
+                ref _actionState.Weapon, _stateMachine.WeaponDefinition, stats, effectSetId, snapshotVersion);
+            _actionState.ShotSequence = _actionState.Weapon.ShotSequence;
+            _actionState.ReloadTicksRemaining = _actionState.Weapon.ReloadTicksRemaining;
+            _actionState.FireCooldownTicks = _actionState.Weapon.FireCooldownTicks;
+            _controlState.CombatMode = PlayerCombatMode.Ready;
         }
 
         /// <summary>把角色实体移动到指定位置和旋转，并清空全部运动惯性 </summary>

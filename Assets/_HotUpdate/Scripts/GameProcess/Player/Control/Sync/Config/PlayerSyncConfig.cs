@@ -11,8 +11,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
     public sealed class PlayerSyncConfig
     {
         [Header("固定模拟")]
-        // Owner Prediction 与 Server Authority 每秒共同执行的固定模拟次数，必须与 NGO TickRate 一致 
-        [Tooltip("玩家预测与权威模拟每秒执行的 Tick 数 增大：响应更细腻但 CPU/带宽压力更高；减小：成本更低但离散感更明显 应与 NGO TickRate 一致 ")]
+        // Owner Prediction 与 Server Authority 每秒共同执行的固定模拟次数，必须与 Gameplay TickRate 一致
+        [Tooltip("玩家预测与权威模拟每秒执行的 Tick 数 增大：响应更细腻但 CPU/带宽压力更高；减小：成本更低但离散感更明显 应与 Gameplay TickRate 一致 ")]
         [InspectorName("模拟 Tick 率")]
         [SerializeField, Range(20, 120)] private int _simulationTickRate = 30;
 

@@ -156,8 +156,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 worldMove.Normalize();
 
             bool aimHeld = inputManager.AimHeld;
+            bool fireHeld = inputManager.FireHeld;
             Vector3 aimDirection = Vector3.zero;
 
+            // 只有进入瞄准状态才解析鼠标弹道方向；权威状态机也会拒绝非瞄准射击。
             if (aimHeld)
             {
                 aimDirection = ResolveAim(
@@ -171,7 +173,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 aimDirection,
                 aimHeld,
                 inputManager.SprintHeld,
-                inputManager.FireHeld,
+                fireHeld,
                 _reloadRequestSequence);
         }
 

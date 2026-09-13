@@ -78,5 +78,30 @@ namespace ProjectGame.HotFix.Gameplay.Tests
             playerCursor.SynchronizeToSessionTick(sessionClock.CurrentTick);
             Assert.That(playerCursor.CurrentTick, Is.EqualTo(101u));
         }
+
+        [Test]
+        public void Clock_PreservesServerOffsetAcrossWraparound_AndResetDoesNotDispatch()
+        {
+            var clock = new NetworkSimulationClock(30);
+            int events = 0;
+            clock.TickAdvanced += _ => events++;
+            clock.ResetSession(uint.MaxValue, uint.MaxValue - 3u);
+            Assert.That(events, Is.Zero);
+            clock.AdvanceOneTick();
+            Assert.That(clock.CurrentTick, Is.Zero);
+            Assert.That(clock.EstimatedServerTick, Is.EqualTo(uint.MaxValue - 2u));
+            Assert.That(unchecked(clock.CurrentTick - clock.EstimatedServerTick), Is.EqualTo(3u));
+            clock.ResetSession(25u);
+            Assert.That(clock.EstimatedServerTick, Is.EqualTo(25u));
+            Assert.That(events, Is.EqualTo(1));
+        }
+
+        [TestCase(30, 2.5d, 75u)]
+        [TestCase(60, 2.5d, 150u)]
+        [TestCase(30, -0.01d, uint.MaxValue)]
+        public void Clock_ConvertsSecondsUsingGameplayRate(int tickRate, double seconds, uint expected)
+        {
+            Assert.That(new NetworkSimulationClock(tickRate).GetTickAtTime(seconds), Is.EqualTo(expected));
+        }
     }
 }

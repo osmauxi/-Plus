@@ -2,7 +2,8 @@
     "name": "HotFix.Events",
     "rootNamespace": "",
     "references": [
-        "GUID:a26e6a9ad58f0394eab2d125d50ed570"
+        "Unity.Collections",
+        "Unity.Netcode.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -111,24 +111,7 @@ public class AudioManager : MonoBehaviour
         sfxPool = new AudioPool(sfxPoolSize, transform, sfxMixerGroup);
         sfxPool.SetMasterVolume(isSFXMuted ? 0f : currentSFXVolume);
 
-        LocalEventCenter.Instance.AddEventListener<float>("OnBGMVolumeChanged", HandleBGMVolumeChanged);
-        LocalEventCenter.Instance.AddEventListener<float>("OnSFXVolumeChanged", HandleSFXVolumeChanged);
-        LocalEventCenter.Instance.AddEventListener<bool>("OnBGMuteChanged", HandleBGMMuteChanged);
-        LocalEventCenter.Instance.AddEventListener<bool>("OnSFXMuteChanged", HandleSFXMuteChanged);
     }
-
-    private void OnDestroy()
-    {
-        LocalEventCenter.Instance.RemoveEventListener<float>("OnBGMVolumeChanged", HandleBGMVolumeChanged);
-        LocalEventCenter.Instance.RemoveEventListener<float>("OnSFXVolumeChanged", HandleSFXVolumeChanged);
-        LocalEventCenter.Instance.RemoveEventListener<bool>("OnBGMuteChanged", HandleBGMMuteChanged);
-        LocalEventCenter.Instance.RemoveEventListener<bool>("OnSFXMuteChanged", HandleSFXMuteChanged);
-    }
-
-    private void HandleBGMVolumeChanged(float volume) => SetBGMVolume(volume);
-    private void HandleSFXVolumeChanged(float volume) => SetSFXVolume(volume);
-    private void HandleBGMMuteChanged(bool muted) => MuteBGM(muted);
-    private void HandleSFXMuteChanged(bool muted) => MuteSFX(muted);
 
     private void Update()
     {
@@ -183,7 +166,6 @@ public class AudioManager : MonoBehaviour
 
         currentBGMType = type;
         isBGMPlaying = true;
-        LocalEventCenter.Instance.EventTrigger<AudioClip>("OnBGMChanged", clip);
     }
 
     public void PlayBGM(AudioClip clip, float fadeInTime = -1f) => SwitchBGM(BGMType.Gameplay, clip, fadeInTime);
@@ -243,7 +225,6 @@ public class AudioManager : MonoBehaviour
             titleBGMSource.volume = currentBGMVolume;
             gameplayBGMSource.volume = currentBGMVolume;
         }
-        LocalEventCenter.Instance.EventTrigger<float>("OnBGMVolumeChanged", currentBGMVolume);
         SaveSettings();
     }
 
@@ -253,7 +234,6 @@ public class AudioManager : MonoBehaviour
         float volume = mute ? 0f : currentBGMVolume;
         titleBGMSource.volume = volume;
         gameplayBGMSource.volume = volume;
-        LocalEventCenter.Instance.EventTrigger<bool>("OnBGMuteChanged", isBGMMuted);
         SaveSettings();
     }
 
@@ -319,7 +299,6 @@ public class AudioManager : MonoBehaviour
         float finalVolume = isSFXMuted ? 0f : volume * currentSFXVolume;
         sfxPool.Play(clip, Vector3.zero, finalVolume, pitch);
 
-        LocalEventCenter.Instance.EventTrigger<string>("OnSFXPlayed", clip.name);
     }
 
     public void PlaySFXAtPosition(AudioClip clip, Vector3 position, float volume = 1f, float pitch = 1f)
@@ -336,7 +315,6 @@ public class AudioManager : MonoBehaviour
         float finalVolume = isSFXMuted ? 0f : volume * currentSFXVolume;
         sfxPool.Play(clip, position, finalVolume, pitch);
 
-        LocalEventCenter.Instance.EventTrigger<string>("OnSFXPlayedAtPosition", clip.name);
     }
 
     public void PlayRandomSFX(AudioClip[] clips, float volume = 1f, float pitchVariance = 0f)
@@ -385,7 +363,6 @@ public class AudioManager : MonoBehaviour
     {
         currentSFXVolume = Mathf.Clamp01(volume);
         sfxPool.SetMasterVolume(isSFXMuted ? 0f : currentSFXVolume);
-        LocalEventCenter.Instance.EventTrigger<float>("OnSFXVolumeChanged", currentSFXVolume);
         SaveSettings();
     }
 
@@ -393,7 +370,6 @@ public class AudioManager : MonoBehaviour
     {
         isSFXMuted = mute;
         sfxPool.SetMasterVolume(mute ? 0f : currentSFXVolume);
-        LocalEventCenter.Instance.EventTrigger<bool>("OnSFXMuteChanged", isSFXMuted);
         SaveSettings();
     }
     #endregion

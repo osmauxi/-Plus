@@ -3,38 +3,42 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.Settings
 {
+    public enum VoiceTransmitMode : byte
+    {
+        PushToTalk = 0,
+        OpenMicrophone = 1,
+    }
+
     /// <summary>
-    /// 保存玩家本地音频和按键偏好 
+    /// 保存玩家本地音频、语音和按键偏好。
     /// </summary>
     [Serializable]
     public sealed class GameUserSettingsData
     {
-        public int Version = 1;
+        public int Version = 2;
         public AudioSettingsData Audio = new AudioSettingsData();
+        public VoiceSettingsData Voice = new VoiceSettingsData();
         public string InputBindingOverridesJson = string.Empty;
 
-        /// <summary>
-        /// 创建一份不共享引用的默认设置 
-        /// </summary>
         public static GameUserSettingsData CreateDefault()
         {
             return new GameUserSettingsData();
         }
 
-        /// <summary>
-        /// 修复外部 JSON 中缺失或越界的数据 
-        /// </summary>
         public void Normalize()
         {
-            Version = Mathf.Max(Version, 1);
+            Version = Mathf.Max(Version, 2);
             Audio ??= new AudioSettingsData();
+            Voice ??= new VoiceSettingsData();
+
             Audio.Normalize();
+            Voice.Normalize();
             InputBindingOverridesJson ??= string.Empty;
         }
     }
 
     /// <summary>
-    /// 保存三个音频通道的线性音量 
+    /// 保存三个音频通道的线性音量。
     /// </summary>
     [Serializable]
     public sealed class AudioSettingsData
@@ -43,9 +47,6 @@ namespace ProjectGame.HotFix.Settings
         public float MusicVolume = 0.8f;
         public float SfxVolume = 0.8f;
 
-        /// <summary>
-        /// 把所有音量限制到 Slider 使用的有效范围 
-        /// </summary>
         public void Normalize()
         {
             MasterVolume = Mathf.Clamp01(MasterVolume);
@@ -55,8 +56,21 @@ namespace ProjectGame.HotFix.Settings
     }
 
     /// <summary>
-    /// 标识 Setting 页面中的音量通道 
+    /// 保存本地麦克风的发送方式。
     /// </summary>
+    [Serializable]
+    public sealed class VoiceSettingsData
+    {
+        public VoiceTransmitMode TransmitMode =
+            VoiceTransmitMode.PushToTalk;
+
+        public void Normalize()
+        {
+            if (!Enum.IsDefined(typeof(VoiceTransmitMode), TransmitMode))
+                TransmitMode = VoiceTransmitMode.PushToTalk;
+        }
+    }
+
     public enum SettingVolumeChannel
     {
         Master,

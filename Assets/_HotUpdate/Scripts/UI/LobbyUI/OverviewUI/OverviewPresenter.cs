@@ -8,6 +8,7 @@ using UnityEngine;
 using ProjectGame.HotFix.Netcode;
 using ProjectGame.HotFix.Lobby;
 using ProjectGame.HotFix.Core.Events;
+using ProjectGame.Bootstrap;
 
 namespace ProjectGame.HotFix.UI.Lobby
 {
@@ -42,8 +43,10 @@ namespace ProjectGame.HotFix.UI.Lobby
         private LobbyNetworkManager _lobbyNetworkManager;
         private System.IDisposable _messageCardSubscription;
 
-        // 端口
-        private const ushort GamePort = 7777;
+        private static ushort GamePort => (ushort)Mathf.Clamp(
+            LanRuntimeContext.Endpoint.GamePort,
+            1,
+            ushort.MaxValue);
 
         #region 生命周期
 
@@ -420,7 +423,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private void HandleJoinGame()
         {
             if (!_isWorking) return;
-            _joinGameView.ShowInputField();
+            _joinGameView.ShowInputField(LanRuntimeContext.Endpoint.Host);
         }
 
         /// <summary>校验 IP、设置传输端点并启动客户端连接 </summary>
@@ -431,12 +434,9 @@ namespace ProjectGame.HotFix.UI.Lobby
             try { await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy()); }
             catch (System.Exception exception) { Debug.LogError($"连接准备失败：{exception}"); return; }
 
-            string cleanIP = ip.Trim().Replace("\u200B", "");
+            string cleanIP = (ip ?? string.Empty).Trim().Replace("\u200B", "");
             if (string.IsNullOrWhiteSpace(cleanIP))
-            {
-                _joinGameView.SetInfText("<color=red>IP 不能为空！</color>");
-                return;
-            }
+                cleanIP = LanRuntimeContext.Endpoint.Host;
 
             _joinGameView.SetInfText($"正在连接 {cleanIP} ...");
             _joinGameView.HideInputField();

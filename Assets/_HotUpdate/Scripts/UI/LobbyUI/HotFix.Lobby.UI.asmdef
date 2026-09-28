@@ -2,6 +2,7 @@
     "name": "HotFix.Lobby.UI",
     "rootNamespace": "",
     "references": [
+        "GUID:aa561d1e36ba2084f90561dbd65e1458",
         "HotFix.SceneFlow",
         "HotFix.Lobby.Network",
         "HotFix.Lobby.World",
@@ -20,6 +21,8 @@
         "GUID:f2d49d9fa7e7eb3418e39723a7d3b92f",
         "GUID:75469ad4d38634e559750d17036d5f7c",
         "UnityEngine.UI"
+    ,
+        "GUID:77151e77c28df3f468caf38e099d07e2"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -56,6 +56,18 @@ namespace ProjectGame.HotFix.Lobby
             }
 
             stand.SetVisible(false);
+            stand.SetVoiceState(false, false);
+        }
+
+        /// <summary>
+        /// 由大厅编排层刷新指定展位的语音提示。
+        /// </summary>
+        public void RenderVoiceState(
+            int index,
+            bool microphoneOpen,
+            bool speaking)
+        {
+            _layout.GetStand(index).SetVoiceState(microphoneOpen, speaking);
         }
 
         /// <summary>

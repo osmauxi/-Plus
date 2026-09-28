@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectGame.HotFix.Settings;
+using ProjectGame.HotFix.Voice;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.InputSystem;
@@ -106,6 +107,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private void BindViewEvents()
         {
             _view.OnVolumeChanged += HandleVolumeChanged;
+            _view.OnVoiceModeChanged += HandleVoiceModeChanged;
             _view.OnRebindRequested += HandleRebindRequested;
             _view.OnRestoreDefaultRequested += HandleRestoreDefaultRequested;
             _view.OnBackRequested += HandleBackRequested;
@@ -117,6 +119,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private void UnbindViewEvents()
         {
             _view.OnVolumeChanged -= HandleVolumeChanged;
+            _view.OnVoiceModeChanged -= HandleVoiceModeChanged;
             _view.OnRebindRequested -= HandleRebindRequested;
             _view.OnRestoreDefaultRequested -= HandleRestoreDefaultRequested;
             _view.OnBackRequested -= HandleBackRequested;
@@ -129,6 +132,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         {
             _settings = _saveService.Load();
             _audioService.Apply(_settings.Audio);
+            VoiceManager.Instance?.ApplySettings(_settings.Voice);
 
             if (!_inputRebindService.ApplyBindingOverrides(_settings.InputBindingOverridesJson))
             {
@@ -143,6 +147,7 @@ namespace ProjectGame.HotFix.UI.Lobby
         private void RefreshView()
         {
             _view.RefreshAudio(_settings.Audio);
+            _view.RefreshVoice(_settings.Voice);
             _view.RefreshBindings(
                 _inputRebindService.GetBindingDisplayStrings(_bindingDefinitions));
         }
@@ -168,6 +173,16 @@ namespace ProjectGame.HotFix.UI.Lobby
             }
 
             _audioService.Apply(_settings.Audio);
+            SaveSettings();
+        }
+
+        /// <summary>
+        /// 切换按键说话和自由麦，并立即应用到当前会话。
+        /// </summary>
+        private void HandleVoiceModeChanged(VoiceTransmitMode mode)
+        {
+            _settings.Voice.TransmitMode = mode;
+            VoiceManager.Instance?.ApplySettings(_settings.Voice);
             SaveSettings();
         }
 
@@ -219,6 +234,7 @@ namespace ProjectGame.HotFix.UI.Lobby
             _settings = GameUserSettingsData.CreateDefault();
             _inputRebindService.RestoreDefaults();
             _audioService.Apply(_settings.Audio);
+            VoiceManager.Instance?.ApplySettings(_settings.Voice);
             SaveSettings();
             _view.SetRebinding(false);
             RefreshView();

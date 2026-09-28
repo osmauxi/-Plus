@@ -21,6 +21,11 @@ namespace ProjectGame.HotFix.Lobby
         [SerializeField] private TMP_Text _playerNameText;
         [SerializeField] private TMP_InputField _nameInput;
         [SerializeField] private TMP_Text _playerReadyText;
+        [SerializeField] private Image _voiceImage;
+        [SerializeField] private Color _voiceIdleColor =
+            new Color(0.48f, 0.52f, 0.58f, 0.9f);
+        [SerializeField] private Color _voiceSpeakingColor =
+            new Color(0.35f, 1f, 0.62f, 1f);
 
         [Header("无玩家时 UI")]
         [SerializeField] private CanvasGroup _emptyUIs;
@@ -161,6 +166,17 @@ namespace ProjectGame.HotFix.Lobby
             _playerReadyText.text = isReady ? "准备" : "未准备";
             _playerReadyText.color = isReady ? Color.green : Color.red;
             _playerReadyText.gameObject.SetActive(visible);
+        }
+
+        /// <summary>
+        /// P 层传入麦克风状态，View 只负责显隐和颜色。
+        /// </summary>
+        public void SetVoiceState(bool microphoneOpen, bool speaking)
+        {
+            _voiceImage.gameObject.SetActive(microphoneOpen);
+            if (microphoneOpen)
+                _voiceImage.color =
+                    speaking ? _voiceSpeakingColor : _voiceIdleColor;
         }
 
         #endregion

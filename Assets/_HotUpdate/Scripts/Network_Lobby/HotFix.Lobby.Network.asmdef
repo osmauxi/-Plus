@@ -2,6 +2,7 @@
     "name": "HotFix.Lobby.Network",
     "rootNamespace": "",
     "references": [
+        "GUID:aa561d1e36ba2084f90561dbd65e1458",
         "HotFix.Network.Runtime",
         "HotFix.Session",
         "GUID:d403b56ef9a3aea40ae307fab3e5e834",

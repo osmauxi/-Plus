@@ -12,6 +12,8 @@
         "Unity.TextMeshPro",
         "Unity.Addressables",
         "Unity.ResourceManager"
+    ,
+        "HotFix.Voice"
     ],
     "autoReferenced": true
 }

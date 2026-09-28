@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
+using ProjectGame.Bootstrap;
 using ProjectGame.HotFix.Network.Runtime;
 using Unity.Netcode;
 using UnityEngine;
@@ -44,10 +44,19 @@ namespace ProjectGame.HotFix.Netcode
         {
             response.Approved = false;
             response.CreatePlayerObject = false;
-            string persistentId = Encoding.UTF8.GetString(request.Payload);
-            if (string.IsNullOrWhiteSpace(persistentId))
+            if (!LanConnectionPayload.TryParse(
+                    request.Payload,
+                    out LanConnectionPayload payload))
             {
-                response.Reason = "缺少玩家持久化 ID";
+                response.Reason = "连接信息无效，请重新启动客户端";
+                return;
+            }
+
+            if (!payload.IsCompatibleWith(
+                    LanRuntimeContext.Manifest,
+                    out string compatibilityError))
+            {
+                response.Reason = compatibilityError;
                 return;
             }
 
@@ -68,7 +77,7 @@ namespace ProjectGame.HotFix.Netcode
                 return;
             }
 
-            _approvedPlayerIds[request.ClientNetworkId] = persistentId;
+            _approvedPlayerIds[request.ClientNetworkId] = payload.PlayerId;
             response.Approved = true;
         }
 

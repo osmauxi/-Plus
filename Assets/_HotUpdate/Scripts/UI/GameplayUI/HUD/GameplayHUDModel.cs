@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ProjectGame.HotFix.Gameplay.Combat.Health;
+using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Weapon;
 
 namespace ProjectGame.HotFix.UI.Gameplay.HUD
@@ -9,28 +9,27 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
     {
         public readonly ulong ClientId, EntityId;
         public readonly string PlayerName;
+        public readonly PlayerHealthNetworkState Health;
         public readonly bool IsLocal;
-        public HUDPlayerBinding(ulong clientId, ulong entityId, string playerName, bool isLocal)
-        { ClientId = clientId; EntityId = entityId; PlayerName = playerName; IsLocal = isLocal; }
+        public HUDPlayerBinding(ulong clientId, ulong entityId, string playerName,
+            PlayerHealthNetworkState health, bool isLocal)
+        { ClientId = clientId; EntityId = entityId; PlayerName = playerName; Health = health; IsLocal = isLocal; }
     }
 
     public readonly struct HUDPlayerState : IEquatable<HUDPlayerState>
     {
         public readonly HUDPlayerBinding Player;
         public readonly bool HasHealth;
-        public readonly HealthSnapshot Health;
-        public float HealthRatio => HasHealth ? Health.CurrentHealth / Health.Definition.MaxHealth : 0;
-        public float ShieldRatio => HasHealth && Health.Definition.MaxShield > 0
-            ? Health.CurrentShield / Health.Definition.MaxShield : 0;
-        public HUDPlayerState(HUDPlayerBinding player, bool hasHealth, HealthSnapshot health)
+        public readonly PlayerHealthState Health;
+        public float HealthRatio => HasHealth ? Health.CurrentHealth / Health.MaxHealth : 0;
+        public float ShieldRatio => HasHealth && Health.MaxShield > 0
+            ? Health.CurrentShield / Health.MaxShield : 0;
+        public HUDPlayerState(HUDPlayerBinding player, bool hasHealth, PlayerHealthState health)
         { Player = player; HasHealth = hasHealth; Health = health; }
         public bool Equals(HUDPlayerState other) => Player.ClientId == other.Player.ClientId &&
             Player.EntityId == other.Player.EntityId && Player.IsLocal == other.Player.IsLocal &&
             Player.PlayerName == other.Player.PlayerName && HasHealth == other.HasHealth &&
-            (!HasHealth || (Health.Entity == other.Health.Entity &&
-                Health.CurrentHealth == other.Health.CurrentHealth && Health.CurrentShield == other.Health.CurrentShield &&
-                Health.Definition.MaxHealth == other.Health.Definition.MaxHealth &&
-                Health.Definition.MaxShield == other.Health.Definition.MaxShield));
+            (!HasHealth || Health.Equals(other.Health));
     }
 
     public readonly struct HUDAmmoState : IEquatable<HUDAmmoState>
@@ -62,7 +61,7 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         public HUDAmmoState Ammo { get; private set; }
         public event Action Changed;
 
-        public bool Synchronize(IReadOnlyList<HUDPlayerBinding> roster, IHealthStateSource health, IWeaponStateSource localWeapon)
+        public bool Synchronize(IReadOnlyList<HUDPlayerBinding> roster, IWeaponStateSource localWeapon)
         {
             _next.Clear();
             bool hasLocal = false;
@@ -71,13 +70,12 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
                 for (int i = 0; i < roster.Count; i++)
                 {
                     HUDPlayerBinding player = roster[i];
-                    HealthSnapshot snapshot = default;
-                    bool available = health != null && health.TryGetEntity(player.EntityId, out var entity) &&
-                        health.TryGetHealth(entity, out snapshot);
+                    PlayerHealthState snapshot = default;
+                    bool available = player.Health != null && player.Health.TryGetHealth(out snapshot);
                     _next.Add(new HUDPlayerState(player, available, snapshot));
                     if (player.IsLocal) { hasLocal = true; localEntity = player.EntityId; }
                 }
-            _next.Sort(ComparePlayers);
+            SortPlayers(_next);
             WeaponRuntimeState weapon = hasLocal && localWeapon != null && localWeapon.Definition != null
                 ? localWeapon.CurrentWeaponState : default;
             var ammo = new HUDAmmoState(hasLocal, localEntity, weapon.IsEquipped, weapon);
@@ -94,5 +92,21 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
 
         private static int ComparePlayers(HUDPlayerState a, HUDPlayerState b) =>
             a.Player.IsLocal != b.Player.IsLocal ? (a.Player.IsLocal ? -1 : 1) : a.Player.ClientId.CompareTo(b.Player.ClientId);
+
+        private static void SortPlayers(List<HUDPlayerState> players)
+        {
+            // HUD 玩家列表很小；原地插入排序避免 List.Sort(Comparison<T>) 每帧创建比较器包装对象。
+            for (int i = 1; i < players.Count; i++)
+            {
+                HUDPlayerState value = players[i];
+                int destination = i;
+                while (destination > 0 && ComparePlayers(players[destination - 1], value) > 0)
+                {
+                    players[destination] = players[destination - 1];
+                    destination--;
+                }
+                players[destination] = value;
+            }
+        }
     }
 }

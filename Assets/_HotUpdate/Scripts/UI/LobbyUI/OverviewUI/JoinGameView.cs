@@ -139,10 +139,11 @@ namespace ProjectGame.HotFix.UI.Lobby
         /// <summary>
         /// 显示 InputField，让用户输入IP
         /// </summary>
-        public void ShowInputField()
+        public void ShowInputField(string defaultIp = null)
         {
             _ipInputField.gameObject.SetActive(true);
-            _ipInputField.text = "";
+            if (!string.IsNullOrWhiteSpace(defaultIp))
+                _ipInputField.text = defaultIp;
             _ipInputField.ActivateInputField();
         }
 

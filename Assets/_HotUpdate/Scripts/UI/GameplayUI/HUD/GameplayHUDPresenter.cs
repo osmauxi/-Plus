@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DG.Tweening;
+using ProjectGame.HotFix.Voice;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.UI.Gameplay.HUD
@@ -13,7 +14,9 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         private readonly GameplayHUDModel _model = new();
         private readonly GameplayHUDRuntimeBinding _runtime = new();
         private readonly Dictionary<ulong, BarPresentation> _bars = new();
-        private Sequence _contentTween, _ammoTween;
+        private readonly HashSet<ulong> _alive = new();
+        private readonly List<ulong> _removed = new();
+        private Sequence _contentTween;
         private HUDAmmoState _lastAmmo;
         private bool _rendered;
 
@@ -22,13 +25,18 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         private sealed class BarPresentation
         {
             public HUDHealthBarView View;
+            public ulong ClientId;
             public Sequence HealthTween;
             public Tween ShieldTween;
             public float Health, Buffer, Shield;
             public bool HasValue;
         }
 
-        protected override void OnInitialize() => _model.Changed += Refresh;
+        protected override void OnInitialize()
+        {
+            _model.Changed += Refresh;
+            VoiceManager.Instance.ActivityChanged += HandleVoiceActivityChanged;
+        }
         private void Update()
         {
             if (IsInitialized) _runtime.Synchronize(_model);
@@ -45,11 +53,11 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
 
         protected override void RenderView()
         {
-            var alive = new HashSet<ulong>();
+            _alive.Clear();
             for (int i = 0; i < _model.Players.Count; i++)
             {
                 HUDPlayerState state = _model.Players[i];
-                alive.Add(state.Player.EntityId);
+                _alive.Add(state.Player.EntityId);
                 if (!_bars.TryGetValue(state.Player.EntityId, out var bar))
                 {
                     var row = state.Player.IsLocal ? View.LocalHealth : View.CreateRemoteHealth();
@@ -57,13 +65,15 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
                     bar = new BarPresentation { View = row };
                     _bars.Add(state.Player.EntityId, bar);
                 }
+                bar.ClientId = state.Player.ClientId;
                 bar.View.SetIdentity(state.Player.PlayerName);
+                RenderVoiceState(bar);
                 AnimateHealth(bar, state);
             }
-            var removed = new List<ulong>();
+            _removed.Clear();
             foreach (var pair in _bars)
-                if (!alive.Contains(pair.Key)) removed.Add(pair.Key);
-            foreach (ulong id in removed)
+                if (!_alive.Contains(pair.Key)) _removed.Add(pair.Key);
+            foreach (ulong id in _removed)
             {
                 BarPresentation bar = _bars[id];
                 Kill(bar);
@@ -72,6 +82,32 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
             }
             RenderAmmo(_model.Ammo);
             _rendered = true;
+        }
+
+        private void HandleVoiceActivityChanged(
+            ulong clientId,
+            VoiceActivityState state)
+        {
+            foreach (BarPresentation bar in _bars.Values)
+            {
+                if (bar.ClientId == clientId)
+                {
+                    bar.View.SetVoiceState(
+                        state != VoiceActivityState.Closed,
+                        state == VoiceActivityState.Speaking);
+                    return;
+                }
+            }
+        }
+
+        private static void RenderVoiceState(BarPresentation bar)
+        {
+            VoiceActivityState state =
+                VoiceManager.Instance.GetActivity(bar.ClientId);
+
+            bar.View.SetVoiceState(
+                state != VoiceActivityState.Closed,
+                state == VoiceActivityState.Speaking);
         }
 
         private void AnimateHealth(BarPresentation bar, HUDPlayerState state)
@@ -86,8 +122,9 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
                 return;
             }
             float health = Mathf.Clamp01(state.HealthRatio), shield = Mathf.Clamp01(state.ShieldRatio);
-            bar.View.SetNumbers($"{Mathf.CeilToInt(state.Health.CurrentHealth)} / {Mathf.CeilToInt(state.Health.Definition.MaxHealth)}",
-                $"{Mathf.CeilToInt(state.Health.CurrentShield)} / {Mathf.CeilToInt(state.Health.Definition.MaxShield)}");
+            bar.View.SetNumbers(
+                Mathf.CeilToInt(state.Health.CurrentHealth), Mathf.CeilToInt(state.Health.MaxHealth),
+                Mathf.CeilToInt(state.Health.CurrentShield), Mathf.CeilToInt(state.Health.MaxShield));
             if (!bar.HasValue || !_rendered)
             {
                 Kill(bar); bar.HasValue = true;
@@ -118,19 +155,10 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
 
         private void RenderAmmo(HUDAmmoState ammo)
         {
-            string current = ammo.HasWeapon ? ammo.Current.ToString() : "--";
-            string reserve = ammo.HasWeapon ? "/ " + ammo.Reserve : "/ --";
-            string status = ammo.IsReloading ? "RELOADING" : "AMMO";
             Color color = ammo.HasWeapon && ammo.Current == 0 ? new Color(1f, .3f, .25f) : Color.white;
-            View.Ammo.SetNumbers(current, reserve, status, color);
+            View.Ammo.SetNumbers(ammo.HasWeapon, ammo.Current, ammo.Reserve, ammo.IsReloading, color);
             if (_rendered && ammo.HasWeapon && ammo.Current != _lastAmmo.Current)
-            {
-                _ammoTween?.Kill();
-                View.Ammo.PulseScale = 1;
-                _ammoTween = DOTween.Sequence().SetUpdate(true).SetLink(View.Ammo.gameObject)
-                    .Append(DOTween.To(() => View.Ammo.PulseScale, x => View.Ammo.PulseScale = x, 1.12f, .08f))
-                    .Append(DOTween.To(() => View.Ammo.PulseScale, x => View.Ammo.PulseScale = x, 1f, .14f));
-            }
+                View.Ammo.PlayPulse();
             _lastAmmo = ammo;
         }
 
@@ -138,6 +166,8 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         protected override void OnShutdown()
         {
             _model.Changed -= Refresh;
+            if (VoiceManager.Instance != null)
+                VoiceManager.Instance.ActivityChanged -= HandleVoiceActivityChanged;
             KillTweens();
             foreach (var pair in _bars)
                 if (pair.Value.View != View.LocalHealth) View.RemoveRemoteHealth(pair.Value.View);
@@ -146,8 +176,7 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         private void KillTweens()
         {
             _contentTween?.Kill(); _contentTween = null;
-            _ammoTween?.Kill(); _ammoTween = null;
-            View.Ammo.PulseScale = 1;
+            View.Ammo.ResetPulse();
             foreach (var pair in _bars) Kill(pair.Value);
         }
         private static void Kill(BarPresentation bar)

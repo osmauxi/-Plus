@@ -4,6 +4,7 @@ using ProjectGame.HotFix.Core.Network;
 using ProjectGame.HotFix.Core.Session;
 using ProjectGame.HotFix.SceneFlow;
 using ProjectGame.HotFix.Network.Runtime;
+using ProjectGame.Bootstrap;
 using System.Threading;
 using System;
 using System.Collections;
@@ -203,8 +204,14 @@ namespace ProjectGame.HotFix.Netcode
             {
                 // Host 自身若没有经过连接审批 Gate，则从本机 ConnectionData 取得身份。
                 //为 Host 本地客户端生成默认初始数据
-                string hostPersistentId = Encoding.UTF8.GetString(
-                    NetworkManager.Singleton.NetworkConfig.ConnectionData);
+                byte[] connectionData =
+                    NetworkManager.Singleton.NetworkConfig.ConnectionData;
+                string hostPersistentId =
+                    LanConnectionPayload.TryParse(
+                        connectionData,
+                        out LanConnectionPayload payload)
+                        ? payload.PlayerId
+                        : Encoding.UTF8.GetString(connectionData);
                 if (string.IsNullOrWhiteSpace(hostPersistentId))
                     hostPersistentId = $"Host_{clientId}";
                 LobbyPlayers.Add(CreateDefaultPlayerState(clientId, hostPersistentId, "Host_Player"));

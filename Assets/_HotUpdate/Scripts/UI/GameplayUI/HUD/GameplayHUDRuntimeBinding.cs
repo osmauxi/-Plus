@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using ProjectGame.HotFix.Core.Session;
-using ProjectGame.HotFix.Gameplay.Combat.Health;
 using ProjectGame.HotFix.Gameplay.Player;
 
 namespace ProjectGame.HotFix.UI.Gameplay.HUD
@@ -31,9 +30,10 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
                         ? session.PlayerName : null;
                     // 名单可能先于 Session 数据就绪；回退只用于标识，不用它替换实际 Lobby 用户名。
                     if (string.IsNullOrWhiteSpace(name)) name = "Client " + player.ClientId;
-                    _roster.Add(new HUDPlayerBinding(player.ClientId, player.NetworkObjectId, name, player == local));
+                    _roster.Add(new HUDPlayerBinding(player.ClientId, player.NetworkObjectId, name,
+                        player.GetComponent<PlayerHealthNetworkState>(), player == local));
                 }
-            model.Synchronize(_roster, PlayerHealthRuntimeService.Instance, _weapon);
+            model.Synchronize(_roster, _weapon);
         }
     }
 }

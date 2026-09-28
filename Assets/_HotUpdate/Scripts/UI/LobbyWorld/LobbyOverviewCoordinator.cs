@@ -1,9 +1,11 @@
 using System;
 using System.Linq;
 using System.Text;
+using ProjectGame.Bootstrap;
 using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Core.Network;
 using ProjectGame.HotFix.Netcode;
+using ProjectGame.HotFix.Voice;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
@@ -27,6 +29,7 @@ namespace ProjectGame.HotFix.Lobby
         private LobbyPlayerState?[] _visibleStates;
         private bool _profileSubmittedForSession;
         private NetworkManager _netcodeManager;
+        private VoiceManager _voiceManager;
 
         public int LocalPlayerStandIndex { get; private set; }
         public LobbyPlayerState LocalPlayerData => GetLocalPlayerData();
@@ -42,6 +45,8 @@ namespace ProjectGame.HotFix.Lobby
             _netcodeManager = NetworkManager.Singleton;
             LobbyNetworkManager.InstanceChanged += HandleLobbyNetworkManagerChanged;
             HandleLobbyNetworkManagerChanged(LobbyNetworkManager.Instance);
+            VoiceManager.InstanceChanged += HandleVoiceManagerChanged;
+            HandleVoiceManagerChanged(VoiceManager.Instance);
             _netcodeManager.OnClientStopped += HandleClientStopped;
             _netcodeManager.OnClientConnectedCallback += HandleClientConnected;
 
@@ -54,7 +59,9 @@ namespace ProjectGame.HotFix.Lobby
         private void OnDestroy()
         {
             LobbyNetworkManager.InstanceChanged -= HandleLobbyNetworkManagerChanged;
+            VoiceManager.InstanceChanged -= HandleVoiceManagerChanged;
             if (_networkManager != null) _networkManager.OnLobbyDataChanged -= HandleLobbyDataChanged;
+            if (_voiceManager != null) _voiceManager.ActivityChanged -= HandleVoiceActivityChanged;
             if (_netcodeManager != null)
             {
                 _netcodeManager.OnClientStopped -= HandleClientStopped;
@@ -87,7 +94,8 @@ namespace ProjectGame.HotFix.Lobby
         /// </summary>
         public void PrepareConnectionPayload()
         {
-            NetworkManager.Singleton.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(PersistentPlayerId);
+            NetworkManager.Singleton.NetworkConfig.ConnectionData =
+                LanConnectionPayload.Create(PersistentPlayerId);
             _profileSubmittedForSession = false;
         }
 
@@ -258,7 +266,68 @@ namespace ProjectGame.HotFix.Lobby
                 bool isLocalPlayer = i == LocalPlayerStandIndex && _visibleStates[i].HasValue;
                 _standManager.RenderStand(i,_visibleStates[i],isLocalPlayer,showReadyState);
                 _avatarResManager.ApplyStandState(i, _visibleStates[i]);
+                RenderVoiceState(i);
             }
+        }
+
+        private void HandleVoiceManagerChanged(VoiceManager manager)
+        {
+            if (_voiceManager == manager)
+                return;
+
+            if (_voiceManager != null)
+                _voiceManager.ActivityChanged -= HandleVoiceActivityChanged;
+
+            _voiceManager = manager;
+
+            if (_voiceManager != null)
+                _voiceManager.ActivityChanged += HandleVoiceActivityChanged;
+
+            RefreshVoiceStates();
+        }
+
+        private void HandleVoiceActivityChanged(
+            ulong clientId,
+            VoiceActivityState state)
+        {
+            for (int i = 0; i < _visibleStates.Length; i++)
+            {
+                if (_visibleStates[i].HasValue &&
+                    _visibleStates[i].Value.ClientId == clientId)
+                {
+                    RenderVoiceState(i);
+                    return;
+                }
+            }
+        }
+
+        private void RefreshVoiceStates()
+        {
+            if (_visibleStates == null)
+                return;
+
+            for (int i = 0; i < _visibleStates.Length; i++)
+                RenderVoiceState(i);
+        }
+
+        /// <summary>
+        /// 大厅 P 层把语音状态转换为 StandView 的显隐和高亮。
+        /// </summary>
+        private void RenderVoiceState(int standIndex)
+        {
+            if (!_visibleStates[standIndex].HasValue || _voiceManager == null)
+            {
+                _standManager.RenderVoiceState(standIndex, false, false);
+                return;
+            }
+
+            VoiceActivityState state = _voiceManager.GetActivity(
+                _visibleStates[standIndex].Value.ClientId);
+
+            _standManager.RenderVoiceState(
+                standIndex,
+                state != VoiceActivityState.Closed,
+                state == VoiceActivityState.Speaking);
         }
 
         /// <summary>

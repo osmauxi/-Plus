@@ -95,3 +95,7 @@ crashlytics-build.properties
 /[Aa]ssets/_HotUpdate/Tests/Temp/
 /[Aa]ssets/_HotUpdate/Tests/Temp.meta
 
+# 截图临时产物（不提交）
+/[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta
+

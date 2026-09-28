@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using ProjectGame.HotFix.Gameplay.Map.Generation;
 
 namespace ProjectGame.HotFix.Gameplay.Map.View
 {
@@ -13,13 +14,17 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         private readonly Dictionary<ConnectorDirection, RoomConnectorSlot> _directionalConnectors = new();
 
         public int RoomId { get; }
+        public RoomType RoomType { get; }
         public RoomView View { get; }
+        public RoomMinimapDefinition MinimapDefinition { get; }
         public IReadOnlyList<RoomConnectorSlot> Connectors => _connectors;
 
-        public RoomViewRuntime(int roomId, RoomView view)
+        public RoomViewRuntime(int roomId, RoomType roomType, RoomView view)
         {
             View = view != null ? view : throw new ArgumentNullException(nameof(view));
             RoomId = roomId;
+            RoomType = roomType;
+            MinimapDefinition = view.GetComponent<RoomMinimapDefinition>();
 
             // 房间实例注册时只扫描一次，后续全部使用缓存 
             _connectors = view.GetComponentsInChildren<RoomConnectorSlot>(true);

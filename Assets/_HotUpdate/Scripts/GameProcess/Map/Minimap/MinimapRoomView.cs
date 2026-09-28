@@ -3,34 +3,24 @@ using UnityEngine.UI;
 
 public sealed class MinimapRoomView : MonoBehaviour
 {
-    [SerializeField] private RectTransform _rectTransform;
-    [SerializeField] private Image _layoutImage;
-    [SerializeField] private Image _typeIcon;
+    private RectTransform _rectTransform;
+    private Image _layoutImage;
 
-    public RectTransform RectTransform => _rectTransform;
+    public Vector2 Size => _rectTransform.sizeDelta;
 
-    private void Awake()
+    public void Configure(RectTransform rectTransform, Image layoutImage)
     {
-        if (_rectTransform == null) 
-            _rectTransform = (RectTransform)transform;
+        _rectTransform = rectTransform;
+        _layoutImage = layoutImage;
         _layoutImage.raycastTarget = false;
-        _typeIcon.raycastTarget = false;
     }
 
-    public void SetLayout(Sprite sprite) => _layoutImage.sprite = sprite;
-
-    public void SetTransform(Vector2 position, Vector2 size, float worldYaw)
+    public void SetLayout(Sprite sprite, Vector2 size)
     {
-        _rectTransform.anchoredPosition = position;
+        _layoutImage.sprite = sprite;
+        _layoutImage.preserveAspect = true;
+        _rectTransform.anchoredPosition = Vector2.zero;
         _rectTransform.sizeDelta = size;
-        _rectTransform.localEulerAngles = new Vector3(0f, 0f, -worldYaw);
+        _rectTransform.localEulerAngles = Vector3.zero;
     }
-
-    public void SetTypeIcon(Sprite sprite)
-    {
-        _typeIcon.sprite = sprite;
-        _typeIcon.enabled = sprite != null;
-    }
-
-    public void SetVisible(bool visible) => gameObject.SetActive(visible);
 }

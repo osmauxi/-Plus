@@ -76,17 +76,6 @@ namespace ProjectGame.HotFix.Gameplay.Spawning
             float minimumSpacing, System.Random random, List<Vector3> destination,
             int attemptsPerPoint = 48, float rayPadding = 2f)
         {
-            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
-            if (horizontalScale <= 0f || horizontalScale > 1f || float.IsNaN(horizontalScale))
-                throw new ArgumentOutOfRangeException(nameof(horizontalScale));
-            if (minimumSpacing < 0f || float.IsNaN(minimumSpacing) || float.IsInfinity(minimumSpacing))
-                throw new ArgumentOutOfRangeException(nameof(minimumSpacing));
-            if (random == null) throw new ArgumentNullException(nameof(random));
-            if (destination == null) throw new ArgumentNullException(nameof(destination));
-            if (attemptsPerPoint < 1) throw new ArgumentOutOfRangeException(nameof(attemptsPerPoint));
-            if (rayPadding < 0f || float.IsNaN(rayPadding) || float.IsInfinity(rayPadding))
-                throw new ArgumentOutOfRangeException(nameof(rayPadding));
-
             destination.Clear();
             Vector3 half = region.LocalSize * 0.5f;
             float sampleHalfX = half.x * horizontalScale;

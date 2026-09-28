@@ -54,6 +54,9 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
 
         public bool IsInitialized { get; private set; }
 
+        public IReadOnlyDictionary<int, RoomViewRuntime> Rooms => _roomsById;
+        public IReadOnlyDictionary<int, ConnectionViewRuntime> Connections => _connectionsById;
+
         public Transform RoomRoot => _roomRoot != null ? _roomRoot : transform;
         public Transform ConnectionRoot => _connectionRoot != null ? _connectionRoot : transform;
 
@@ -89,7 +92,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         /// <summary>
         /// 房间从对象池取出并完成位置设置后，由构建流程调用一次 
         /// </summary>
-        public RoomViewRuntime RegisterRoom(int roomId, RoomView view)
+        public RoomViewRuntime RegisterRoom(int roomId, RoomType roomType, RoomView view)
         {
             EnsureInitialized();
 
@@ -99,7 +102,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             if (_roomsById.ContainsKey(roomId))
                 throw new InvalidOperationException($"Room {roomId} 已经注册 ");
 
-            RoomViewRuntime runtime = new RoomViewRuntime(roomId, view);
+            RoomViewRuntime runtime = new RoomViewRuntime(roomId, roomType, view);
 
             _roomsById.Add(roomId, runtime);
             _connectionIdsByRoomId.Add(roomId, new List<int>());
@@ -254,7 +257,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 //ClearVisualsInternal 仍然能够统一回收它 
                 _roomObjectsById.Add(definition.RoomId, roomObject);
 
-                RoomViewRuntime runtime = RegisterRoom(definition.RoomId, roomView);
+                RoomViewRuntime runtime = RegisterRoom(definition.RoomId, definition.RoomType, roomView);
                 ApplyConnectorMask(runtime, definition.RequiredLocalConnectors);
             }
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Core.Events;
 using ProjectGame.HotFix.Gameplay.Map.View;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using Unity.Netcode;
@@ -99,6 +100,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             EnsureInitialized();
             EnsureServer();
 
+            int previousGenerationId = _currentGenerationId;
             int seed = seedOverride ?? UnityEngine.Random.Range(1, int.MaxValue);
             int generationId = ++_currentGenerationId;
 
@@ -113,12 +115,17 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
             _readyClientIds.Clear();
 
+            PublishMapClearingIfBuilt(previousGenerationId);
+            CurrentLayout = null;
+            CurrentBuildPlan = default;
+
             // Server 先完成自己的地图构建 
             // 构建失败时不会向其他客户端发送一份无效方案 
             await _visualBuilder.BuildAsync(buildPlan, cancellationToken);
 
             CurrentLayout = layout;
             CurrentBuildPlan = buildPlan;
+            LocalEvents.Publish(new MapRuntimeBuiltEvent(generationId, CurrentLayout, CurrentBuildPlan));
 
             // Host同时也是一个Client，需要记录本地地图已经完成 
             if (_networkManager.IsClient)
@@ -168,7 +175,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             EnsureInitialized();
             EnsureServer();
 
+            int previousGenerationId = _currentGenerationId;
             int clearGenerationId = ++_currentGenerationId;
+
+            PublishMapClearingIfBuilt(previousGenerationId);
 
             ClearMapVisualsClientRpc(clearGenerationId);
             await _visualBuilder.ClearMapVisualsAsync(cancellationToken);
@@ -237,11 +247,15 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
                 _clientBuildCts = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken);
                 CancellationToken buildToken = _clientBuildCts.Token;
 
+                PublishMapClearingIfBuilt(_currentGenerationId);
+                CurrentLayout = null;
+                CurrentBuildPlan = default;
                 await _visualBuilder.BuildAsync(buildPlan, buildToken);
 
                 _currentGenerationId = generationId;
                 CurrentBuildPlan = buildPlan;
                 CurrentLayout = buildPlan.ToLayout();
+                LocalEvents.Publish(new MapRuntimeBuiltEvent(generationId, CurrentLayout, CurrentBuildPlan));
 
                 ReportMapReadyServerRpc(generationId);
             }
@@ -340,6 +354,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
                 _currentGenerationId = clearGenerationId;
 
+                PublishMapClearingIfBuilt(clearGenerationId - 1);
+
                 await _visualBuilder.ClearMapVisualsAsync(lifetimeToken);
 
                 CurrentLayout = null;
@@ -395,6 +411,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
             CancelClientBuild();
 
+            PublishMapClearingIfBuilt(_currentGenerationId);
             await _visualBuilder.ClearMapVisualsAsync(cancellationToken);
 
             _readyClientIds.Clear();
@@ -432,6 +449,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             _clientBuildCts.Cancel();
             _clientBuildCts.Dispose();
             _clientBuildCts = null;
+        }
+
+        private void PublishMapClearingIfBuilt(int generationId)
+        {
+            if (CurrentLayout != null && CurrentBuildPlan.IsValid)
+                LocalEvents.Publish(new MapRuntimeClearingEvent(generationId));
         }
 
         public override void OnNetworkDespawn()

@@ -21,8 +21,13 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         [SerializeField] private Transform[] _chestSpawnPoints;
         [SerializeField] private Transform[] _nextLevelPoints;
 
+        [SerializeField] private RoomSpatialData _spatialData;
+        public RoomSpatialData SpatialData => _spatialData;
+
         public RoomSpawnRegion SpawnRegion => new RoomSpawnRegion(transform,
             _spawnRegionCenter, _spawnRegionSize, _spawnProbeMask, _groundMask);
+        public IReadOnlyList<Transform> ChestSpawnPoints => _chestSpawnPoints ?? System.Array.Empty<Transform>();
+        public IReadOnlyList<Transform> NextLevelPoints => _nextLevelPoints ?? System.Array.Empty<Transform>();
 
         private void OnDrawGizmosSelected()
         {
@@ -34,5 +39,9 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             Gizmos.matrix = previousMatrix;
             Gizmos.color = previousColor;
         }
+
+#if UNITY_EDITOR
+        public void EditorSetSpatialData(RoomSpatialData data) => _spatialData = data;
+#endif
     }
 }

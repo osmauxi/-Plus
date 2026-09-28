@@ -16,12 +16,30 @@ namespace ProjectGame.HotFix.Gameplay.Network
         private readonly NetworkManager _networkManager;
         private readonly NetworkTransportStats _stats;
         private readonly Dictionary<string, NetworkMessageHandler> _handlers = new(StringComparer.Ordinal);
+        private readonly List<ulong> _connectedClientIds = new();
+        private readonly List<ulong> _remoteClientIds = new();
 
         public bool IsInitialized { get; private set; }
 
         public bool IsServer => _networkManager.IsServer;
 
         public bool IsClient => _networkManager.IsClient;
+
+        /// <summary>
+        /// 当前 Peer 可见的全部已连接 ClientId；列表实例在会话内保持稳定
+        /// </summary>
+        public IReadOnlyList<ulong> ConnectedClientIds => _connectedClientIds;
+
+        /// <summary>
+        /// Server/Host 侧排除 ServerClientId 后的远端 ClientId，用于直接广播
+        /// </summary>
+        public IReadOnlyList<ulong> RemoteClientIds => _remoteClientIds;
+
+        public ulong LocalClientId => _networkManager.LocalClientId;
+
+        public ulong ServerClientId => NetworkManager.ServerClientId;
+
+        public bool HasRemoteClients => _remoteClientIds.Count != 0;
 
         public NetworkMessageTransport(NetworkManager networkManager, NetworkTransportStats stats)
         {
@@ -31,7 +49,6 @@ namespace ProjectGame.HotFix.Gameplay.Network
         /// <summary>
         /// 只确认NGO依旧初始化，能够监听消息
         /// </summary>
-        /// <exception cref="InvalidOperationException"></exception>
         public void Initialize()
         {
             if (IsInitialized)
@@ -40,6 +57,9 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (!_networkManager.IsListening || _networkManager.CustomMessagingManager == null)
                 throw new InvalidOperationException("NGO 尚未开始监听，无法初始化 Gameplay 消息传输层。");
 
+            _networkManager.OnClientConnectedCallback += OnClientConnected;
+            _networkManager.OnClientDisconnectCallback += OnClientDisconnected;
+            RebuildClientLists();
             IsInitialized = true;
         }
 
@@ -47,6 +67,9 @@ namespace ProjectGame.HotFix.Gameplay.Network
         {
             if (!IsInitialized)
                 return;
+
+            _networkManager.OnClientConnectedCallback -= OnClientConnected;
+            _networkManager.OnClientDisconnectCallback -= OnClientDisconnected;
 
             CustomMessagingManager messaging = _networkManager.CustomMessagingManager;
             if (messaging != null)
@@ -56,6 +79,8 @@ namespace ProjectGame.HotFix.Gameplay.Network
             }
 
             _handlers.Clear();
+            _connectedClientIds.Clear();
+            _remoteClientIds.Clear();
             _stats.Reset();
             IsInitialized = false;
         }
@@ -94,7 +119,9 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (!_handlers.Remove(messageName))
                 return;
 
-            _networkManager.CustomMessagingManager.UnregisterNamedMessageHandler(messageName);
+            CustomMessagingManager messaging = _networkManager.CustomMessagingManager;
+            if (messaging != null)
+                messaging.UnregisterNamedMessageHandler(messageName);
         }
 
         public void SendToServer(string messageName,FastBufferWriter writer,NetworkDeliveryClass delivery)
@@ -131,6 +158,28 @@ namespace ProjectGame.HotFix.Gameplay.Network
             _stats.RecordSent(messageName, writer.Length);
         }
 
+        public void SendToClients(IReadOnlyList<ulong> clientIds, string messageName, FastBufferWriter writer, NetworkDeliveryClass delivery)
+        {
+            EnsureInitialized();
+            ValidateMessageName(messageName);
+            if (!_networkManager.IsServer) 
+                return;
+            if (clientIds == null) 
+                throw new ArgumentNullException(nameof(clientIds));
+            if (clientIds.Count == 0) 
+                return;
+
+            _networkManager.CustomMessagingManager.SendNamedMessage(messageName, clientIds, writer, ResolveDelivery(delivery));
+
+            for (int i = 0; i < clientIds.Count; i++) 
+                _stats.RecordSent(messageName, writer.Length);
+        }
+
+        public void SendToRemoteClients(string messageName, FastBufferWriter writer, NetworkDeliveryClass delivery)
+        {
+            SendToClients(_remoteClientIds, messageName, writer, delivery);
+        }
+
         public static NetworkDelivery ResolveDelivery(NetworkDeliveryClass delivery)
         {
             //根据传输性质使用不同的传输方案
@@ -162,6 +211,34 @@ namespace ProjectGame.HotFix.Gameplay.Network
         {
             if (!IsInitialized)
                 throw new InvalidOperationException($"{nameof(NetworkMessageTransport)} 尚未初始化。");
+        }
+
+        private void RebuildClientLists()
+        {
+            _connectedClientIds.Clear();
+            _remoteClientIds.Clear();
+
+            IReadOnlyList<ulong> clientIds = _networkManager.ConnectedClientsIds;
+            for (int i = 0; i < clientIds.Count; i++)
+                AddClient(clientIds[i]);
+        }
+
+        private void OnClientConnected(ulong clientId) => AddClient(clientId);
+
+        private void OnClientDisconnected(ulong clientId)
+        {
+            _connectedClientIds.Remove(clientId);
+            _remoteClientIds.Remove(clientId);
+        }
+
+        private void AddClient(ulong clientId)
+        {
+            if (_connectedClientIds.Contains(clientId))
+                return;
+
+            _connectedClientIds.Add(clientId);
+            if (_networkManager.IsServer && clientId != NetworkManager.ServerClientId)
+                _remoteClientIds.Add(clientId);
         }
 
         private static void ValidateMessageName(string messageName)

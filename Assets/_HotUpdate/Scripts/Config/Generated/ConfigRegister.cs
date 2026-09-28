@@ -18,10 +18,6 @@ namespace ProjectGame.HotFix.Config
                     var dict_Config_Weapon = MessagePackSerializer.Deserialize<Dictionary<int, Config_Weapon>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_Weapon);
                     break;
-                case "Config_Health":
-                    var dict_Config_Health = MessagePackSerializer.Deserialize<Dictionary<int, Config_Health>>(bytes);
-                    ConfigManager.Instance.RegisterTable(dict_Config_Health);
-                    break;
                 case "Config_MonsterAttack":
                     var dict_Config_MonsterAttack = MessagePackSerializer.Deserialize<Dictionary<int, Config_MonsterAttack>>(bytes);
                     ConfigManager.Instance.RegisterTable(dict_Config_MonsterAttack);

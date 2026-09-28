@@ -2,10 +2,10 @@
     "name": "HotFix.Gameplay",
     "rootNamespace": "",
     "references": [
-        "HotFix.Network.Runtime",
-        "HotFix.Gameplay.Network",
-        "HotFix.Settings",
-        "Unity.Collections",
+        "GUID:79b81a1994670cd44b77b84af7626954",
+        "GUID:d2f7b47be71ab64438d321b946824fbd",
+        "GUID:17e0981b71bb4fd1b16514f5d45f9bd5",
+        "GUID:e0cd26848372d4e5c891c569017e11f1",
         "GUID:75469ad4d38634e559750d17036d5f7c",
         "GUID:65e1f9a98235de0478d5c4590a742bf6",
         "GUID:a26e6a9ad58f0394eab2d125d50ed570",
@@ -23,7 +23,10 @@
         "GUID:593a5b492d29ac6448b1ebf7f035ef33",
         "GUID:83268041917490b408096b79ba5d007a",
         "GUID:384b44c77e8980c4b8f34f5830a470d7",
-        "GUID:2406edb708fb4de7b412856af92595c9"
+        "GUID:2406edb708fb4de7b412856af92595c9",
+        "GUID:13e03270379618f4d8284b2357a0582f"
+    ,
+        "GUID:77151e77c28df3f468caf38e099d07e2"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

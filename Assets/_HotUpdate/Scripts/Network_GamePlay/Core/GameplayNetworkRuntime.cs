@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 
 namespace ProjectGame.HotFix.Gameplay.Network
@@ -16,6 +17,16 @@ namespace ProjectGame.HotFix.Gameplay.Network
         public NetworkMessageTransport Transport { get; }
 
         public NetworkTransportStats Stats { get; }
+
+        public IReadOnlyList<ulong> ConnectedClientIds => Transport.ConnectedClientIds;
+
+        public IReadOnlyList<ulong> RemoteClientIds => Transport.RemoteClientIds;
+
+        public ulong LocalClientId => Transport.LocalClientId;
+
+        public ulong ServerClientId => Transport.ServerClientId;
+
+        public bool HasRemoteClients => Transport.HasRemoteClients;
 
         public bool IsInitialized { get; private set; }
 

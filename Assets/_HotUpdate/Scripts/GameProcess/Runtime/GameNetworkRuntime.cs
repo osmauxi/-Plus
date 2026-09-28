@@ -120,6 +120,8 @@ namespace ProjectGame.HotFix.Gameplay.Network
             ShutdownAsync(CancellationToken.None).Forget();
         }
 
+        private void OnDisable() => _tickDriver?.Shutdown();
+
         private static void RegisterGameplayEvents()
         {
             // 只注册 GameRuntime 阶段会使用的网络事件 

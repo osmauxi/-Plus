@@ -64,6 +64,8 @@ runtime.Transport.SendToServer(
 
 统计从 `runtime.Stats` 读取，按消息名提供发送次数和 Payload 字节数。业务层仍需自行维护拒绝命令数、缺失 Baseline、预测误差等策略指标。
 
+Runtime 同时提供会话内稳定的常用 ID 视图：`ConnectedClientIds` 表示当前 Peer 可见的全部连接，`RemoteClientIds` 表示 Server/Host 侧排除 `ServerClientId` 后的远端玩家，另有 `LocalClientId`、`ServerClientId` 和 `HasRemoteClients`。这些列表只在连接或断开时维护，广播热路径无需重复筛选或分配临时集合。
+
 Weapon 第一版应直接建立自己的 `FireCommand`、`WeaponSnapshot` 与 `WeaponReplication`，暂时不要把 Player 的 Sequence/Baseline/Delta 实现抽成泛型公共库；等两个真实实现证明存在重复后再上提。
 
 ## 验证入口

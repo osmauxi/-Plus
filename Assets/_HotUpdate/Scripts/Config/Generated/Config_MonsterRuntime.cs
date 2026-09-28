@@ -22,40 +22,28 @@ public class Config_MonsterRuntime
     [Key(3)]
     public float MoveSpeed;
 
-    /// <summary> 目标模块 </summary>
-    [Key(4)]
-    public string TargetModule;
-
-    /// <summary> 移动模块 </summary>
-    [Key(5)]
-    public string MoveModule;
-
-    /// <summary> 攻击模块 </summary>
-    [Key(6)]
-    public string AttackModule;
-
     /// <summary> 攻击触发距离 </summary>
-    [Key(7)]
+    [Key(4)]
     public float AttackRange;
 
     /// <summary> 前摇秒数 </summary>
-    [Key(8)]
+    [Key(5)]
     public float WindupSeconds;
 
     /// <summary> 后摇秒数 </summary>
-    [Key(9)]
+    [Key(6)]
     public float RecoverySeconds;
 
     /// <summary> 基础攻击伤害 </summary>
-    [Key(10)]
+    [Key(7)]
     public float AttackDamage;
 
-    /// <summary> 生命配置ID </summary>
-    [Key(11)]
-    public int HealthProfileId;
+    /// <summary> 最大生命 </summary>
+    [Key(8)]
+    public float MaxHealth;
 
     /// <summary> 攻击配置ID </summary>
-    [Key(12)]
+    [Key(9)]
     public int AttackProfileId;
 
 }

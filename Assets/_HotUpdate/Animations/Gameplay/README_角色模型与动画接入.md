@@ -51,7 +51,9 @@ Base Layer 当前状态：
 - `MotionPhase.Start` 起步阶段明确禁止 Pivot，方向切换只修正起步速度；进入稳定 Move 后才允许按速度和方向阈值触发。
 - 转入 Pivot 固定过渡 0.2 秒，随后保留 0.1 秒完整 Pivot，再用 0.2 秒过渡回当前 Idle/Move/Sprint。瞄准时不触发 Pivot，下半身继续由 Aim Move 接管。
 - Pivot 进入边沿在权威移动 Simulation 中触发一段可回滚的短时速度爆发。Free/Move 与 Sprint 使用各自 Profile 的持续时间和速度加成；默认分别为 `0.10s / +3m/s` 与 `0.10s / +5m/s`，Aim 默认关闭。
+- 爆发前先执行一次与 TickRate 无关的旧动量急停：Free/Move 默认从当前平面速度扣 `8m/s`，Sprint 默认扣 `12m/s`，Aim 默认关闭。该步骤只把速度拉向 0，永远不会单独把速度翻到新方向；随后才由 Pivot 爆发建立反向速度。
 - 爆发参数在进入瞬间锁存，期间松开 Shift 不会把 Sprint 数值切成 Move，也不能通过高频反向输入刷新尚未结束的爆发计时；松开移动输入、死亡、传送都会立即清空。
+- 急停量在 `PlayerRuntimeRoot/PlayerSyncController` 的 Free、Aim、Sprint Profile 中分别配置为 `Pivot 进入瞬时扣速`；它和持续制动加速度、爆发持续时间、爆发速度加成互相独立，后续角色只复用逻辑与 Animator，不需要在角色模型或动画资源中写死。
 - Base Layer 开启 IK Pass，供 Humanoid 角色使用；Generic 角色使用自定义双骨骼 IK。
 
 ### 6. Sprint 循环修复

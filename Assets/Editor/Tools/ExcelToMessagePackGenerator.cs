@@ -19,7 +19,6 @@ public class ExcelToMessagePackGenerator : EditorWindow
     private static readonly (string Workbook, string Sheet)[] ConfigSources =
     {
         ("Game_Config.xlsx", "Weapon"),
-        ("Game_Config.xlsx", "Health"),
         ("Game_Config.xlsx", "MonsterAttack"),
         ("Game_Config.xlsx", "MonsterRuntime"),
         ("Game_Config.xlsx", "MonsterSpawn"),

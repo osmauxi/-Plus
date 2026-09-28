@@ -12,12 +12,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         public override void OnProjectileHit(byte level, ref ProjectileState projectile,
             in ProjectileHitContext context)
         {
-            float ratio = 0.2f + 0.1f * (level - 1);
+            float ratio = 0.5f + 0.3f * (level - 1);
             float radius = 4f + level - 1;
             float slow = Mathf.Clamp(0.3f + 0.1f * (level - 1), 0f, 0.9f);
-            Commands.UpsertDamageArea(new PersistentAreaEffectCommand(
-                EffectId, level, projectile, context, radius, 5f, 1f,
-                context.Stats.Damage * ratio, slow, true));
+            Commands.TrySpawnDamageArea(new PersistentAreaEffectCommand(
+                context, radius, 5f, 1f, context.Stats.Damage * ratio, slow));
         }
     }
 }

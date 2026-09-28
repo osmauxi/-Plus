@@ -88,6 +88,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                     : MotionPhase.Move;
 
             float speed = _velocity.magnitude;
+            bool isMoving = speed > _config.StopSpeedThreshold;
 
             MotionState = new PlayerMotionState
             {
@@ -95,7 +96,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 Velocity = _velocity,
                 DesiredVelocity = Vector3.zero,
                 Acceleration = Vector3.zero,
-                MoveDirection = speed > _config.StopSpeedThreshold ? _velocity / speed : Vector3.zero,
+                MoveDirection = isMoving ? _velocity / speed : Vector3.zero,
                 FacingDirection = Flatten(_body.Forward).normalized,
                 DesiredFacingDirection = Vector3.zero,
                 LocalVelocity = _body.InverseTransformDirection(_velocity),
@@ -106,8 +107,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 PivotDirection = _pivotDirection,
                 PivotBoostTimeRemaining = _pivotBoostTimeRemaining,
                 PivotBoostSpeedBonus = _pivotBoostSpeedBonus,
-                HasMoveInput = false,
-                IsMoving = speed > _config.StopSpeedThreshold,
+                // Observer 没有远端输入流，只能从权威速度还原移动表现语义。
+                // 若固定为 false，远端 Animator 会在角色位移时始终停留在 Idle。
+                HasMoveInput = isMoving,
+                IsMoving = isMoving,
                 IsPivoting = _pivotDirection != PlayerPivotDirection.None,
             };
         }
@@ -144,7 +147,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             else
                 desiredFacing = Vector3.zero;
 
-            Vector3 previousVelocity = _velocity;
+            Vector3 velocityAtTickStart = _velocity;
+            Vector3 previousVelocity = velocityAtTickStart;
 
             bool isPivoting = ShouldPivot(previousVelocity, desiredVelocity, hasMoveInput);
             bool enteringPivot =
@@ -157,7 +161,14 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 if (enteringPivot)
                 {
                     _pivotDirection = ResolvePivotDirection(desiredVelocity);
-                    TryStartPivotBoost(profile);
+
+                    // 进入边沿先一次性削掉旧方向动量，但绝不在这一步越过 0 直接反向。
+                    // 同一爆发窗口未结束时不重复急停，避免高频反向输入不断清空速度。
+                    if (_pivotBoostTimeRemaining <= PivotBoostTimeEpsilon)
+                    {
+                        previousVelocity = ApplyPivotEntryBrake(previousVelocity, profile);
+                        TryStartPivotBoost(profile);
+                    }
                 }
             }
             else
@@ -201,7 +212,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             Vector3 actualDisplacement = Flatten(_body.Position - previousPosition);
             _velocity = actualDisplacement / deltaTime;
 
-            Vector3 acceleration = (_velocity - previousVelocity) / deltaTime;
+            // 瞬时急停同样属于本 Tick 的真实速度变化，必须进入运动状态和预测结果。
+            Vector3 acceleration = (_velocity - velocityAtTickStart) / deltaTime;
 
             TickPivotBoost(deltaTime);
 
@@ -337,6 +349,23 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             }
 
             return Vector3.MoveTowards(currentVelocity, desiredVelocity, response * deltaTime);
+        }
+
+        /// <summary>
+        /// Pivot 进入边沿的一次性旧动量削减。使用速度量而不是加速度，因此效果不随模拟 TickRate 改变；
+        /// MoveTowards 只会把当前速度拉向静止，扣速再大也不会在这里直接生成反向速度。
+        /// </summary>
+        private static Vector3 ApplyPivotEntryBrake(
+            Vector3 currentVelocity,
+            PlayerMovementProfile profile)
+        {
+            if (profile.PivotEntryBrakeSpeed <= 0f || currentVelocity.sqrMagnitude <= 0.000001f)
+                return currentVelocity;
+
+            return Vector3.MoveTowards(
+                currentVelocity,
+                Vector3.zero,
+                profile.PivotEntryBrakeSpeed);
         }
 
         private void TryStartPivotBoost(PlayerMovementProfile profile)

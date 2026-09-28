@@ -10,17 +10,17 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         {
             float capacity = 15f + 5f * (level - 1);
             Commands.SetShieldCapacity(new ShieldCapacityEffectCommand(
-                EffectId, level, context.OwnerEntityId, capacity));
+                EffectId, context.OwnerEntityId, capacity));
         }
 
         public override void OnUnequipped(ulong ownerEntityId) =>
-            Commands.SetShieldCapacity(new ShieldCapacityEffectCommand(EffectId, 0, ownerEntityId, 0f));
+            Commands.SetShieldCapacity(new ShieldCapacityEffectCommand(EffectId, ownerEntityId, 0f));
 
         public override void OnProjectileHit(byte level, ref ProjectileState projectile,
             in ProjectileHitContext context)
         {
             float amount = 1f + 0.5f * (level - 1);
-            Commands.AddShield(new ShieldEffectCommand(EffectId, level, projectile, context, amount));
+            Commands.AddShield(new ShieldEffectCommand(context, amount));
         }
     }
 }

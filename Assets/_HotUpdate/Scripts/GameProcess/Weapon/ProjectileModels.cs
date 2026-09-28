@@ -32,10 +32,32 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public bool HasTarget;
         public ulong TargetEntityId;
         /// <summary>
+        /// 服务端根据本次实际伤害、命中时弹体尺寸与暴击状态计算出的表现权重。
+        /// 该值不设上限，由命中特效决定如何消费。
+        /// </summary>
+        public float VfxWeight;
+        /// <summary>
         /// 伤害、特殊 Effect 与穿透/反弹全部结算后的最终结果。
         /// 表现层直接消费这个结果，不需要重复推导子弹是否继续存活。
         /// </summary>
         public ProjectileHitResolution Resolution;
+    }
+
+    /// <summary>把权威命中数据映射为本地命中特效使用的无上限权重。</summary>
+    public static class ProjectileImpactVfxWeight
+    {
+        // 当前标准武器为 20 伤害、0.1 弹体尺寸，因此普通命中的基础权重为 1。
+        public const float ReferenceDamage = 20f;
+        public const float ReferenceProjectileSize = 0.1f;
+        public const float CriticalEmphasis = 1.5f;
+
+        public static float Calculate(float damage, float projectileSize, bool isCritical)
+        {
+            float damageWeight = damage / ReferenceDamage;
+            float sizeWeight = projectileSize / ReferenceProjectileSize;
+            float criticalWeight = isCritical ? CriticalEmphasis : 1f;
+            return damageWeight * sizeWeight * criticalWeight;
+        }
     }
 
     /// <summary>
@@ -47,12 +69,24 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public readonly ShotContext Shot;
         public readonly ProjectileState Projectile;
         public readonly float VisualSize;
+        // 当前弹体真正进入权威世界的 Tick。分裂弹晚于母弹出生，不能复用 Shot.FireTick 做表现快进。
+        public readonly uint SpawnTick;
 
         public ProjectileSpawn(in ShotContext shot, in ProjectileState projectile, float visualSize)
+            : this(shot, projectile, visualSize, shot.FireTick)
+        {
+        }
+
+        public ProjectileSpawn(
+            in ShotContext shot,
+            in ProjectileState projectile,
+            float visualSize,
+            uint spawnTick)
         {
             Shot = shot;
             Projectile = projectile;
             VisualSize = visualSize;
+            SpawnTick = spawnTick;
         }
     }
 
@@ -63,6 +97,50 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         event Action<ProjectileSpawn> ProjectileSpawned;
         event Action<ProjectileImpact> ProjectileImpact;
         event Action<ProjectileState> ProjectileRemoved;
+        event Action<WeaponSpecialVfxEvent> SpecialEffectVfx;
+    }
+
+    public enum WeaponSpecialVfxType : byte
+    {
+        Execution = 0,
+        Shockwave = 1,
+        RadiationArea = 2,
+        KineticBoost = 3,
+        StormCloudStart = 4,
+        StormCloudStop = 5,
+        LightningArc = 6,
+    }
+
+    /// <summary>
+    /// 特殊 Effect 的纯表现事实。伤害和控制仍只在服务器计算；客户端只按这些数据画轻量特效。
+    /// </summary>
+    public readonly struct WeaponSpecialVfxEvent
+    {
+        public readonly WeaponSpecialVfxType Type;
+        public readonly ulong InstanceId;
+        public readonly ulong OwnerEntityId;
+        public readonly Vector3 Position;
+        public readonly Vector3 TargetPosition;
+        public readonly float Radius;
+        public readonly float Duration;
+
+        public WeaponSpecialVfxEvent(
+            WeaponSpecialVfxType type,
+            ulong instanceId,
+            ulong ownerEntityId,
+            Vector3 position,
+            Vector3 targetPosition,
+            float radius,
+            float duration)
+        {
+            Type = type;
+            InstanceId = instanceId;
+            OwnerEntityId = ownerEntityId;
+            Position = position;
+            TargetPosition = targetPosition;
+            Radius = radius;
+            Duration = duration;
+        }
     }
 
     [Flags]
@@ -91,37 +169,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public byte Generation;
         public ushort HitCount;
         public ProjectileFlags Flags;
-    }
-    /// <summary>
-    /// 受到了一次什么伤害
-    /// </summary>
-    public readonly struct ProjectileDamageContext
-    {
-        public readonly ulong SourceEntityId;
-        public readonly ulong ShotId;
-        public readonly uint ProjectileId;
-        public readonly float Damage;
-        public readonly Vector3 HitPoint;
-        public readonly Vector3 HitDirection;
-        public readonly bool IsCritical;
-
-        public ProjectileDamageContext(
-            ulong sourceEntityId,
-            ulong shotId,
-            uint projectileId,
-            float damage,
-            Vector3 hitPoint,
-            Vector3 hitDirection,
-            bool isCritical)
-        {
-            SourceEntityId = sourceEntityId;
-            ShotId = shotId;
-            ProjectileId = projectileId;
-            Damage = damage;
-            HitPoint = hitPoint;
-            HitDirection = hitDirection;
-            IsCritical = isCritical;
-        }
     }
     /// <summary>
     /// 给Effect使用的，标记这次命中的信息
@@ -170,106 +217,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             Stats = stats;
         }
     }
-    /// <summary>
-    /// 声明一个可伤害对象，武器层与Health层的桥接接口
-    /// </summary>
-    public interface IProjectileHitTarget
-    {
-        ulong EntityId { get; }
-        bool IsAlive { get; }
-
-        void ApplyProjectileDamage(in ProjectileDamageContext context);
-    }
-
-    /// <summary>碰撞体解析后的瞬时句柄；Generation 供集中 Health 映射防止复用旧实体。</summary>
-    public readonly struct ProjectileResolvedTarget
-    {
-        public readonly ulong EntityId;
-        public readonly uint Generation;
-        public readonly bool IsAlive;
-        internal readonly IProjectileHitTarget ComponentTarget;
-        internal readonly IProjectileTargetResolver Resolver;
-
-        public ProjectileResolvedTarget(ulong entityId, uint generation, bool isAlive)
-            : this(entityId, generation, isAlive, null, null) { }
-
-        internal ProjectileResolvedTarget(ulong entityId, uint generation, bool isAlive,
-            IProjectileHitTarget componentTarget, IProjectileTargetResolver resolver = null)
-        {
-            EntityId = entityId;
-            Generation = generation;
-            IsAlive = isAlive;
-            ComponentTarget = componentTarget;
-            Resolver = resolver;
-        }
-
-        internal ProjectileResolvedTarget WithResolver(IProjectileTargetResolver resolver) =>
-            new ProjectileResolvedTarget(EntityId, Generation, IsAlive, ComponentTarget, resolver);
-    }
-
-    /// <summary>把 Projectile Physics 与具体命中身份方案解耦；Monster 使用集中 Collider Binding。</summary>
-    public interface IProjectileTargetResolver
-    {
-        bool TryResolve(Collider collider, out ProjectileResolvedTarget target);
-        void ApplyDamage(in ProjectileResolvedTarget target, in ProjectileDamageContext context);
-    }
-
-    /// <summary>按顺序组合集中 Monster、玩家或其他可伤害对象解析器。</summary>
-    public sealed class CompositeProjectileTargetResolver : IProjectileTargetResolver
-    {
-        private readonly IProjectileTargetResolver[] _resolvers;
-
-        public CompositeProjectileTargetResolver(params IProjectileTargetResolver[] resolvers)
-        {
-            if (resolvers == null || resolvers.Length == 0)
-                throw new ArgumentException("至少需要一个 Projectile TargetResolver。", nameof(resolvers));
-            _resolvers = new IProjectileTargetResolver[resolvers.Length];
-            for (int i = 0; i < resolvers.Length; i++)
-                _resolvers[i] = resolvers[i] ?? throw new ArgumentException("Projectile TargetResolver 不能为空。", nameof(resolvers));
-        }
-
-        public bool TryResolve(Collider collider, out ProjectileResolvedTarget target)
-        {
-            for (int i = 0; i < _resolvers.Length; i++)
-            {
-                IProjectileTargetResolver resolver = _resolvers[i];
-                if (!resolver.TryResolve(collider, out target)) continue;
-                if (target.Resolver == null) target = target.WithResolver(resolver);
-                return true;
-            }
-            target = default;
-            return false;
-        }
-
-        public void ApplyDamage(in ProjectileResolvedTarget target, in ProjectileDamageContext context)
-        {
-            if (target.Resolver == null)
-                throw new InvalidOperationException("ProjectileResolvedTarget 缺少来源 Resolver。");
-            target.Resolver.ApplyDamage(target, context);
-        }
-    }
-
-    /// <summary>旧玩家/旧实体的兼容路径；新数据实体应注入集中式 Resolver。</summary>
-    public sealed class ComponentProjectileTargetResolver : IProjectileTargetResolver
-    {
-        public static readonly ComponentProjectileTargetResolver Instance = new ComponentProjectileTargetResolver();
-        private ComponentProjectileTargetResolver() { }
-
-        public bool TryResolve(Collider collider, out ProjectileResolvedTarget target)
-        {
-            target = default;
-            if (collider == null) return false;
-            ProjectileHitTargetAdapter adapter = collider.GetComponentInParent<ProjectileHitTargetAdapter>();
-            if (adapter == null || !adapter.HasEntityId) return false;
-            target = new ProjectileResolvedTarget(adapter.EntityId, 0,
-                adapter.Target == null || adapter.Target.IsAlive, adapter.Target);
-            return true;
-        }
-
-        public void ApplyDamage(in ProjectileResolvedTarget target, in ProjectileDamageContext context) =>
-            target.ComponentTarget?.ApplyProjectileDamage(context);
-    }
-
     /// <summary>
     /// 将弹丸命中事件交给效果系统，决定有哪些额外Effect响应
     /// </summary>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectGame.HotFix.Gameplay.Monsters;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon
@@ -14,7 +15,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly WeaponStatSnapshotRepository _stats;
         private readonly ProjectileSimulationConfig _config;
         private readonly IProjectileEffectDispatcher _effects;
-        private readonly IProjectileTargetResolver _targets;
 
         public event Action<ProjectileImpact> Impact;
         public event Action<ProjectileState> Removed;
@@ -36,14 +36,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         public ProjectileSimulation(ProjectileWorld world, ShotRepository shots,
             WeaponStatSnapshotRepository stats, ProjectileSimulationConfig config,
-            IProjectileEffectDispatcher effects = null, IProjectileTargetResolver targets = null)
+            IProjectileEffectDispatcher effects = null)
         {
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _shots = shots ?? throw new ArgumentNullException(nameof(shots));
             _stats = stats ?? throw new ArgumentNullException(nameof(stats));
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _effects = effects ?? NoneProjectileEffectDispatcher.Instance;
-            _targets = targets ?? ComponentProjectileTargetResolver.Instance;
         }
 
         /// <summary>
@@ -143,29 +142,26 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             //Unity Layer本身有索引，1左移将其转换为对应索引的掩码，按位与判定TargetMask是否包含物体的Layer
             //LayerMask.Value为多选后处理好了的场景掩码，所以这里可以不做转换直接按位与
             bool targetLayer = (_config.TargetMask.value & (1 << hit.Collider.gameObject.layer)) != 0;
-            ProjectileResolvedTarget target = default;
-            bool hasTarget = targetLayer && _targets.TryResolve(hit.Collider, out target);
+            ulong targetEntityId = 0;
+            MonsterViewHandle monster = null;
+            bool hasTarget = targetLayer && TryResolveTarget(hit.Collider,
+                out targetEntityId, out _, out monster);
             ProjectileHitResolution resolution = ProjectileHitResolution.Destroy;
+            float damage = stats.Damage * projectile.DamageMultiplier;
+            float projectileSize = stats.ProjectileSize * projectile.SizeMultiplier;
+            bool isCritical = (projectile.Flags & ProjectileFlags.Critical) != 0;
+            float vfxWeight = ProjectileImpactVfxWeight.Calculate(damage, projectileSize, isCritical);
             //是可攻击对象
             if (targetLayer)
             {
                 if (hasTarget)
                 {
-                    //触发IProjectileHitTarget接口的扣血逻辑
-                    _targets.ApplyDamage(target,
-                        new ProjectileDamageContext(
-                        shot.OwnerEntityId,
-                        shot.ShotId,
-                        projectile.ProjectileId,
-                        stats.Damage * projectile.DamageMultiplier,
-                        hit.Point,
-                        direction,
-                        (projectile.Flags & ProjectileFlags.Critical) != 0));
+                    MonsterRuntimeService.Instance.DamageMonster(monster.Slot, damage);
 
-                    RememberHit(projectile.ProjectileId, target.EntityId);
+                    RememberHit(projectile.ProjectileId, targetEntityId);
                     projectile.HitCount++;
                     _effects.DispatchHit(ref projectile,
-                        new ProjectileHitContext(shot, stats, target.EntityId, hit.Point, hit.Normal));
+                        new ProjectileHitContext(shot, stats, targetEntityId, hit.Point, hit.Normal));
 
                     if (projectile.PierceRemaining > 0)
                     {
@@ -210,7 +206,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 Point = hit.Point,
                 Normal = hit.Normal,
                 HasTarget = hasTarget,
-                TargetEntityId = hasTarget ? target.EntityId : 0,
+                TargetEntityId = hasTarget ? targetEntityId : 0,
+                VfxWeight = vfxWeight,
                 Resolution = resolution,
             });
 
@@ -222,10 +219,27 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// </summary>
         private bool IsIgnored(Collider collider, in ShotContext shot, uint projectileId)
         {
-            if (!_targets.TryResolve(collider, out ProjectileResolvedTarget target))
+            if (!TryResolveTarget(collider, out ulong entityId, out bool isAlive, out _))
                 return false;
 
-            return target.EntityId == shot.OwnerEntityId || HasHit(projectileId, target.EntityId) || !target.IsAlive;
+            return entityId == shot.OwnerEntityId || HasHit(projectileId, entityId) || !isAlive;
+        }
+
+        private static bool TryResolveTarget(Collider collider, out ulong entityId, out bool isAlive,
+            out MonsterViewHandle monster)
+        {
+            monster = collider.GetComponentInParent<MonsterViewHandle>();
+            if (monster != null && monster.Slot >= 0)
+            {
+                entityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)monster.Slot;
+                MonsterRuntimeService runtime = MonsterRuntimeService.Instance;
+                isAlive = runtime != null && runtime.IsMonsterAlive(monster.Slot);
+                return true;
+            }
+
+            entityId = 0;
+            isAlive = false;
+            return false;
         }
 
         private bool HasHit(uint projectileId, ulong entityId) =>
@@ -240,6 +254,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             }
             entities.Add(entityId);
         }
+
+        /// <summary>
+        /// 为运行中生成的新弹体继承一次已经结算过的目标命中。
+        /// 分裂弹出生在命中表面，下一 Tick 必须忽略它的出生宿主，避免被初始 Overlap 立即回收。
+        /// </summary>
+        internal void MarkTargetAsHit(uint projectileId, ulong targetEntityId) =>
+            RememberHit(projectileId, targetEntityId);
 
         private bool TryCast(in ProjectileState projectile, in ShotContext shot, float radius,
             Vector3 direction, float distance, out Contact contact)

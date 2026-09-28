@@ -159,6 +159,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
                     throw new InvalidOperationException($"Addressable Prefab 加载失败：Pool={entry.Config.Id}");
 
                 entry.Prefab = prefab;
+                entry.PrefabScale = prefab.transform.localScale;
                 entry.PrefabHandle = handle;
                 entry.HasPrefabHandle = true;
                 //这个资源预制件被加载出来之后，进行这个池子的注册，创建和初始化，之后就可以正常使用了 
@@ -282,7 +283,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             //这样 OnEnable 看到的是已经清理过的实例 
             instanceTransform.SetParent(parent, false);
             instanceTransform.SetPositionAndRotation(position, rotation);
-            instanceTransform.localScale = Vector3.one;
+            instanceTransform.localScale = entry.PrefabScale;
 
             InvokeRentCallbacks(instanceId);
             instance.SetActive(true);
@@ -632,7 +633,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             instanceTransform.SetParent(InactiveRoot, false);
             instanceTransform.localPosition = Vector3.zero;
             instanceTransform.localRotation = Quaternion.identity;
-            instanceTransform.localScale = Vector3.one;
+            instanceTransform.localScale =
+                _entryByInstanceId[instance.GetInstanceID()].PrefabScale;
         }
 
         private void DestroyPooledInstance(GameObject instance)
@@ -814,6 +816,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             public PoolItemConfig Config;
 
             public GameObject Prefab;
+            public Vector3 PrefabScale;
             public AsyncOperationHandle<GameObject> PrefabHandle;
             public bool HasPrefabHandle;
 

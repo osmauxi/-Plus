@@ -10,14 +10,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
         EffectOwnerStatSnapshot CurrentOwnerEffectStats { get; }
         event Action<EffectSet, EffectOwnerStatSnapshot> EffectsChanged;
     }
-    /// <summary>
-    /// 用于会修改玩家本身数据的Effect，不然Weapon系统会涉及到Player自己的数据
-    /// </summary>
-    public interface IEffectOwnerStatSink
-    {
-        void Apply(ulong ownerEntityId, in EffectOwnerStatSnapshot stats);
-    }
-
     public enum EffectAcquireResult : byte
     {
         Success = 0,

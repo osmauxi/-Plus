@@ -14,11 +14,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         void ReceiveProjectileSpawn(in ProjectileSpawn spawn);
         void ReceiveProjectileImpact(in ProjectileImpact impact);
         void ReceiveProjectileRemoved(in ProjectileState projectile);
+        void ReceiveSpecialEffectVfx(in WeaponSpecialVfxEvent effect);
     }
 
     /// <summary>
     /// Weapon 表现层的 Named Message 协议。
-    /// 同一个服务器 Tick 内的开枪、出生、命中和移除合并成一条消息，减少高射速武器的消息数量。
+    /// 同一个服务器 Tick 内的开枪、出生、命中、移除和特殊表现合并成一条消息。
     /// </summary>
     public sealed class WeaponPresentationTransport
     {
@@ -74,7 +75,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             IReadOnlyList<ShotContext> shots,
             IReadOnlyList<ProjectileSpawn> spawns,
             IReadOnlyList<ProjectileImpact> impacts,
-            IReadOnlyList<ProjectileState> removed)
+            IReadOnlyList<ProjectileState> removed,
+            IReadOnlyList<WeaponSpecialVfxEvent> specialEffects)
         {
             EnsureInitialized();
             if (!_transport.IsServer || targetClientId == NetworkManager.ServerClientId)
@@ -84,6 +86,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             ValidateCount(spawns?.Count ?? 0, nameof(spawns));
             ValidateCount(impacts?.Count ?? 0, nameof(impacts));
             ValidateCount(removed?.Count ?? 0, nameof(removed));
+            ValidateCount(specialEffects?.Count ?? 0, nameof(specialEffects));
 
             using FastBufferWriter writer = new(
                 WriterInitialCapacity, Allocator.Temp, WriterMaxCapacity);
@@ -93,6 +96,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             WriteCount(writer, spawns?.Count ?? 0);
             WriteCount(writer, impacts?.Count ?? 0);
             WriteCount(writer, removed?.Count ?? 0);
+            WriteCount(writer, specialEffects?.Count ?? 0);
 
             if (shots != null)
                 for (int i = 0; i < shots.Count; i++) WriteShot(writer, shots[i]);
@@ -102,12 +106,17 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 for (int i = 0; i < impacts.Count; i++) WriteImpact(writer, impacts[i]);
             if (removed != null)
                 for (int i = 0; i < removed.Count; i++) WriteProjectile(writer, removed[i]);
+            if (specialEffects != null)
+                for (int i = 0; i < specialEffects.Count; i++)
+                    WriteSpecialEffectVfx(writer, specialEffects[i]);
 
             _transport.SendToClient(
                 targetClientId,
                 FrameMessageName,
                 writer,
-                NetworkDeliveryClass.UnreliableEvent);
+                specialEffects != null && specialEffects.Count > 0
+                    ? NetworkDeliveryClass.ReliableEvent
+                    : NetworkDeliveryClass.UnreliableEvent);
         }
 
         private void OnFrameReceived(ulong senderClientId, FastBufferReader reader)
@@ -123,6 +132,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 int spawnCount = ReadCount(reader);
                 int impactCount = ReadCount(reader);
                 int removedCount = ReadCount(reader);
+                int specialEffectCount = ReadCount(reader);
 
                 for (int i = 0; i < shotCount; i++)
                 {
@@ -146,6 +156,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 {
                     ProjectileState projectile = ReadProjectile(reader);
                     _receiver.ReceiveProjectileRemoved(projectile);
+                }
+
+                for (int i = 0; i < specialEffectCount; i++)
+                {
+                    WeaponSpecialVfxEvent effect = ReadSpecialEffectVfx(reader);
+                    _receiver.ReceiveSpecialEffectVfx(effect);
                 }
             }
             catch (Exception exception)
@@ -186,22 +202,21 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         private static void WriteSpawn(FastBufferWriter writer, in ProjectileSpawn spawn)
         {
-            writer.WriteValueSafe(spawn.Shot.FireTick);
+            writer.WriteValueSafe(spawn.SpawnTick);
             writer.WriteValueSafe(spawn.VisualSize);
             WriteProjectile(writer, spawn.Projectile);
         }
 
         private static ProjectileSpawn ReadSpawn(FastBufferReader reader)
         {
-            reader.ReadValueSafe(out uint fireTick);
+            reader.ReadValueSafe(out uint spawnTick);
             reader.ReadValueSafe(out float visualSize);
             ProjectileState projectile = ReadProjectile(reader);
             ShotContext shot = new()
             {
                 ShotId = projectile.ShotId,
-                FireTick = fireTick,
             };
-            return new ProjectileSpawn(shot, projectile, visualSize);
+            return new ProjectileSpawn(shot, projectile, visualSize, spawnTick);
         }
 
         private static void WriteImpact(FastBufferWriter writer, in ProjectileImpact impact)
@@ -211,6 +226,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             writer.WriteValueSafe(impact.Normal);
             writer.WriteValueSafe(impact.HasTarget);
             writer.WriteValueSafe(impact.TargetEntityId);
+            writer.WriteValueSafe(impact.VfxWeight);
             writer.WriteValueSafe((byte)impact.Resolution);
         }
 
@@ -226,6 +242,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             reader.ReadValueSafe(out impact.Normal);
             reader.ReadValueSafe(out impact.HasTarget);
             reader.ReadValueSafe(out impact.TargetEntityId);
+            reader.ReadValueSafe(out impact.VfxWeight);
             reader.ReadValueSafe(out byte resolution);
             impact.Resolution = (ProjectileHitResolution)resolution;
             return impact;
@@ -264,6 +281,37 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             reader.ReadValueSafe(out ushort flags);
             projectile.Flags = (ProjectileFlags)flags;
             return projectile;
+        }
+
+        private static void WriteSpecialEffectVfx(
+            FastBufferWriter writer, in WeaponSpecialVfxEvent effect)
+        {
+            writer.WriteValueSafe((byte)effect.Type);
+            writer.WriteValueSafe(effect.InstanceId);
+            writer.WriteValueSafe(effect.OwnerEntityId);
+            writer.WriteValueSafe(effect.Position);
+            writer.WriteValueSafe(effect.TargetPosition);
+            writer.WriteValueSafe(effect.Radius);
+            writer.WriteValueSafe(effect.Duration);
+        }
+
+        private static WeaponSpecialVfxEvent ReadSpecialEffectVfx(FastBufferReader reader)
+        {
+            reader.ReadValueSafe(out byte type);
+            reader.ReadValueSafe(out ulong instanceId);
+            reader.ReadValueSafe(out ulong ownerEntityId);
+            reader.ReadValueSafe(out Vector3 position);
+            reader.ReadValueSafe(out Vector3 targetPosition);
+            reader.ReadValueSafe(out float radius);
+            reader.ReadValueSafe(out float duration);
+            return new WeaponSpecialVfxEvent(
+                (WeaponSpecialVfxType)type,
+                instanceId,
+                ownerEntityId,
+                position,
+                targetPosition,
+                radius,
+                duration);
         }
 
         private static void WriteCount(FastBufferWriter writer, int count) =>

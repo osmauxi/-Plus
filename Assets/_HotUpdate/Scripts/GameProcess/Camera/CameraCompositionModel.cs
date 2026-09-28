@@ -23,6 +23,11 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
         private float _movementSmoothTime;
         private float _movementReturnSmoothTime;
 
+        // 强反向不让已有 LookAhead 绕玩家画半圆，而是先收回中心再从新方向展开。
+        private float _movementReverseDotThreshold;
+        private float _movementReverseRecenterSmoothTime;
+        private float _reverseAccelerationSuppressionTime;
+
         //Aim时通常弱化甚至完全关闭 Movement LookAhead，
         //防止“移动方向”和“瞄准方向”同时争夺构图中心 
         private float _aimMovementWeight;
@@ -58,6 +63,12 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
         private float _targetMovementMagnitude;
         private float _currentMovementMagnitude;
         private float _movementMagnitudeVelocity;
+
+        private bool _isMovementReversing;
+        private bool _hasCenteredDuringReverse;
+        private Vector3 _pendingMovementDirection;
+        private float _pendingMovementMagnitude;
+        private float _reverseAccelerationSuppressionRemaining;
 
         //Acceleration是短时间额外叠加的构图冲击
         private Vector3 _targetAccelerationOffset;
@@ -104,6 +115,9 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             float fullMovementSpeed,
             float movementSmoothTime,
             float movementReturnSmoothTime,
+            float movementReverseDotThreshold,
+            float movementReverseRecenterSmoothTime,
+            float reverseAccelerationSuppressionTime,
             float velocitySmoothTime,
             float maxAccelerationOffset,
             float accelerationDeadZone,
@@ -124,6 +138,9 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             _fullMovementSpeed = Mathf.Max(_movementDeadZoneSpeed + 0.01f, fullMovementSpeed);
             _movementSmoothTime = Mathf.Max(0f, movementSmoothTime);
             _movementReturnSmoothTime = Mathf.Max(0f, movementReturnSmoothTime);
+            _movementReverseDotThreshold = Mathf.Clamp(movementReverseDotThreshold, -1f, 0f);
+            _movementReverseRecenterSmoothTime = Mathf.Max(0f, movementReverseRecenterSmoothTime);
+            _reverseAccelerationSuppressionTime = Mathf.Max(0f, reverseAccelerationSuppressionTime);
 
             _velocitySmoothTime = Mathf.Max(0f, velocitySmoothTime);
 
@@ -148,6 +165,12 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             _targetMovementMagnitude = 0f;
             _currentMovementMagnitude = 0f;
             _movementMagnitudeVelocity = 0f;
+
+            _isMovementReversing = false;
+            _hasCenteredDuringReverse = false;
+            _pendingMovementDirection = Vector3.zero;
+            _pendingMovementMagnitude = 0f;
+            _reverseAccelerationSuppressionRemaining = 0f;
 
             _targetAccelerationOffset = Vector3.zero;
             _currentAccelerationOffset = Vector3.zero;
@@ -223,6 +246,10 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
 
             Vector3 rawVelocity = displacement / deltaTime;
 
+            // 用未平滑的 Render Pose 速度尽早识别强反向。若等速度滤波穿过 0，
+            // 旧 LookAhead 已经开始绕玩家转半圈，在俯视镜头里会表现成 Pivot 上下摆动。
+            TryBeginMovementReverse(rawVelocity);
+
             //渲染状态本身存在插值和帧间微小波动。
             //先平滑速度再求加速度，可以显著减少Camera高频抖动。
             _smoothedVelocity = Vector3.SmoothDamp(
@@ -239,7 +266,11 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             _lastSmoothedVelocity = _smoothedVelocity;
 
             UpdateMovementLookAhead(_smoothedVelocity);
-            UpdateAccelerationLookAhead(acceleration);
+
+            if (_reverseAccelerationSuppressionRemaining > 0f)
+                _targetAccelerationOffset = Vector3.zero;
+            else
+                UpdateAccelerationLookAhead(acceleration);
         }
 
         /// <summary>推进Aim与Movement两条独立构图通道 </summary>
@@ -251,6 +282,10 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             UpdateAim(deltaTime);
             UpdateMovement(deltaTime);
             UpdateAcceleration(deltaTime);
+
+            _reverseAccelerationSuppressionRemaining = Mathf.Max(
+                0f,
+                _reverseAccelerationSuppressionRemaining - deltaTime);
         }
 
         /// <summary>
@@ -272,6 +307,12 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             _targetMovementMagnitude = 0f;
             _currentMovementMagnitude = 0f;
             _movementMagnitudeVelocity = 0f;
+
+            _isMovementReversing = false;
+            _hasCenteredDuringReverse = false;
+            _pendingMovementDirection = Vector3.zero;
+            _pendingMovementMagnitude = 0f;
+            _reverseAccelerationSuppressionRemaining = 0f;
 
             _targetAccelerationOffset = Vector3.zero;
             _currentAccelerationOffset = Vector3.zero;
@@ -319,7 +360,10 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
 
             if (speed <= _movementDeadZoneSpeed)
             {
-                _targetMovementMagnitude = 0f;
+                _targetMovementMagnitude =
+                    _isMovementReversing && _hasCenteredDuringReverse
+                        ? _pendingMovementMagnitude
+                        : 0f;
                 return;
             }
 
@@ -332,13 +376,57 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
 
             float weight = _aimActive? _aimMovementWeight : 1f;
 
-            _targetMovementDirection = velocity.normalized;
-            _targetMovementMagnitude = _maxMovementOffset * strength * weight;
+            Vector3 desiredDirection = velocity.normalized;
+            float desiredMagnitude = _maxMovementOffset * strength * weight;
+
+            if (_isMovementReversing)
+            {
+                bool alignsWithPendingDirection =
+                    _pendingMovementDirection.sqrMagnitude > 0.0001f &&
+                    Vector3.Dot(
+                        _pendingMovementDirection.normalized,
+                        desiredDirection) > 0f;
+
+                // 平滑速度尚未穿过 0 时仍指向旧方向，不能覆盖由 Raw Velocity
+                // 已锁存的新方向；只接受相对旧方向确实属于强反向的候选。
+                if (alignsWithPendingDirection)
+                {
+                    _pendingMovementDirection = desiredDirection;
+                    _pendingMovementMagnitude = desiredMagnitude;
+
+                    // 回中以后继续锁住 Raw Velocity 给出的新方向，直到平滑速度也穿过 0。
+                    // 这能避免刚从中心重新展开时又被滞后的旧速度方向拉回去。
+                    if (_hasCenteredDuringReverse)
+                    {
+                        _targetMovementDirection = desiredDirection;
+                        _targetMovementMagnitude = desiredMagnitude;
+                        _isMovementReversing = false;
+                        _hasCenteredDuringReverse = false;
+                        return;
+                    }
+                }
+                else if (!_hasCenteredDuringReverse && IsStrongReverseDirection(desiredDirection))
+                {
+                    _pendingMovementDirection = desiredDirection;
+                    _pendingMovementMagnitude = desiredMagnitude;
+                }
+
+                _targetMovementDirection = _pendingMovementDirection;
+                _targetMovementMagnitude = _hasCenteredDuringReverse
+                    ? _pendingMovementMagnitude
+                    : 0f;
+                return;
+            }
+
+            _targetMovementDirection = desiredDirection;
+            _targetMovementMagnitude = desiredMagnitude;
         }
 
         private void UpdateMovement(float deltaTime)
         {
-            float smoothTime = _targetMovementMagnitude > 0.0001f
+            float smoothTime = _isMovementReversing && !_hasCenteredDuringReverse
+                ? _movementReverseRecenterSmoothTime
+                : _targetMovementMagnitude > 0.0001f
                     ? _movementSmoothTime
                     : _movementReturnSmoothTime;
 
@@ -349,6 +437,30 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
                 smoothTime,
                 Mathf.Infinity,
                 deltaTime);
+
+            if (_isMovementReversing)
+            {
+                if (!_hasCenteredDuringReverse)
+                {
+                    float centeredThreshold = Mathf.Max(0.01f, _maxMovementOffset * 0.03f);
+                    if (_currentMovementMagnitude <= centeredThreshold)
+                    {
+                        _currentMovementMagnitude = 0f;
+                        _movementMagnitudeVelocity = 0f;
+                        _currentMovementDirection = _pendingMovementDirection;
+                        _targetMovementDirection = _pendingMovementDirection;
+                        _targetMovementMagnitude = _pendingMovementMagnitude;
+                        _hasCenteredDuringReverse = true;
+                    }
+                }
+                else
+                {
+                    _currentMovementDirection = _pendingMovementDirection;
+                }
+
+                // 强反向锁存期间不再旋转方向，避免重新画出弧线。
+                return;
+            }
 
             if (_targetMovementDirection.sqrMagnitude <= 0.0001f)
                 return;
@@ -375,6 +487,49 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
 
             if (_currentMovementDirection.sqrMagnitude > 0.0001f)
                 _currentMovementDirection.Normalize();
+        }
+
+        /// <summary>
+        /// 强反向进入边沿：锁存新方向，旧 Movement LookAhead 先回中心，并在短窗口内
+        /// 屏蔽由急停/爆发产生的 Acceleration LookAhead，避免两个构图通道叠加回弹。
+        /// </summary>
+        private void TryBeginMovementReverse(Vector3 rawVelocity)
+        {
+            if (_isMovementReversing ||
+                rawVelocity.magnitude <= _movementDeadZoneSpeed ||
+                _currentMovementMagnitude <= 0.0001f ||
+                _currentMovementDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            Vector3 newDirection = rawVelocity.normalized;
+            if (!IsStrongReverseDirection(newDirection))
+                return;
+
+            float strength = Mathf.InverseLerp(
+                _movementDeadZoneSpeed,
+                _fullMovementSpeed,
+                rawVelocity.magnitude);
+            strength = SmoothStep01(strength);
+
+            _pendingMovementDirection = newDirection;
+            _pendingMovementMagnitude =
+                _maxMovementOffset * strength * (_aimActive ? _aimMovementWeight : 1f);
+            _targetMovementMagnitude = 0f;
+            _isMovementReversing = true;
+            _reverseAccelerationSuppressionRemaining = Mathf.Max(
+                _reverseAccelerationSuppressionRemaining,
+                _reverseAccelerationSuppressionTime);
+        }
+
+        private bool IsStrongReverseDirection(Vector3 direction)
+        {
+            return _currentMovementDirection.sqrMagnitude > 0.0001f &&
+                   direction.sqrMagnitude > 0.0001f &&
+                   Vector3.Dot(
+                       _currentMovementDirection.normalized,
+                       direction.normalized) <= _movementReverseDotThreshold;
         }
 
         #endregion

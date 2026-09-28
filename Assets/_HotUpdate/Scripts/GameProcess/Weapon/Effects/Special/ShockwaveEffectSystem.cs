@@ -14,7 +14,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
                            context.Stats.ProjectileSize * projectile.SizeMultiplier;
             float force = 25f + 10f * (level - 1);
             Commands.EmitRadialImpact(new RadialImpactEffectCommand(
-                EffectId, level, projectile, context, radius,
+                context, projectile, radius,
                 context.Stats.Damage * projectile.DamageMultiplier * 0.2f, force));
         }
     }

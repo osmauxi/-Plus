@@ -39,12 +39,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
     public readonly struct LightningEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
-        public readonly ulong SourceEntityId;
         public readonly ulong TargetEntityId;
-        public readonly ulong ShotId;
-        public readonly uint ProjectileId;
+        public readonly ushort EffectSetId;
         public readonly Vector3 Origin;
         public readonly float Damage;
         public readonly byte JumpCount;
@@ -52,16 +48,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         public readonly float SearchRadius;
         public readonly bool ApplyInitialDamage;
 
-        public LightningEffectCommand(ushort effectId, byte level, in ProjectileState projectile,
-            in ProjectileHitContext context, float damage, byte jumpCount,
+        public LightningEffectCommand(in ProjectileHitContext context, float damage, byte jumpCount,
             byte branchCount = 3, float searchRadius = 5f, bool applyInitialDamage = true)
         {
-            EffectId = effectId;
-            Level = level;
-            SourceEntityId = context.Shot.OwnerEntityId;
             TargetEntityId = context.TargetEntityId;
-            ShotId = context.Shot.ShotId;
-            ProjectileId = projectile.ProjectileId;
+            EffectSetId = context.Shot.EffectSetId;
             Origin = context.HitPoint;
             Damage = damage;
             JumpCount = jumpCount;
@@ -73,60 +64,36 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
     public readonly struct StormCloudEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
         public readonly ulong OwnerEntityId;
-        public readonly ushort StatSnapshotId;
         public readonly float Radius;
         public readonly float StrikeDamage;
         public readonly float StrikeInterval;
-        public readonly byte OverloadLevel;
+        public readonly float OverloadDamage;
+        public readonly byte OverloadJumpCount;
+        public readonly float ExecuteThreshold;
 
-        public StormCloudEffectCommand(ushort effectId, byte level,
-            in WeaponEffectEquipContext context, float radius, float strikeDamage,
-            float strikeInterval, byte overloadLevel)
+        public StormCloudEffectCommand(in WeaponEffectEquipContext context, float radius,
+            float strikeDamage, float strikeInterval, float overloadDamage,
+            byte overloadJumpCount)
         {
-            EffectId = effectId;
-            Level = level;
             OwnerEntityId = context.OwnerEntityId;
-            StatSnapshotId = context.Stats.Id;
             Radius = radius;
             StrikeDamage = strikeDamage;
             StrikeInterval = strikeInterval;
-            OverloadLevel = overloadLevel;
-        }
-    }
-
-    public readonly struct OwnerEffectRemovalCommand
-    {
-        public readonly ushort EffectId;
-        public readonly ulong OwnerEntityId;
-        public OwnerEffectRemovalCommand(ushort effectId, ulong ownerEntityId)
-        {
-            EffectId = effectId;
-            OwnerEntityId = ownerEntityId;
+            OverloadDamage = overloadDamage;
+            OverloadJumpCount = overloadJumpCount;
+            ExecuteThreshold = ExecutionerEffectSystem.GetThreshold(context.Effects);
         }
     }
 
     public readonly struct ShieldEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
         public readonly ulong OwnerEntityId;
-        public readonly ulong ShotId;
-        public readonly uint ProjectileId;
-        public readonly uint Tick;
         public readonly float Amount;
 
-        public ShieldEffectCommand(ushort effectId, byte level, in ProjectileState projectile,
-            in ProjectileHitContext context, float amount)
+        public ShieldEffectCommand(in ProjectileHitContext context, float amount)
         {
-            EffectId = effectId;
-            Level = level;
             OwnerEntityId = context.Shot.OwnerEntityId;
-            ShotId = context.Shot.ShotId;
-            ProjectileId = projectile.ProjectileId;
-            Tick = context.Shot.FireTick;
             Amount = amount;
         }
     }
@@ -134,15 +101,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
     public readonly struct ShieldCapacityEffectCommand
     {
         public readonly ushort EffectId;
-        public readonly byte Level;
         public readonly ulong OwnerEntityId;
         public readonly float CapacityContribution;
 
-        public ShieldCapacityEffectCommand(ushort effectId, byte level, ulong ownerEntityId,
+        public ShieldCapacityEffectCommand(ushort effectId, ulong ownerEntityId,
             float capacityContribution)
         {
             EffectId = effectId;
-            Level = level;
             OwnerEntityId = ownerEntityId;
             CapacityContribution = capacityContribution;
         }
@@ -150,71 +115,40 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
     public readonly struct ExecuteEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
-        public readonly ulong SourceEntityId;
         public readonly ulong TargetEntityId;
-        public readonly ulong ShotId;
-        public readonly uint ProjectileId;
         public readonly float HealthThreshold;
-        public readonly Vector3 HitPoint;
-        public readonly Vector3 HitDirection;
 
-        public ExecuteEffectCommand(ushort effectId, byte level, in ProjectileState projectile,
-            in ProjectileHitContext context, float healthThreshold)
+        public ExecuteEffectCommand(in ProjectileHitContext context, float healthThreshold)
         {
-            EffectId = effectId;
-            Level = level;
-            SourceEntityId = context.Shot.OwnerEntityId;
             TargetEntityId = context.TargetEntityId;
-            ShotId = context.Shot.ShotId;
-            ProjectileId = projectile.ProjectileId;
             HealthThreshold = healthThreshold;
-            HitPoint = context.HitPoint;
-            HitDirection = projectile.Velocity.sqrMagnitude > Mathf.Epsilon
-                ? projectile.Velocity.normalized : Vector3.zero;
         }
     }
 
     public readonly struct CrowdControlEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
-        public readonly ulong SourceEntityId;
         public readonly ulong TargetEntityId;
-        public readonly ulong ShotId;
-        public readonly uint ProjectileId;
         public readonly float Duration;
 
-        public CrowdControlEffectCommand(ushort effectId, byte level, in ProjectileState projectile,
-            in ProjectileHitContext context, float duration)
+        public CrowdControlEffectCommand(in ProjectileHitContext context, float duration)
         {
-            EffectId = effectId;
-            Level = level;
-            SourceEntityId = context.Shot.OwnerEntityId;
             TargetEntityId = context.TargetEntityId;
-            ShotId = context.Shot.ShotId;
-            ProjectileId = projectile.ProjectileId;
             Duration = duration;
         }
     }
 
     public readonly struct SplitProjectileEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
         public readonly ProjectileState Parent;
         public readonly ProjectileHitContext Context;
         public readonly ushort SplitCount;
         public readonly float SpreadAngle;
         public readonly float DamageRatio;
 
-        public SplitProjectileEffectCommand(ushort effectId, byte level,
-            in ProjectileState parent, in ProjectileHitContext context, ushort splitCount,
+        public SplitProjectileEffectCommand(in ProjectileState parent,
+            in ProjectileHitContext context, ushort splitCount,
             float spreadAngle, float damageRatio)
         {
-            EffectId = effectId;
-            Level = level;
             Parent = parent;
             Context = context;
             SplitCount = splitCount;
@@ -225,29 +159,18 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
     public readonly struct RadialImpactEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
-        public readonly ulong SourceEntityId;
-        public readonly ulong ShotId;
-        public readonly uint ProjectileId;
+        public readonly ushort EffectSetId;
         public readonly Vector3 Position;
-        public readonly Vector3 Direction;
         public readonly float Radius;
         public readonly float Damage;
         public readonly float Force;
 
-        public RadialImpactEffectCommand(ushort effectId, byte level,
-            in ProjectileState projectile, in ProjectileDestroyedEffectContext context,
+        public RadialImpactEffectCommand(in ProjectileDestroyedEffectContext context,
+            in ProjectileState projectile,
             float radius, float damage, float force)
         {
-            EffectId = effectId;
-            Level = level;
-            SourceEntityId = context.Shot.OwnerEntityId;
-            ShotId = context.Shot.ShotId;
-            ProjectileId = projectile.ProjectileId;
+            EffectSetId = context.Shot.EffectSetId;
             Position = projectile.Position;
-            Direction = projectile.Velocity.sqrMagnitude > Mathf.Epsilon
-                ? projectile.Velocity.normalized : Vector3.forward;
             Radius = radius;
             Damage = damage;
             Force = force;
@@ -256,38 +179,26 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
     public readonly struct PersistentAreaEffectCommand
     {
-        public readonly ushort EffectId;
-        public readonly byte Level;
         public readonly ulong SourceEntityId;
-        public readonly ulong TargetEntityId;
         public readonly ulong ShotId;
-        public readonly uint ProjectileId;
         public readonly Vector3 Position;
         public readonly float Radius;
         public readonly float Duration;
         public readonly float TickInterval;
         public readonly float DamagePerTick;
         public readonly float SlowRatio;
-        public readonly bool TrueDamage;
 
-        public PersistentAreaEffectCommand(ushort effectId, byte level,
-            in ProjectileState projectile, in ProjectileHitContext context, float radius,
-            float duration, float tickInterval, float damagePerTick, float slowRatio,
-            bool trueDamage)
+        public PersistentAreaEffectCommand(in ProjectileHitContext context, float radius,
+            float duration, float tickInterval, float damagePerTick, float slowRatio)
         {
-            EffectId = effectId;
-            Level = level;
             SourceEntityId = context.Shot.OwnerEntityId;
-            TargetEntityId = context.TargetEntityId;
             ShotId = context.Shot.ShotId;
-            ProjectileId = projectile.ProjectileId;
             Position = context.HitPoint;
             Radius = radius;
             Duration = duration;
             TickInterval = tickInterval;
             DamagePerTick = damagePerTick;
             SlowRatio = slowRatio;
-            TrueDamage = trueDamage;
         }
     }
 
@@ -296,30 +207,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
     {
         void EmitLightning(in LightningEffectCommand command);
         void SpawnStormCloud(in StormCloudEffectCommand command);
-        void RemoveOwnerEffect(in OwnerEffectRemovalCommand command);
+        void RemoveStormCloud(ulong ownerEntityId);
         void AddShield(in ShieldEffectCommand command);
         void SetShieldCapacity(in ShieldCapacityEffectCommand command);
         void TryExecute(in ExecuteEffectCommand command);
         void ApplyCrowdControl(in CrowdControlEffectCommand command);
         void SpawnProjectiles(in SplitProjectileEffectCommand command);
         void EmitRadialImpact(in RadialImpactEffectCommand command);
-        void UpsertDamageArea(in PersistentAreaEffectCommand command);
-    }
-
-    public sealed class NoneWeaponSpecialEffectCommandSink : IWeaponSpecialEffectCommandSink
-    {
-        public static readonly NoneWeaponSpecialEffectCommandSink Instance = new();
-        private NoneWeaponSpecialEffectCommandSink() { }
-        public void EmitLightning(in LightningEffectCommand command) { }
-        public void SpawnStormCloud(in StormCloudEffectCommand command) { }
-        public void RemoveOwnerEffect(in OwnerEffectRemovalCommand command) { }
-        public void AddShield(in ShieldEffectCommand command) { }
-        public void SetShieldCapacity(in ShieldCapacityEffectCommand command) { }
-        public void TryExecute(in ExecuteEffectCommand command) { }
-        public void ApplyCrowdControl(in CrowdControlEffectCommand command) { }
-        public void SpawnProjectiles(in SplitProjectileEffectCommand command) { }
-        public void EmitRadialImpact(in RadialImpactEffectCommand command) { }
-        public void UpsertDamageArea(in PersistentAreaEffectCommand command) { }
+        void TrySpawnDamageArea(in PersistentAreaEffectCommand command);
     }
 
     public abstract class WeaponSpecialEffectSystem
@@ -385,7 +280,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
                 WeaponEffectDefinition definition = _catalog.GetEffect(snapshot.EffectId);
                 if (definition.Type != WeaponEffectType.Special) continue;
                 current.Add(snapshot.EffectId);
-                Resolve(snapshot).OnEquipped(snapshot.Stack, context);
+                GetSystem(snapshot.EffectId).OnEquipped(snapshot.Stack, context);
             }
 
             if (_ownerSpecialEffects.TryGetValue(ownerEntityId, out HashSet<ushort> previous))
@@ -417,28 +312,44 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         public void DispatchBeforeFire(in WeaponEffectFireContext context)
         {
             for (int i = 0; i < context.Effects.Effects.Length; i++)
-                Resolve(context.Effects.Effects[i]).BeforeFire(context.Effects.Effects[i].Stack, context);
+            {
+                EffectSnapshot effect = context.Effects.Effects[i];
+                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                    system.BeforeFire(effect.Stack, context);
+            }
         }
 
         public void DispatchAfterFire(in ShotContext shot, in WeaponStatSnapshot stats)
         {
             EffectSet set = GetSet(shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
-                Resolve(set.Effects[i]).AfterFire(set.Effects[i].Stack, shot, stats);
+            {
+                EffectSnapshot effect = set.Effects[i];
+                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                    system.AfterFire(effect.Stack, shot, stats);
+            }
         }
 
         public void DispatchSpawn(ref ProjectileState projectile, in ProjectileSpawnEffectContext context)
         {
             EffectSet set = GetSet(context.Shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
-                Resolve(set.Effects[i]).OnProjectileSpawn(set.Effects[i].Stack, ref projectile, context);
+            {
+                EffectSnapshot effect = set.Effects[i];
+                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                    system.OnProjectileSpawn(effect.Stack, ref projectile, context);
+            }
         }
 
         public void DispatchHit(ref ProjectileState projectile, in ProjectileHitContext context)
         {
             EffectSet set = GetSet(context.Shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
-                Resolve(set.Effects[i]).OnProjectileHit(set.Effects[i].Stack, ref projectile, context);
+            {
+                EffectSnapshot effect = set.Effects[i];
+                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                    system.OnProjectileHit(effect.Stack, ref projectile, context);
+            }
         }
 
         public void DispatchBounce(ref ProjectileState projectile, in ShotContext shot,
@@ -446,33 +357,41 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         {
             EffectSet set = GetSet(shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
-                Resolve(set.Effects[i]).OnProjectileBounce(set.Effects[i].Stack, ref projectile,
-                    shot, stats, hitPoint, hitNormal);
+            {
+                EffectSnapshot effect = set.Effects[i];
+                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                    system.OnProjectileBounce(effect.Stack, ref projectile,
+                        shot, stats, hitPoint, hitNormal);
+            }
         }
 
         public void DispatchDestroyed(ref ProjectileState projectile, in ProjectileDestroyedEffectContext context)
         {
             EffectSet set = GetSet(context.Shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
-                Resolve(set.Effects[i]).OnProjectileDestroyed(set.Effects[i].Stack, ref projectile, context);
+            {
+                EffectSnapshot effect = set.Effects[i];
+                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                    system.OnProjectileDestroyed(effect.Stack, ref projectile, context);
+            }
         }
 
         private EffectSet GetSet(ushort id) => id == 0 ? EffectSet.Empty : _effectSets.Get(id);
 
-        private WeaponSpecialEffectSystem Resolve(in EffectSnapshot snapshot)
+        private bool TryGetSystem(ushort effectId, out WeaponSpecialEffectSystem system)
         {
-            WeaponEffectDefinition definition = _catalog.GetEffect(snapshot.EffectId);
+            WeaponEffectDefinition definition = _catalog.GetEffect(effectId);
             if (definition.Type != WeaponEffectType.Special)
-                return NoneSpecialEffectSystem.Instance;
-            return _systems.TryGetValue(snapshot.EffectId, out WeaponSpecialEffectSystem system)
-                ? system : throw new InvalidOperationException($"特殊 EffectID={snapshot.EffectId} 未注册。");
+            {
+                system = null;
+                return false;
+            }
+            system = GetSystem(effectId);
+            return true;
         }
 
-        private sealed class NoneSpecialEffectSystem : WeaponSpecialEffectSystem
-        {
-            public static readonly NoneSpecialEffectSystem Instance = new();
-            public override ushort EffectId => 0;
-            private NoneSpecialEffectSystem() : base(NoneWeaponSpecialEffectCommandSink.Instance) { }
-        }
+        private WeaponSpecialEffectSystem GetSystem(ushort effectId) =>
+            _systems.TryGetValue(effectId, out WeaponSpecialEffectSystem system)
+                ? system : throw new InvalidOperationException($"特殊 EffectID={effectId} 未注册。");
     }
 }

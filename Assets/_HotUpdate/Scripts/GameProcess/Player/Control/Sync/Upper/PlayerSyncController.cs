@@ -511,20 +511,12 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>为当前权威状态构造一次协议包，并向除服务器自身外的所有已连接客户端发送 </summary>
         private void BroadcastSnapshot(in PlayerSimulationState state)
         {
-            NetworkManager networkManager = NetworkManager;
-
-            if (networkManager == null)
-                return;
-
             // 同一个 Player（玩家）、同一个 Server Tick（服务器固定同步步编号）只构建一次 Snapshot（快照） 
             // 所有 Client（客户端）收到相同协议数据，因此无需为每个客户端重复计算 DirtyMask（变化字段掩码） 
             PlayerSnapshotPacket packet = BuildSnapshotPacket(state);
 
-            foreach (ulong clientId in networkManager.ConnectedClientsIds)
+            foreach (ulong clientId in _networkRuntime.RemoteClientIds)
             {
-                if (clientId == NetworkManager.ServerClientId)
-                    continue;
-
                 _transport.SendSnapshot(clientId, NetworkObjectId, packet);
                 SnapshotSendCount++;
             }

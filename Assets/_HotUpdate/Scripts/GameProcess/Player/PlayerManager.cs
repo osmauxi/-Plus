@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -6,6 +6,7 @@ using ProjectGame.HotFix.Core.Events;
 using ProjectGame.HotFix.Core.Session;
 using ProjectGame.HotFix.Gameplay.Events;
 using ProjectGame.HotFix.Gameplay.Runtime;
+using ProjectGame.HotFix.Voice;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -134,6 +135,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 LocalPlayer = player;
 
             PlayerRegistered?.Invoke(player);
+            VoiceManager.Instance.BindGameplayAnchor(clientId, player.transform);
 
             if (isLocalPlayer)
                 PublishLocalPlayerCameraRequest(player);
@@ -158,6 +160,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
             _playersByClientId.Remove(clientId);
             _orderedPlayers.Remove(player);
+            VoiceManager.Instance.UnbindGameplayAnchor(clientId, player.transform);
 
             if (LocalPlayer == player)
             {
@@ -268,6 +271,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             if (_orderedPlayers.Count > 0)
                 Debug.LogWarning($"[{nameof(PlayerManager)}] Shutdown 时仍有 {_orderedPlayers.Count} 个玩家实例尚未注销 ");
 
+            VoiceManager.Instance.ClearGameplayAnchors();
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
 

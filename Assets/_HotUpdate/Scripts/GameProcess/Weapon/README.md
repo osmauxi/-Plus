@@ -14,7 +14,7 @@ Effect 使用 `Assets/DesignData/Excels/EffectConfig.xlsx`，与其他 Excel 一
 
 ## 数值管线
 
-`PlayerEffectLoadout.AcquisitionOrder` 是唯一顺序真相。计算时先按 Effect 实际获得顺序，再按每个 Effect 的 `ModifierIDs` 顺序执行，不把 Add/Multiply 重新排序。武器字段与 ShieldCapacity 已接入；玩家生命、移动速度和护甲不在本轮范围。
+`PlayerEffectLoadout.AcquisitionOrder` 是唯一顺序真相。计算时先按 Effect 实际获得顺序，再按每个 Effect 的 `ModifierIDs` 顺序执行，不把 Add/Multiply 重新排序。武器字段与 ShieldCapacity 已接入，护盾容量和命中加盾直接写入玩家自己的 `PlayerHealthNetworkState`。
 
 服务端每次 Effect 变化都会创建不可覆盖的 `EffectSet` 和 `WeaponStatSnapshot`，后续 Shot/Projectile 持有对应快照 ID。客户端只用相同规则做显示和预测，不注册权威快照，也不执行特殊玩法。
 
@@ -35,15 +35,15 @@ Effect 使用 `Assets/DesignData/Excels/EffectConfig.xlsx`，与其他 Excel 一
 1. 在 Effect 表把 EffectType 配为 Special；如为混合效果，也可以同时填写 ModifierIDs。
 2. 新建一个继承 `WeaponSpecialEffectSystem` 的纯 C# 类，并把常量 ID 与配置对齐。
 3. 在 `WeaponRuntimeService.InitializeAsync` 注册。启动校验会拒绝任何缺少脚本的启用 Special Effect。
-4. 需要外部玩法时实现/组合 `IWeaponSpecialEffectCommandSink`。当前命令覆盖连锁闪电、跟随风暴云、护盾回复/容量、处决、控制、范围冲击和持续伤害区域；`HealthShieldEffectAdapter` 负责护盾容量聚合与回复，其余目标选择、状态和 VFX 由对应战斗模块实现。
+4. 需要外部玩法时在 `WeaponRuntimeService` 的对应命令方法中直接接入。不要再增加 Health 适配器或 Resolver 链。
 
-当前已迁移的特殊 System 为 `Overload`、`StormCloud`、`StaticShield`、`PhotonMomentum`、`EnergySiphon`、`Executioner`、`KineticBoost`、`MultiSplit`、`NuclearFission` 和 `Shockwave`。`MultiSplit` 的子弹由 `WeaponRuntimeService` 内部生成，沿用父弹 Shot，并通过普通 `ProjectileSpawned` 事件进入既有全端表现同步；跟随玩家的常驻 Effect 会在效果集变化、玩家解绑和服务关闭时成对移除。
+当前已迁移的特殊 System 为 `Overload`、`StormCloud`、`StaticShield`、`PhotonMomentum`、`EnergySiphon`、`Executioner`、`KineticBoost`、`MultiSplit`、`NuclearFission` 和 `Shockwave`。连锁闪电、雷云、处决、停顿、辐射区、减速和冲击波都直接结算到服务器 `MonsterWorld`；护盾效果直接结算到玩家网络生命状态。`MultiSplit` 的子弹由 `WeaponRuntimeService` 内部生成，沿用父弹 Shot，并通过普通 `ProjectileSpawned` 事件进入既有全端表现同步；跟随玩家的常驻 Effect 会在效果集变化、玩家解绑和服务关闭时成对移除。
 
-旧 VFX 已按原 Addressable ID 注册到 `Prefabs` 组，并由 `PoolConfig.xlsx/LocalVFXPool` 配置容量：`OnLightning`、`OnHit_Lightning`、`Shield_Lightning`、`RainCloud`、`Explo_Fire`、`OnRadiation`。
+特殊 Effect 表现由 `WeaponSpecialEffectVfxPlayer` 直接生成轻量粒子和线段，不再依赖旧 VFX Graph、Prefab 或对象池配置。当前包括处决斩杀、冲击波、核裂变范围、动能增幅、跟随风暴云，以及过载/风暴云的连锁闪电。
 
 ## 其他边界
 
 - `WeaponSystem` 只更新传入状态；预测端和服务端共用规则。
 - `ShotBuilder` 创建弹丸，`ProjectileSimulation` 处理移动、碰撞与生命周期。同一弹丸不会因目标的复合 Collider 对同一实体重复命中。
 - `WeaponRuntimeService` 从 `ConfigManager` 构建局内冻结目录，并只在服务端推进权威弹丸。
-- `ProjectileHitTargetAdapter` 对接伤害目标；远端 VFX 广播仍未实现。
+- 玩家武器只识别 `MonsterViewHandle`，不会把其他玩家当作伤害目标。特殊 Effect 由服务器结算后随 Weapon 表现帧广播，客户端只负责播放，不重复推导玩法结果。

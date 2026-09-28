@@ -14,11 +14,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
             float damage = context.Stats.Damage * 1.2f;
             float interval = Math.Max(0.2f, 1f - 0.15f * (level - 1));
             context.Effects.TryGetLevel(OverloadEffectSystem.Id, out byte overloadLevel);
+            float overloadDamage = overloadLevel == 0 ? 0f :
+                context.Stats.Damage * (0.5f + 0.1f * (overloadLevel - 1));
             Commands.SpawnStormCloud(new StormCloudEffectCommand(
-                EffectId, level, context, radius, damage, interval, overloadLevel));
+                context, radius, damage, interval, overloadDamage, overloadLevel));
         }
 
         public override void OnUnequipped(ulong ownerEntityId) =>
-            Commands.RemoveOwnerEffect(new OwnerEffectRemovalCommand(EffectId, ownerEntityId));
+            Commands.RemoveStormCloud(ownerEntityId);
     }
 }

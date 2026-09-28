@@ -97,10 +97,11 @@ PlayerCameraController.LateUpdate
 
 ## Composition 分层
 
-`CameraCompositionModel` 将两条世界空间前视偏移相加：
+`CameraCompositionModel` 将 Aim、Movement 与 Acceleration 三条世界空间前视偏移相加：
 
 - Aim LookAhead 表达“玩家想看哪里”。距离角色 1 米内为死区，8 米达到最大 3 米偏移；进入平滑 0.12 秒，退出回中 0.18 秒。
 - Movement LookAhead 表达“玩家正在往哪里移动”。视觉速度 0.5 以下为死区，7 达到最大 1.5 米偏移；建立 0.18 秒，回中 0.25 秒。
+- Pivot/强反向不再让已有 Movement LookAhead 绕玩家旋转半圈：新旧方向点积低于 -0.35 时，旧偏移用 0.08 秒平滑收回中心，再从锁存的新方向展开；同时屏蔽 0.2 秒 Acceleration LookAhead，避免急停和反向爆发叠加镜头回弹。普通 90° 弧形转向仍沿用原有环绕响应。
 - Aim 激活时 Movement 权重当前为 0，因此瞄准方向完全接管构图，避免两条方向互相争夺。
 - FollowPivot 与 LookAtPivot 使用相同构图偏移，因此是整套构图平移，不改变原有俯视角。
 

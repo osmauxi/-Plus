@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Config;
+using ProjectGame.HotFix.Gameplay.Monsters;
 using ProjectGame.HotFix.Gameplay.Network;
+using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using ProjectGame.HotFix.Gameplay.Weapon.Effects;
 using ProjectGame.HotFix.Gameplay.Weapon.Effects.Special;
@@ -83,19 +85,61 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public event Action<ProjectileSpawn> ProjectileSpawned;
         public event Action<ProjectileImpact> ProjectileImpact;
         public event Action<ProjectileState> ProjectileRemoved;
+        public event Action<WeaponSpecialVfxEvent> SpecialEffectVfx;
 
         private readonly WeaponStatSnapshotRepository _stats = new();
         private readonly EffectSetRepository _effectSets = new();
         private readonly ShotRepository _shots = new();
         private readonly ProjectileWorld _world = new();
         private readonly List<ProjectileSpawn> _spawnBuffer = new(16);
-        private IWeaponSpecialEffectCommandSink _specialEffectCommands = NoneWeaponSpecialEffectCommandSink.Instance;
-        private IProjectileTargetResolver _projectileTargets = ComponentProjectileTargetResolver.Instance;
+        private readonly Dictionary<ulong, StormCloudState> _stormClouds = new();
+        private readonly List<DamageAreaState> _damageAreas = new();
+        private readonly Dictionary<ulong, Dictionary<ushort, float>> _shieldCapacities = new();
+        private readonly List<int> _effectTargets = new(64);
         private WeaponStatModifierCalculator _effectCalculator;
         private WeaponSpecialEffectManager _specialEffects;
         private GameplayNetworkRuntime _network;
         private ShotBuilder _builder;
         private ProjectileSimulation _simulation;
+        private uint _currentTick;
+        private ulong _nextDamageAreaVfxId = 1;
+
+        private sealed class StormCloudState
+        {
+            public float Radius;
+            public float StrikeDamage;
+            public float StrikeInterval;
+            public float TimeUntilStrike;
+            public float OverloadDamage;
+            public byte OverloadJumpCount;
+            public float ExecuteThreshold;
+        }
+
+        private sealed class DamageAreaState
+        {
+            public ulong VfxId;
+            public ulong SourceEntityId;
+            public Vector3 Position;
+            public float Radius;
+            public float RemainingDuration;
+            public float TickInterval;
+            public float TimeUntilTick;
+            public float DamagePerTick;
+            public float SlowRatio;
+            public float ExecuteThreshold;
+        }
+
+        private readonly struct LightningNode
+        {
+            public readonly Vector3 Position;
+            public readonly byte Depth;
+
+            public LightningNode(Vector3 position, byte depth)
+            {
+                Position = position;
+                Depth = depth;
+            }
+        }
 
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
@@ -139,30 +183,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             _builder = new ShotBuilder(_shots, _world, _specialEffects);
             _simulation = new ProjectileSimulation(_world, _shots, _stats,
                 new ProjectileSimulationConfig { TargetMask = _targetMask, WorldMask = _worldMask },
-                _specialEffects, _projectileTargets);
+                _specialEffects);
             _simulation.Impact += HandleImpact;
             _simulation.Removed += HandleRemoved;
             _network.Clock.TickCompleted += Tick;
             Instance = this;
             IsInitialized = true;
             return UniTask.CompletedTask;
-        }
-
-        /// <summary>Health/对象池等组合根在初始化前注入；特殊脚本只依赖该命令端口。</summary>
-        public void SetSpecialEffectCommandSink(IWeaponSpecialEffectCommandSink commands)
-        {
-            if (IsInitialized) throw new InvalidOperationException("特殊 Effect 命令端口必须在 Weapon 初始化前注入。");
-            _specialEffectCommands = commands == null || ReferenceEquals(commands, this)
-                ? NoneWeaponSpecialEffectCommandSink.Instance : commands;
-        }
-
-        /// <summary>
-        /// 初始化前注入集中命中解析链。Monster 接入时应组合 MonsterProjectileHealthResolver 与旧组件兼容 Resolver。
-        /// </summary>
-        public void SetProjectileTargetResolver(IProjectileTargetResolver resolver)
-        {
-            if (IsInitialized) throw new InvalidOperationException("Projectile TargetResolver 必须在 Weapon 初始化前注入。");
-            _projectileTargets = resolver ?? ComponentProjectileTargetResolver.Instance;
         }
 
         public PlayerEffectLoadout CreatePlayerEffectLoadout()
@@ -178,9 +205,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public WeaponEffectApplication RegisterPlayerEffectState(
             ulong ownerEntityId,
             WeaponDefinition definition,
-            PlayerEffectLoadout loadout,
-            float baseShieldCapacity = 0f,
-            ushort acquiredEffectId = 0)
+            PlayerEffectLoadout loadout)
         {
             if (!IsInitialized)
                throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
@@ -192,8 +217,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             if (loadout.AcquisitionCount == 0)
             {
                 var baseCalculation = new WeaponEffectCalculation(
-                    definition.Stats, new EffectOwnerStatSnapshot(baseShieldCapacity));
+                    definition.Stats, new EffectOwnerStatSnapshot(0f));
                 _specialEffects.DispatchOwnerState(ownerEntityId, EffectSet.Empty, definition.Stats);
+                SetShieldCapacity(new ShieldCapacityEffectCommand(
+                    0, ownerEntityId, baseCalculation.OwnerStats.ShieldCapacity));
                 return new WeaponEffectApplication(EffectSet.Empty, baseCalculation);
             }
 
@@ -202,12 +229,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             _effectSets.Register(set);
             //算出新的EffectOwnerStatSnapshot
             WeaponEffectCalculation calculation = _effectCalculator.Calculate(
-                definition.Stats, set, _stats.AllocateRuntimeId(), _network.Clock.TickDeltaTime,
-                baseShieldCapacity);
+                definition.Stats, set, _stats.AllocateRuntimeId(), _network.Clock.TickDeltaTime);
             //注册EffectOwnerStatSnapshot
             _stats.Register(calculation.WeaponStats);
             //触发特殊的装备Effect效果
             _specialEffects.DispatchOwnerState(ownerEntityId, set, calculation.WeaponStats);
+            SetShieldCapacity(new ShieldCapacityEffectCommand(
+                0, ownerEntityId, calculation.OwnerStats.ShieldCapacity));
             return new WeaponEffectApplication(set, calculation);
         }
 
@@ -216,6 +244,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             if (!IsInitialized || _network == null || !_network.Transport.IsServer) return;
             _specialEffects.RemoveOwner(ownerEntityId);
+            _stormClouds.Remove(ownerEntityId);
+            _shieldCapacities.Remove(ownerEntityId);
+            for (int i = _damageAreas.Count - 1; i >= 0; i--)
+                if (_damageAreas[i].SourceEntityId == ownerEntityId)
+                    _damageAreas.RemoveAt(i);
+            PlayerHealthNetworkState health = FindPlayerHealth(ownerEntityId);
+            if (health != null) health.SetBonusShieldCapacity(0f);
         }
 
         /// <summary>
@@ -223,8 +258,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// </summary>
         public WeaponEffectCalculation PreviewPlayerEffectState(
             WeaponDefinition definition,
-            PlayerEffectLoadout loadout,
-            float baseShieldCapacity = 0f)
+            PlayerEffectLoadout loadout)
         {
             if (!IsInitialized) 
                 throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
@@ -232,7 +266,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 throw new ArgumentNullException();
             EffectSet set = loadout.AcquisitionCount == 0 ? EffectSet.Empty : loadout.CreateSnapshot(1);
             return _effectCalculator.Calculate(definition.Stats, set, definition.Stats.Id,
-                _network.Clock.TickDeltaTime, baseShieldCapacity);
+                _network.Clock.TickDeltaTime);
         }
 
         // 只允许 PlayerWeaponController 在服务端权威 Tick 确认新序号后调用。
@@ -259,26 +293,82 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             _spawnBuffer.Clear();
         }
 
-        public void EmitLightning(in LightningEffectCommand command) =>
-            _specialEffectCommands.EmitLightning(command);
+        public void EmitLightning(in LightningEffectCommand command)
+        {
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
+            if (monsters == null || !monsters.IsRoomActive) return;
+            int targetSlot = ToMonsterSlot(command.TargetEntityId);
+            float executeThreshold = GetExecuteThreshold(command.EffectSetId);
+            ApplyLightning(monsters, targetSlot, command.Origin, command.Damage,
+                command.JumpCount, command.BranchCount, command.SearchRadius,
+                command.ApplyInitialDamage, executeThreshold);
+        }
 
-        public void SpawnStormCloud(in StormCloudEffectCommand command) =>
-            _specialEffectCommands.SpawnStormCloud(command);
+        public void SpawnStormCloud(in StormCloudEffectCommand command)
+        {
+            _stormClouds[command.OwnerEntityId] = new StormCloudState
+            {
+                Radius = command.Radius,
+                StrikeDamage = command.StrikeDamage,
+                StrikeInterval = command.StrikeInterval,
+                TimeUntilStrike = command.StrikeInterval,
+                OverloadDamage = command.OverloadDamage,
+                OverloadJumpCount = command.OverloadJumpCount,
+                ExecuteThreshold = command.ExecuteThreshold,
+            };
+            PublishSpecialVfx(WeaponSpecialVfxType.StormCloudStart,
+                command.OwnerEntityId, command.OwnerEntityId, default, default,
+                command.Radius, 0f);
+        }
 
-        public void RemoveOwnerEffect(in OwnerEffectRemovalCommand command) =>
-            _specialEffectCommands.RemoveOwnerEffect(command);
+        public void RemoveStormCloud(ulong ownerEntityId)
+        {
+            if (!_stormClouds.Remove(ownerEntityId)) return;
+            PublishSpecialVfx(WeaponSpecialVfxType.StormCloudStop,
+                ownerEntityId, ownerEntityId, default, default, 0f, 0f);
+        }
 
         public void AddShield(in ShieldEffectCommand command) =>
-            _specialEffectCommands.AddShield(command);
+            FindPlayerHealth(command.OwnerEntityId)?.AddShield(command.Amount);
 
-        public void SetShieldCapacity(in ShieldCapacityEffectCommand command) =>
-            _specialEffectCommands.SetShieldCapacity(command);
+        public void SetShieldCapacity(in ShieldCapacityEffectCommand command)
+        {
+            if (!_shieldCapacities.TryGetValue(command.OwnerEntityId,
+                    out Dictionary<ushort, float> capacities))
+            {
+                capacities = new Dictionary<ushort, float>();
+                _shieldCapacities.Add(command.OwnerEntityId, capacities);
+            }
+            if (command.CapacityContribution > 0f)
+                capacities[command.EffectId] = command.CapacityContribution;
+            else
+                capacities.Remove(command.EffectId);
 
-        public void TryExecute(in ExecuteEffectCommand command) =>
-            _specialEffectCommands.TryExecute(command);
+            float total = 0f;
+            foreach (float capacity in capacities.Values) total += capacity;
+            if (capacities.Count == 0) _shieldCapacities.Remove(command.OwnerEntityId);
+            FindPlayerHealth(command.OwnerEntityId)?.SetBonusShieldCapacity(total);
+        }
 
-        public void ApplyCrowdControl(in CrowdControlEffectCommand command) =>
-            _specialEffectCommands.ApplyCrowdControl(command);
+        public void TryExecute(in ExecuteEffectCommand command)
+        {
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
+            if (monsters == null) return;
+            TryExecuteMonster(monsters, ToMonsterSlot(command.TargetEntityId),
+                command.HealthThreshold);
+        }
+
+        public void ApplyCrowdControl(in CrowdControlEffectCommand command)
+        {
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
+            int slot = ToMonsterSlot(command.TargetEntityId);
+            if (monsters == null ||
+                !monsters.TryGetMonsterPosition(slot, out Vector3 position)) return;
+            monsters.StunMonster(slot, command.Duration, _currentTick);
+            PublishSpecialVfx(WeaponSpecialVfxType.KineticBoost,
+                command.TargetEntityId, 0,
+                position, default, 0.7f, command.Duration);
+        }
 
         /// <summary>分裂弹仍属于同一个 Shot；这里扩展引用计数并发布普通出生事件。</summary>
         public void SpawnProjectiles(in SplitProjectileEffectCommand command)
@@ -315,27 +405,269 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 _specialEffects.DispatchSpawn(ref projectile,
                     new ProjectileSpawnEffectContext(shot, stats));
                 _world.Add(projectile);
+                _simulation.MarkTargetAsHit(projectile.ProjectileId, command.Context.TargetEntityId);
                 ProjectileSpawned?.Invoke(new ProjectileSpawn(
-                    shot, projectile, stats.ProjectileSize * projectile.SizeMultiplier));
+                    shot,
+                    projectile,
+                    stats.ProjectileSize * projectile.SizeMultiplier,
+                    _currentTick));
             }
         }
 
-        public void EmitRadialImpact(in RadialImpactEffectCommand command) =>
-            _specialEffectCommands.EmitRadialImpact(command);
+        public void EmitRadialImpact(in RadialImpactEffectCommand command)
+        {
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
+            if (monsters == null || !monsters.IsRoomActive) return;
+            float executeThreshold = GetExecuteThreshold(command.EffectSetId);
+            PublishSpecialVfx(WeaponSpecialVfxType.Shockwave,
+                0, 0,
+                command.Position, default, command.Radius, 0.6f);
+            CollectMonsters(monsters, command.Position, command.Radius, _effectTargets);
+            for (int i = 0; i < _effectTargets.Count; i++)
+            {
+                int slot = _effectTargets[i];
+                if (!monsters.TryGetMonsterPosition(slot, out Vector3 position)) continue;
+                Vector3 offset = position - command.Position;
+                float forceRatio = 1f - Mathf.Clamp01(offset.magnitude / command.Radius);
+                DamageMonster(monsters, slot, command.Damage, executeThreshold);
+                Vector2 direction = new Vector2(offset.x, offset.z).normalized;
+                monsters.PushMonster(slot, direction * (command.Force * forceRatio * 0.1f));
+            }
+        }
 
-        public void UpsertDamageArea(in PersistentAreaEffectCommand command) =>
-            _specialEffectCommands.UpsertDamageArea(command);
+        public void TrySpawnDamageArea(in PersistentAreaEffectCommand command)
+        {
+            Vector3 position = command.Position;
+            position.y = 0.1f;
+            float minimumDistanceSqr = command.Radius * command.Radius * 0.25f;
+            for (int i = 0; i < _damageAreas.Count; i++)
+            {
+                DamageAreaState area = _damageAreas[i];
+                if ((area.Position - position).sqrMagnitude < minimumDistanceSqr) return;
+            }
+
+            ulong vfxId = _nextDamageAreaVfxId++;
+            float executeThreshold = _shots.TryGet(command.ShotId, out ShotContext shot)
+                ? GetExecuteThreshold(shot.EffectSetId)
+                : 0f;
+            _damageAreas.Add(new DamageAreaState
+            {
+                VfxId = vfxId,
+                SourceEntityId = command.SourceEntityId,
+                Position = position,
+                Radius = command.Radius,
+                RemainingDuration = command.Duration,
+                TickInterval = command.TickInterval,
+                TimeUntilTick = command.TickInterval,
+                DamagePerTick = command.DamagePerTick,
+                SlowRatio = command.SlowRatio,
+                ExecuteThreshold = executeThreshold,
+            });
+            PublishSpecialVfx(WeaponSpecialVfxType.RadiationArea,
+                vfxId, command.SourceEntityId, position, default,
+                command.Radius, command.Duration);
+        }
 
         private void Tick(uint tick)
         {
             if (!_network.Transport.IsServer) 
                 return;
+            _currentTick = tick;
             //强行更新玩家本Tick的移动，再进行子弹Tick
             Physics.SyncTransforms();
             _simulation.Tick(_network.Clock.TickDeltaTime);
+            TickStormClouds(_network.Clock.TickDeltaTime);
+            TickDamageAreas(_network.Clock.TickDeltaTime);
         }
+
+        private static int ToMonsterSlot(ulong entityId) =>
+            checked((int)(entityId - MonsterRuntimeService.MonsterEntityIdBase));
+
+        private static PlayerHealthNetworkState FindPlayerHealth(ulong entityId)
+        {
+            PlayerManager manager = PlayerManager.Instance;
+            if (manager == null) return null;
+            IReadOnlyList<PlayerRuntime> players = manager.RuntimePlayers;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerRuntime player = players[i];
+                if (player != null && player.NetworkObjectId == entityId)
+                    return player.GetComponent<PlayerHealthNetworkState>();
+            }
+            return null;
+        }
+
+        private static bool TryGetPlayerPosition(ulong entityId, out Vector3 position)
+        {
+            PlayerManager manager = PlayerManager.Instance;
+            if (manager != null)
+            {
+                IReadOnlyList<PlayerRuntime> players = manager.RuntimePlayers;
+                for (int i = 0; i < players.Count; i++)
+                {
+                    PlayerRuntime player = players[i];
+                    if (player == null || player.NetworkObjectId != entityId ||
+                        !player.GetComponent<PlayerHealthNetworkState>().IsAlive)
+                        continue;
+                    position = player.transform.position;
+                    return true;
+                }
+            }
+            position = default;
+            return false;
+        }
+
+        private static void CollectMonsters(MonsterRuntimeService monsters, Vector3 position,
+            float radius, List<int> results)
+        {
+            results.Clear();
+            float radiusSqr = radius * radius;
+            for (int slot = 0; slot < monsters.MonsterSlotCount; slot++)
+                if (monsters.TryGetMonsterPosition(slot, out Vector3 monsterPosition) &&
+                    (monsterPosition - position).sqrMagnitude <= radiusSqr)
+                    results.Add(slot);
+        }
+
+        private void ApplyLightning(MonsterRuntimeService monsters, int targetSlot,
+            Vector3 origin, float damage, byte jumpCount, byte branchCount,
+            float searchRadius, bool applyInitialDamage, float executeThreshold)
+        {
+            if (applyInitialDamage)
+            {
+                bool hasInitialPosition =
+                    monsters.TryGetMonsterPosition(targetSlot, out Vector3 initialPosition);
+                DamageMonster(monsters, targetSlot, damage, executeThreshold);
+                if (hasInitialPosition)
+                    PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
+                        0, 0, origin + Vector3.up * 1.5f, initialPosition, 0f, 0.2f);
+            }
+
+            var visited = new HashSet<int> { targetSlot };
+            var nodes = new List<LightningNode> { new(origin, 0) };
+            float radiusSqr = searchRadius * searchRadius;
+            for (int nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+            {
+                LightningNode node = nodes[nodeIndex];
+                if (node.Depth >= jumpCount) continue;
+                for (int branch = 0; branch < branchCount; branch++)
+                {
+                    int nearestSlot = -1;
+                    float nearestDistance = radiusSqr;
+                    Vector3 nearestPosition = default;
+                    for (int slot = 0; slot < monsters.MonsterSlotCount; slot++)
+                    {
+                        if (visited.Contains(slot) ||
+                            !monsters.TryGetMonsterPosition(slot, out Vector3 candidatePosition))
+                            continue;
+                        float distance = (candidatePosition - node.Position).sqrMagnitude;
+                        if (distance >= nearestDistance) continue;
+                        nearestSlot = slot;
+                        nearestDistance = distance;
+                        nearestPosition = candidatePosition;
+                    }
+                    if (nearestSlot < 0) break;
+                    visited.Add(nearestSlot);
+                    DamageMonster(monsters, nearestSlot, damage, executeThreshold);
+                    PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
+                        0, 0, node.Position, nearestPosition, 0f, 0.2f);
+                    nodes.Add(new LightningNode(nearestPosition, checked((byte)(node.Depth + 1))));
+                }
+            }
+        }
+
+        private void TickStormClouds(float deltaTime)
+        {
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
+            if (monsters == null || !monsters.IsRoomActive) return;
+            foreach (KeyValuePair<ulong, StormCloudState> pair in _stormClouds)
+            {
+                StormCloudState cloud = pair.Value;
+                cloud.TimeUntilStrike -= deltaTime;
+                if (cloud.TimeUntilStrike > 0f ||
+                    !TryGetPlayerPosition(pair.Key, out Vector3 ownerPosition))
+                    continue;
+                cloud.TimeUntilStrike += cloud.StrikeInterval;
+                CollectMonsters(monsters, ownerPosition, cloud.Radius, _effectTargets);
+                if (_effectTargets.Count == 0) continue;
+                int slot = _effectTargets[UnityEngine.Random.Range(0, _effectTargets.Count)];
+                if (!monsters.TryGetMonsterPosition(slot, out Vector3 targetPosition)) continue;
+                DamageMonster(monsters, slot, cloud.StrikeDamage, cloud.ExecuteThreshold);
+                PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
+                    0, pair.Key, ownerPosition + Vector3.up * 4f,
+                    targetPosition, 0f, 0.2f);
+                if (cloud.OverloadJumpCount > 0)
+                    ApplyLightning(monsters, slot, targetPosition, cloud.OverloadDamage,
+                        cloud.OverloadJumpCount, 3, 5f, false, cloud.ExecuteThreshold);
+            }
+        }
+
+        private void TickDamageAreas(float deltaTime)
+        {
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
+            if (monsters == null || !monsters.IsRoomActive)
+            {
+                _damageAreas.Clear();
+                return;
+            }
+
+            for (int i = _damageAreas.Count - 1; i >= 0; i--)
+            {
+                DamageAreaState area = _damageAreas[i];
+                area.RemainingDuration -= deltaTime;
+                if (area.RemainingDuration <= 0f)
+                {
+                    _damageAreas.RemoveAt(i);
+                    continue;
+                }
+                area.TimeUntilTick -= deltaTime;
+                if (area.TimeUntilTick > 0f) continue;
+                area.TimeUntilTick += area.TickInterval;
+
+                CollectMonsters(monsters, area.Position, area.Radius, _effectTargets);
+                for (int targetIndex = 0; targetIndex < _effectTargets.Count; targetIndex++)
+                {
+                    int slot = _effectTargets[targetIndex];
+                    DamageMonster(monsters, slot, area.DamagePerTick, area.ExecuteThreshold);
+                    monsters.SlowMonster(slot, Mathf.Max(0.1f, 1f - area.SlowRatio), 1.2f, _currentTick);
+                }
+            }
+        }
+
+        private float GetExecuteThreshold(ushort effectSetId) =>
+            ExecutionerEffectSystem.GetThreshold(
+                effectSetId == 0 ? EffectSet.Empty : _effectSets.Get(effectSetId));
+
+        private void DamageMonster(MonsterRuntimeService monsters, int slot,
+            float damage, float executeThreshold)
+        {
+            if (!monsters.DamageMonster(slot, damage) || executeThreshold <= 0f) return;
+            TryExecuteMonster(monsters, slot, executeThreshold);
+        }
+
+        private void TryExecuteMonster(MonsterRuntimeService monsters, int slot, float threshold)
+        {
+            if (!monsters.TryGetMonsterHealthRatio(slot, out float healthRatio) ||
+                healthRatio > threshold ||
+                !monsters.TryGetMonsterPosition(slot, out Vector3 position)) return;
+            monsters.DamageMonster(slot, float.MaxValue);
+            PublishSpecialVfx(WeaponSpecialVfxType.Execution,
+                MonsterRuntimeService.MonsterEntityIdBase + (uint)slot, 0,
+                position, default, 1.8f, 0.8f);
+        }
+
         private void HandleImpact(ProjectileImpact impact) => ProjectileImpact?.Invoke(impact);
         private void HandleRemoved(ProjectileState projectile) => ProjectileRemoved?.Invoke(projectile);
+
+        private void PublishSpecialVfx(
+            WeaponSpecialVfxType type,
+            ulong instanceId,
+            ulong ownerEntityId,
+            Vector3 position,
+            Vector3 targetPosition,
+            float radius,
+            float duration) =>
+            SpecialEffectVfx?.Invoke(new WeaponSpecialVfxEvent(
+                type, instanceId, ownerEntityId, position, targetPosition, radius, duration));
 
         public UniTask ShutdownAsync(CancellationToken cancellationToken)
         {
@@ -352,12 +684,16 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             _stats.Clear();
             _effectSets.Clear();
             _spawnBuffer.Clear();
+            _stormClouds.Clear();
+            _damageAreas.Clear();
+            _shieldCapacities.Clear();
+            _effectTargets.Clear();
+            _nextDamageAreaVfxId = 1;
             Catalog = null; 
             EffectCatalog = null;
             EffectRolls = null;
             _effectCalculator = null;
             _specialEffects = null;
-            _projectileTargets = ComponentProjectileTargetResolver.Instance;
             _simulation = null; 
             _builder = null; 
             _network = null;
@@ -365,6 +701,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             ProjectileSpawned = null;
             ProjectileImpact = null; 
             ProjectileRemoved = null;
+            SpecialEffectVfx = null;
             IsInitialized = false;
             if (Instance == this) 
                 Instance = null;

@@ -129,6 +129,15 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
         [Tooltip("停止移动后镜头回到角色中心的速度 ")]
         [Min(0f)][SerializeField] private float _movementLookAheadReturnTime = 0.25f;
 
+        [Tooltip("当前 Movement LookAhead 与新移动方向的点积低于该值时，按 Pivot/强反向处理。-1 仅接近 180 度触发，0 则超过 90 度即可触发。")]
+        [Range(-1f, 0f)][SerializeField] private float _movementReverseDotThreshold = -0.35f;
+
+        [Tooltip("Pivot/强反向时，旧 Movement LookAhead 收回玩家中心的平滑时间；回中后才从新方向重新展开，避免镜头绕玩家画半圆。")]
+        [Min(0f)][SerializeField] private float _movementReverseRecenterSmoothTime = 0.08f;
+
+        [Tooltip("Pivot/强反向后暂时屏蔽 Acceleration LookAhead 的秒数，避免急停与反向爆发产生额外镜头回弹。")]
+        [Min(0f)][SerializeField] private float _movementReverseAccelerationSuppressionTime = 0.2f;
+
         [Tooltip("Aim 时保留多少 Movement LookAhead 0 表示完全由 Aim 接管构图 ")]
         [Range(0f, 1f)][SerializeField] private float _aimMovementLookAheadWeight = 0f;
 
@@ -251,6 +260,9 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
                 _fullMovementLookAheadSpeed,
                 _movementLookAheadSmoothTime,
                 _movementLookAheadReturnTime,
+                _movementReverseDotThreshold,
+                _movementReverseRecenterSmoothTime,
+                _movementReverseAccelerationSuppressionTime,
 
                 _movementVelocitySmoothTime,
 
@@ -754,6 +766,9 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
                 _fullMovementLookAheadSpeed,
                 _movementLookAheadSmoothTime,
                 _movementLookAheadReturnTime,
+                _movementReverseDotThreshold,
+                _movementReverseRecenterSmoothTime,
+                _movementReverseAccelerationSuppressionTime,
 
                 _movementVelocitySmoothTime,
 

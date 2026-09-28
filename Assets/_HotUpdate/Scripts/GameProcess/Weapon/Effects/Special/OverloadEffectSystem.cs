@@ -12,7 +12,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
             byte jumpCount = checked((byte)(1 + level - 1));
             float damage = context.Stats.Damage * (0.5f + 0.1f * (level - 1));
             Commands.EmitLightning(new LightningEffectCommand(
-                EffectId, level, projectile, context, damage, jumpCount,
+                context, damage, jumpCount,
                 branchCount: 3, searchRadius: 5f, applyInitialDamage: true));
         }
     }

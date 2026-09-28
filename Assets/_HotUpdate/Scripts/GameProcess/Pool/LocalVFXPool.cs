@@ -729,7 +729,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             if (_rentedInstanceIds.Count == 0)
                 return;
 
-            Debug.LogWarning($"[{nameof(LocalVFXPool)}] Shutdown 时仍有 {_rentedInstanceIds.Count} 个特效正在播放 ");
+            Debug.Log($"[{nameof(LocalVFXPool)}] Shutdown 回收 {_rentedInstanceIds.Count} 个仍在播放的特效 ");
 
             List<int> rentedIds = new(_rentedInstanceIds);
 

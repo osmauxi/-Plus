@@ -147,6 +147,21 @@ namespace ProjectGame.HotFix.Gameplay.Player
             Debug.Log($"[{nameof(PlayerSpawnController)}] 已重新布置玩家：Count={sessionPlayers.Count}");
         }
 
+        /// <summary>服务端移动单个现有玩家，并重置该玩家的预测、插值和输入基线。</summary>
+        public void WarpPlayer(PlayerRuntime player, in SpawnPose destination)
+        {
+            EnsureInitialized();
+            EnsureServer();
+
+            if (player == null || !player.IsSpawned)
+                throw new ArgumentException("Warp 目标必须是已生成的 PlayerRuntime。", nameof(player));
+
+            if (player.TryGetComponent(out PlayerSyncController syncController))
+                syncController.ResetAfterWarp(destination.Position, destination.Rotation);
+            else
+                player.transform.SetPositionAndRotation(destination.Position, destination.Rotation);
+        }
+
         /// <summary>
         /// Gameplay 最终退出时统一回收玩家 
         /// 普通楼层切换不要调用 

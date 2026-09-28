@@ -26,6 +26,11 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         [InspectorName("急转制动加速度")]
         [SerializeField, Min(0f)] private float _pivotBrakeAcceleration = 30f;
 
+        [Header("Pivot 瞬时急停")]
+        [Tooltip("进入 Pivot 的单个模拟 Tick 立刻从当前平面速度扣除的米/秒；只减到 0，不会用这次急停直接把速度翻到新方向。增大：反向前的顿挫更明显；0 表示关闭瞬时急停。")]
+        [InspectorName("Pivot 进入瞬时扣速")]
+        [SerializeField, Min(0f)] private float _pivotEntryBrakeSpeed;
+
         [Header("Pivot 短时爆发")]
         [Tooltip("该移动模式触发 Pivot 后，爆发速度保持的秒数 0 表示禁用此模式的 Pivot 爆发 ")]
         [InspectorName("Pivot 爆发持续时间")]
@@ -65,6 +70,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         public float Acceleration => _acceleration;
         public float Deceleration => _deceleration;
         public float PivotBrakeAcceleration => _pivotBrakeAcceleration;
+        public float PivotEntryBrakeSpeed => _pivotEntryBrakeSpeed;
         public float PivotBoostDuration => _pivotBoostDuration;
         public float PivotSpeedBonus => _pivotSpeedBonus;
         public float DirectionChangeAccelerationMultiplier => _directionChangeAccelerationMultiplier;
@@ -80,6 +86,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             if (_acceleration <= 0f) throw new InvalidOperationException($"{profileName}.移动加速度必须大于 0 ");
             if (_deceleration <= 0f) throw new InvalidOperationException($"{profileName}.移动减速度必须大于 0 ");
             if (_pivotBrakeAcceleration <= 0f) throw new InvalidOperationException($"{profileName}.急转制动加速度必须大于 0 ");
+            if (_pivotEntryBrakeSpeed < 0f) throw new InvalidOperationException($"{profileName}.Pivot 进入瞬时扣速不能小于 0 ");
             if (_pivotBoostDuration < 0f) throw new InvalidOperationException($"{profileName}.Pivot 爆发持续时间不能小于 0 ");
             if (_pivotSpeedBonus < 0f) throw new InvalidOperationException($"{profileName}.Pivot 速度加成不能小于 0 ");
             if (_directionChangeAccelerationMultiplier < 1f) throw new InvalidOperationException($"{profileName}.方向改变响应倍率不能小于 1 ");

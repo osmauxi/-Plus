@@ -6,7 +6,6 @@ using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Pooling;
 using ProjectGame.HotFix.Gameplay.Runtime;
-using Unity.Netcode;
 using UnityEngine;
 using RuntimeLocalObjectPool = ProjectGame.HotFix.Gameplay.Pooling.LocalObjectPool;
 
@@ -30,6 +29,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         private readonly List<ProjectileSpawn> _pendingSpawns = new(64);
         private readonly List<ProjectileImpact> _pendingImpacts = new(64);
         private readonly List<ProjectileState> _pendingRemoved = new(64);
+        private readonly List<WeaponSpecialVfxEvent> _pendingSpecialEffects = new(32);
         private readonly Dictionary<ProjectileKey, WeaponProjectileView> _projectileViews = new();
         private readonly Dictionary<ProjectileKey, float> _tombstones = new();
         private readonly List<ProjectileKey> _expiredTombstones = new(32);
@@ -40,6 +40,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         private WeaponPresentationTransport _transport;
         private RuntimeLocalObjectPool _objectPool;
         private LocalVFXPool _vfxPool;
+        private WeaponSpecialEffectVfxPlayer _specialVfx;
 
         public static WeaponPresentationService Instance { get; private set; }
         public bool IsInitialized { get; private set; }
@@ -55,6 +56,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             _weaponRuntime = WeaponRuntimeService.Instance;
             _objectPool = RuntimeLocalObjectPool.Instance;
             _vfxPool = LocalVFXPool.Instance;
+            _specialVfx = GetComponent<WeaponSpecialEffectVfxPlayer>();
+            if (_specialVfx == null)
+                _specialVfx = gameObject.AddComponent<WeaponSpecialEffectVfxPlayer>();
 
             if (_network == null || !_network.IsInitialized ||
                 _weaponRuntime == null || !_weaponRuntime.IsInitialized)
@@ -79,6 +83,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 _weaponRuntime.ProjectileSpawned += QueueSpawn;
                 _weaponRuntime.ProjectileImpact += QueueImpact;
                 _weaponRuntime.ProjectileRemoved += QueueRemoved;
+                _weaponRuntime.SpecialEffectVfx += QueueSpecialEffectVfx;
                 // 本服务在 WeaponRuntimeService 之后初始化，所以调用顺序是先模拟、后发送。
                 _network.Clock.TickCompleted += FlushServerFrame;
             }
@@ -101,6 +106,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                     _weaponRuntime.ProjectileSpawned -= QueueSpawn;
                     _weaponRuntime.ProjectileImpact -= QueueImpact;
                     _weaponRuntime.ProjectileRemoved -= QueueRemoved;
+                    _weaponRuntime.SpecialEffectVfx -= QueueSpecialEffectVfx;
                 }
             }
 
@@ -114,11 +120,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             _tombstones.Clear();
             _expiredTombstones.Clear();
             _weaponViews.Clear();
+            _specialVfx?.Clear();
             ClearPendingEvents();
             _network = null;
             _weaponRuntime = null;
             _objectPool = null;
             _vfxPool = null;
+            _specialVfx = null;
             IsInitialized = false;
             if (Instance == this) Instance = null;
             return UniTask.CompletedTask;
@@ -142,12 +150,15 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         private void QueueSpawn(ProjectileSpawn spawn) => _pendingSpawns.Add(spawn);
         private void QueueImpact(ProjectileImpact impact) => _pendingImpacts.Add(impact);
         private void QueueRemoved(ProjectileState projectile) => _pendingRemoved.Add(projectile);
+        private void QueueSpecialEffectVfx(WeaponSpecialVfxEvent effect) =>
+            _pendingSpecialEffects.Add(effect);
 
         private void FlushServerFrame(uint tick)
         {
             if (!IsInitialized ||
                 (_pendingShots.Count == 0 && _pendingSpawns.Count == 0 &&
-                 _pendingImpacts.Count == 0 && _pendingRemoved.Count == 0))
+                 _pendingImpacts.Count == 0 && _pendingRemoved.Count == 0 &&
+                 _pendingSpecialEffects.Count == 0))
                 return;
 
             try
@@ -156,16 +167,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 if (_network.Transport.IsClient)
                     ApplyFrameLocally();
 
-                NetworkManager manager = NetworkManager.Singleton;
-                if (manager == null)
-                    return;
-
-                foreach (ulong clientId in manager.ConnectedClientsIds)
+                foreach (ulong clientId in _network.RemoteClientIds)
                 {
-                    if (clientId == NetworkManager.ServerClientId)
-                        continue;
                     _transport.SendFrame(clientId, tick,
-                        _pendingShots, _pendingSpawns, _pendingImpacts, _pendingRemoved);
+                        _pendingShots, _pendingSpawns, _pendingImpacts, _pendingRemoved,
+                        _pendingSpecialEffects);
                 }
             }
             finally
@@ -180,6 +186,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             for (int i = 0; i < _pendingSpawns.Count; i++) ReceiveProjectileSpawn(_pendingSpawns[i]);
             for (int i = 0; i < _pendingImpacts.Count; i++) ReceiveProjectileImpact(_pendingImpacts[i]);
             for (int i = 0; i < _pendingRemoved.Count; i++) ReceiveProjectileRemoved(_pendingRemoved[i]);
+            for (int i = 0; i < _pendingSpecialEffects.Count; i++)
+                ReceiveSpecialEffectVfx(_pendingSpecialEffects[i]);
         }
 
         private void ClearPendingEvents()
@@ -188,6 +196,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             _pendingSpawns.Clear();
             _pendingImpacts.Clear();
             _pendingRemoved.Clear();
+            _pendingSpecialEffects.Clear();
         }
 
         public void ReceiveShot(in ShotContext shot)
@@ -218,7 +227,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
             view.Launch(
                 spawn,
-                CalculateFastForward(spawn.Shot.FireTick, spawn.Projectile.RemainingLifeTime));
+                CalculateFastForward(spawn.SpawnTick, spawn.Projectile.RemainingLifeTime));
             _projectileViews.Add(key, view);
         }
 
@@ -247,7 +256,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 poolId,
                 impact.Point,
                 rotation,
-                Mathf.Max(0.1f, impact.Projectile.SizeMultiplier));
+                impact.HasTarget ? impact.VfxWeight : impact.Projectile.SizeMultiplier);
         }
 
         public void ReceiveProjectileRemoved(in ProjectileState projectile)
@@ -257,6 +266,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 view.ApplyRemoved(projectile);
             _tombstones[key] = Time.unscaledTime + _tombstoneLifetime;
         }
+
+        public void ReceiveSpecialEffectVfx(in WeaponSpecialVfxEvent effect) =>
+            _specialVfx.Play(effect);
 
         private float CalculateFastForward(uint fireTick, float remainingLifeTime)
         {

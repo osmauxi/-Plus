@@ -53,17 +53,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             in WeaponStatSnapshot baseStats,
             EffectSet effectSet,
             ushort statSnapshotId,
-            float tickDeltaTime,
-            float baseShieldCapacity = 0f)
+            float tickDeltaTime)
         {
             if (effectSet == null) 
                 throw new ArgumentNullException(nameof(effectSet));
             if (tickDeltaTime <= 0f || float.IsNaN(tickDeltaTime) || float.IsInfinity(tickDeltaTime))
                 throw new ArgumentOutOfRangeException(nameof(tickDeltaTime));
-            if (!Finite(baseShieldCapacity) || baseShieldCapacity < 0f)
-                throw new ArgumentOutOfRangeException(nameof(baseShieldCapacity));
-
-            var values = new MutableStats(baseStats, baseShieldCapacity);
+            var values = new MutableStats(baseStats);
             //按顺序开始Apply
             if (effectSet.AcquisitionOrder.Length > 0)
             {
@@ -178,7 +174,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             public float ProjectileLifeTime;
             public float ShieldCapacity;
 
-            public MutableStats(in WeaponStatSnapshot stats, float shieldCapacity)
+            public MutableStats(in WeaponStatSnapshot stats)
             {
                 Damage = stats.Damage;
                 FireRate = stats.FireRate;
@@ -193,7 +189,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
                 PierceCount = stats.PierceCount;
                 ProjectileSize = stats.ProjectileSize;
                 ProjectileLifeTime = stats.ProjectileLifeTime;
-                ShieldCapacity = shieldCapacity;
+                ShieldCapacity = 0f;
             }
         }
     }

@@ -17,7 +17,6 @@ namespace ProjectGame.HotFix.Character
         [SerializeField] private ParticleSystem _shellEjectionVfx;
         [SerializeField] private ParticleSystem _reloadVfx;
 
-        // 旧枪口 VFX Graph 的事件名带有既有拼写，保持一致才能直接复用原资源。
         private static readonly int OnFireEventId = Shader.PropertyToID("VFX_OnFIre");
 
         public Transform Muzzle => _muzzle;

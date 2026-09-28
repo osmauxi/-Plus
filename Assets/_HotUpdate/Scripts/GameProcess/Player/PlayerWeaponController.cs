@@ -13,7 +13,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(PlayerSyncController))]
-    [RequireComponent(typeof(ProjectileHitTargetAdapter))]
     public sealed class PlayerWeaponController : NetworkBehaviour, IWeaponStateSource,
         IPlayerEffectStateSource, IEffectRollOfferSource
     {
@@ -29,11 +28,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private EffectSet _currentEffectSet = EffectSet.Empty;
         private EffectRollOffer _currentEffectRollOffer;
         private EffectOwnerStatSnapshot _ownerEffectStats;
-        /// <summary>
-        /// 代表谁有资格把这份Owner属性计算结果真正应用到Gameplay。
-        /// </summary>
-        private IEffectOwnerStatSink _ownerStatSink;
-        private float _baseShieldCapacity;
         private bool _networkListSubscribed;
         private uint _committedSequence;
         private uint _effectRollBroadcastSequence;
@@ -53,10 +47,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public event Action<EffectRollOffer> EffectRollOffered;
         public event Action<uint, ushort, EffectRollSelectionResult> EffectRollResolved;
 
-        public void SetEffectOwnerStatSink(IEffectOwnerStatSink sink) => _ownerStatSink = sink;
-
-        public void Bind(int weaponId, Transform muzzle, WeaponRuntimeService service,
-            float baseShieldCapacity = 0f)
+        public void Bind(int weaponId, Transform muzzle, WeaponRuntimeService service)
         {
             Unbind();
             _sync = GetComponent<PlayerSyncController>();
@@ -64,13 +55,11 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 throw new InvalidOperationException("Weapon 服务或 WeaponView.Muzzle 缺失，不能完成玩家 Ready。");
             _service = service;
             _muzzle = muzzle;
-            _baseShieldCapacity = baseShieldCapacity;
             Definition = service.Catalog.Get(weaponId);
             _effects = service.CreatePlayerEffectLoadout();
             _effectRollAuthority = new EffectRollOfferAuthority(service.EffectRolls, _effects);
             _sync.ConfigureWeapon(Definition);
-            ApplyReplicatedEffects(0);
-            GetComponent<ProjectileHitTargetAdapter>().BindIdentity(_sync.NetworkObjectId);
+            ApplyReplicatedEffects();
             _committedSequence = _sync.ActionState.Weapon.ShotSequence;
             _sync.ServerTickCompleted += CommitAuthoritativeShot;
             PublishState();
@@ -268,8 +257,10 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+            if (IsServer && _effectAcquisitionOrder.Count > 0)
+                _effectAcquisitionOrder.Clear();
             SubscribeEffectList();
-            if (Definition != null) ApplyReplicatedEffects(0);
+            if (Definition != null) ApplyReplicatedEffects();
         }
 
         public override void OnNetworkDespawn()
@@ -294,17 +285,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         private void OnEffectListChanged(NetworkListEvent<ushort> change)
         {
-            //标记这次变化是由哪个Effect被获取/升级造成的
-            //NetworkListEvent<ushort>.EventType.Add判定这次的修改信息是不是加一个新元素
-            //change.Value是新增的具体的值
-            ushort acquiredEffectId = change.Type == NetworkListEvent<ushort>.EventType.Add
-                ? change.Value : (ushort)0;
-            ApplyReplicatedEffects(acquiredEffectId);
+            ApplyReplicatedEffects();
         }
         //Weapon模块内部完成了对所有生成子弹的模拟和同步，但武器操作本身是跟玩家状态强相关的
         //所以在Effect更新，新数据快照必须同步到玩家内部模拟模块中，因为实际判定开枪是在这里
         //注意单Client所有WeaponController都会走一遍此方法
-        private void ApplyReplicatedEffects(ushort acquiredEffectId)
+        private void ApplyReplicatedEffects()
         {
             if (Definition == null || _service == null || _effects == null) 
                 return;
@@ -319,7 +305,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             {
                 //在Server端，每个Client都重算，创建Snapshot，注册权威快照，会触发特殊Effect的效果
                 WeaponEffectApplication application = _service.RegisterPlayerEffectState(
-                    _sync.NetworkObjectId, Definition, _effects, _baseShieldCapacity, acquiredEffectId);
+                    _sync.NetworkObjectId, Definition, _effects);
                 ushort version = unchecked((ushort)(CurrentWeaponState.SnapshotVersion + 1));
                 if (version == 0) 
                     version = 1;
@@ -334,7 +320,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             {
                 //各个Client开始重算，返回新的快照包
                 WeaponEffectCalculation calculation = _service.PreviewPlayerEffectState(
-                    Definition, _effects, _baseShieldCapacity);
+                    Definition, _effects);
                 //只更新本地计算参数
                 _sync.ConfigureWeaponStats(calculation.WeaponStats);
                 //这里的EffectSet ID不是权威世界ID，只用来做显示和预测
@@ -343,9 +329,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
             }
 
             EffectsChanged?.Invoke(_currentEffectSet, _ownerEffectStats);
-            //只有服务器能Apply EffectOwnerStatSnapshot，客户端能算但是没资格改
-            if (_sync.IsServer) 
-                _ownerStatSink?.Apply(_sync.NetworkObjectId, _ownerEffectStats);
         }
         /// <summary>
         /// 绑定ServerTickCompleted，在完成这一Tick的权威模拟后调用
@@ -379,15 +362,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
         {
             if (_sync != null && _sync.IsServer)
                 _service?.RemovePlayerEffectState(_sync.NetworkObjectId);
-            if (_sync != null && _sync.IsServer && IsSpawned && _effectAcquisitionOrder.Count > 0)
-                _effectAcquisitionOrder.Clear();
-            GetComponent<ProjectileHitTargetAdapter>()?.Unbind();
             if (_sync != null) _sync.ServerTickCompleted -= CommitAuthoritativeShot;
             bool wasBound = Definition != null;
             Definition = null; _service = null; _muzzle = null; _effects = null;
             _effectRollAuthority = null; _currentEffectRollOffer = null;
             _currentEffectSet = EffectSet.Empty; _ownerEffectStats = default;
-            _ownerStatSink = null; _baseShieldCapacity = 0f; _committedSequence = 0;
+            _committedSequence = 0;
             _effectRollBroadcastSequence = 0;
             if (wasBound) PublishState();
             // 回池后不能把上一名玩家的 UI 引用留给下一次 Spawn。

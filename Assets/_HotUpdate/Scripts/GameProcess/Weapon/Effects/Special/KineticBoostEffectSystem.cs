@@ -20,8 +20,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
             float duration = fireRate >= tierTwo
                 ? 1f + 0.5f * (level - 1) + (fireRate - tierTwo) * 0.2f
                 : 0.5f;
-            Commands.ApplyCrowdControl(new CrowdControlEffectCommand(
-                EffectId, level, projectile, context, duration));
+            Commands.ApplyCrowdControl(new CrowdControlEffectCommand(context, duration));
         }
     }
 }

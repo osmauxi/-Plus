@@ -12,9 +12,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         public override void OnProjectileHit(byte level, ref ProjectileState projectile,
             in ProjectileHitContext context)
         {
-            float threshold = Mathf.Clamp01(0.2f + 0.05f * (level - 1));
-            Commands.TryExecute(new ExecuteEffectCommand(
-                EffectId, level, projectile, context, threshold));
+            float threshold = GetThreshold(level);
+            Commands.TryExecute(new ExecuteEffectCommand(context, threshold));
         }
+
+        public static float GetThreshold(EffectSet effects) =>
+            effects.TryGetLevel(Id, out byte level) ? GetThreshold(level) : 0f;
+
+        private static float GetThreshold(byte level) =>
+            Mathf.Clamp01(0.3f + 0.05f * (level - 1));
     }
 }

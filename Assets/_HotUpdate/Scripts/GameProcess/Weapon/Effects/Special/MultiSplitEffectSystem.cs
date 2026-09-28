@@ -15,7 +15,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
             if (projectile.Generation >= 1) return;
             ushort count = checked((ushort)(2 + level - 1));
             Commands.SpawnProjectiles(new SplitProjectileEffectCommand(
-                EffectId, level, projectile, context, count, 90f, 0.6f));
+                projectile, context, count, 90f, 0.6f));
         }
     }
 }

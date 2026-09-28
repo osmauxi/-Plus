@@ -1,6 +1,0 @@
-{
-    "name": "HotFix.Gameplay.UITestFixtures",
-    "references": ["HotFix.Gameplay.UI", "HotFix.Events"],
-    "optionalUnityReferences": ["TestAssemblies"],
-    "autoReferenced": false
-}

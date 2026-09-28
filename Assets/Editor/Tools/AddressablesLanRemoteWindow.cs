@@ -7,7 +7,6 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
-using UnityEditor.AddressableAssets.Build;
 using UnityEditor.AddressableAssets.Settings;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -15,16 +14,16 @@ using UnityEngine.Networking;
 /// <summary>
 /// 为局域网联调维护当前 Addressables Profile 的远端加载地址。
 /// </summary>
-public sealed class AddressablesLanRemoteWindow : EditorWindow
+public sealed class AddressablesLanRemotePanel
 {
     private const int DefaultHostingPort = 64482;
-    private const string MenuPath = "Tools/Addressables/LAN Remote Address";
 
+    private readonly Action _repaint;
     private string _host = string.Empty;
     private int _port = DefaultHostingPort;
+    private int _gamePort = 7777;
     private bool _useHttps;
     private int _catalogRequestTimeoutSeconds = 15;
-    private Vector2 _scrollPosition;
     private List<LanAddress> _lanAddresses = new List<LanAddress>();
     private UnityWebRequest _connectivityRequest;
     private EditorApplication.CallbackFunction _connectivityPoll;
@@ -37,22 +36,18 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
         public bool HasGateway;
     }
 
-    [MenuItem(MenuPath)]
-    private static void OpenWindow()
+    public AddressablesLanRemotePanel(Action repaint)
     {
-        var window = GetWindow<AddressablesLanRemoteWindow>();
-        window.titleContent = new GUIContent("Addressables LAN");
-        window.minSize = new Vector2(560f, 470f);
-        window.Show();
+        _repaint = repaint;
     }
 
-    private void OnEnable()
+    public void Enable()
     {
         RefreshLanAddresses();
         LoadCurrentRemoteAddress();
     }
 
-    private void OnDisable()
+    public void Disable()
     {
         if (_connectivityPoll != null)
             EditorApplication.update -= _connectivityPoll;
@@ -61,15 +56,13 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
         _connectivityRequest = null;
     }
 
-    private void OnGUI()
+    public void Draw()
     {
-        _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
-
-        EditorGUILayout.LabelField("Addressables 局域网远端地址", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("局域网发布配置", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
             "这里修改的是当前 Addressables Profile 的 Remote.LoadPath。" +
-            "地址变化后需要重新构建 Addressables；已构建的 Player 也需要重新构建，" +
-            "否则仍会使用旧 Catalog 地址。",
+            "地址变化后需要重新构建 Addressables；客户端启动时会把 Catalog 中的" +
+            "服务器地址替换为自动发现结果，因此无需仅为 IP 变化重打 Player。",
             MessageType.Info);
 
         DrawCurrentConfiguration();
@@ -79,8 +72,9 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
         DrawAddressEditor();
         EditorGUILayout.Space(12f);
         DrawActions();
+        EditorGUILayout.Space(12f);
+        DrawDiscoveryService();
 
-        EditorGUILayout.EndScrollView();
     }
 
     private void DrawCurrentConfiguration()
@@ -102,7 +96,7 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
             AddressableAssetSettings.kRemoteLoadPath);
 
         EditorGUILayout.LabelField("当前配置", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Active Profile", profileName);
+        EditorGUILayout.LabelField("当前 Profile", profileName);
         EditorGUILayout.LabelField("Remote.LoadPath", remoteLoadPath);
         EditorGUILayout.LabelField(
             "HTTP 策略",
@@ -165,7 +159,7 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
     private void DrawActions()
     {
         if (GUILayout.Button("应用远端地址"))
-            ApplyRemoteAddress(true);
+            ApplyRemoteAddress();
 
         if (GUILayout.Button("应用开发测试 HTTP 策略"))
             ApplyDevelopmentHttpPolicy();
@@ -176,11 +170,6 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
             "连接测试",
             _connectivityResult,
             EditorStyles.wordWrappedLabel);
-
-        GUI.backgroundColor = new Color(0.6f, 0.85f, 1f);
-        if (GUILayout.Button("应用地址、同步热更 DLL 并构建 Addressables"))
-            ApplyAndBuildAddressables();
-        GUI.backgroundColor = Color.white;
 
         if (GUILayout.Button("打开 Addressables Hosting 窗口"))
         {
@@ -198,8 +187,42 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
 
         EditorGUILayout.HelpBox(
             "本工具不会修改 Windows 防火墙。两台电脑联调还需要在资源/Host 电脑上" +
-            "放行 TCP 64482 与 UDP 7777。",
+            $"放行 UDP {ProjectGame.Bootstrap.LanDiscoveryProtocol.Port}、" +
+            $"TCP {_port} 与 UDP {_gamePort}。",
             MessageType.Warning);
+    }
+
+    private void DrawDiscoveryService()
+    {
+        EditorGUILayout.LabelField("客户端自动发现", EditorStyles.boldLabel);
+        _gamePort = EditorGUILayout.IntField("游戏端口", _gamePort);
+        EditorGUILayout.LabelField(
+            "发现服务",
+            AddressablesLanDiscoveryService.IsRunning ? "运行中" : "未启动");
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("启动自动发现服务"))
+        {
+            AddressablesLanDiscoveryService.Start(
+                _port,
+                Mathf.Clamp(_gamePort, 1, 65535),
+                _useHttps);
+        }
+        if (GUILayout.Button("停止自动发现服务"))
+            AddressablesLanDiscoveryService.Stop();
+        EditorGUILayout.EndHorizontal();
+
+        if (!string.IsNullOrEmpty(AddressablesLanDiscoveryService.LastError))
+        {
+            EditorGUILayout.HelpBox(
+                AddressablesLanDiscoveryService.LastError,
+                MessageType.Error);
+        }
+
+        EditorGUILayout.HelpBox(
+            "服务启动后，客户端会通过 UDP 广播取得本机 IP、资源端口、游戏端口与发布版本。" +
+            "Addressables Hosting 仍需单独启动。",
+            MessageType.Info);
     }
 
     private void LoadCurrentRemoteAddress()
@@ -229,56 +252,7 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
             StringComparison.OrdinalIgnoreCase);
     }
 
-    private void ApplyAndBuildAddressables()
-    {
-        if (!ApplyRemoteAddress(false))
-            return;
-
-        if (!_useHttps &&
-            PlayerSettings.insecureHttpOption == InsecureHttpOption.NotAllowed)
-        {
-            bool applyPolicy = EditorUtility.DisplayDialog(
-                "HTTP 下载被禁止",
-                "当前地址使用 HTTP，但 Player 禁止 HTTP 下载。是否应用开发测试策略，" +
-                "并开启 Development Build？",
-                "应用",
-                "取消构建");
-            if (!applyPolicy)
-                return;
-            ApplyDevelopmentHttpPolicy();
-        }
-
-        try
-        {
-            Debug.Log("[Addressables LAN] 开始编译并同步 HybridCLR 热更 DLL...");
-            HotUpdateBuilderTool.BuildAndCopyHotUpdateDlls();
-            Debug.Log("[Addressables LAN] 开始构建 Addressables Player Content...");
-            AddressableAssetSettings.BuildPlayerContent(
-                out AddressablesPlayerBuildResult result);
-            if (!string.IsNullOrEmpty(result.Error))
-                throw new InvalidOperationException(result.Error);
-
-            EditorUtility.DisplayDialog(
-                "Addressables 构建完成",
-                $"远端地址：{BuildRemoteUrl()}\n" +
-                $"构建耗时：{result.Duration:F2} 秒\n\n" +
-                "热更 DLL 已重新编译并同步。\n" +
-                "下一步：启动 Hosting Service，并重新构建 Player。",
-                "确定");
-            Debug.Log(
-                $"[Addressables LAN] 构建成功，Remote.LoadPath={BuildRemoteUrl()}");
-        }
-        catch (Exception exception)
-        {
-            Debug.LogException(exception);
-            EditorUtility.DisplayDialog(
-                "Addressables 构建失败",
-                exception.Message,
-                "确定");
-        }
-    }
-
-    private bool ApplyRemoteAddress(bool showDialog)
+    private bool ApplyRemoteAddress()
     {
         if (!TryBuildRemoteUrl(out string remoteUrl, out string error))
         {
@@ -307,16 +281,13 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
         AssetDatabase.SaveAssets();
 
         Debug.Log($"[Addressables LAN] Remote.LoadPath 已更新：{remoteUrl}");
-        if (showDialog)
-        {
-            EditorUtility.DisplayDialog(
-                "远端地址已更新",
-                $"Remote.LoadPath = {remoteUrl}\n\n" +
-                "请重新构建 Addressables 和 Player。",
-                "确定");
-        }
+        EditorUtility.DisplayDialog(
+            "远端地址已更新",
+            $"Remote.LoadPath = {remoteUrl}\n\n" +
+            "请重新构建 Addressables；现有 Player 会在启动时替换服务器地址。",
+            "确定");
 
-        Repaint();
+        _repaint();
         return true;
     }
 
@@ -363,7 +334,7 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
             baseUri,
             Path.GetFileName(catalogHashPath)).AbsoluteUri;
         _connectivityResult = $"测试中：{testUrl}";
-        Repaint();
+        _repaint();
 
         _connectivityRequest = UnityWebRequest.Get(testUrl);
         _connectivityRequest.timeout =
@@ -396,16 +367,16 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
 
             _connectivityRequest.Dispose();
             _connectivityRequest = null;
-            Repaint();
+            _repaint();
         };
         EditorApplication.update += _connectivityPoll;
     }
 
     private static string FindCatalogHashPath()
     {
-        string root = Path.Combine(
-            "ServerData",
-            EditorUserBuildSettings.activeBuildTarget.ToString());
+        AddressableAssetSettings settings =
+            AddressableAssetSettingsDefaultObject.Settings;
+        string root = settings.RemoteCatalogBuildPath.GetValue(settings);
         if (!Directory.Exists(root))
             return null;
 
@@ -476,18 +447,12 @@ public sealed class AddressablesLanRemoteWindow : EditorWindow
         return true;
     }
 
-    private string BuildRemoteUrl()
-    {
-        TryBuildRemoteUrl(out string remoteUrl, out _);
-        return remoteUrl;
-    }
-
     private void RefreshLanAddresses()
     {
         _lanAddresses = DetectLanAddresses();
         if (string.IsNullOrWhiteSpace(_host) && _lanAddresses.Count > 0)
             _host = _lanAddresses[0].Address;
-        Repaint();
+        _repaint();
     }
 
     private static List<LanAddress> DetectLanAddresses()

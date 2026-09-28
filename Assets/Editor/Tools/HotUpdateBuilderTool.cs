@@ -1,5 +1,6 @@
 using HybridCLR.Editor;
 using HybridCLR.Editor.Commands;
+using HybridCLR.Editor.Settings;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,6 +8,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
+using UnityEditorInternal;
 using UnityEngine;
 
 /// <summary>
@@ -18,18 +20,63 @@ public class HotUpdateBuilderTool
     private const string HotfixGroupName = "HotfixDLLs";
     private const string HotfixLabel = "Hotfix_DLL";
     private const string AotMetadataLabel = "AOT_DLL";
+    private const string HotfixAssemblyPrefix = "HotFix.";
+    private const string HotfixSourceRoot = "Assets/_HotUpdate/Scripts";
+
+    [Serializable]
+    private sealed class AssemblyDefinitionData
+    {
+        public string name;
+        public string[] includePlatforms;
+        public string[] optionalUnityReferences;
+        public string[] defineConstraints;
+    }
+
+    /// <summary>
+    /// 扫描热更源码目录，把尚未登记的运行时 HotFix.* asmdef 加入 HybridCLR。
+    /// 测试程序集与 Editor-only 程序集不会被自动加入。
+    /// </summary>
+    [MenuItem("Tools/HotUpdate/扫描并登记遗漏程序集")]
+    public static void RegisterMissingHotFixAssemblies()
+    {
+        IReadOnlyList<string> addedAssemblies =
+            RegisterMissingHotFixAssembliesInternal();
+        string message = addedAssemblies.Count == 0
+            ? "所有运行时 HotFix.* 程序集都已加入 HybridCLR 热更管线。"
+            : "已加入以下热更程序集：\n\n" +
+              string.Join("\n", addedAssemblies) +
+              "\n\n请继续执行 HybridCLR Generate/All，再构建并同步 DLL。";
+
+        EditorUtility.DisplayDialog("HybridCLR 热更程序集同步", message, "确定");
+    }
 
     /// <summary>
     /// 编译、复制并注册当前 HybridCLR 配置中的全部热更 DLL 
     /// </summary>
-    [MenuItem("Tools/HotUpdate/Build And Sync DLLs")]
+    [MenuItem("Tools/HotUpdate/编译并同步 DLL")]
     public static void BuildAndCopyHotUpdateDlls()
     {
+        RegisterMissingHotFixAssembliesInternal();
         Debug.Log("[HotUpdateBuilderTool] 开始执行 HybridCLR 编译...");
 
         BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
         CompileDllCommand.CompileDll(target);
+        SyncCompiledDlls(target);
+    }
 
+    /// <summary>
+    /// 新 Player 基线使用：刷新 HybridCLR 生成代码，再同步热更与 AOT 元数据 DLL。
+    /// </summary>
+    public static void GenerateAllAndSyncDlls()
+    {
+        RegisterMissingHotFixAssembliesInternal();
+        Debug.Log("[HotUpdateBuilderTool] 开始执行 HybridCLR Generate/All...");
+        PrebuildCommand.GenerateAll();
+        SyncCompiledDlls(EditorUserBuildSettings.activeBuildTarget);
+    }
+
+    private static void SyncCompiledDlls(BuildTarget target)
+    {
         string sourceDirectory =
             SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target);
         string destinationDirectory = GetDestinationDirectory();
@@ -57,6 +104,121 @@ public class HotUpdateBuilderTool
 
         Debug.Log(
             "<color=cyan><b>[HotUpdateBuilderTool] HotFix DLL 与 AOT 补充元数据更新完毕</b></color>");
+    }
+
+    private static IReadOnlyList<string>
+        RegisterMissingHotFixAssembliesInternal()
+    {
+        HybridCLRSettings settings = HybridCLRSettings.Instance;
+        var definitions = (settings.hotUpdateAssemblyDefinitions ??
+                           Array.Empty<AssemblyDefinitionAsset>())
+            .Where(definition => definition != null)
+            .ToList();
+        var registeredNames = new HashSet<string>(
+            definitions
+                .Select(ReadAssemblyDefinition)
+                .Where(data => data != null &&
+                               !string.IsNullOrWhiteSpace(data.name))
+                .Select(data => data.name),
+            StringComparer.Ordinal);
+        var candidates = new List<(string Name,
+            AssemblyDefinitionAsset Asset)>();
+
+        foreach (string guid in AssetDatabase.FindAssets(
+                     "t:AssemblyDefinitionAsset",
+                     new[] { HotfixSourceRoot }))
+        {
+            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+            AssemblyDefinitionAsset asset =
+                AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>(
+                    assetPath);
+            AssemblyDefinitionData data = ReadAssemblyDefinition(asset);
+            if (!IsRuntimeHotFixAssembly(data, assetPath))
+                continue;
+
+            candidates.Add((data.name, asset));
+        }
+
+        var addedAssemblies = new List<string>();
+        foreach ((string name, AssemblyDefinitionAsset asset) in candidates
+                     .OrderBy(candidate => candidate.Name,
+                         StringComparer.Ordinal))
+        {
+            if (!registeredNames.Add(name))
+                continue;
+
+            definitions.Add(asset);
+            addedAssemblies.Add(name);
+        }
+
+        if (addedAssemblies.Count == 0)
+        {
+            Debug.Log(
+                "[HotUpdateBuilderTool] HybridCLR 热更程序集登记已是最新状态");
+            return addedAssemblies;
+        }
+
+        settings.hotUpdateAssemblyDefinitions = definitions.ToArray();
+        HybridCLRSettings.Save();
+        AssetDatabase.SaveAssets();
+        Debug.Log(
+            "[HotUpdateBuilderTool] 已自动加入 HybridCLR 热更程序集：" +
+            string.Join(", ", addedAssemblies));
+        return addedAssemblies;
+    }
+
+    private static AssemblyDefinitionData ReadAssemblyDefinition(
+        AssemblyDefinitionAsset asset)
+    {
+        return asset == null
+            ? null
+            : JsonUtility.FromJson<AssemblyDefinitionData>(asset.text);
+    }
+
+    private static bool IsRuntimeHotFixAssembly(
+        AssemblyDefinitionData data,
+        string assetPath)
+    {
+        if (data == null ||
+            string.IsNullOrWhiteSpace(data.name) ||
+            !data.name.StartsWith(
+                HotfixAssemblyPrefix,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string normalizedPath = assetPath.Replace('\\', '/');
+        if (normalizedPath.IndexOf(
+                "/Editor/",
+                StringComparison.OrdinalIgnoreCase) >= 0 ||
+            normalizedPath.IndexOf(
+                "/Tests/",
+                StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
+
+        if (data.includePlatforms != null &&
+            data.includePlatforms.Length > 0 &&
+            data.includePlatforms.All(platform =>
+                platform.Equals(
+                    "Editor",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        bool usesTestAssemblies =
+            data.optionalUnityReferences?.Any(reference =>
+                reference.Equals(
+                    "TestAssemblies",
+                    StringComparison.OrdinalIgnoreCase)) == true;
+        bool requiresUnityTests = data.defineConstraints?.Any(constraint =>
+            constraint.IndexOf(
+                "UNITY_INCLUDE_TESTS",
+                StringComparison.OrdinalIgnoreCase) >= 0) == true;
+        return !usesTestAssemblies && !requiresUnityTests;
     }
 
     /// <summary>

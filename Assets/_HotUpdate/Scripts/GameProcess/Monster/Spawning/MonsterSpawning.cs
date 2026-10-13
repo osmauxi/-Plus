@@ -12,11 +12,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         private readonly MonsterSpawnCatalog _catalog;
         private readonly System.Random _random;
+        private readonly int[] _selectedPerEntry;
 
         public MonsterSpawnSelector(MonsterSpawnCatalog catalog, int? seed = null)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _random = seed.HasValue ? new System.Random(seed.Value) : new System.Random();
+            _selectedPerEntry = new int[_catalog.Count];
         }
 
         /// <returns>无法继续购买后的剩余预算。</returns>
@@ -27,7 +29,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (maxCount < 0) throw new ArgumentOutOfRangeException(nameof(maxCount));
             if (destination == null) throw new ArgumentNullException(nameof(destination));
             destination.Clear();
-            var selectedPerEntry = new int[_catalog.Count];
+            Array.Clear(_selectedPerEntry, 0, _selectedPerEntry.Length);
 
             while (budget > 0 && destination.Count < maxCount)
             {
@@ -35,7 +37,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 for (int i = 0; i < _catalog.Count; i++)
                 {
                     ref readonly MonsterSpawnConfig item = ref _catalog.Get(i);
-                    if (item.Cost <= budget && item.IsAvailable(difficulty) && selectedPerEntry[i] < item.MaxPerWave)
+                    if (item.Cost <= budget && item.IsAvailable(difficulty) && _selectedPerEntry[i] < item.MaxPerWave)
                         totalWeight += item.Weight;
                 }
                 if (totalWeight <= 0) break;
@@ -45,7 +47,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 for (int i = 0; i < _catalog.Count; i++)
                 {
                     ref readonly MonsterSpawnConfig item = ref _catalog.Get(i);
-                    if (item.Cost > budget || !item.IsAvailable(difficulty) || selectedPerEntry[i] >= item.MaxPerWave)
+                    if (item.Cost > budget || !item.IsAvailable(difficulty) || _selectedPerEntry[i] >= item.MaxPerWave)
                         continue;
                     choice -= item.Weight;
                     if (choice > 0) continue;
@@ -57,14 +59,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     for (int i = _catalog.Count - 1; i >= 0; i--)
                     {
                         ref readonly MonsterSpawnConfig item = ref _catalog.Get(i);
-                        if (item.Cost <= budget && item.IsAvailable(difficulty) && selectedPerEntry[i] < item.MaxPerWave)
+                        if (item.Cost <= budget && item.IsAvailable(difficulty) && _selectedPerEntry[i] < item.MaxPerWave)
                         { selectedIndex = i; break; }
                     }
                 if (selectedIndex < 0) break;
 
                 ref readonly MonsterSpawnConfig selected = ref _catalog.Get(selectedIndex);
                 destination.Add(selected.ConfigIndex);
-                selectedPerEntry[selectedIndex]++;
+                _selectedPerEntry[selectedIndex]++;
                 budget -= selected.Cost;
             }
             return budget;
@@ -175,20 +177,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public int Count => _items.Length;
         public IReadOnlyList<MonsterSpawnData> Items => _items;
 
-        public MonsterSpawnBatch(int startSlot, IEnumerable<MonsterSpawnData> items)
+        public MonsterSpawnBatch(int startSlot, MonsterSpawnData[] items)
         {
             if (startSlot < 0) 
                 throw new ArgumentOutOfRangeException(nameof(startSlot));
             if (items == null) 
                 throw new ArgumentNullException(nameof(items));
-            _items = new List<MonsterSpawnData>(items).ToArray();
+            _items = items;
             if ((long)startSlot + _items.Length > int.MaxValue)
                 throw new ArgumentException("Monster SpawnBatch Slot 范围溢出。", nameof(items));
-            StartSlot = startSlot;
-        }
-        internal MonsterSpawnBatch(int startSlot, MonsterSpawnData[] ownedItems)
-        {
-            _items = ownedItems;
             StartSlot = startSlot;
         }
 

@@ -28,6 +28,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const int MaxPayloadBytes = 2 * 1024 * 1024;
 
         private readonly NetworkMessageTransport _transport;
+        private MonsterPresentationFrame _receiveWriteFrame;
+        private MonsterPresentationFrame _receivePublishedFrame;
 
         //收到数据丢给谁
         private IMonsterNetworkReceiver _receiver;
@@ -35,9 +37,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool IsInitialized { get; private set; }
 
-        public MonsterNetworkTransport(NetworkMessageTransport transport)
+        public MonsterNetworkTransport(NetworkMessageTransport transport, int initialCapacity)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+            _receiveWriteFrame = new MonsterPresentationFrame(initialCapacity);
+            _receivePublishedFrame = new MonsterPresentationFrame(initialCapacity);
         }
 
         public void Initialize(IMonsterNetworkReceiver receiver)
@@ -87,6 +91,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 writer.Dispose();
             }
+        }
+
+        internal void EnsurePresentationCapacity(int slotCapacity)
+        {
+            _receiveWriteFrame.EnsureCapacity(slotCapacity, slotCapacity);
+            _receivePublishedFrame.EnsureCapacity(slotCapacity, slotCapacity);
         }
 
         public void SendRoomBegin(in MonsterRoomBeginData data)
@@ -180,8 +190,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!CanReceive(senderClientId)) return;
             try
             {
-                byte[] payload = ReadPayload(reader);
-                if (payload.Length != 0) 
+                if (reader.Length != reader.Position)
                     throw new InvalidOperationException("Monster RoomEnd Payload 必须为空。");
                 _receiver.ReceiveRoomEnd();
             }
@@ -197,8 +206,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             try
             {
                 ValidatePayloadLength(reader.Length - reader.Position);
-                _receiver.ReceivePresentationFrame(
-                    MonsterNetworkCodec.ReadPresentation(ref reader));
+                MonsterNetworkCodec.ReadPresentationInto(ref reader, _receiveWriteFrame);
+                MonsterPresentationFrame received = _receiveWriteFrame;
+                _receiveWriteFrame = _receivePublishedFrame;
+                _receivePublishedFrame = received;
+                _receiver.ReceivePresentationFrame(_receivePublishedFrame);
             }
             catch (Exception exception)
             {
@@ -210,15 +222,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         private bool CanReceive(ulong senderClientId) => _transport.IsClient &&
             senderClientId == NetworkManager.ServerClientId && _receiver != null;
-
-        private static byte[] ReadPayload(FastBufferReader reader)
-        {
-            int length = reader.Length - reader.Position;
-
-            var payload = new byte[length];
-            reader.ReadBytesSafe(ref payload, length);
-            return payload;
-        }
 
         private void EnsureServer()
         {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -26,6 +27,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterViewWorld : IDisposable
     {
+        private static readonly ProfilerMarker ApplyAuthorityMarker =
+            new ProfilerMarker("Monster.View.ApplyAuthority");
+
         private readonly IMonsterViewPool _pool;
         private readonly MonsterViewCatalog _catalog;
         private readonly MonsterPoseQuantizer _quantizer;
@@ -56,15 +60,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 throw new InvalidOperationException(
                     $"Monster View SpawnBatch 必须连续追加：Expected={SlotCount}, Actual={batch.StartSlot}。");
             EnsureCapacity(checked(batch.StartSlot + batch.Count));
-            var poolIds = new string[batch.Count];
-            //解析全部poolIDs
-            for (int i = 0; i < batch.Count; i++)
-            {
-                int slot = batch.StartSlot + i;
-                if (_views[slot] != null) 
-                    throw new InvalidOperationException($"Monster View Slot={slot} 已占用。");
-                poolIds[i] = _catalog.Get(batch.Items[i].ConfigIndex).LocalPoolId;
-            }
 
             int created = 0;
             try
@@ -72,8 +67,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 for (; created < batch.Count; created++)
                 {
                     int slot = batch.StartSlot + created;
-                    IMonsterViewHandle view = _pool.Rent(poolIds[created]) ??
-                        throw new InvalidOperationException($"Monster View Pool={poolIds[created]} 返回空句柄。");
+                    if (_views[slot] != null)
+                        throw new InvalidOperationException($"Monster View Slot={slot} 已占用。");
+                    string poolId = _catalog.Get(batch.Items[created].ConfigIndex).LocalPoolId;
+                    IMonsterViewHandle view = _pool.Rent(poolId) ??
+                        throw new InvalidOperationException($"Monster View Pool={poolId} 返回空句柄。");
                     //解包后赋值
                     _views[slot] = view;
                     view.BindSlot(slot);
@@ -130,6 +128,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 throw new InvalidOperationException(
                     $"Monster View/Authority SlotCount 不一致：View={SlotCount}, Authority={world.SlotCount}。");
 
+            using var applyAuthorityScope = ApplyAuthorityMarker.Auto();
             for (int slot = 0; slot < SlotCount; slot++)
             {
                 MonsterMotionData motion = world.Motion[slot];

@@ -166,13 +166,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public int Count => _items.Length;
 
-        public MonsterRuntimeCatalog(IEnumerable<MonsterRuntimeConfig> items)
+        public MonsterRuntimeCatalog(MonsterRuntimeConfig[] items)
         {
             if (items == null) throw new ArgumentNullException(nameof(items));
-            var list = new List<MonsterRuntimeConfig>(items);
-            if (list.Count > ushort.MaxValue + 1)
+            if (items.Length > ushort.MaxValue + 1)
                 throw new ArgumentException("Monster Runtime 配置超过 ushort 索引容量。", nameof(items));
-            _items = list.ToArray();
+            _items = items;
             for (int i = 0; i < _items.Length; i++)
             {
                 if (_indices.ContainsKey(_items[i].ConfigId))
@@ -224,11 +223,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterAttackProfile[] _items;
         public int Count => _items.Length;
 
-        public MonsterAttackCatalog(IEnumerable<MonsterAttackProfile> items)
+        public MonsterAttackCatalog(MonsterAttackProfile[] items)
         {
             if (items == null) 
                 throw new ArgumentNullException(nameof(items));
-            _items = new List<MonsterAttackProfile>(items).ToArray();
+            _items = items;
             if (_items.Length > ushort.MaxValue + 1)
                 throw new ArgumentException("Monster AttackProfile 超过 ushort 索引容量。", nameof(items));
         }
@@ -280,13 +279,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterSpawnConfig[] _items;
         public int Count => _items.Length;
 
-        public MonsterSpawnCatalog(IEnumerable<MonsterSpawnConfig> items, MonsterRuntimeCatalog runtimeCatalog)
+        public MonsterSpawnCatalog(MonsterSpawnConfig[] items, MonsterRuntimeCatalog runtimeCatalog)
         {
             if (items == null) 
                 throw new ArgumentNullException(nameof(items));
             if (runtimeCatalog == null) 
                 throw new ArgumentNullException(nameof(runtimeCatalog));
-            _items = new List<MonsterSpawnConfig>(items).ToArray();
+            _items = items;
             //这里做Catalog的外键校验，保证其数据是有对应的，因为这些数据分了两个表
             for (int i = 0; i < _items.Length; i++)
                 runtimeCatalog.Get(_items[i].ConfigIndex);

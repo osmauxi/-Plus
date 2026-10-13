@@ -1,7 +1,7 @@
 using System;
 using Unity.Netcode;
+using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
@@ -11,6 +11,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public static class MonsterNetworkCodec
     {
+        private static readonly ProfilerMarker SerializeMarker =
+            new ProfilerMarker("Monster.Presentation.Serialize");
+        private static readonly ProfilerMarker DecodeMarker =
+            new ProfilerMarker("Monster.Presentation.Decode");
+
         //已经算好的各数据结构额外头数据的大小
         private const int PresentationHeaderSize = 8;
         private const int SpawnHeaderSize = 6;
@@ -54,13 +59,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             if (frame == null) 
                 throw new ArgumentNullException(nameof(frame));
-            return checked(PresentationHeaderSize + frame.ActiveMask.Count + frame.ActiveStates.Count * 6);
+            return checked(PresentationHeaderSize + frame.ActiveMaskCount + frame.ActiveCount * 6);
         }
 
         public static void WritePresentation(ref FastBufferWriter writer, MonsterPresentationFrame frame)
         {
             if (frame == null) 
                 throw new ArgumentNullException(nameof(frame));
+            using var serializeScope = SerializeMarker.Auto();
             int length = GetPresentationByteCount(frame);
             if (!writer.TryBeginWrite(length))
                 throw new OverflowException("Monster Presentation Writer 容量不足。");
@@ -69,21 +75,25 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             WriteUInt32(ref writer, frame.ServerTick);
             WriteUInt32(ref writer, checked((uint)frame.SlotCount));
             //因为掩码位本身就是byte了，可以直接写
-            for (int i = 0; i < frame.ActiveMask.Count; i++)
-                writer.WriteByte(frame.ActiveMask[i]);
-            for (int i = 0; i < frame.ActiveStates.Count; i++)
+            byte[] mask = frame.ActiveMaskBuffer;
+            MonsterPackedState[] states = frame.ActiveStateBuffer;
+            for (int i = 0; i < frame.ActiveMaskCount; i++)
+                writer.WriteByte(mask[i]);
+            for (int i = 0; i < frame.ActiveCount; i++)
             {
                 //这里直接不管Slot的顺序了，不然要传四字节的uint，只传packedState
                 //顺序拿到之后自己通过ActiveMask隐式推导
-                MonsterPackedState state = frame.ActiveStates[i];
+                MonsterPackedState state = states[i];
                 WriteUInt32(ref writer, state.PackedPose);
                 writer.WriteByte(state.AttackSequence);
                 writer.WriteByte(state.HitSequence);
             }
         }
 
-        public static MonsterPresentationFrame ReadPresentation(ref FastBufferReader reader)
+        public static void ReadPresentationInto(ref FastBufferReader reader,
+            MonsterPresentationFrame destination)
         {
+            using var decodeScope = DecodeMarker.Auto();
             int length = reader.Length - reader.Position;
 
             if (length < PresentationHeaderSize)
@@ -102,7 +112,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int maskLength = checked((slotCount + 7) / 8);
             if (length < PresentationHeaderSize + maskLength)
                 throw new ArgumentException("Monster Presentation 数据被截断。", nameof(length));
-            var mask = new byte[maskLength];
+            destination.BeginRead(tick, slotCount);
+            byte[] mask = destination.ActiveMaskBuffer;
             int activeCount = 0;
             for (int i = 0; i < maskLength; i++)
             {
@@ -111,18 +122,23 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 mask[i] = value;
                 activeCount += CountBits(value);
             }
+            int finalByteBits = slotCount & 7;
+            if (finalByteBits != 0 && maskLength != 0 &&
+                (mask[maskLength - 1] & ~((1 << finalByteBits) - 1)) != 0)
+                throw new ArgumentException("Monster Presentation ActiveMask 包含 SlotCount 之外的数据。",
+                    nameof(length));
             int expectedLength = checked(PresentationHeaderSize + maskLength + activeCount * 6);
             if (length != expectedLength) 
                 throw new ArgumentException("Monster Presentation 长度与 ActiveMask 不一致。", nameof(length));
-            var states = new MonsterPackedState[activeCount];
-            for (int i = 0; i < states.Length; i++)
+            destination.SetActiveCount(activeCount);
+            MonsterPackedState[] states = destination.ActiveStateBuffer;
+            for (int i = 0; i < activeCount; i++)
             {
                 uint packedPose = ReadUInt32(ref reader);
                 reader.ReadByte(out byte attackSequence);
                 reader.ReadByte(out byte hitSequence);
                 states[i] = new MonsterPackedState(packedPose, attackSequence, hitSequence);
             }
-            return new MonsterPresentationFrame(tick, slotCount, mask, states);
         }
 
         public static int GetSpawnByteCount(MonsterSpawnBatch batch)

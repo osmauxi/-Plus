@@ -111,7 +111,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 enabledIds.Add(row.ConfigId);
             }
             if (configs.Count == 0) throw new InvalidOperationException("MonsterRuntime 没有启用的配置。");
-            return new MonsterRuntimeCatalog(configs);
+            return new MonsterRuntimeCatalog(configs.ToArray());
         }
 
         private static MonsterSpawnCatalog BuildSpawns(IReadOnlyDictionary<int, Config_MonsterSpawn> rows,
@@ -134,7 +134,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 items.Add(new MonsterSpawnConfig(configIndex, row.Cost, row.Weight,
                     row.MinDifficulty, row.MaxDifficulty, row.MaxPerWave));
             }
-            return new MonsterSpawnCatalog(items, runtime);
+            return new MonsterSpawnCatalog(items.ToArray(), runtime);
         }
 
         private static MonsterViewCatalog BuildViews(IReadOnlyDictionary<int, Config_MonsterView> rows,

@@ -34,6 +34,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         //网络同步组件
         private MonsterNetworkTransport _transport;
         private MonsterPoseQuantizer _quantizer;
+        private MonsterPresentationFrame _authorityWriteFrame;
+        private MonsterPresentationFrame _authorityPublishedFrame;
         //房间生命状态
         private bool _roomActive;
 
@@ -71,14 +73,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 throw new InvalidOperationException("Monster 必须在 Gameplay 网络运行时后初始化。");
 
             Catalogs = MonsterConfigAssembler.FromConfigManager(ConfigManager.Instance, _network.Clock.TickRate);
-            _transport = new MonsterNetworkTransport(_network.Transport);
+            _transport = new MonsterNetworkTransport(_network.Transport, _initialCapacity);
             try
             {
                 _transport.Initialize(this);
                 Replica = new MonsterReplica();
                 
                 if (_networkManager.IsServer)
+                {
+                    _authorityWriteFrame = new MonsterPresentationFrame(_initialCapacity);
+                    _authorityPublishedFrame = new MonsterPresentationFrame(_initialCapacity);
                     _network.Clock.TickCompleted += TickAuthority;
+                }
             }
             catch
             {
@@ -136,6 +142,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 AuthorityRoom = new MonsterRoomRuntime(
                     Catalogs.Runtime, Catalogs.Attacks, _quantizer, spatialData,roomRoot, _initialCapacity);
+                _authorityWriteFrame.EnsureCapacity(expectedTotalMonsterCount, expectedTotalMonsterCount);
+                _authorityPublishedFrame.EnsureCapacity(expectedTotalMonsterCount, expectedTotalMonsterCount);
                 AuthorityRoom.BeginRoom(expectedTotalMonsterCount, data.GroundY);
             }
             _roomActive = true;
@@ -151,6 +159,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterSpawnBatch batch = AuthorityRoom.Spawn(plans);
             if (batch.Count > 0)
             {
+                int slotCount = AuthorityRoom.World.SlotCount;
+                _authorityWriteFrame.EnsureCapacity(slotCount, slotCount);
+                _authorityPublishedFrame.EnsureCapacity(slotCount, slotCount);
                 // 权威端也建立 Replica/View：专用服务器需要表现预制件上的命中碰撞体。
                 ApplySpawnBatchLocal(batch);
                 _transport.SendSpawn(batch);
@@ -217,9 +228,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             AuthorityTickCompleted?.Invoke();
             if (tick % (uint)_presentationIntervalTicks != 0) 
                 return;
-            MonsterPresentationFrame frame = AuthorityRoom.CaptureFrame(tick);
-            ApplyPresentationFrameLocal(frame);
-            _transport.SendPresentation(frame);
+            AuthorityRoom.CaptureFrame(tick, _authorityWriteFrame);
+            MonsterPresentationFrame publishedFrame = _authorityWriteFrame;
+            _authorityWriteFrame = _authorityPublishedFrame;
+            _authorityPublishedFrame = publishedFrame;
+            ApplyPresentationFrameLocal(_authorityPublishedFrame);
+            _transport.SendPresentation(_authorityPublishedFrame);
         }
 
         public void ReceiveRoomBegin(MonsterRoomBeginData data)
@@ -252,6 +266,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void ApplySpawnBatchLocal(MonsterSpawnBatch batch)
         {
+            if (!_networkManager.IsServer)
+                _transport.EnsurePresentationCapacity(checked(batch.StartSlot + batch.Count));
             Replica.ApplySpawnBatch(batch, _quantizer);
             SpawnBatchReceived?.Invoke(batch);
         }
@@ -297,6 +313,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (_network != null) _network.Clock.TickCompleted -= TickAuthority;
             _transport?.Shutdown();
             _transport = null;
+            _authorityWriteFrame = null;
+            _authorityPublishedFrame = null;
             Replica = null;
             Catalogs = null;
             _network = null;

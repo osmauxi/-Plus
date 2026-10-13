@@ -9,6 +9,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     [DisallowMultipleComponent]
     public sealed class MonsterViewHandle : MonoBehaviour, IMonsterViewHandle, IPoolable
     {
+        // CPU 极限 A/B：只停用怪物 Animator，保留 Transform、Collider、Renderer、逻辑与网络路径。
+        private const bool DisableAnimatorForCpuAbTest = true;
+
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
         private static readonly int AttackHash = Animator.StringToHash("Attack");
         private static readonly int BaseColorHash = Shader.PropertyToID("_BaseColor");
@@ -36,6 +39,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void Awake()
         {
+            _animator.enabled = !DisableAnimatorForCpuAbTest;
             _propertyBlock = new MaterialPropertyBlock();
             _baseColors = new Color[_flashRenderers.Length];
             _colors = new Color[_flashRenderers.Length];

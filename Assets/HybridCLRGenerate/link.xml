@@ -12,6 +12,8 @@
     <type fullname="AudioManager" preserve="all" />
     <type fullname="CameraShakeManager" preserve="all" />
     <type fullname="LocalObjectPool" preserve="all" />
+    <type fullname="ProjectGame.AOT.Voice.OpusNativeDecoder" preserve="all" />
+    <type fullname="ProjectGame.AOT.Voice.OpusNativeEncoder" preserve="all" />
     <type fullname="SyncObjectPool" preserve="all" />
   </assembly>
   <assembly fullname="Cinemachine">
@@ -27,13 +29,6 @@
     <type fullname="Cinemachine.CinemachineVirtualCamera" preserve="all" />
     <type fullname="Cinemachine.CinemachineVirtualCameraBase" preserve="all" />
     <type fullname="Cinemachine.LensSettings" preserve="all" />
-  </assembly>
-  <assembly fullname="Concentus">
-    <type fullname="Concentus.Enums.OpusApplication" preserve="all" />
-    <type fullname="Concentus.Enums.OpusSignal" preserve="all" />
-    <type fullname="Concentus.IOpusDecoder" preserve="all" />
-    <type fullname="Concentus.IOpusEncoder" preserve="all" />
-    <type fullname="Concentus.OpusCodecFactory" preserve="all" />
   </assembly>
   <assembly fullname="DOTween">
     <type fullname="DG.Tweening.Core.DOGetter`1" preserve="all" />
@@ -211,6 +206,8 @@
   </assembly>
   <assembly fullname="UnityEngine.CoreModule">
     <type fullname="Unity.Collections.Allocator" preserve="all" />
+    <type fullname="Unity.Profiling.ProfilerMarker" preserve="all" />
+    <type fullname="Unity.Profiling.ProfilerMarker/AutoScope" preserve="all" />
     <type fullname="UnityEngine.AddComponentMenu" preserve="all" />
     <type fullname="UnityEngine.AnimationCurve" preserve="all" />
     <type fullname="UnityEngine.Application" preserve="all" />
@@ -243,6 +240,7 @@
     <type fullname="UnityEngine.InspectorNameAttribute" preserve="all" />
     <type fullname="UnityEngine.KeyCode" preserve="all" />
     <type fullname="UnityEngine.LayerMask" preserve="all" />
+    <type fullname="UnityEngine.Light" preserve="all" />
     <type fullname="UnityEngine.LineRenderer" preserve="all" />
     <type fullname="UnityEngine.Material" preserve="all" />
     <type fullname="UnityEngine.MaterialPropertyBlock" preserve="all" />
@@ -401,7 +399,6 @@
     <type fullname="System.Collections.Generic.Queue`1" preserve="all" />
     <type fullname="System.Collections.Generic.Stack`1" preserve="all" />
     <type fullname="System.Collections.IEnumerator" preserve="all" />
-    <type fullname="System.Collections.ObjectModel.ReadOnlyCollection`1" preserve="all" />
     <type fullname="System.Comparison`1" preserve="all" />
     <type fullname="System.ComponentModel.EditorBrowsableAttribute" preserve="all" />
     <type fullname="System.ComponentModel.EditorBrowsableState" preserve="all" />
@@ -427,7 +424,6 @@
     <type fullname="System.IO.File" preserve="all" />
     <type fullname="System.IO.InvalidDataException" preserve="all" />
     <type fullname="System.IO.Path" preserve="all" />
-    <type fullname="System.IO.TextWriter" preserve="all" />
     <type fullname="System.IProgress`1" preserve="all" />
     <type fullname="System.IndexOutOfRangeException" preserve="all" />
     <type fullname="System.Int32" preserve="all" />
@@ -435,7 +431,6 @@
     <type fullname="System.Linq.Enumerable" preserve="all" />
     <type fullname="System.Linq.IOrderedEnumerable`1" preserve="all" />
     <type fullname="System.Math" preserve="all" />
-    <type fullname="System.MemoryExtensions" preserve="all" />
     <type fullname="System.MulticastDelegate" preserve="all" />
     <type fullname="System.Net.Dns" preserve="all" />
     <type fullname="System.Net.IPAddress" preserve="all" />
@@ -451,7 +446,6 @@
     <type fullname="System.Predicate`1" preserve="all" />
     <type fullname="System.Random" preserve="all" />
     <type fullname="System.ReadOnlyMemory`1" preserve="all" />
-    <type fullname="System.ReadOnlySpan`1" preserve="all" />
     <type fullname="System.Reflection.Assembly" preserve="all" />
     <type fullname="System.Reflection.AssemblyName" preserve="all" />
     <type fullname="System.Reflection.BindingFlags" preserve="all" />
@@ -474,8 +468,8 @@
     <type fullname="System.Runtime.InteropServices.InAttribute" preserve="all" />
     <type fullname="System.RuntimeFieldHandle" preserve="all" />
     <type fullname="System.RuntimeTypeHandle" preserve="all" />
+    <type fullname="System.SByte" preserve="all" />
     <type fullname="System.Single" preserve="all" />
-    <type fullname="System.Span`1" preserve="all" />
     <type fullname="System.String" preserve="all" />
     <type fullname="System.StringComparer" preserve="all" />
     <type fullname="System.StringComparison" preserve="all" />

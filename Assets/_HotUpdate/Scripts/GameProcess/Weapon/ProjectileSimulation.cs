@@ -25,6 +25,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly Collider[] _overlapBuffer = new Collider[OverlapBufferSize];
         private readonly RaycastHit[] _castBuffer = new RaycastHit[CastBufferSize];
         private readonly Dictionary<uint, HashSet<ulong>> _hitEntities = new();
+        private readonly Stack<HashSet<ulong>> _hitEntityPool = new();
 
         private struct Contact
         {
@@ -64,7 +65,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                         _effects.DispatchDestroyed(ref projectile,
                             new ProjectileDestroyedEffectContext(shot, stats));
                     _world.RemoveAtSwapBack(i);
-                    _hitEntities.Remove(projectile.ProjectileId);
+                    if (_hitEntities.Remove(projectile.ProjectileId, out HashSet<ulong> hitEntities))
+                    {
+                        hitEntities.Clear();
+                        _hitEntityPool.Push(hitEntities);
+                    }
                     _shots.ReleaseProjectile(projectile.ShotId);
                     Removed?.Invoke(projectile);
                 }
@@ -249,7 +254,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             if (!_hitEntities.TryGetValue(projectileId, out HashSet<ulong> entities))
             {
-                entities = new HashSet<ulong>();
+                entities = _hitEntityPool.Count > 0 ? _hitEntityPool.Pop() : new HashSet<ulong>();
                 _hitEntities.Add(projectileId, entities);
             }
             entities.Add(entityId);

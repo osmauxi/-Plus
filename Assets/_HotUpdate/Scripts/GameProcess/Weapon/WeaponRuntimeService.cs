@@ -96,6 +96,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly List<DamageAreaState> _damageAreas = new();
         private readonly Dictionary<ulong, Dictionary<ushort, float>> _shieldCapacities = new();
         private readonly List<int> _effectTargets = new(64);
+        private readonly HashSet<int> _lightningVisited = new();
+        private readonly List<LightningNode> _lightningNodes = new(16);
         private WeaponStatModifierCalculator _effectCalculator;
         private WeaponSpecialEffectManager _specialEffects;
         private GameplayNetworkRuntime _network;
@@ -542,12 +544,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                         0, 0, origin + Vector3.up * 1.5f, initialPosition, 0f, 0.2f);
             }
 
-            var visited = new HashSet<int> { targetSlot };
-            var nodes = new List<LightningNode> { new(origin, 0) };
+            _lightningVisited.Clear();
+            _lightningVisited.Add(targetSlot);
+            _lightningNodes.Clear();
+            _lightningNodes.Add(new LightningNode(origin, 0));
             float radiusSqr = searchRadius * searchRadius;
-            for (int nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+            for (int nodeIndex = 0; nodeIndex < _lightningNodes.Count; nodeIndex++)
             {
-                LightningNode node = nodes[nodeIndex];
+                LightningNode node = _lightningNodes[nodeIndex];
                 if (node.Depth >= jumpCount) continue;
                 for (int branch = 0; branch < branchCount; branch++)
                 {
@@ -556,7 +560,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     Vector3 nearestPosition = default;
                     for (int slot = 0; slot < monsters.MonsterSlotCount; slot++)
                     {
-                        if (visited.Contains(slot) ||
+                        if (_lightningVisited.Contains(slot) ||
                             !monsters.TryGetMonsterPosition(slot, out Vector3 candidatePosition))
                             continue;
                         float distance = (candidatePosition - node.Position).sqrMagnitude;
@@ -566,11 +570,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                         nearestPosition = candidatePosition;
                     }
                     if (nearestSlot < 0) break;
-                    visited.Add(nearestSlot);
+                    _lightningVisited.Add(nearestSlot);
                     DamageMonster(monsters, nearestSlot, damage, executeThreshold);
                     PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
                         0, 0, node.Position, nearestPosition, 0f, 0.2f);
-                    nodes.Add(new LightningNode(nearestPosition, checked((byte)(node.Depth + 1))));
+                    _lightningNodes.Add(new LightningNode(nearestPosition, checked((byte)(node.Depth + 1))));
                 }
             }
         }

@@ -20,6 +20,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// 同步Effect获取顺序，在所有Client都能复现状态快照
         /// </summary>
         private readonly NetworkList<ushort> _effectAcquisitionOrder = new();
+        private readonly ulong[] _ownerClientTarget = new ulong[1];
+        private ushort[] _effectOfferIds = Array.Empty<ushort>();
+        private byte[] _effectOfferLevels = Array.Empty<byte>();
         private PlayerSyncController _sync;
         private WeaponRuntimeService _service;
         private Transform _muzzle;
@@ -103,8 +106,16 @@ namespace ProjectGame.HotFix.Gameplay.Player
             if (NetworkManager.IsClient && OwnerClientId == NetworkManager.LocalClientId)
                 PublishEffectRollOffer(offer);
             else
+            {
+                if (_effectOfferIds.Length != offer.OptionCount)
+                {
+                    _effectOfferIds = new ushort[offer.OptionCount];
+                    _effectOfferLevels = new byte[offer.OptionCount];
+                }
+                offer.CopyTo(_effectOfferIds, _effectOfferLevels);
                 ReceiveEffectRollOfferClientRpc(offer.Id, (byte)offer.Pool, offer.IsChaos,
-                    offer.CopyEffectIds(), offer.CopyCurrentLevels(), CreateOwnerClientRpcParams());
+                    _effectOfferIds, _effectOfferLevels, CreateOwnerClientRpcParams());
+            }
         }
 
         /// <summary>
@@ -240,10 +251,14 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 DeliverEffectRollOffer(next);
         }
 
-        private ClientRpcParams CreateOwnerClientRpcParams() => new()
+        private ClientRpcParams CreateOwnerClientRpcParams()
         {
-            Send = new ClientRpcSendParams { TargetClientIds = new[] { OwnerClientId } }
-        };
+            _ownerClientTarget[0] = OwnerClientId;
+            return new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams { TargetClientIds = _ownerClientTarget }
+            };
+        }
 
         public void ClearEffectsOnServer()
         {
@@ -294,12 +309,18 @@ namespace ProjectGame.HotFix.Gameplay.Player
         {
             if (Definition == null || _service == null || _effects == null) 
                 return;
-            //这里复制一份_effectAcquisitionOrder，它本身是网络变量，不能直接用
-            var order = new ushort[_effectAcquisitionOrder.Count];
-            for (int i = 0; i < order.Length; i++) 
-                order[i] = _effectAcquisitionOrder[i];
-            //Rebuild更新了玩家当前有哪些Effect，接下来是数值更新
-            _effects.Rebuild(order);
+            //NetworkList不实现IEnumerable<T>接口，直接按索引重建，避免先复制成托管数组。
+            _effects.Clear();
+            for (int i = 0; i < _effectAcquisitionOrder.Count; i++)
+            {
+                ushort effectId = _effectAcquisitionOrder[i];
+                EffectAcquireResult result = _effects.TryAcquire(effectId);
+                if (result != EffectAcquireResult.Success)
+                {
+                    _effects.Clear();
+                    throw new InvalidOperationException($"Effect 获取序列非法：EffectID={effectId}，原因={result}。");
+                }
+            }
             
             if (_sync.IsServer)
             {

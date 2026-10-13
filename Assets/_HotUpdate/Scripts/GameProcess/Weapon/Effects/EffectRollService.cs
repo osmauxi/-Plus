@@ -112,7 +112,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
                     throw new InvalidOperationException($"EffectID={id} 的候选等级已达到上限。");
                 result[i] = new EffectRollOption(effect, _catalog.GetRoll(id), level);
             }
-            return Array.AsReadOnly(result);
+            return result;
         }
 
         private List<Candidate> BuildCandidates(

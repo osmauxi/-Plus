@@ -77,23 +77,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             return EffectAcquireResult.Success;
         }
         /// <summary>
-        /// 根据完整Effect获取顺序，重建完整的LoadOut信息
-        /// </summary>
-        public void Rebuild(IEnumerable<ushort> acquisitionOrder)
-        {
-            if (acquisitionOrder == null) throw new ArgumentNullException(nameof(acquisitionOrder));
-            Clear();
-            foreach (ushort effectId in acquisitionOrder)
-            {
-                EffectAcquireResult result = TryAcquire(effectId);
-                if (result != EffectAcquireResult.Success)
-                {
-                    Clear();
-                    throw new InvalidOperationException($"Effect 获取序列非法：EffectID={effectId}，原因={result}。");
-                }
-            }
-        }
-        /// <summary>
         /// Effect更改时，重新生成权威EffectSet
         /// </summary>
         public EffectSet CreateSnapshot(ushort snapshotId)

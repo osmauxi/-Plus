@@ -18,13 +18,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
     /// </summary>
     public sealed class EffectRollOffer
     {
-        private readonly EffectRollOption[] _options;
-        private readonly IReadOnlyList<EffectRollOption> _readOnlyOptions;
+        private readonly IReadOnlyList<EffectRollOption> _options;
 
         public uint Id { get; }
         public WeaponEffectRollPool Pool { get; }
         public bool IsChaos { get; }
-        public IReadOnlyList<EffectRollOption> Options => _readOnlyOptions;
+        public IReadOnlyList<EffectRollOption> Options => _options;
 
         public EffectRollOffer(uint id, WeaponEffectRollPool pool, bool isChaos,
             IReadOnlyList<EffectRollOption> options)
@@ -39,31 +38,25 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             Id = id;
             Pool = pool;
             IsChaos = isChaos;
-            _options = new EffectRollOption[options.Count];
-            for (int i = 0; i < options.Count; i++) 
-                _options[i] = options[i];
-            _readOnlyOptions = Array.AsReadOnly(_options);
+            _options = options;
         }
 
         public bool Contains(ushort effectId)
         {
-            for (int i = 0; i < _options.Length; i++)
+            for (int i = 0; i < _options.Count; i++)
                 if (_options[i].Effect.Id == effectId) return true;
             return false;
         }
 
-        public ushort[] CopyEffectIds()
-        {
-            var result = new ushort[_options.Length];
-            for (int i = 0; i < result.Length; i++) result[i] = _options[i].Effect.Id;
-            return result;
-        }
+        internal int OptionCount => _options.Count;
 
-        public byte[] CopyCurrentLevels()
+        internal void CopyTo(ushort[] effectIds, byte[] currentLevels)
         {
-            var result = new byte[_options.Length];
-            for (int i = 0; i < result.Length; i++) result[i] = _options[i].CurrentLevel;
-            return result;
+            for (int i = 0; i < _options.Count; i++)
+            {
+                effectIds[i] = _options[i].Effect.Id;
+                currentLevels[i] = _options[i].CurrentLevel;
+            }
         }
     }
 

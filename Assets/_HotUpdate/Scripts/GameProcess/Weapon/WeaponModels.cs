@@ -42,10 +42,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             Id = id;
             Mask = mask;
-            Effects = effects == null || effects.Length == 0
-                ? Array.Empty<EffectSnapshot>() : (EffectSnapshot[])effects.Clone();
-            AcquisitionOrder = acquisitionOrder == null || acquisitionOrder.Length == 0
-                ? Array.Empty<ushort>() : (ushort[])acquisitionOrder.Clone();
+            Effects = effects ?? Array.Empty<EffectSnapshot>();
+            AcquisitionOrder = acquisitionOrder ?? Array.Empty<ushort>();
         }
 
         public bool TryGetLevel(ushort effectId, out byte level)

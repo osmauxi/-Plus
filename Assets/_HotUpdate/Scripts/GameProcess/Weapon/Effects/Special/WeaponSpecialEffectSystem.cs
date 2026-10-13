@@ -303,10 +303,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
         public void ClearOwners()
         {
-            if (_ownerSpecialEffects.Count == 0) return;
-            ulong[] owners = new ulong[_ownerSpecialEffects.Count];
-            _ownerSpecialEffects.Keys.CopyTo(owners, 0);
-            for (int i = 0; i < owners.Length; i++) RemoveOwner(owners[i]);
+            foreach (KeyValuePair<ulong, HashSet<ushort>> owner in _ownerSpecialEffects)
+                foreach (ushort effectId in owner.Value)
+                    if (_systems.TryGetValue(effectId, out WeaponSpecialEffectSystem system))
+                        system.OnUnequipped(owner.Key);
+            _ownerSpecialEffects.Clear();
         }
 
         public void DispatchBeforeFire(in WeaponEffectFireContext context)

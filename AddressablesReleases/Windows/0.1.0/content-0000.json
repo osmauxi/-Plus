@@ -5,7 +5,7 @@
     "ProtocolVersion": 1,
     "ContentPort": 64482,
     "GamePort": 7777,
-    "CatalogHash": "12653f5972b09e5186663a136cc3afec",
+    "CatalogHash": "68d4fa82c3440a36147f636e9d2b7bd0",
     "BuildTarget": "StandaloneWindows64",
-    "BuiltAtUtc": "2026-09-28T08:52:29.7280868Z"
+    "BuiltAtUtc": "2026-10-06T13:21:17.0155612Z"
 }

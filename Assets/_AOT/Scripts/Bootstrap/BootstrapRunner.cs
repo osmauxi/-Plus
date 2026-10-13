@@ -9,6 +9,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.ResourceLocators;
+using Unity.Profiling;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.SceneManagement;
@@ -57,6 +58,18 @@ namespace ProjectGame.Bootstrap
         private static HashSet<string> _localIpv4Addresses;
         private static string _localAddressablesRoot;
         private static bool _localAddressablesRootResolved;
+        private static readonly ProfilerMarker AddressablesInitializeCallMarker =
+            new("Bootstrap.Addressables.Initialize.Call");
+        private static readonly ProfilerMarker AddressablesUrlTransformMarker =
+            new("Bootstrap.Addressables.UrlTransform");
+        private static readonly ProfilerMarker AddressablesRewriteUrlMarker =
+            new("Bootstrap.Addressables.RewriteUrl");
+        private static readonly ProfilerMarker AddressablesLocalFileMarker =
+            new("Bootstrap.Addressables.TryLocalFile");
+        private static readonly ProfilerMarker AddressablesResolveLocalRootMarker =
+            new("Bootstrap.Addressables.ResolveLocalRoot");
+        private static readonly ProfilerMarker AddressablesLocalAddressMarker =
+            new("Bootstrap.Addressables.IsLocalAddress");
 
         private enum BootstrapState
         {
@@ -111,7 +124,10 @@ namespace ProjectGame.Bootstrap
                 SetStage("初始化 Addressables");
                 //基本上，addressable会读取本地Runtime Settings(启动配置,catalog在哪什么的),创建resourceManager/provider
                 //得到CatalogLocation，检查catalogHash，加载Catalog
-                await Addressables.InitializeAsync();
+                AsyncOperationHandle<IResourceLocator> initializeHandle;
+                using (AddressablesInitializeCallMarker.Auto())
+                    initializeHandle = Addressables.InitializeAsync();
+                await initializeHandle;
                 //我们打开了Addressable Serttings中的Only update catalogs manually
                 //关闭时Addressables.InitializeAsync()会自己包含检查Catalog的步骤
                 //这里我们将Catalog更新当成一个明确的启动阶段进行拆分
@@ -197,11 +213,14 @@ namespace ProjectGame.Bootstrap
             //location.InternalId基本相当于Addressable准备去找的资源
             Addressables.InternalIdTransformFunc = location =>
             {
-                //如果之前已经有人改过URL，就拿别人改完的结果，否则拿Addressables自己的地址
-                string internalId = previousTransform != null
-                    ? previousTransform(location)
-                    : location.InternalId;
-                return RewriteAddressablesUrl(internalId, endpoint);
+                using (AddressablesUrlTransformMarker.Auto())
+                {
+                    //如果之前已经有人改过URL，就拿别人改完的结果，否则拿Addressables自己的地址
+                    string internalId = previousTransform != null
+                        ? previousTransform(location)
+                        : location.InternalId;
+                    return RewriteAddressablesUrl(internalId, endpoint);
+                }
             };
             //Addressable准备发送UnityWebRequest，给他上15秒超时
             Action<UnityEngine.Networking.UnityWebRequest> previousOverride = Addressables.WebRequestOverride;
@@ -219,6 +238,8 @@ namespace ProjectGame.Bootstrap
         /// </summary>
         private static string RewriteAddressablesUrl(string internalId,LanEndpoint endpoint)
         {
+            using var _ = AddressablesRewriteUrlMarker.Auto();
+
             //先确认InternalId是一个完整 URL。
             if (!Uri.TryCreate(internalId,UriKind.Absolute,out Uri uri))
             {
@@ -408,6 +429,8 @@ namespace ProjectGame.Bootstrap
             Uri remoteUri,
             out string localFileUrl)
         {
+            using var _ = AddressablesLocalFileMarker.Auto();
+
             localFileUrl = null;
             string root = ResolveLocalAddressablesRoot();
             if (string.IsNullOrEmpty(root))
@@ -445,6 +468,8 @@ namespace ProjectGame.Bootstrap
         }
         private static string ResolveLocalAddressablesRoot()
         {
+            using var _ = AddressablesResolveLocalRootMarker.Auto();
+
             if (_localAddressablesRootResolved)
                 return _localAddressablesRoot;
 
@@ -509,6 +534,8 @@ namespace ProjectGame.Bootstrap
 
         private static bool IsLocalIpv4Address(string host)
         {
+            using var _ = AddressablesLocalAddressMarker.Auto();
+
             if (!IPAddress.TryParse(host, out IPAddress target) ||
                 target.AddressFamily != AddressFamily.InterNetwork)
                 return false;

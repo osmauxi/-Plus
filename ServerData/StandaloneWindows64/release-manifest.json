@@ -1,11 +1,11 @@
 {
     "SchemaVersion": 1,
     "BaselineVersion": "0.1.0",
-    "ContentRevision": 0,
+    "ContentRevision": 6,
     "ProtocolVersion": 1,
     "ContentPort": 64482,
     "GamePort": 7777,
-    "CatalogHash": "12653f5972b09e5186663a136cc3afec",
+    "CatalogHash": "849109180c1091b4389c04f0af1d2e62",
     "BuildTarget": "StandaloneWindows64",
-    "BuiltAtUtc": "2026-09-28T08:52:29.7280868Z"
+    "BuiltAtUtc": "2026-10-07T11:10:20.1370088Z"
 }

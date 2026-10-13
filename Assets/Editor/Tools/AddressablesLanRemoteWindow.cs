@@ -60,9 +60,9 @@ public sealed class AddressablesLanRemotePanel
     {
         EditorGUILayout.LabelField("局域网发布配置", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "这里修改的是当前 Addressables Profile 的 Remote.LoadPath。" +
-            "地址变化后需要重新构建 Addressables；客户端启动时会把 Catalog 中的" +
-            "服务器地址替换为自动发现结果，因此无需仅为 IP 变化重打 Player。",
+            "这里配置当前局域网的实际访问地址。创建新 Baseline 时会使用此地址；" +
+            "Content Update 会自动临时使用所选 Baseline 记录的 Remote.LoadPath，" +
+            "完成后恢复当前地址。客户端启动时会把 Catalog 地址替换为自动发现结果。",
             MessageType.Info);
 
         DrawCurrentConfiguration();
@@ -284,7 +284,8 @@ public sealed class AddressablesLanRemotePanel
         EditorUtility.DisplayDialog(
             "远端地址已更新",
             $"Remote.LoadPath = {remoteUrl}\n\n" +
-            "请重新构建 Addressables；现有 Player 会在启动时替换服务器地址。",
+            "新 Baseline 会使用此地址；Content Update 会自动兼容原基线地址。" +
+            "现有 Player 启动时会替换为自动发现的服务器地址。",
             "确定");
 
         _repaint();

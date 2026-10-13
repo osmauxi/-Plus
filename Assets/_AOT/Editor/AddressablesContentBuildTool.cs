@@ -74,7 +74,8 @@ public static class AddressablesContentBuildTool
         int protocolVersion,
         int contentPort,
         int gamePort,
-        bool showCompletionDialog)
+        bool showCompletionDialog,
+        bool overwriteExisting = false)
     {
         string normalizedVersion = (version ?? string.Empty).Trim();
         if (!IsValidVersion(normalizedVersion, out string versionError))
@@ -98,7 +99,7 @@ public static class AddressablesContentBuildTool
             normalizedVersion);
 
         // Baseline 一旦被正式 Player 使用，就不应被无意覆盖。
-        if (File.Exists(baselineStatePath))
+        if (File.Exists(baselineStatePath) && !overwriteExisting)
         {
             bool overwrite = EditorUtility.DisplayDialog(
                 "Baseline 已存在",
@@ -280,7 +281,7 @@ public static class AddressablesContentBuildTool
                 "正在根据已选基线生成差异内容...",
                 0.7f);
             AddressablesPlayerBuildResult result =
-                ContentUpdateScript.BuildContentUpdate(
+                BuildContentUpdateWithBaselineAddress(
                     AddressableAssetSettingsDefaultObject.Settings,
                     baseline.StatePath);
             if (result == null)
@@ -315,6 +316,68 @@ public static class AddressablesContentBuildTool
         finally
         {
             EditorUtility.ClearProgressBar();
+        }
+    }
+
+    private static AddressablesPlayerBuildResult
+        BuildContentUpdateWithBaselineAddress(
+            AddressableAssetSettings settings,
+            string baselineStatePath)
+    {
+        AddressablesContentState baselineState =
+            ContentUpdateScript.LoadContentState(baselineStatePath);
+        if (baselineState == null)
+        {
+            throw new InvalidOperationException(
+                "无法读取所选 Baseline 的 Addressables 状态文件。");
+        }
+
+        string baselineLoadPath = baselineState.remoteCatalogLoadPath;
+        if (string.IsNullOrWhiteSpace(baselineLoadPath))
+        {
+            throw new InvalidOperationException(
+                "所选 Baseline 没有记录 Remote Catalog 地址，无法构建内容更新。");
+        }
+
+        string activeProfileId = settings.activeProfileId;
+        string currentLoadPath = settings.profileSettings.GetValueByName(
+            activeProfileId,
+            AddressableAssetSettings.kRemoteLoadPath);
+        string evaluatedLoadPath = settings.RemoteCatalogLoadPath.GetValue(settings);
+        if (string.Equals(
+                evaluatedLoadPath,
+                baselineLoadPath,
+                StringComparison.Ordinal))
+        {
+            return ContentUpdateScript.BuildContentUpdate(
+                settings,
+                baselineStatePath);
+        }
+
+        Debug.Log(
+            "[ContentBuild] 当前局域网地址与 Baseline 构建地址不同。" +
+            $"构建期间临时使用：{baselineLoadPath}");
+        settings.profileSettings.SetValue(
+            activeProfileId,
+            AddressableAssetSettings.kRemoteLoadPath,
+            baselineLoadPath);
+
+        try
+        {
+            return ContentUpdateScript.BuildContentUpdate(
+                settings,
+                baselineStatePath);
+        }
+        finally
+        {
+            settings.profileSettings.SetValue(
+                activeProfileId,
+                AddressableAssetSettings.kRemoteLoadPath,
+                currentLoadPath);
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
+            Debug.Log(
+                $"[ContentBuild] 已恢复当前局域网地址：{currentLoadPath}");
         }
     }
 
@@ -463,9 +526,15 @@ public static class AddressablesContentBuildTool
         string outputPath = Path.Combine("Builds", platform, version, outputName);
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
 
-        BuildOptions options = EditorUserBuildSettings.development
-            ? BuildOptions.Development
-            : BuildOptions.None;
+        BuildOptions options = BuildOptions.None;
+        if (EditorUserBuildSettings.development)
+            options |= BuildOptions.Development;
+        if (EditorUserBuildSettings.connectProfiler)
+            options |= BuildOptions.ConnectWithProfiler;
+        if (EditorUserBuildSettings.buildWithDeepProfilingSupport)
+            options |= BuildOptions.EnableDeepProfilingSupport;
+        if (EditorUserBuildSettings.allowDebugging)
+            options |= BuildOptions.AllowDebugging;
         BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
             scenes = scenes,

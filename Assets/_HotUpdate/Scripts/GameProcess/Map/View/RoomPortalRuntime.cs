@@ -14,11 +14,31 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
 
         public Transform PortalTransform { get; }
         public Vector3 InwardNormal { get; }
+        public Vector3 CenterOffset { get; }
+        public Vector3 CenterPosition => PortalTransform.position +
+                                         PortalTransform.right * CenterOffset.x +
+                                         PortalTransform.up * CenterOffset.y +
+                                         InwardNormal * CenterOffset.z;
         public float HalfWidth { get; }
         public float HalfHeight { get; }
 
-        public RoomPortalRuntime(int connectionId, int targetRoomId, int otherRoomId, Transform portalTransform, float portalWidth, float portalHeight)
-            : this(connectionId, targetRoomId, otherRoomId, portalTransform, portalTransform != null ? portalTransform.forward : Vector3.zero, portalWidth, portalHeight)
+        public RoomPortalRuntime(
+            int connectionId,
+            int targetRoomId,
+            int otherRoomId,
+            Transform portalTransform,
+            Vector3 centerOffset,
+            float portalWidth,
+            float portalHeight)
+            : this(
+                connectionId,
+                targetRoomId,
+                otherRoomId,
+                portalTransform,
+                portalTransform != null ? portalTransform.forward : Vector3.zero,
+                centerOffset,
+                portalWidth,
+                portalHeight)
         {
         }
 
@@ -28,6 +48,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             int otherRoomId,
             Transform portalTransform,
             Vector3 inwardNormal,
+            Vector3 centerOffset,
             float portalWidth,
             float portalHeight)
         {
@@ -42,6 +63,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             OtherRoomId = otherRoomId;
             PortalTransform = portalTransform;
             InwardNormal = inwardNormal.normalized;
+            CenterOffset = centerOffset;
             HalfWidth = Mathf.Max(0.05f, portalWidth * 0.5f);
             HalfHeight = Mathf.Max(0.05f, portalHeight * 0.5f);
         }

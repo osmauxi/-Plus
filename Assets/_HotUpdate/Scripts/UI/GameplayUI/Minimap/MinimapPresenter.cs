@@ -224,7 +224,7 @@ namespace ProjectGame.HotFix.UI.Gameplay.Minimap
 
         private void UpdateTacticalMonsters()
         {
-            _view.HideAllEnemyMarkers();
+            _view.BeginEnemyMarkerUpdate();
             MonsterReplica replica = _monsterRuntime.Replica;
             bool boss = _tacticalRoom.RoomType == RoomType.Boss;
             for (int slot = 0; slot < replica.SlotCount; slot++)
@@ -236,6 +236,7 @@ namespace ProjectGame.HotFix.UI.Gameplay.Minimap
                 Vector3 world = new(monster.Position.x, _monsterRuntime.RoomGroundY, monster.Position.y);
                 _view.SetEnemyMarker(slot, WorldToTactical(world), boss);
             }
+            _view.EndEnemyMarkerUpdate();
         }
 
         private Vector2 WorldToTactical(Vector3 worldPosition)

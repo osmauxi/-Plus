@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using ProjectGame.HotFix.Core.Events;
+using ProjectGame.HotFix.Gameplay.Map.Flow;
 using ProjectGame.HotFix.Gameplay.Map.Generation;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using UnityEngine;
+using Unity.Netcode;
 using ProjectGame.HotFix.Gameplay.Pooling;
 
 namespace ProjectGame.HotFix.Gameplay.Map.View
@@ -29,6 +32,11 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
 
         private readonly Dictionary<int, GameObject> _roomObjectsById = new Dictionary<int, GameObject>();
         private readonly Dictionary<int, GameObject> _connectionObjectsById = new Dictionary<int, GameObject>();
+        private readonly HashSet<int> _locallyVisibleRoomIds = new();
+        private IDisposable _playerRoomChangedSubscription;
+
+        public int LocalFocusRoomId { get; private set; } = -1;
+        public IReadOnlyCollection<int> LocallyVisibleRoomIds => _locallyVisibleRoomIds;
 
         /// <summary>
         /// 当前由地图系统持有的 Pool 
@@ -81,6 +89,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             _connectionObjectsById.Clear();
 
             _heldPoolIds.Clear();
+            _locallyVisibleRoomIds.Clear();
+            LocalFocusRoomId = -1;
+
+            _playerRoomChangedSubscription?.Dispose();
+            _playerRoomChangedSubscription =
+                LocalEvents.Subscribe<PlayerRoomChangedEvent>(HandlePlayerRoomChanged);
 
             IsInitialized = true;
 
@@ -157,6 +171,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                     AlignSeamlessRoomsToConnectorAnchors(buildPlan);
 
                 BuildConnectionsInternal(buildPlan, cancellationToken);
+
+                NetworkManager networkManager = NetworkManager.Singleton;
+                int initialFocusRoomId = networkManager != null && networkManager.IsListening && !networkManager.IsClient
+                    ? -1
+                    : buildPlan.StartRoomId;
+                ApplyLocalRoomVisibility(initialFocusRoomId);
 
                 Debug.Log(
                     $"[{nameof(MapVisualBuilder)}] 地图视觉构建完成，Rooms={_roomObjectsById.Count}，" +
@@ -589,6 +609,75 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             _connectionIdsByRoomId[runtime.RoomBId].Add(runtime.ConnectionId);
         }
 
+        private void HandlePlayerRoomChanged(PlayerRoomChangedEvent roomEvent)
+        {
+            if (!IsInitialized)
+                return;
+
+            NetworkManager networkManager = NetworkManager.Singleton;
+            if (networkManager == null || !networkManager.IsListening || !networkManager.IsClient ||
+                roomEvent.ClientId != networkManager.LocalClientId)
+            {
+                return;
+            }
+
+            ApplyLocalRoomVisibility(roomEvent.RoomId);
+        }
+
+        /// <summary>
+        /// 本机只显示当前房间、与它存在逻辑连接的直接邻居，以及可见房间两端之间的 ConnectionView。
+        /// GridGraph 每个房间最多四个直接邻居；不存在逻辑连接时不会错误显示 Connection。
+        /// </summary>
+        private void ApplyLocalRoomVisibility(int currentRoomId)
+        {
+            if (currentRoomId >= 0 && !_roomsById.ContainsKey(currentRoomId))
+            {
+                Debug.LogWarning($"[{nameof(MapVisualBuilder)}] 本地可见性收到未知 RoomId：{currentRoomId}");
+                return;
+            }
+
+            _locallyVisibleRoomIds.Clear();
+
+            if (currentRoomId >= 0)
+            {
+                _locallyVisibleRoomIds.Add(currentRoomId);
+
+                if (_connectionIdsByRoomId.TryGetValue(currentRoomId, out List<int> connectionIds))
+                {
+                    for (int i = 0; i < connectionIds.Count; i++)
+                    {
+                        if (!_connectionsById.TryGetValue(connectionIds[i], out ConnectionViewRuntime connection))
+                            continue;
+
+                        int neighborRoomId = connection.RoomAId == currentRoomId
+                            ? connection.RoomBId
+                            : connection.RoomAId;
+                        _locallyVisibleRoomIds.Add(neighborRoomId);
+                    }
+                }
+            }
+
+            foreach (KeyValuePair<int, RoomViewRuntime> pair in _roomsById)
+                pair.Value.SetRenderingEnabled(_locallyVisibleRoomIds.Contains(pair.Key));
+
+            int visibleConnectionViewCount = 0;
+            foreach (ConnectionViewRuntime connection in _connectionsById.Values)
+            {
+                bool visible = _locallyVisibleRoomIds.Contains(connection.RoomAId) &&
+                               _locallyVisibleRoomIds.Contains(connection.RoomBId);
+                connection.SetRenderingEnabled(visible);
+
+                if (visible && connection.UsesConnectionView)
+                    visibleConnectionViewCount++;
+            }
+
+            LocalFocusRoomId = currentRoomId;
+
+            Debug.Log(
+                $"[{nameof(MapVisualBuilder)}] 本地地图渲染范围更新：Focus={currentRoomId}，" +
+                $"Rooms={_locallyVisibleRoomIds.Count}，ConnectionViews={visibleConnectionViewCount}");
+        }
+
         /// <summary>
         /// 获取从当前房间可以进入其他房间的全部 Portal 
         /// 返回结果由调用方立即使用，不应长期保存 
@@ -683,6 +772,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             {
                 ConnectionViewRuntime runtime = pair.Value;
 
+                runtime.SetRenderingEnabled(true);
                 runtime.SetLocked(false);
 
                 if (runtime.View != null)
@@ -703,6 +793,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
              */
             foreach (RoomViewRuntime runtime in _roomsById.Values)
             {
+                runtime.SetRenderingEnabled(true);
+
                 for (int i = 0; i < runtime.Connectors.Count; i++)
                     ApplyConnectorState(runtime.Connectors[i], false);
             }
@@ -719,6 +811,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             _connectionsById.Clear();
             _connectionIdsByRoomId.Clear();
             _roomsById.Clear();
+            _locallyVisibleRoomIds.Clear();
+            LocalFocusRoomId = -1;
         }
 
         private static void ReturnOrDestroy(GameObject instance)
@@ -775,6 +869,9 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             ReleaseHeldPools();
 
             _heldPoolIds.Clear();
+
+            _playerRoomChangedSubscription?.Dispose();
+            _playerRoomChangedSubscription = null;
 
             IsInitialized = false;
 

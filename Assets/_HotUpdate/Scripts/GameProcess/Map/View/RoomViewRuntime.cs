@@ -12,6 +12,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
     {
         private readonly RoomConnectorSlot[] _connectors;
         private readonly Dictionary<ConnectorDirection, RoomConnectorSlot> _directionalConnectors = new();
+        private readonly LocalVisualSet _localVisuals;
 
         public int RoomId { get; }
         public RoomType RoomType { get; }
@@ -25,6 +26,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             RoomId = roomId;
             RoomType = roomType;
             MinimapDefinition = view.GetComponent<RoomMinimapDefinition>();
+            _localVisuals = new LocalVisualSet(view);
 
             // 房间实例注册时只扫描一次，后续全部使用缓存 
             _connectors = view.GetComponentsInChildren<RoomConnectorSlot>(true);
@@ -44,6 +46,14 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         public bool TryGetDirectionalConnector(ConnectorDirection direction, out RoomConnectorSlot connector)
         {
             return _directionalConnectors.TryGetValue(direction, out connector);
+        }
+
+        /// <summary>
+        /// 只控制本机渲染组件，不改变房间对象和逻辑组件的 Active 状态。
+        /// </summary>
+        public void SetRenderingEnabled(bool enabled)
+        {
+            _localVisuals.SetVisible(enabled);
         }
     }
 }

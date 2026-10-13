@@ -27,6 +27,9 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         [SerializeField] private GameObject _battleGateRoot;
 
         [Header("判定范围")]
+        [Tooltip("入口检测框中心偏移。X=横向，Y=竖向，Z=朝目标房间内部；会随房间 Scale 缩放。")]
+        [SerializeField] private Vector3 _portalCenterOffset = new Vector3(0f, 0f, 1f);
+
         [Tooltip("用于玩家进入房间判定的入口宽度 ")]
         [SerializeField, Min(0.1f)] private float _portalWidth = 4f;
 
@@ -43,6 +46,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         public GameObject OpenFrameRoot => _openFrameRoot;
         public GameObject BattleGateRoot => _battleGateRoot;
 
+        public Vector3 PortalCenterOffset => _portalCenterOffset;
         public float PortalWidth => _portalWidth;
         public float PortalHeight => _portalHeight;
 
@@ -59,14 +63,20 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
              */
             Gizmos.matrix = transform.localToWorldMatrix;
 
-            // 绘制数学入口平面 
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawWireCube(Vector3.zero, new Vector3(_portalWidth, _portalHeight, 0.05f));
+            // Connector.forward 朝房外，所以配置中的正 Z（朝房内）在此对应本地负 Z。
+            Vector3 gizmoCenter = new Vector3(
+                _portalCenterOffset.x,
+                _portalCenterOffset.y,
+                -_portalCenterOffset.z);
 
-            // 绘制 forward，要求朝向房间外部 
+            // 绘制数学入口平面。
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireCube(gizmoCenter, new Vector3(_portalWidth, _portalHeight, 0.05f));
+
+            // 绘制 Connector.forward，仍要求朝向房间外部。
             Gizmos.color = Color.yellow;
-            Gizmos.DrawLine(Vector3.zero, Vector3.forward * 2f);
-            Gizmos.DrawSphere(Vector3.forward * 2f, 0.08f);
+            Gizmos.DrawLine(gizmoCenter, gizmoCenter + Vector3.forward * 2f);
+            Gizmos.DrawSphere(gizmoCenter + Vector3.forward * 2f, 0.08f);
 
             Gizmos.matrix = previousMatrix;
             Gizmos.color = previousColor;

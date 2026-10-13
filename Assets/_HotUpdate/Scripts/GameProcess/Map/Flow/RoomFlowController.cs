@@ -52,6 +52,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
         private readonly List<PlayerRuntime> _warpPlayers = new();
         private readonly List<Vector3> _warpPositions = new();
         private readonly List<int> _roomIdBuffer = new();
+        private readonly ulong[] _singleClientTarget = new ulong[1];
         private readonly Queue<int> _distanceQueue = new();
         private readonly Dictionary<int, int> _distanceByRoom = new();
         private readonly RoomGatheringSpawnSampler _gatheringSampler = new();
@@ -249,10 +250,10 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
             for (int i = 0; i < _portalBuffer.Count; i++)
             {
                 RoomPortalRuntime portal = _portalBuffer[i];
-                Vector3 origin = portal.PortalTransform.position;
+                Vector3 origin = portal.CenterPosition;
                 float startDistance = Vector3.Dot(start - origin, portal.InwardNormal);
                 float endDistance = Vector3.Dot(end - origin, portal.InwardNormal);
-                if (startDistance > 0.05f || endDistance <= 0.05f)
+                if (startDistance > 0f || endDistance <= 0f)
                     continue;
 
                 float denominator = endDistance - startDistance;
@@ -541,18 +542,21 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
         private void BroadcastSnapshot()
         {
             if (!IsServer || _layout == null) return;
+            BuildPlayerSnapshotArrays(out ulong[] playerIds, out int[] playerRoomIds);
             ApplySnapshotClientRpc(_generationId, _stateRevision, BuildRoomIdArray(), BuildRoomStateArray(),
-                BuildVisitedArray(), BuildPlayerIdArray(), BuildPlayerRoomArray());
+                BuildVisitedArray(), playerIds, playerRoomIds);
         }
 
         private void SendSnapshotToClient(ulong clientId)
         {
+            _singleClientTarget[0] = clientId;
             ClientRpcParams rpcParams = new ClientRpcParams
             {
-                Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } }
+                Send = new ClientRpcSendParams { TargetClientIds = _singleClientTarget }
             };
+            BuildPlayerSnapshotArrays(out ulong[] playerIds, out int[] playerRoomIds);
             ApplySnapshotClientRpc(_generationId, _stateRevision, BuildRoomIdArray(), BuildRoomStateArray(),
-                BuildVisitedArray(), BuildPlayerIdArray(), BuildPlayerRoomArray(), rpcParams);
+                BuildVisitedArray(), playerIds, playerRoomIds, rpcParams);
         }
 
         private int[] BuildRoomIdArray()
@@ -579,20 +583,13 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
             return rooms;
         }
 
-        private ulong[] BuildPlayerIdArray()
+        private void BuildPlayerSnapshotArrays(out ulong[] clients, out int[] rooms)
         {
-            ulong[] clients = new ulong[_playerRooms.Count];
+            clients = new ulong[_playerRooms.Count];
             _playerRooms.Keys.CopyTo(clients, 0);
             Array.Sort(clients);
-            return clients;
-        }
-
-        private int[] BuildPlayerRoomArray()
-        {
-            ulong[] clients = BuildPlayerIdArray();
-            int[] rooms = new int[clients.Length];
+            rooms = new int[clients.Length];
             for (int i = 0; i < clients.Length; i++) rooms[i] = _playerRooms[clients[i]];
-            return rooms;
         }
 
         [ClientRpc]
@@ -613,6 +610,18 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
             for (int i = 0; i < playerIds.Length; i++) _playerRooms[playerIds[i]] = playerRoomIds[i];
             RefreshActiveEncounterFromStates();
             LocalEvents.Publish(new RoomFlowSnapshotAppliedEvent(_generationId));
+
+            // Snapshot 不会逐个重放 PlayerRoomChanged delta；额外补发本机玩家房间事件，
+            // 让纯本地地图渲染裁剪在晚加入或重连后立即落到正确房间。
+            if (_networkManager != null &&
+                _playerRooms.TryGetValue(_networkManager.LocalClientId, out int localRoomId))
+            {
+                LocalEvents.Publish(new PlayerRoomChangedEvent(
+                    _generationId,
+                    _networkManager.LocalClientId,
+                    -1,
+                    localRoomId));
+            }
         }
 
         [ClientRpc]

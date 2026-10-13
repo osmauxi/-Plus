@@ -10,6 +10,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
     /// </summary>
     public sealed class ConnectionViewRuntime
     {
+        private readonly LocalVisualSet _localVisuals;
+
         public int ConnectionId { get; }
         public int RoomAId { get; }
         public int RoomBId { get; }
@@ -49,12 +51,14 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             RoomAId = roomAId;
             RoomBId = roomBId;
             OriginalStretchScale = view.StretchRoot.localScale;
+            _localVisuals = new LocalVisualSet(view);
 
             PortalToRoomA = new RoomPortalRuntime(
                 connectionId,
                 roomAId,
                 roomBId,
                 view.PortalA,
+                connectorA.PortalCenterOffset * roomScale,
                 connectorA.PortalWidth * roomScale,
                 connectorA.PortalHeight * roomScale);
             PortalToRoomB = new RoomPortalRuntime(
@@ -62,6 +66,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 roomBId,
                 roomAId,
                 view.PortalB,
+                connectorB.PortalCenterOffset * roomScale,
                 connectorB.PortalWidth * roomScale,
                 connectorB.PortalHeight * roomScale);
         }
@@ -84,6 +89,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
             RoomAId = roomAId;
             RoomBId = roomBId;
             OriginalStretchScale = Vector3.one;
+            _localVisuals = new LocalVisualSet(null);
 
             PortalToRoomA = new RoomPortalRuntime(
                 connectionId,
@@ -91,6 +97,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 roomBId,
                 connectorA.Anchor,
                 -connectorA.Anchor.forward,
+                connectorA.PortalCenterOffset * roomScale,
                 connectorA.PortalWidth * roomScale,
                 connectorA.PortalHeight * roomScale);
             PortalToRoomB = new RoomPortalRuntime(
@@ -99,6 +106,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
                 roomAId,
                 connectorB.Anchor,
                 -connectorB.Anchor.forward,
+                connectorB.PortalCenterOffset * roomScale,
                 connectorB.PortalWidth * roomScale,
                 connectorB.PortalHeight * roomScale);
         }
@@ -137,6 +145,14 @@ namespace ProjectGame.HotFix.Gameplay.Map.View
         public bool ContainsRoom(int roomId)
         {
             return roomId == RoomAId || roomId == RoomBId;
+        }
+
+        /// <summary>
+        /// ConnectionView 模式切换本地渲染；Seamless 没有独立连接实体时为空操作。
+        /// </summary>
+        public void SetRenderingEnabled(bool enabled)
+        {
+            _localVisuals.SetVisible(enabled);
         }
 
         /// <summary>

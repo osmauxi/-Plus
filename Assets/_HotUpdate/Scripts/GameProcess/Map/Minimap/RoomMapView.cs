@@ -32,6 +32,7 @@ public sealed class MinimapView : MonoBehaviour
     private readonly Dictionary<int, MinimapRoomNodeView> _overviewRooms = new();
     private readonly Dictionary<int, Image> _overviewConnections = new();
     private readonly Dictionary<int, Image> _enemyMarkers = new();
+    private readonly HashSet<int> _updatedEnemyMarkerSlots = new();
 
     private MinimapRoomView _tacticalRoom;
     private RectTransform _playerMarker;
@@ -134,28 +135,55 @@ public sealed class MinimapView : MonoBehaviour
 
         _playerMarker.anchoredPosition = position;
         _playerMarker.localEulerAngles = new Vector3(0f, 0f, -localYaw);
-        _playerMarker.gameObject.SetActive(true);
-        _playerMarker.SetAsLastSibling();
+        if (!_playerMarker.gameObject.activeSelf)
+            _playerMarker.gameObject.SetActive(true);
+        if (_playerMarker.GetSiblingIndex() != _playerMarker.parent.childCount - 1)
+            _playerMarker.SetAsLastSibling();
+    }
+
+    public void BeginEnemyMarkerUpdate() => _updatedEnemyMarkerSlots.Clear();
+
+    public void EndEnemyMarkerUpdate()
+    {
+        foreach (KeyValuePair<int, Image> pair in _enemyMarkers)
+        {
+            if (_updatedEnemyMarkerSlots.Contains(pair.Key) || !pair.Value.gameObject.activeSelf)
+                continue;
+
+            pair.Value.gameObject.SetActive(false);
+        }
     }
 
     public void HideAllEnemyMarkers()
     {
         foreach (Image marker in _enemyMarkers.Values)
-            marker.gameObject.SetActive(false);
+            if (marker.gameObject.activeSelf)
+                marker.gameObject.SetActive(false);
+
+        _updatedEnemyMarkerSlots.Clear();
     }
 
     public void SetEnemyMarker(int slot, Vector2 position, bool boss)
     {
+        _updatedEnemyMarkerSlots.Add(slot);
         if (!_enemyMarkers.TryGetValue(slot, out Image marker))
         {
             marker = CreateImage($"EnemyMarker_{slot}", _tacticalEntityLayer, _squareSprite, Color.red);
             _enemyMarkers.Add(slot, marker);
         }
 
-        marker.color = boss ? new Color(1f, 0.65f, 0.1f, 1f) : new Color(1f, 0.2f, 0.2f, 1f);
-        marker.rectTransform.anchoredPosition = position;
-        marker.rectTransform.sizeDelta = boss ? new Vector2(9f, 9f) : new Vector2(6f, 6f);
-        marker.gameObject.SetActive(true);
+        Color color = boss ? new Color(1f, 0.65f, 0.1f, 1f) : new Color(1f, 0.2f, 0.2f, 1f);
+        Vector2 size = boss ? new Vector2(9f, 9f) : new Vector2(6f, 6f);
+        RectTransform rect = marker.rectTransform;
+
+        if (marker.color != color)
+            marker.color = color;
+        if (rect.anchoredPosition != position)
+            rect.anchoredPosition = position;
+        if (rect.sizeDelta != size)
+            rect.sizeDelta = size;
+        if (!marker.gameObject.activeSelf)
+            marker.gameObject.SetActive(true);
     }
 
     public void Clear()
@@ -179,6 +207,7 @@ public sealed class MinimapView : MonoBehaviour
         foreach (Image marker in _enemyMarkers.Values)
             Destroy(marker.gameObject);
         _enemyMarkers.Clear();
+        _updatedEnemyMarkerSlots.Clear();
 
         _overviewMapContent.anchoredPosition = Vector2.zero;
         _overviewMapContent.localScale = Vector3.one;

@@ -30,8 +30,15 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
         [SerializeField] private RoomTemplateCatalog _templateCatalog;
         [SerializeField] private MapVisualBuilder _visualBuilder;
 
+        [Header("地图策略")]
+        [Tooltip("由 Server 使用的布局策略。StressArena 只生成一个起始房间，用于怪物导航压测。")]
+        [SerializeField] private MapLayoutStrategyType _layoutStrategyType = MapLayoutStrategyType.GridGraph;
+
         [Header("图格生成")]
         [SerializeField] private GridMapGenerationProfile _gridProfile = new GridMapGenerationProfile();
+
+        [Header("压测场生成")]
+        [SerializeField] private StressArenaGenerationProfile _stressArenaProfile = new StressArenaGenerationProfile();
 
         [Header("网络设置")]
         [Tooltip("Server 等待所有客户端完成地图视觉构建的最长时间 ")]
@@ -39,6 +46,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
         private readonly HashSet<ulong> _readyClientIds = new HashSet<ulong>();
         private readonly List<ulong> _clientTargetBuffer = new List<ulong>();
+        private readonly ulong[] _singleClientTarget = new ulong[1];
 
         private NetworkManager _networkManager;
         private IMapLayoutStrategy _layoutStrategy;
@@ -79,16 +87,27 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             if (_visualBuilder == null || !_visualBuilder.IsInitialized)
                 throw new InvalidOperationException("MapVisualBuilder 尚未初始化 ");
 
-            _gridProfile.Validate();
+            switch (_layoutStrategyType)
+            {
+                case MapLayoutStrategyType.GridGraph:
+                    _gridProfile.Validate();
+                    _layoutStrategy = new GridGraphLayoutStrategy();
+                    break;
+                case MapLayoutStrategyType.StressArena:
+                    _stressArenaProfile.Validate();
+                    _layoutStrategy = new StressArenaLayoutStrategy(_stressArenaProfile.RoomScale);
+                    break;
+                default:
+                    throw new InvalidOperationException($"不支持的地图布局策略：{_layoutStrategyType}");
+            }
 
-            _layoutStrategy = new GridGraphLayoutStrategy();
             _templateSelector = new GridRoomTemplateSelector();
 
             _networkManager.OnClientDisconnectCallback += OnClientDisconnected;
 
             IsInitialized = true;
 
-            Debug.Log($"[{nameof(MapGenerationController)}] 初始化完成 ");
+            Debug.Log($"[{nameof(MapGenerationController)}] 初始化完成，Strategy={_layoutStrategyType}");
         }
 
         /// <summary>
@@ -104,7 +123,9 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             int seed = seedOverride ?? UnityEngine.Random.Range(1, int.MaxValue);
             int generationId = ++_currentGenerationId;
 
-            MapGenerationSettings settings = _gridProfile.CreateSettings(seed);
+            MapGenerationSettings settings = _layoutStrategyType == MapLayoutStrategyType.GridGraph
+                ? _gridProfile.CreateSettings(seed)
+                : default;
             MapGenerationRequest request = new MapGenerationRequest(seed, level, playerCount, settings);
 
             MapLayout layout = _layoutStrategy.Generate(request);
@@ -213,7 +234,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             {
                 Send = new ClientRpcSendParams
                 {
-                    TargetClientIds = _clientTargetBuffer.ToArray()
+                    TargetClientIds = _clientTargetBuffer
                 }
             };
 
@@ -372,11 +393,12 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
         private ClientRpcParams CreateTargetClientRpcParams(ulong clientId)
         {
+            _singleClientTarget[0] = clientId;
             return new ClientRpcParams
             {
                 Send = new ClientRpcSendParams
                 {
-                    TargetClientIds = new[] { clientId }
+                    TargetClientIds = _singleClientTarget
                 }
             };
         }

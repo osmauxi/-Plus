@@ -23,7 +23,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
     {
         None = 0,
         GridGraph = 1,
-        Corridor = 2
+        Corridor = 2,
+        StressArena = 3
     }
 
     /// <summary>
@@ -56,6 +57,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
             {
                 MapLayoutStrategyType.GridGraph => MapStrategyMask.GridGraph,
                 MapLayoutStrategyType.Corridor => MapStrategyMask.Corridor,
+                // 压测场复用 Grid 房间模板，只改变布局和运行时生成规则。
+                MapLayoutStrategyType.StressArena => MapStrategyMask.GridGraph,
                 _ => MapStrategyMask.None
             };
         }
@@ -138,13 +141,17 @@ namespace ProjectGame.HotFix.Gameplay.Map.Generation
 
         public void Validate()
         {
+            ValidateCommon();
+            Settings.Validate();
+        }
+
+        public void ValidateCommon()
+        {
             if (Level < 0)
                 throw new ArgumentOutOfRangeException(nameof(Level), "关卡层数不能小于 0 ");
 
             if (PlayerCount < 1)
                 throw new ArgumentOutOfRangeException(nameof(PlayerCount), "生成地图时至少需要一名玩家 ");
-
-            Settings.Validate();
         }
     }
 }

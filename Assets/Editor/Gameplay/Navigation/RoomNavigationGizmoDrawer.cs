@@ -1,7 +1,7 @@
+using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Map.View;
 using ProjectGame.HotFix.Gameplay.Monsters;
-using ProjectGame.HotFix.Gameplay.Navigation;
 using UnityEditor;
 using UnityEngine;
 

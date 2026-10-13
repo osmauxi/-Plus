@@ -2,7 +2,9 @@
     "name": "ProjectGame.Gameplay.Editor",
     "rootNamespace": "",
     "references": [
-        "HotFix.Gameplay"
+        "AOT_Core",
+        "HotFix.Gameplay",
+        "HotFix.Navigation"
     ],
     "includePlatforms": [
         "Editor"

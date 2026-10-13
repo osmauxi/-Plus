@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ProjectGame.HotFix.Settings;
 using ProjectGame.HotFix.Voice.Network;
 using Unity.Netcode;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -23,6 +24,13 @@ namespace ProjectGame.HotFix.Voice
     [RequireComponent(typeof(VoiceCapture))]
     public sealed class VoiceManager : MonoBehaviour
     {
+        private static readonly ProfilerMarker CaptureMarker =
+            new("Voice.Capture");
+        private static readonly ProfilerMarker EncodeMarker =
+            new("Voice.Encode");
+        private static readonly ProfilerMarker SendMarker =
+            new("Voice.Send");
+
         public static VoiceManager Instance { get; private set; }
         public static event Action<VoiceManager> InstanceChanged;
 
@@ -98,24 +106,31 @@ namespace ProjectGame.HotFix.Voice
                 IsPushToTalkPressed();
             PublishMicrophoneState(microphoneOpen, now);
 
-            // 即使当前不发送也持续取走帧，避免下次按键时发送旧录音。
-            while (_capture.TryReadFrame(_captureFrame))
-            {
-                if (!microphoneOpen)
-                    continue;
+            // 即使当前不发送也持续取走最新帧，避免下次按键时发送旧录音。
+            bool hasFrame;
+            using (CaptureMarker.Auto())
+                hasFrame = _capture.TryReadLatestFrame(_captureFrame);
 
+            if (hasFrame && microphoneOpen)
+            {
                 if (IsSpeaking(_captureFrame, VoiceCapture.FrameSamples))
                     _localSpeakingUntil = now + _speakingHoldSeconds;
 
                 // 静音时不编码、不发送音频包；保留短暂尾音避免截断词尾。
-                if (now >= _localSpeakingUntil)
-                    continue;
+                if (now < _localSpeakingUntil)
+                {
+                    int packetLength;
+                    using (EncodeMarker.Auto())
+                        packetLength = _encoder.Encode();
 
-                int packetLength = _encoder.Encode(_captureFrame, _encodedPacket);
-                _transport.SendVoice(
-                    _sendSequence++,
-                    _encodedPacket,
-                    packetLength);
+                    using (SendMarker.Auto())
+                    {
+                        _transport.SendVoice(
+                            _sendSequence++,
+                            _encodedPacket,
+                            packetLength);
+                    }
+                }
             }
 
             if (!microphoneOpen)
@@ -295,9 +310,9 @@ namespace ProjectGame.HotFix.Voice
             if (_encoder != null)
                 return;
 
-            _encoder = new VoiceOpusEncoder();
             _captureFrame = new float[VoiceCapture.FrameSamples];
             _encodedPacket = new byte[VoiceOpusEncoder.MaxPacketBytes];
+            _encoder = new VoiceOpusEncoder(_captureFrame, _encodedPacket);
         }
 
         private void HandleVoiceReceived(
@@ -323,8 +338,7 @@ namespace ProjectGame.HotFix.Voice
 
             int sampleCount = channel.Decoder.Decode(
                 opusData,
-                opusLength,
-                channel.DecodeBuffer);
+                opusLength);
 
             float now = Time.unscaledTime;
             RemoteVoiceState remoteState = GetRemoteVoiceState(speakerClientId);
@@ -478,13 +492,14 @@ namespace ProjectGame.HotFix.Voice
             private bool _hasSequence;
             private ushort _lastSequence;
 
-            public readonly VoiceOpusDecoder Decoder = new();
             public readonly float[] DecodeBuffer =
                 new float[VoiceCapture.FrameSamples];
+            public readonly VoiceOpusDecoder Decoder;
             public readonly VoiceSpeaker Speaker;
 
             public ReceiveChannel(VoiceSpeaker speaker)
             {
+                Decoder = new VoiceOpusDecoder(DecodeBuffer);
                 Speaker = speaker;
             }
 

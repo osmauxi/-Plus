@@ -1,6 +1,6 @@
 using System;
-using Concentus;
-using Concentus.Enums;
+using ProjectGame.AOT.Voice;
+using UnityEngine;
 
 namespace ProjectGame.HotFix.Voice
 {
@@ -11,33 +11,22 @@ namespace ProjectGame.HotFix.Voice
     {
         public const int MaxPacketBytes = 4000;
 
-        private readonly IOpusEncoder _encoder;
+        private readonly OpusNativeEncoder _encoder;
 
-        public VoiceOpusEncoder()
+        public VoiceOpusEncoder(float[] pcm, byte[] packet)
         {
-            OpusCodecFactory.AttemptToUseNativeLibrary = false;
-
-            _encoder = OpusCodecFactory.CreateEncoder(
+            _encoder = new OpusNativeEncoder(
                 VoiceCapture.SampleRate,
-                1,
-                OpusApplication.OPUS_APPLICATION_VOIP);
+                VoiceCapture.FrameSamples,
+                pcm,
+                packet);
 
-            _encoder.Bitrate = 24000;
-            _encoder.Complexity = 5;
-            _encoder.SignalType = OpusSignal.OPUS_SIGNAL_VOICE;
-            _encoder.UseVBR = true;
-            _encoder.UseInbandFEC = false;
-            // 静音时启用 DTX；麦克风开关状态由独立控制消息同步。
-            _encoder.UseDTX = true;
+            Debug.Log("[Voice] Opus 编码器后端：Native libopus 1.5.2 (AOT)");
         }
 
-        public int Encode(float[] pcm, byte[] output)
+        public int Encode()
         {
-            return _encoder.Encode(
-                pcm,
-                VoiceCapture.FrameSamples,
-                output,
-                output.Length);
+            return _encoder.Encode();
         }
 
         public void Dispose()
@@ -51,21 +40,19 @@ namespace ProjectGame.HotFix.Voice
     /// </summary>
     public sealed class VoiceOpusDecoder : IDisposable
     {
-        private readonly IOpusDecoder _decoder;
+        private readonly OpusNativeDecoder _decoder;
 
-        public VoiceOpusDecoder()
+        public VoiceOpusDecoder(float[] pcmOutput)
         {
-            OpusCodecFactory.AttemptToUseNativeLibrary = false;
-            _decoder = OpusCodecFactory.CreateDecoder(VoiceCapture.SampleRate, 1);
+            _decoder = new OpusNativeDecoder(
+                VoiceCapture.SampleRate,
+                VoiceCapture.FrameSamples,
+                pcmOutput);
         }
 
-        public int Decode(byte[] opusData, int opusLength, float[] pcmOutput)
+        public int Decode(byte[] opusData, int opusLength)
         {
-            return _decoder.Decode(
-                opusData.AsSpan(0, opusLength),
-                pcmOutput,
-                VoiceCapture.FrameSamples,
-                false);
+            return _decoder.Decode(opusData, opusLength);
         }
 
         public void Dispose()

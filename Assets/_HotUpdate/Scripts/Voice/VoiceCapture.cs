@@ -13,9 +13,6 @@ namespace ProjectGame.HotFix.Voice
         public const int FrameSamples = SampleRate * FrameMilliseconds / 1000;
 
         private const int ClipLengthSeconds = 2;
-        private const int MaxBacklogFrames = 3;
-        private const int RetainedBacklogFrames = 2;
-        private const float LongPollGapSeconds = 0.25f;
 
         [Header("设备")]
         [SerializeField] private string _deviceName;
@@ -41,7 +38,6 @@ namespace ProjectGame.HotFix.Voice
         private float _automaticGain = 1f;
         private float _gateGain;
         private int _gateHoldFrames;
-        private float _lastPollTime;
 
         public bool IsRecording => _isRecording;
         public float LastInputRms { get; private set; }
@@ -72,7 +68,6 @@ namespace ProjectGame.HotFix.Voice
 
             _readPosition = 0;
             ResetInputProcessor();
-            _lastPollTime = Time.realtimeSinceStartup;
             DroppedFrameCount = 0;
             _isRecording = true;
 
@@ -95,10 +90,9 @@ namespace ProjectGame.HotFix.Voice
             _readPosition = 0;
             _isRecording = false;
             ResetInputProcessor();
-            _lastPollTime = 0f;
         }
 
-        public bool TryReadFrame(float[] frameBuffer)
+        public bool TryReadLatestFrame(float[] frameBuffer)
         {
             if (!_isRecording || _microphoneClip == null)
                 return false;
@@ -109,30 +103,23 @@ namespace ProjectGame.HotFix.Voice
             if (writePosition < 0)
                 return false;
 
-            float now = Time.realtimeSinceStartup;
-            bool resumedAfterStall = now - _lastPollTime > LongPollGapSeconds;
-            _lastPollTime = now;
-
             int availableSamples = writePosition - _readPosition;
             if (availableSamples < 0)
                 availableSamples += _microphoneClip.samples;
 
-            int retainedSamples = FrameSamples * RetainedBacklogFrames;
-            if (resumedAfterStall ||
-                availableSamples > FrameSamples * MaxBacklogFrames)
+            int availableFrames = availableSamples / FrameSamples;
+            if (availableFrames == 0)
+                return false;
+
+            int skippedFrames = availableFrames - 1;
+            if (skippedFrames > 0)
             {
-                // 游戏卡顿或切场景后只保留最新约 40ms，不补发已经过时的录音。
-                int droppedSamples = Mathf.Max(0, availableSamples - retainedSamples);
-                DroppedFrameCount += droppedSamples / FrameSamples;
-                _readPosition = writePosition - retainedSamples;
-                if (_readPosition < 0)
-                    _readPosition += _microphoneClip.samples;
-                availableSamples = retainedSamples;
+                // 语音是实时流：卡顿后只编码最新完整帧，不在一帧内补发过期录音。
+                DroppedFrameCount += skippedFrames;
+                _readPosition = (_readPosition + skippedFrames * FrameSamples) %
+                    _microphoneClip.samples;
                 ResetFilterHistory();
             }
-
-            if (availableSamples < FrameSamples)
-                return false;
 
             if (!_microphoneClip.GetData(frameBuffer, _readPosition))
                 return false;

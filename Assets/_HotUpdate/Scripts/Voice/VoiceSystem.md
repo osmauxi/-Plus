@@ -1,6 +1,6 @@
 # 全局语音系统说明与复盘
 
-> 最后审查：2026-09-25  
+> 最后审查：2026-10-01  
 > 适用目录：`Assets/_HotUpdate/Scripts/Voice`  
 > 当前定位：面向 Lobby 与 Gameplay 的轻量全局语音系统，优先实时性，不追求复杂的语音中间件能力。
 
@@ -18,18 +18,15 @@
 - 已采用“最新语音优先”的低延迟策略，避免补播数秒前的旧语音。
 - 已开启 Opus DTX，并在发送层跳过静音帧；自由麦未说话时只同步低频状态，不发送音频包。
 - 主要 PCM、Opus 和音频线程缓冲均复用数组，设计上没有主动制造逐帧托管垃圾。
+- 编解码已切换到 AOT 层直接调用 Native libopus 1.5.2，不再由 HybridCLR 执行托管 Concentus 编解码热路径。
+- 采集积压时每次 Update 只处理最新完整的 20 ms 帧，避免同一渲染帧补编码 2～3 包造成 GC/CPU 峰值成倍放大。
 
-但是，本次 Play Mode 审查发现一个 **P0 运行时阻塞问题**：
+修复前的 Player Profiler 显示，托管 Concentus 每个 20 ms 包会产生约 `110～138 KB` GC；同帧追赶 2～3 包时会放大到 `230～344 KB`，活动发送期间约为 `5.2～5.4 MB/s`。Native libopus 接入后的 Editor 热身微基准结果为：
 
-```text
-MissingMethodException:
-Method not found:
-Concentus.IOpusEncoder.Encode(ReadOnlySpan<float>, int, Span<byte>, int)
-```
+- 编码 1000 次：`0 B`，总计约 `92.7 ms`，即约 `92.7 μs/包`。
+- 解码 1000 次：`0 B`，总计约 `21.7 ms`，即约 `21.7 μs/包`。
 
-Unity 编译检查仍然是 0 错误、0 警告，因此这个问题只能通过实际进入 Play Mode 或构建包测试发现。当前进程同时存在多个 `System.Memory`/`ReadOnlySpan<T>` 类型来源，Concentus 2.2.2 的 Span 接口在编译期和运行期发生了类型绑定冲突。
-
-建议下一步首先把 [VoiceOpusEncoder.cs](./VoiceOpusEncoder.cs) 改为使用 `Concentus.Structs.OpusEncoder` 和 `Concentus.Structs.OpusDecoder` 的数组重载，绕开 Span 接口。数组重载已在本次审查中执行 1000 次编码和 1000 次解码，结果均为 `0 B` 托管分配。
+这些数据证明本机 Editor 中的原生编解码热路径已经无托管分配；最终结论仍以新的 IL2CPP Player 连续语音 Profiler 复测为准。
 
 ## 2. 系统结构
 
@@ -66,10 +63,12 @@ flowchart LR
 | [VoiceManager.cs](./VoiceManager.cs) | 系统入口、网络生命周期、发送模式、状态事件、远端通道和 2D/3D 切换 |
 | [VoiceCapture.cs](./VoiceCapture.cs) | 麦克风采集、输入滤波、噪声门、自动增益、采集积压裁剪 |
 | [VoiceOpusEncoder.cs](./VoiceOpusEncoder.cs) | Opus 编码器与解码器包装 |
+| [OpusNativeCodec.cs](../../../_AOT/Scripts/Core/System/Voice/OpusNativeCodec.cs) | AOT 原生编解码入口、固定缓冲区与 libopus P/Invoke |
+| `Assets/Plugins/x86_64/opus.dll` | Windows x64 的 Native libopus 1.5.2 |
 | [Network/VoiceNetworkTransport.cs](./Network/VoiceNetworkTransport.cs) | NGO 音频包与麦克风状态消息的客户端上行、服务器中继 |
 | [PCMRingBuffer.cs](./PCMRingBuffer.cs) | 主线程写入、音频线程读取的单写单读 PCM 环形缓冲 |
 | [VoiceSpeaker.cs](./VoiceSpeaker.cs) | 每个远端玩家的 AudioSource、实时播放和 2D/3D 空间模式 |
-| [HotFix.Voice.asmdef](./HotFix.Voice.asmdef) | 语音程序集及其 NGO、Input System、设置、Concentus 依赖 |
+| [HotFix.Voice.asmdef](./HotFix.Voice.asmdef) | 语音程序集及其 NGO、Input System、设置、AOT Core 依赖 |
 
 ## 3. 生命周期和数据流
 
@@ -112,7 +111,7 @@ flowchart LR
 
 游戏语音以“新鲜度高于完整性”为原则：
 
-- 采集轮询停顿超过 250 ms，或积压超过 60 ms 时，只保留最新约 40 ms。
+- 采集端存在多个完整帧时，跳过旧帧并只处理最新完整的 20 ms 帧。
 - 接收端初次播放预缓冲约 60 ms。
 - 接收端积压超过 200 ms 时，丢弃旧样本并回落到约 100 ms。
 - 网络使用 `NetworkDelivery.Unreliable`，不重传已经过期的语音。
@@ -181,21 +180,20 @@ Lobby 不绑定玩家 Transform，因此 `spatialBlend = 0`。Gameplay 通过 [P
 
 | 测试项 | 条件 | 结果 |
 | --- | --- | --- |
-| Concentus 具体类型数组编码 | 预热后循环 1000 次 | `0 B` |
-| Concentus 具体类型数组解码 | 预热后循环 1000 次 | `0 B` |
-| `VoiceCapture.TryReadFrame` | 实际麦克风成功读取 51 帧 | `0 B` |
+| Native libopus AOT 编码 | 预热后循环 1000 次 | `0 B`，约 `92.7 μs/包` |
+| Native libopus AOT 解码 | 预热后循环 1000 次 | `0 B`，约 `21.7 μs/包` |
+| `VoiceCapture.TryReadLatestFrame` | 实际麦克风成功读取 | `0 B` |
 | `VoiceNetworkTransport.SendVoice` | Host、无远端，循环 1000 次 | `0 B` 托管分配 |
 | 无语音帧的 `VoiceManager.Update` | Unity Profiler | `0 B` |
 | 自由麦静音发送抑制 | 强制静音判定，运行 3.5 秒 | 发送序号保持 `0`，状态为 `Open` |
-| 当前异常状态下的编码帧 | 每帧抛 `MissingMethodException` | 约 `0.5 KB/次` |
 
-当前 Opus 为 20 ms 一包，即每秒最多约 50 次编码。异常状态会产生约 `25 KB/s` 托管垃圾，并伴随高频异常堆栈和 Console 输出；这不是正常发送路径的分配，而是程序集冲突导致的异常成本。
+修复前的纯托管 Concentus 在 Player 中约每包分配 `110～138 KB`，活动发送约 `5.2～5.4 MB/s`。卡顿后同一帧补编码 2～3 包会把单帧分配放大到 `230～344 KB`。当前改动同时消除了托管编解码分配，并禁止同一渲染帧追赶多包旧录音。
 
 ### 4.2 当前无逐帧分配的设计点
 
 - 采集帧、编码包、解码帧均在会话或通道创建时一次性分配。
 - `ProcessInput` 原地修改 PCM 数组。
-- `Span`/数组切片本身不应创建托管对象。
+- 编解码缓冲在创建时固定，AOT P/Invoke 直接复用其地址。
 - `PcmRingBuffer` 使用固定数组与游标，不创建临时数组。
 - `OnAudioFilterRead` 使用预分配音频线程缓冲。
 - 字典遍历和事件调用本身没有主动创建临时集合。
@@ -203,7 +201,7 @@ Lobby 不绑定玩家 Transform，因此 `spatialBlend = 0`。Gameplay 通过 [P
 
 ### 4.3 GC 结论限制
 
-当前完整双客户端 GC 验证尚不能判定为通过，原因是 Play Mode 的 Concentus Span 调用会先抛异常。必须先修复 P0 问题，然后重新检查：
+本机原生编解码微基准已经通过，但完整双客户端 Player GC 验证仍需重新检查：
 
 1. 一台发送客户端持续说话 60 秒。
 2. 一台接收客户端同时解码和 3D 播放。
@@ -213,7 +211,7 @@ Lobby 不绑定玩家 Transform，因此 `spatialBlend = 0`。Gameplay 通过 [P
 
 ## 5. 本次审查发现的问题
 
-### P0：Concentus Span 运行时绑定失败
+### 已处理 P0：Concentus/HybridCLR 编解码兼容与高分配
 
 现象：
 
@@ -223,30 +221,20 @@ int Concentus.IOpusEncoder.Encode(
     ReadOnlySpan<float>, int, Span<byte>, int)
 ```
 
-证据：
+修复前证据：
 
 - `Concentus.dll` 版本为 2.2.2。
 - AppDomain 中同时出现 `System.Memory 4.0.99.0`、`System.Memory 4.0.1.1`，同时 Unity 的 `mscorlib` 也提供 Span 类型。
 - 动态编译直接报告 `ReadOnlySpan<T>` 同时存在于 `System.Memory` 和 `mscorlib`。
 - 反射能看到 Concentus 方法，但 HotFix.Voice 的直接接口调用仍无法绑定。
-- 使用 `Concentus.Structs.OpusEncoder/Decoder` 的数组重载可正常运行，并且 1000 次调用均为 `0 B`。
+- Player 中托管编码每 20 ms 包分配约 `110～138 KB`。
 
-建议修复：
+最终没有继续让 HybridCLR 调用 Concentus 的 Span 接口，也没有依赖其内部原生类型；后者对外不可访问，并且 Unity Mono 下的接口调用仍会触发 `MissingMethodException`。当前实现改为：
 
-```csharp
-// 编码
-encoder.Encode(
-    pcm, 0, frameSamples,
-    output, 0, output.Length);
-
-// 解码
-decoder.Decode(
-    opusData, 0, opusLength,
-    pcmOutput, 0, frameSamples,
-    false);
-```
-
-这是当前最高优先级，修复前不能认为语音发送链路稳定可用。
+- 官方 NuGet `Concentus.Native.NetCore 1.5.2` 提供的 `opus.dll` 作为 Windows x64 Unity 原生插件。
+- P/Invoke 声明和缓冲固定放在 `AOT_Core`，确保 IL2CPP 生成原生调用桩。
+- HotFix 层只调用 AOT 包装器，不在解释器里执行 Opus 算法。
+- 编码、解码热身后各循环 1000 次均为 `0 B`。
 
 ### 已处理 P1：自由麦静音时持续发送
 
@@ -271,9 +259,9 @@ decoder.Decode(
 
 建议增加独立的 Voice Mixer Group 和 Voice Volume，或至少明确路由到 Master/SFX 下的合适分组。
 
-### P1：完整 GC 结论被运行时异常阻断
+### P1：完整 Player GC 仍需回归
 
-正常组件微基准为 0 B，但在修复 Concentus 之前，完整发送链路会被异常分配污染。修复后必须重新做双客户端 Profiler 验证。
+正常组件和 Native libopus 微基准均为 0 B；仍需重新做双客户端 Player Profiler，确认网络发送、接收、Audio Thread 与 IL2CPP 构建链路的整体验证结果。
 
 ### P2：丢包只会形成空洞
 
@@ -348,7 +336,7 @@ Lobby 使用 `VoiceManager.InstanceChanged` 处理实例变化，Gameplay HUD �
 
 ### 6.3 编译成功不代表运行时兼容
 
-本次 Concentus 问题在脚本编译阶段完全正常，但 Play Mode 调用 Span 接口时失败。
+本次 Concentus 问题在脚本编译阶段完全正常，但 Play Mode 调用 Span 接口时失败；即使工厂能创建原生类型，第一次真实编码仍能暴露接口绑定问题。
 
 经验：第三方 DLL，尤其是使用 `Span<T>`、`System.Memory`、AOT 或 HybridCLR 的库，必须至少覆盖以下测试：
 
@@ -360,15 +348,15 @@ Lobby 使用 `VoiceManager.InstanceChanged` 处理实例变化，Gameplay HUD �
 
 ### 6.4 GC 数据必须先排除异常日志
 
-Profiler 最初显示 `VoiceManager.Update` 每个语音帧约 0.5 KiB 分配。进一步检查发现分配来自高频 `MissingMethodException` 和堆栈日志，不是 Opus 或 PCM 正常热路径。
+Player Profiler 显示 `VoiceManager.Update` 每个语音包约 `110～138 KB` 分配，且 2～3 包同帧追赶时几乎严格倍增。按 20 ms 包间隔汇总后约为 `5.2～5.4 MB/s`，因此根因是托管 Opus 编码器内部短生命周期对象，而不是周期性 EditorLoop。
 
 经验：看到 GC.Alloc 后应先确认该帧是否有异常、日志、Profiler 自身开销，再判断是否需要池化业务对象。
 
 ## 7. 推荐优化顺序
 
-1. **修复 Concentus Span 绑定问题**，改用具体类型的数组重载。
-2. 进行双客户端发送、接收和断线重连回归测试。
-3. 关闭 Deep Profile，重新测量 Main Thread、Audio Thread 和 GC。
+1. 使用新的 IL2CPP Player 进行双客户端发送、接收和断线重连回归测试。
+2. 关闭 Deep Profile，重新测量 `Voice.Capture`、`Voice.Encode`、`Voice.Send`、Main Thread、Audio Thread 和 GC。
+3. 确认构建输出包含 `_Data/Plugins/x86_64/opus.dll`，Player 日志显示 Native libopus AOT 后端。
 4. 将 VoiceSpeaker 路由到独立 AudioMixer Group，并增加语音音量设置。
 5. 长时间无包时暂停 VoiceSpeaker，并共享静音播放时钟 Clip。
 6. 增加 PLC、弱网统计和简单自适应抖动缓冲。
@@ -451,4 +439,4 @@ Profiler 最初显示 `VoiceManager.Update` 每个语音帧约 0.5 KiB 分配。
 
 ---
 
-本系统当前适合小规模、可信客户端、低复杂度的游戏内语音。自由麦静音流量已经消除；继续扩展时，应优先解决运行时编解码兼容、多人同时说话时的带宽增长、AudioMixer 路由和完整弱网验证，再考虑更复杂的语音处理算法。
+本系统当前适合小规模、可信客户端、低复杂度的游戏内语音。自由麦静音流量和托管 Opus 热路径分配已经处理；继续扩展时，应优先完成 Player 回归、多人同时说话时的带宽控制、AudioMixer 路由和完整弱网验证，再考虑更复杂的语音处理算法。

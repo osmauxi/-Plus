@@ -242,19 +242,19 @@ namespace ProjectGame.HotFix.Voice.Network
         {
             CustomMessagingManager messaging = _networkManager.CustomMessagingManager;
 
-            if (_serverHandlerRegistered)
+            if (messaging != null && _serverHandlerRegistered)
             {
                 messaging.UnregisterNamedMessageHandler(ClientVoiceMessage);
                 messaging.UnregisterNamedMessageHandler(ClientStateMessage);
-                _serverHandlerRegistered = false;
             }
+            _serverHandlerRegistered = false;
 
-            if (_clientHandlerRegistered)
+            if (messaging != null && _clientHandlerRegistered)
             {
                 messaging.UnregisterNamedMessageHandler(ServerVoiceMessage);
                 messaging.UnregisterNamedMessageHandler(ServerStateMessage);
-                _clientHandlerRegistered = false;
             }
+            _clientHandlerRegistered = false;
 
             VoiceReceived = null;
             VoiceStateReceived = null;

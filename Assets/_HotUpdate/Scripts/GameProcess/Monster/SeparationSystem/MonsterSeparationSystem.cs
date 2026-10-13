@@ -1,235 +1,105 @@
 using System;
+using ProjectGame.Core.Navigation;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
     /// <summary>
-    /// ¹ÖÎï¾Ö²¿·ÖÀëÏµÍ³£ºÃ¿Tick½¨Á¢¾ùÔÈ¿Õ¼äÍø¸ñ£¬Ã¿¸öÁÚ¾ÓPairÖ»¼ÆËãÒ»´Î
-    /// ×îÖÕÎªÃ¿¸öMonster SlotÊä³öÒ»¸öSeparationËÙ¶ÈĞŞÕı
+    /// ä» MonsterWorld é‡‡é›†æ´»è·ƒä½ç½®ï¼Œå¹¶ç”± AOT Kernel è®¡ç®—åˆ†ç¦»é€Ÿåº¦ã€‚
     /// </summary>
     public sealed class MonsterSeparationSystem
     {
-        /// <summary>
-        /// Ò»´ÎÖ»¿´ÖÜÎ§°Ë¸öµÄËÄ¸ö£¬È¡Á½Ìõ±ß£¬±£Ö¤²»»áÖØ¸´±éÀú
-        /// ÔÚºóĞøGridµÄ±éÀúÖĞ»á°ÑÊ£ÓàËÄ¸ö²¹Âú£¬ÌùºÏPairµ¥´Î¼ÆËãµÄÉè¼Æ
-        /// </summary>
-        private static readonly Vector2Int[] NeighborBuckets =
+        private static readonly ProfilerMarker CaptureMarker =
+            new("Monster.Separation.Capture");
+        private static readonly ProfilerMarker KernelMarker =
+            new("Monster.Separation.Kernel");
+
+        private Vector2[] _positions = Array.Empty<Vector2>();
+        private int[] _activeSlots = Array.Empty<int>();
+        private int _activeCount;
+
+        private readonly SeparationKernel _kernel;
+
+        public MonsterSeparationSystem(
+            Transform roomRoot,
+            float roomHalfSize,
+            float radius,
+            float strength)
         {
-            new(1, 0),   // E¶«
-            new(0, 1),   // N±±
-            new(1, 1),   // NE¶«±±
-            new(-1, 1)   // NW¶«Î÷
-        };
+            CalculateWorldBounds(
+                roomRoot,
+                roomHalfSize,
+                out Vector2 origin,
+                out Vector2 max);
 
-        private readonly float _radius;
-        private readonly float _radiusSqr;
-        private readonly float _strength;
-        private readonly float _bucketSize;
-
-        private readonly Vector2 _origin;
-        private readonly Vector2 _max;
-        private readonly int _gridWidth;
-        private readonly int _gridHeight;
-
-        /// <summary>
-        /// Í°Í·£¬µ¥¸öGridÄÚµÄ¸´Êı¹Ö£¬Ö»´æµÚÒ»¸öµÄSlot£¬Ö¸Ïò_nextÖĞµÄË÷Òı£¬È»ºó_nextÖĞÖ¸ÏòÏÂÒ»¸ö¹ÖÎïË÷Òı
-        /// Èçµ¥Grid´æÔÚSlot13 7 2£¬_bucketHeads[13] = 7,_next[7] = 2,_next[2] = -1,½üËÆÁ´±í
-        /// ±ÜÃâÁËÃ¿¸öGrid¶¼µ¥¶À³ÖÓĞList£¬ÒÔ¼°×î²îÇé¿öËùÓĞSlotÔÚÍ¬Ò»¸ñµ¼ÖÂÎ¬»¤´óÁ¿¿ÕSlotµÄÎÊÌâ
-        /// ÒòÎª±¾Éíµ¥³¡·¿¼äÖĞSlot²»¿É¸´ÓÃ£¬ËùÒÔÕâÀïÌìÈ»Ö§³ÖÕâÑùĞ´
-        /// </summary>
-        private readonly int[] _bucketHeads;
-        private int[] _next = Array.Empty<int>();
-        /// <summary>
-        /// ´æÃ¿¸öSlot¶ÔÓ¦µÄÆ«ÒÆËÙ¶ÈÁ¿
-        /// </summary>
-        private Vector2[] _separation = Array.Empty<Vector2>();
-
-        public MonsterSeparationSystem(Transform roomRoot, float roomHalfSize, float radius, float strength)
-        {
-            if (roomRoot == null) 
-                throw new ArgumentNullException(nameof(roomRoot));
-            if (radius <= 0f) 
-                throw new ArgumentOutOfRangeException(nameof(radius));
-            if (strength < 0f) 
-                throw new ArgumentOutOfRangeException(nameof(strength));
-
-            _radius = radius;
-            _radiusSqr = radius * radius;
-            _strength = strength;
-            _bucketSize = radius;
-
-            CalculateWorldBounds(roomRoot, roomHalfSize, out _origin, out _max);
-
-            _gridWidth = Mathf.Max(1, Mathf.CeilToInt((_max.x - _origin.x) / _bucketSize));
-            _gridHeight = Mathf.Max(1, Mathf.CeilToInt((_max.y - _origin.y) / _bucketSize));
-            _bucketHeads = new int[_gridWidth * _gridHeight];
+            _kernel = new SeparationKernel(
+                origin,
+                max,
+                radius,
+                strength);
         }
 
         public void Build(MonsterWorld world)
         {
-            EnsureCapacity(world.SlotCount);
+            EnsureCaptureCapacity(world.SlotCount);
+            _activeCount = 0;
 
-            Array.Fill(_bucketHeads, -1);
-            Array.Clear(_separation, 0, world.SlotCount);
-
-            BuildBuckets(world);
-            CalculatePairs(world);
-        }
-
-        public Vector2 Get(int slot) =>
-            (uint)slot < (uint)_separation.Length ? _separation[slot] : Vector2.zero;
-        /// <summary>
-        /// ±éÀúSlot£¬°Ñ¹ÖÎïĞÅÏ¢Ğ´½øbucketºÍnext
-        /// </summary>
-        private void BuildBuckets(MonsterWorld world)
-        {
-            for (int slot = 0; slot < world.SlotCount; slot++)
+            using (CaptureMarker.Auto())
             {
-                if (!world.Meta[slot].IsActive)
-                    continue;
-
-                int bucket = GetBucketIndex(world.Motion[slot].Position);
-                if (bucket < 0)
-                    continue;
-
-                _next[slot] = _bucketHeads[bucket];
-                _bucketHeads[bucket] = slot;
-            }
-        }
-
-        private void CalculatePairs(MonsterWorld world)
-        {
-            for (int y = 0; y < _gridHeight; y++)
-            {
-                for (int x = 0; x < _gridWidth; x++)
+                for (int slot = 0; slot < world.SlotCount; slot++)
                 {
-                    int bucket = ToBucketIndex(x, y);
-                    int head = _bucketHeads[bucket];
-
-                    if (head < 0)
+                    if (!world.Meta[slot].IsActive)
                         continue;
 
-                    CalculateInsideBucket(world, head);
-
-                    for (int i = 0; i < NeighborBuckets.Length; i++)
-                    {
-                        int neighborX = x + NeighborBuckets[i].x;
-                        int neighborY = y + NeighborBuckets[i].y;
-
-                        if (!IsValidBucket(neighborX, neighborY))
-                            continue;
-
-                        int neighborHead = _bucketHeads[ToBucketIndex(neighborX, neighborY)];
-                        if (neighborHead >= 0)
-                            CalculateBetweenBuckets(world, head, neighborHead);
-                    }
+                    _positions[slot] = world.Motion[slot].Position;
+                    _activeSlots[_activeCount++] = slot;
                 }
             }
-        }
-        /// <summary>
-        /// ¸ù¾İÍ·Ö¸Õë±éÀúËùÓĞÁ´±íSlotÓ¦ÓÃ³âÁ¦
-        /// </summary>
-        private void CalculateInsideBucket(MonsterWorld world, int head)
-        {
-            for (int a = head; a >= 0; a = _next[a])
+
+            using (KernelMarker.Auto())
             {
-                //´ÓaÖ®ºó¿ªÊ¼£¬ËùÒÔA-BÓÀÔ¶Ö»¼ÆËãÒ»´Î¡£
-                for (int b = _next[a]; b >= 0; b = _next[b])
-                    ApplyPair(world, a, b);
+                _kernel.Build(
+                    _positions,
+                    _activeSlots,
+                    _activeCount,
+                    world.SlotCount);
             }
         }
 
-        private void CalculateBetweenBuckets(MonsterWorld world, int headA, int headB)
-        {
-            for (int a = headA; a >= 0; a = _next[a])
-            {
-                for (int b = headB; b >= 0; b = _next[b])
-                    ApplyPair(world, a, b);
-            }
-        }
+        public Vector2 Get(int slot) => _kernel.Get(slot);
 
-        private void ApplyPair(MonsterWorld world, int a, int b)
+        private void EnsureCaptureCapacity(int count)
         {
-            Vector2 offset = world.Motion[a].Position - world.Motion[b].Position;
-            float distanceSqr = offset.sqrMagnitude;
-            //¹ıÂËÀëµÃºÜÔ¶µÄ
-            if (distanceSqr >= _radiusSqr)
+            if (_positions.Length >= count)
                 return;
 
-            Vector2 direction;
-            float weight;
-            //Ì«½üÁË£¬»ù±¾µşÒ»Æğ£¬Ëæ±ãÈ¡Ò»¸ö·½Ïò£¬ÂúÈ¨ÖØ
-            //ÔÚ·¶Î§ÄÚ¾ÍÇóÈ¨ÖØ£¬
-            if (distanceSqr <= 0.000001f)
-            {
-                direction = GetOverlapDirection(a, b);
-                weight = 1f;
-            }
-            else
-            {
-                float distance = Mathf.Sqrt(distanceSqr);
-                direction = offset / distance;
-                weight = 1f - distance / _radius;
-            }
+            int capacity = Math.Max(
+                count,
+                _positions.Length == 0 ? 64 : _positions.Length * 2);
 
-            Vector2 correction = direction * weight * _strength;
-
-            _separation[a] += correction;
-            _separation[b] -= correction;
+            Array.Resize(ref _positions, capacity);
+            Array.Resize(ref _activeSlots, capacity);
         }
 
-        private int GetBucketIndex(Vector2 position)
+        private static void CalculateWorldBounds(
+            Transform roomRoot,
+            float halfSize,
+            out Vector2 min,
+            out Vector2 max)
         {
-            if (position.x < _origin.x || position.x > _max.x ||
-                position.y < _origin.y || position.y > _max.y)
-                return -1;
-
-            int x = Mathf.Min(_gridWidth - 1, Mathf.FloorToInt((position.x - _origin.x) / _bucketSize));
-            int y = Mathf.Min(_gridHeight - 1, Mathf.FloorToInt((position.y - _origin.y) / _bucketSize));
-
-            return ToBucketIndex(x, y);
-        }
-
-        private int ToBucketIndex(int x, int y) => y * _gridWidth + x;
-
-        private bool IsValidBucket(int x, int y) =>
-            (uint)x < (uint)_gridWidth && (uint)y < (uint)_gridHeight;
-
-        private void EnsureCapacity(int count)
-        {
-            if (_next.Length >= count)
-                return;
-
-            int capacity = Math.Max(count, _next.Length == 0 ? 64 : _next.Length * 2);
-            Array.Resize(ref _next, capacity);
-            Array.Resize(ref _separation, capacity);
-        }
-
-        private static Vector2 GetOverlapDirection(int a, int b)
-        {
-            int direction = ((a * 397) ^ b) & 3;
-
-            return direction switch
-            {
-                0 => Vector2.right,
-                1 => Vector2.left,
-                2 => Vector2.up,
-                _ => Vector2.down
-            };
-        }
-
-        private static void CalculateWorldBounds(Transform roomRoot, float halfSize,
-            out Vector2 min, out Vector2 max)
-        {
-            Vector3 a = roomRoot.TransformPoint(new Vector3(-halfSize, 0f, -halfSize));
-            Vector3 b = roomRoot.TransformPoint(new Vector3(-halfSize, 0f, halfSize));
-            Vector3 c = roomRoot.TransformPoint(new Vector3(halfSize, 0f, -halfSize));
-            Vector3 d = roomRoot.TransformPoint(new Vector3(halfSize, 0f, halfSize));
+            Vector3 a = roomRoot.TransformPoint(
+                new Vector3(-halfSize, 0f, -halfSize));
+            Vector3 b = roomRoot.TransformPoint(
+                new Vector3(-halfSize, 0f, halfSize));
+            Vector3 c = roomRoot.TransformPoint(
+                new Vector3(halfSize, 0f, -halfSize));
+            Vector3 d = roomRoot.TransformPoint(
+                new Vector3(halfSize, 0f, halfSize));
 
             min = new Vector2(
                 Mathf.Min(a.x, b.x, c.x, d.x),
                 Mathf.Min(a.z, b.z, c.z, d.z));
-
             max = new Vector2(
                 Mathf.Max(a.x, b.x, c.x, d.x),
                 Mathf.Max(a.z, b.z, c.z, d.z));

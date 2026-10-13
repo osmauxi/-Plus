@@ -1,5 +1,7 @@
+using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using System;
+using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Map
 {
@@ -38,7 +40,21 @@ namespace ProjectGame.HotFix.Gameplay.Map
         private readonly ushort[] _densityCost;
         private readonly bool[] _dynamicBlocked;
 
-        public int Version { get; private set; }
+        private static readonly int[] NeighborX = { -1, 0, 1, -1, 1, -1, 0, 1 };
+        private static readonly int[] NeighborY = { -1, -1, -1, 0, 0, 1, 1, 1 };
+
+        private readonly byte[] _staticWalkable;
+        private readonly byte[] _walkableCache;
+        private readonly byte[] _connectionMask;
+        private readonly int[] _combinedCost;
+
+        private int _cachedTopologyVersion = -1;
+        private int _cachedCostVersion = -1;
+
+        //避障拓扑版本号，每次动态阻挡信息改变时+1
+        public int TopologyVersion { get; private set; }
+        //避障Cost版本号，每次动态Cost信息改变时+1
+        public int CostVersion { get; private set; }
 
         public int Width => _staticData.Width;
         public int Height => _staticData.Height;
@@ -48,11 +64,31 @@ namespace ProjectGame.HotFix.Gameplay.Map
             _staticData = staticData ?? throw new ArgumentNullException(nameof(staticData));
 
             int count = checked(Width * Height);
+
             _dynamicBlocked = new bool[count];
             _additionalCost = new ushort[count];
             _densityCost = new ushort[count];
-        }
 
+            _staticWalkable = new byte[count];
+            _walkableCache = new byte[count];
+            _connectionMask = new byte[count];
+            _combinedCost = new int[count];
+
+            for (int y = 0; y < Height; y++)
+            {
+                for (int x = 0; x < Width; x++)
+                {
+                    int index = y * Width + x;
+                    _staticWalkable[index] =
+                        _staticData.IsWalkable(x, y) ? (byte)1 : (byte)0;
+                }
+            }
+        }
+        public byte[] GetWalkableKernel()
+        {
+            RefreshTopologyCache();
+            return _walkableCache;
+        }
         public bool IsWalkable(int x, int y)
         {
             if (!IsValid(x, y))
@@ -73,6 +109,98 @@ namespace ProjectGame.HotFix.Gameplay.Map
             return _additionalCost[index] + _densityCost[index];
         }
 
+        public NavigationGridKernelData GetKernelData()
+        {
+            RefreshTopologyCache();
+            RefreshCostCache();
+
+            return new NavigationGridKernelData(
+                Width,
+                Height,
+                _walkableCache,
+                _connectionMask,
+                _combinedCost);
+        }
+        private void RefreshTopologyCache()
+        {
+            if (_cachedTopologyVersion == TopologyVersion)
+                return;
+
+            int width = Width;
+            int height = Height;
+            int count = width * height;
+
+            //先得到当前最终Walkable状态
+            for (int i = 0; i < count; i++)
+            {
+                _walkableCache[i] =
+                    _staticWalkable[i] != 0 && !_dynamicBlocked[i]
+                        ? (byte)1
+                        : (byte)0;
+            }
+
+            //将八方向能否移动提前压进一个byte
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int current = y * width + x;
+
+                    if (_walkableCache[current] == 0)
+                    {
+                        _connectionMask[current] = 0;
+                        continue;
+                    }
+
+                    byte mask = 0;
+
+                    for (int i = 0; i < 8; i++)
+                    {
+                        int offsetX = NeighborX[i];
+                        int offsetY = NeighborY[i];
+
+                        int nextX = x + offsetX;
+                        int nextY = y + offsetY;
+
+                        if ((uint)nextX >= (uint)width ||
+                            (uint)nextY >= (uint)height)
+                            continue;
+
+                        int next = nextY * width + nextX;
+
+                        if (_walkableCache[next] == 0)
+                            continue;
+
+                        //斜向仍然保持原来的禁止穿墙角规则
+                        if (offsetX != 0 && offsetY != 0)
+                        {
+                            int sideX = y * width + nextX;
+                            int sideY = nextY * width + x;
+
+                            if (_walkableCache[sideX] == 0 ||
+                                _walkableCache[sideY] == 0)
+                                continue;
+                        }
+
+                        mask |= (byte)(1 << i);
+                    }
+
+                    _connectionMask[current] = mask;
+                }
+            }
+
+            _cachedTopologyVersion = TopologyVersion;
+        }
+        private void RefreshCostCache()
+        {
+            if (_cachedCostVersion == CostVersion)
+                return;
+
+            for (int i = 0; i < _combinedCost.Length; i++)
+                _combinedCost[i] = _additionalCost[i] + _densityCost[i];
+
+            _cachedCostVersion = CostVersion;
+        }
         public bool TryGetDebugCell(int x, int y, out NavigationGridCellDebugData cell)
         {
             if (!IsValid(x, y))
@@ -107,7 +235,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
             }
 
             if (changed)
-                Version++;
+                CostVersion++;
 
             return changed;
         }
@@ -122,7 +250,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 return;
 
             _dynamicBlocked[index] = blocked;
-            Version++;
+            TopologyVersion++;
         }
 
         public void SetAdditionalCost(int x, int y, ushort cost)
@@ -135,7 +263,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 return;
 
             _additionalCost[index] = cost;
-            Version++;
+            CostVersion++;
         }
 
         public void AddAdditionalCost(int x, int y, ushort cost)
@@ -151,7 +279,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 return;
 
             _additionalCost[index] = next;
-            Version++;
+            CostVersion++;
         }
 
         public void ClearDynamicBlocked()
@@ -160,7 +288,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 return;
 
             Array.Clear(_dynamicBlocked, 0, _dynamicBlocked.Length);
-            Version++;
+            TopologyVersion++;
         }
 
         public void ClearAdditionalCost()
@@ -169,22 +297,24 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 return;
 
             Array.Clear(_additionalCost, 0, _additionalCost.Length);
-            Version++;
+            CostVersion++;
         }
 
         public void ClearRuntime()
         {
-            bool changed = ContainsBlockedCell() ||
-                           ContainsNonZero(_additionalCost) ||
-                           ContainsNonZero(_densityCost);
+            bool topologyChanged = ContainsBlockedCell();
+            bool costChanged = ContainsNonZero(_additionalCost) || ContainsNonZero(_densityCost);
 
-            if (!changed)
+            if (!topologyChanged && !costChanged)
                 return;
 
             Array.Clear(_dynamicBlocked, 0, _dynamicBlocked.Length);
             Array.Clear(_additionalCost, 0, _additionalCost.Length);
             Array.Clear(_densityCost, 0, _densityCost.Length);
-            Version++;
+            if (topologyChanged)
+                TopologyVersion++;
+            if (costChanged)
+                CostVersion++;
         }
 
         private bool ContainsBlockedCell()

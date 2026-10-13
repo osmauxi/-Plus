@@ -1,7 +1,9 @@
+using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -15,7 +17,37 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterAttackCatalog _attackProfiles;
         private readonly MonsterMeleePhysicsResolver _melee = new();
 
-        private int _lastNavigationVersion = -1;
+        private int _lastTopologyVersion = -1;
+        private int _lastCostVersion = -1;
+        //Source变化触发重建的最小间隔
+        private const uint SourceRebuildIntervalTicks = 12;
+        //Source变化允许的最大过期时间，超过这个时间就强制重建FlowField
+        private const uint SourceMaxStaleTicks = 24;
+        //Source允许最大的距离变化，超过这个距离就强制重建FlowField
+        private const int SourceRebuildDistanceCells = 2;
+        //Cost变化触发重建的最小间隔
+        private const uint CostRebuildIntervalTicks = 30;
+
+        private static readonly ProfilerMarker TopologyRebuildMarker =
+            new("Monster.FlowField.Rebuild.Topology");
+        private static readonly ProfilerMarker SourceRebuildMarker =
+            new("Monster.FlowField.Rebuild.Source");
+        private static readonly ProfilerMarker CostRebuildMarker =
+            new("Monster.FlowField.Rebuild.Cost");
+        private static readonly ProfilerMarker FlowFieldBuildMarker =
+            new("Monster.FlowField.Build");
+        private static readonly ProfilerMarker DensityUpdateMarker =
+            new("Monster.Simulation.DensityUpdate");
+        private static readonly ProfilerMarker FlowFieldUpdateMarker =
+            new("Monster.Simulation.FlowFieldUpdate");
+        private static readonly ProfilerMarker SeparationBuildMarker =
+            new("Monster.Simulation.SeparationBuild");
+        private static readonly ProfilerMarker EntityTickMarker =
+            new("Monster.Simulation.EntityTick");
+
+        private uint _nextSourceRebuildTick;
+        private uint _nextCostRebuildTick;
+
         private readonly MonsterSeparationSystem _separation;
         private readonly RuntimeNavigationGrid _navigationGrid;
         private readonly MonsterNavigationDensitySystem _densitySystem;
@@ -23,8 +55,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private readonly MultiSourceFlowField _flowField = new();
         private readonly List<FlowFieldSource> _flowSources = new(MonsterPlayerTargetBuffer.MaximumCapacity);
-        private readonly List<FlowFieldSource> _lastFlowSources = new(MonsterPlayerTargetBuffer.MaximumCapacity);
+        //当前玩家的实际位置
+        private readonly Vector2Int[] _currentSourceCells = new Vector2Int[MonsterPlayerTargetBuffer.MaximumCapacity];
+        //上一次重建FlowField时的Source列表是否有效，用于判断Source是否发生变化
+        private readonly bool[] _currentSourceValid = new bool[MonsterPlayerTargetBuffer.MaximumCapacity];
+        //当前FlowField认定的玩家位置
+        private readonly Vector2Int[] _acceptedSourceCells = new Vector2Int[MonsterPlayerTargetBuffer.MaximumCapacity];
+        //
+        private readonly bool[] _acceptedSourceValid = new bool[MonsterPlayerTargetBuffer.MaximumCapacity];
 
+        private int _acceptedSourceCount;
+
+        private bool _sourcePending;
+        private uint _sourceDirtySinceTick;
         private bool _hasFlowField;
 
         public bool HasFlowField => _hasFlowField;
@@ -50,11 +93,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _navigationGrid = navigationGrid ?? throw new ArgumentNullException(nameof(navigationGrid));
             _roomRoot = roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
 
-            _separation = new MonsterSeparationSystem(
-                roomRoot,
-                RoomSpatialData.HalfSize,
-                3f,
-                4f);
+            _separation = new MonsterSeparationSystem(roomRoot,RoomSpatialData.HalfSize,3f,4f);
 
             _densitySystem = new MonsterNavigationDensitySystem(roomRoot);
         }
@@ -62,9 +101,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void Tick(MonsterWorld world, MonsterPlayerTargetBuffer players, uint tick,
             float deltaTime, float groundY)
         {
-            _densitySystem.Update(world, _navigationGrid, tick, groundY);
-            UpdateFlowField(players, groundY);
-            _separation.Build(world);
+            using (DensityUpdateMarker.Auto())
+                _densitySystem.Update(world, _navigationGrid, tick, groundY);
+
+            using (FlowFieldUpdateMarker.Auto())
+                UpdateFlowField(players, tick, groundY);
+
+            using (SeparationBuildMarker.Auto())
+                _separation.Build(world);
+
+            using var entityTickScope = EntityTickMarker.Auto();
 
             for (int slot = 0; slot < world.SlotCount; slot++)
             {
@@ -130,39 +176,213 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public Vector2 GetRawSeparation(int slot) => _separation.Get(slot);
-
-        private void UpdateFlowField(MonsterPlayerTargetBuffer players, float groundY)
+        /// <summary>
+        /// 地块重建入口，每次Tick都会检查是否需要重建FlowField
+        /// </summary>
+        private void UpdateFlowField(MonsterPlayerTargetBuffer players, uint tick, float groundY)
         {
-            _flowSources.Clear();
+            CaptureCurrentSourceCells(players, groundY);
 
+            bool sourceChanged = EvaluateSourceChange(
+                players.Count,
+                out bool sourceStructureChanged,
+                out bool sourceMovedFarEnough);
+
+            bool topologyChanged =
+                _lastTopologyVersion != _navigationGrid.TopologyVersion;
+
+            bool costChanged =
+                _lastCostVersion != _navigationGrid.CostVersion;
+
+            if (sourceChanged)
+            {
+                if (!_sourcePending)
+                {
+                    _sourcePending = true;
+                    _sourceDirtySinceTick = tick;
+                }
+            }
+            else
+            {
+                _sourcePending = false;
+            }
+
+            //拓扑变化可能让旧路径失效，立即重建，并顺便消费最新Source
+            if (topologyChanged)
+            {
+                using (TopologyRebuildMarker.Auto())
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+
+                return;
+            }
+
+            //玩家数量变化、Source有效性变化，不属于普通移动，立即更新
+            if (sourceStructureChanged)
+            {
+                using (SourceRebuildMarker.Auto())
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+
+                return;
+            }
+
+            bool sourceIntervalReached =
+                MonsterMath.HasReached(tick, _nextSourceRebuildTick);
+
+            bool sourceMaxStaleReached =
+                _sourcePending &&
+                MonsterMath.HasReached(
+                    tick,
+                    _sourceDirtySinceTick + SourceMaxStaleTicks);
+
+            //普通移动：至少移动2格，并且满足刷新间隔；
+            //或者变化虽然很小，但已经积压太久
+            if (sourceChanged &&
+                sourceIntervalReached &&
+                (sourceMovedFarEnough || sourceMaxStaleReached))
+            {
+                using (SourceRebuildMarker.Auto())
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+
+                return;
+            }
+
+            //Cost自己达到刷新窗口时，本来就要Build，
+            //顺便把当前最新Source一起提交
+            if (costChanged &&
+                MonsterMath.HasReached(tick, _nextCostRebuildTick))
+            {
+                using (CostRebuildMarker.Auto())
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+            }
+        }
+
+        private void CaptureCurrentSourceCells(MonsterPlayerTargetBuffer players,float groundY)
+        {
             MonsterPlayerTarget[] items = players.Items;
 
             for (int i = 0; i < players.Count; i++)
             {
                 Vector2 position = items[i].Position;
-                Vector3 worldPosition = new Vector3(position.x, groundY, position.y);
+                Vector3 worldPosition =
+                    new Vector3(position.x, groundY, position.y);
 
-                if (!RoomSpatialUtility.WorldToCell(_roomRoot, worldPosition, out Vector2Int cell))
-                    continue;
-
-                AddPlayerFlowSources(cell, i);
+                if (RoomSpatialUtility.WorldToCell(
+                        _roomRoot,
+                        worldPosition,
+                        out Vector2Int cell))
+                {
+                    _currentSourceCells[i] = cell;
+                    _currentSourceValid[i] = true;
+                }
+                else
+                {
+                    _currentSourceValid[i] = false;
+                }
             }
 
-            bool sourcesChanged = !AreSameSources(_flowSources, _lastFlowSources);
-
-            bool navigationChanged = _lastNavigationVersion != _navigationGrid.Version;
-
-            if (!sourcesChanged && !navigationChanged)
-                return;
-
-            _hasFlowField = _flowField.Build(_navigationGrid, _flowSources);
-
-            _lastNavigationVersion =_navigationGrid.Version;
-            _lastFlowSources.Clear();
-
-            for (int i = 0; i < _flowSources.Count; i++)
-                _lastFlowSources.Add(_flowSources[i]);
+            for (int i = players.Count;
+                 i < MonsterPlayerTargetBuffer.MaximumCapacity;
+                 i++)
+            {
+                _currentSourceValid[i] = false;
+            }
         }
+        private bool EvaluateSourceChange(int playerCount,out bool structureChanged,out bool movedFarEnough)
+        {
+            structureChanged = _acceptedSourceCount != playerCount;
+            movedFarEnough = false;
+
+            bool changed = structureChanged;
+
+            int count = Mathf.Min(playerCount, _acceptedSourceCount);
+
+            for (int i = 0; i < count; i++)
+            {
+                if (_currentSourceValid[i] != _acceptedSourceValid[i])
+                {
+                    structureChanged = true;
+                    changed = true;
+                    continue;
+                }
+
+                if (!_currentSourceValid[i])
+                    continue;
+
+                Vector2Int current = _currentSourceCells[i];
+                Vector2Int accepted = _acceptedSourceCells[i];
+
+                int dx = Mathf.Abs(current.x - accepted.x);
+                int dy = Mathf.Abs(current.y - accepted.y);
+
+                if (dx == 0 && dy == 0)
+                    continue;
+
+                changed = true;
+
+                //八方向Grid使用Chebyshev距离更自然
+                if (Mathf.Max(dx, dy) >= SourceRebuildDistanceCells)
+                    movedFarEnough = true;
+            }
+
+            return changed;
+        }
+        private void RebuildFlowFieldWithCurrentSources(int playerCount,uint tick)
+        {
+            AcceptCurrentSources(playerCount);
+            BuildAcceptedFlowSources();
+            RebuildFlowField(tick);
+        }
+        /// <summary>
+        /// FlowField正式承认玩家Cell位置
+        /// </summary>
+        private void AcceptCurrentSources(int playerCount)
+        {
+            int oldCount = _acceptedSourceCount;
+            _acceptedSourceCount = playerCount;
+
+            for (int i = 0; i < playerCount; i++)
+            {
+                _acceptedSourceCells[i] = _currentSourceCells[i];
+                _acceptedSourceValid[i] = _currentSourceValid[i];
+            }
+
+            for (int i = playerCount; i < oldCount; i++)
+                _acceptedSourceValid[i] = false;
+
+            _sourcePending = false;
+        }
+
+        private void BuildAcceptedFlowSources()
+        {
+            _flowSources.Clear();
+
+            for (int i = 0; i < _acceptedSourceCount; i++)
+            {
+                if (!_acceptedSourceValid[i])
+                    continue;
+
+                AddPlayerFlowSources(
+                    _acceptedSourceCells[i],
+                    i);
+            }
+        }
+        private void RebuildFlowField(uint tick)
+        {
+            using (FlowFieldBuildMarker.Auto())
+            {
+                _hasFlowField = _flowField.Build(_navigationGrid.GetKernelData(),_flowSources);
+            }
+
+            _lastTopologyVersion = _navigationGrid.TopologyVersion;
+            _lastCostVersion = _navigationGrid.CostVersion;
+
+            _nextSourceRebuildTick =
+                tick + SourceRebuildIntervalTicks;
+
+            _nextCostRebuildTick =
+                tick + CostRebuildIntervalTicks;
+        }
+
         private void AddPlayerFlowSources(Vector2Int playerCell, int sourceIndex)
         {
             bool added = false;
@@ -177,31 +397,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     !_navigationGrid.IsWalkable(x, y))
                     continue;
 
-                _flowSources.Add(new FlowFieldSource(new GridPoint(x, y), sourceIndex));
+                _flowSources.Add(new FlowFieldSource(x, y, sourceIndex));
                 added = true;
             }
 
             //极端情况下周围8格全被堵死，至少保留原来的兜底。
             if (!added && TryResolveWalkableCell(playerCell, out GridPoint fallback))
-                _flowSources.Add(new FlowFieldSource(fallback, sourceIndex));
-        }
-        private static bool AreSameSources(List<FlowFieldSource> a,List<FlowFieldSource> b)
-        {
-            if (a.Count != b.Count)
-                return false;
-
-            for (int i = 0; i < a.Count; i++)
-            {
-                FlowFieldSource x = a[i];
-                FlowFieldSource y = b[i];
-
-                if (x.SourceIndex != y.SourceIndex ||
-                    x.Cell.X != y.Cell.X ||
-                    x.Cell.Y != y.Cell.Y)
-                    return false;
-            }
-
-            return true;
+                _flowSources.Add(new FlowFieldSource(fallback.X, fallback.Y, sourceIndex));
         }
         private bool TryGetFlowTarget(
                  Vector2 position,

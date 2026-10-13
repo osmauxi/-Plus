@@ -1,38 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
-namespace ProjectGame.HotFix.Gameplay.Navigation
+namespace ProjectGame.Core.Navigation
 {
-    public readonly struct FlowFieldSource
-    {
-        public readonly GridPoint Cell;
-        public readonly int SourceIndex;
-
-        public FlowFieldSource(GridPoint cell, int sourceIndex)
-        {
-            Cell = cell;
-            SourceIndex = sourceIndex;
-        }
-    }
-
-    public readonly struct FlowFieldCellDebugData
-    {
-        public readonly int Cost;
-        public readonly Vector2 Direction;
-        public readonly int SourceIndex;
-
-        public bool IsReachable => Cost != int.MaxValue;
-        public bool IsSource => Cost == 0;
-
-        public FlowFieldCellDebugData(int cost, Vector2 direction, int sourceIndex)
-        {
-            Cost = cost;
-            Direction = direction;
-            SourceIndex = sourceIndex;
-        }
-    }
-
     /// <summary>
     /// 流式寻路，贴合怪物追踪最近玩家的逻辑，多个玩家作为0点，
     /// 开始Dijkstra向外扩散并得到当前格子的成本和到达玩家格的方向
@@ -40,9 +12,39 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
     /// </summary>
     public sealed class MultiSourceFlowField
     {
-        private static readonly int[] NeighborX = { -1, 0, 1, -1, 1, -1, 0, 1 };
-        private static readonly int[] NeighborY = { -1, -1, -1, 0, 0, 1, 1, 1 };
-        
+        private static readonly int[] MoveCost =
+        {
+            14, 10, 14,
+            10,     10,
+            14, 10, 14
+        };
+
+        private readonly int[] _neighborOffsets = new int[8];
+        private int _neighborOffsetWidth = -1;
+
+        private static readonly ProfilerMarker EnsureCapacityMarker =
+            new("Monster.FlowField.Build.EnsureCapacity");
+        private static readonly ProfilerMarker ResetBuffersMarker =
+            new("Monster.FlowField.Build.ResetBuffers");
+        private static readonly ProfilerMarker AddSourcesMarker =
+            new("Monster.FlowField.Build.AddSources");
+        private static readonly ProfilerMarker IntegrationFieldMarker =
+            new("Monster.FlowField.Build.IntegrationField");
+
+        private const float Diagonal = 0.70710678f;
+
+        private static readonly Vector2[] DirectionToParent =
+        {
+            new( Diagonal,  Diagonal),
+            new(0f,         1f),
+            new(-Diagonal,  Diagonal),
+            new(1f,         0f),
+            new(-1f,        0f),
+            new( Diagonal, -Diagonal),
+            new(0f,        -1f),
+            new(-Diagonal, -Diagonal)
+        };
+
         /// <summary>
         /// 每个对应Cell到最近可达玩家的最低路径成本
         /// </summary>
@@ -61,31 +63,41 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
         private int _width;
         private int _height;
 
-        public bool Build(INavigationGrid grid, IReadOnlyList<FlowFieldSource> sources)
+        public bool Build(NavigationGridKernelData grid, IReadOnlyList<FlowFieldSource> sources)
         {
-            if (grid == null) throw new ArgumentNullException(nameof(grid));
             if (sources == null) throw new ArgumentNullException(nameof(sources));
 
             _width = grid.Width;
             _height = grid.Height;
 
+            EnsureNeighborOffsets(_width);
+
             int count = checked(_width * _height);
-            EnsureCapacity(count);
+            using (EnsureCapacityMarker.Auto())
+                EnsureCapacity(count);
 
-            Array.Fill(_costs, int.MaxValue, 0, count);
-            Array.Fill(_sourceIndices, -1, 0, count);
-            Array.Clear(_directions, 0, count);
+            using (ResetBuffersMarker.Auto())
+            {
+                Array.Fill(_costs, int.MaxValue, 0, count);
+                Array.Fill(_sourceIndices, -1, 0, count);
+                Array.Clear(_directions, 0, count);
 
-            _open.Clear();
+                _open.Clear();
+            }
 
-            if (!AddSources(grid, sources))
+            bool hasSources;
+            using (AddSourcesMarker.Auto())
+                hasSources = AddSources(grid, sources);
+
+            if (!hasSources)
                 return false;
 
-            BuildIntegrationField(grid);
-            BuildDirectionField(grid);
+            using (IntegrationFieldMarker.Auto())
+                BuildIntegrationField(grid);
 
             return true;
         }
+
         /// <summary>
         /// Monster读取方向方法
         /// </summary>
@@ -136,20 +148,27 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
             return true;
         }
 
-        private bool AddSources(IAStarGrid grid, IReadOnlyList<FlowFieldSource> sources)
+        private bool AddSources(
+            NavigationGridKernelData grid,
+            IReadOnlyList<FlowFieldSource> sources)
         {
             bool added = false;
+            byte[] walkable = grid.Walkable;
 
             for (int i = 0; i < sources.Count; i++)
             {
                 FlowFieldSource source = sources[i];
-                int x = source.Cell.X;
-                int y = source.Cell.Y;
+                int x = source.X;
+                int y = source.Y;
 
-                if (!IsValid(x, y) || !grid.IsWalkable(x, y))
+                if ((uint)x >= (uint)_width ||
+                    (uint)y >= (uint)_height)
                     continue;
 
-                int index = ToIndex(x, y);
+                int index = y * _width + x;
+
+                if (walkable[index] == 0)
+                    continue;
 
                 if (_costs[index] == 0)
                     continue;
@@ -158,118 +177,72 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
                 _sourceIndices[index] = source.SourceIndex;
 
                 _open.Push(index, 0);
-
                 added = true;
             }
 
             return added;
         }
 
-        private void BuildIntegrationField(INavigationGrid grid)
+        private void EnsureNeighborOffsets(int width)
         {
+            if (_neighborOffsetWidth == width)
+                return;
+
+            _neighborOffsets[0] = -width - 1;
+            _neighborOffsets[1] = -width;
+            _neighborOffsets[2] = -width + 1;
+            _neighborOffsets[3] = -1;
+            _neighborOffsets[4] = 1;
+            _neighborOffsets[5] = width - 1;
+            _neighborOffsets[6] = width;
+            _neighborOffsets[7] = width + 1;
+
+            _neighborOffsetWidth = width;
+        }
+
+        private void BuildIntegrationField(NavigationGridKernelData grid)
+        {
+            byte[] connectionMask = grid.ConnectionMask;
+            int[] traversalCost = grid.TraversalCost;
+
+            int[] costs = _costs;
+            int[] sourceIndices = _sourceIndices;
+            Vector2[] directions = _directions;
+            int[] neighborOffsets = _neighborOffsets;
+
             while (_open.Count > 0)
             {
-                //从未扩散完的Cell拿到Cost最低的
                 HeapNode node = _open.Pop();
 
                 int current = node.Index;
 
-                //这个节点已经被更短的路径更新过了，旧Heap数据直接丢弃
-                //因为小的肯定先出先算，所以后来的不相等肯定是更大的
-                if(node.Cost != _costs[current])
+                if (node.Cost != costs[current])
                     continue;
 
-                int currentX = current % _width;
-                int currentY = current / _width;
-                //检查八向邻居
-                for (int i = 0; i < NeighborX.Length; i++)
+                byte mask = connectionMask[current];
+
+                for (int i = 0; i < 8; i++)
                 {
-                    int offsetX = NeighborX[i];
-                    int offsetY = NeighborY[i];
-
-                    int nextX = currentX + offsetX;
-                    int nextY = currentY + offsetY;
-                    //过滤越界，过滤阻挡格
-                    if (!IsValid(nextX, nextY) || !grid.IsWalkable(nextX, nextY))
-                        continue;
-                    //过滤斜走穿墙角
-                    if (!CanMoveDiagonal(grid, currentX, currentY, offsetX, offsetY))
-                        continue;
-                    //算新成本，如果更小就更新
-                    int next = ToIndex(nextX, nextY);
-                    int moveCost = offsetX != 0 && offsetY != 0 ? 14 : 10;
-                    // Cell 权重表示进入目标格需要支付的额外代价。
-                    int newCost = node.Cost + moveCost + grid.GetAdditionalCost(nextX, nextY);
-
-                    if (newCost >= _costs[next])
+                    if ((mask & (1 << i)) == 0)
                         continue;
 
-                    _costs[next] = newCost;
-                    _sourceIndices[next] = _sourceIndices[current];
+                    int next = current + neighborOffsets[i];
+
+                    int newCost =
+                        node.Cost +
+                        MoveCost[i] +
+                        traversalCost[next];
+
+                    if (newCost >= costs[next])
+                        continue;
+
+                    costs[next] = newCost;
+                    sourceIndices[next] = sourceIndices[current];
+                    directions[next] = DirectionToParent[i];
 
                     _open.Push(next, newCost);
                 }
             }
-        }
-
-        /// <summary>
-        /// Integration把权重算出来，在这里把权重换成箭头方向，指向周围八格权重最小的
-        /// </summary>
-        private void BuildDirectionField(IAStarGrid grid)
-        {
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    int current = ToIndex(x, y);
-                    int currentCost = _costs[current];
-
-                    if (currentCost == int.MaxValue || currentCost == 0)
-                    {
-                        _directions[current] = Vector2.zero;
-                        continue;
-                    }
-
-                    int bestCost = currentCost;
-                    int bestOffsetX = 0;
-                    int bestOffsetY = 0;
-
-                    for (int i = 0; i < NeighborX.Length; i++)
-                    {
-                        int offsetX = NeighborX[i];
-                        int offsetY = NeighborY[i];
-
-                        int nextX = x + offsetX;
-                        int nextY = y + offsetY;
-
-                        if (!IsValid(nextX, nextY) || !grid.IsWalkable(nextX, nextY))
-                            continue;
-
-                        if (!CanMoveDiagonal(grid, x, y, offsetX, offsetY))
-                            continue;
-
-                        int nextCost = _costs[ToIndex(nextX, nextY)];
-
-                        if (nextCost >= bestCost)
-                            continue;
-
-                        bestCost = nextCost;
-                        bestOffsetX = offsetX;
-                        bestOffsetY = offsetY;
-                    }
-
-                    _directions[current] = new Vector2(bestOffsetX, bestOffsetY).normalized;
-                }
-            }
-        }
-
-        private bool CanMoveDiagonal(IAStarGrid grid, int x, int y, int offsetX, int offsetY)
-        {
-            if (offsetX == 0 || offsetY == 0)
-                return true;
-
-            return grid.IsWalkable(x + offsetX, y) &&
-                   grid.IsWalkable(x, y + offsetY);
         }
 
         private void EnsureCapacity(int count)
@@ -283,7 +256,9 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
         }
 
         private int ToIndex(int x, int y) => y * _width + x;
-        private bool IsValid(int x, int y) => (uint)x < (uint)_width && (uint)y < (uint)_height;
+        private bool IsValid(int x, int y) =>
+            (uint)x < (uint)_width && (uint)y < (uint)_height;
+
         private readonly struct HeapNode
         {
             public readonly int Index;
@@ -295,6 +270,7 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
                 Cost = cost;
             }
         }
+
         /// <summary>
         /// 手动小顶堆
         /// </summary>
@@ -346,7 +322,10 @@ namespace ProjectGame.HotFix.Gameplay.Navigation
                         break;
 
                     int right = left + 1;
-                    int child = right < _count && _items[right].Cost < _items[left].Cost ? right : left;
+                    int child = right < _count &&
+                                _items[right].Cost < _items[left].Cost
+                        ? right
+                        : left;
 
                     if (_items[child].Cost >= last.Cost)
                         break;

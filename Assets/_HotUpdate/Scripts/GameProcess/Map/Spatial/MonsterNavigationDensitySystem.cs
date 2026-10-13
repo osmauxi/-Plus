@@ -1,12 +1,14 @@
 using System;
+using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
     /// <summary>
-    /// µÕ∆µÕ≥º∆π÷ŒÔ√‹∂»£¨≤¢◊™ªªŒ™NavigationGridµƒ»ÌCost
+    /// ÁªüËÆ°ÊÄ™Áâ©ÂØÜÂ∫¶Âπ∂ËΩ¨Êç¢‰∏∫ËøêË°åÊó∂ÂØºËà™ Cost„ÄÇ
     /// </summary>
     public sealed class MonsterNavigationDensitySystem
     {
@@ -16,17 +18,24 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const uint UpdateIntervalTicks = 6;
         private const float SmoothFactor = 0.25f;
 
+        private static readonly ProfilerMarker CaptureMarker =
+            new("Monster.Density.Capture");
+        private static readonly ProfilerMarker KernelMarker =
+            new("Monster.Density.Kernel");
+
         private readonly Transform _roomRoot;
-
-        private int[] _influence = Array.Empty<int>();
-        private float[] _smoothedCost = Array.Empty<float>();
-        private ushort[] _outputCost = Array.Empty<ushort>();
-
+        private readonly DensityKernel _kernel;
         private uint _nextUpdateTick;
 
         public MonsterNavigationDensitySystem(Transform roomRoot)
         {
-            _roomRoot = roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
+            _roomRoot =
+                roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
+            _kernel = new DensityKernel(
+                DensityRadiusCells,
+                CostPerInfluence,
+                MaxDensityCost,
+                SmoothFactor);
         }
 
         public bool Update(
@@ -40,20 +49,36 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _nextUpdateTick = tick + UpdateIntervalTicks;
 
-            int count = checked(grid.Width * grid.Height);
-            EnsureCapacity(count);
-            Array.Clear(_influence, 0, count);
+            int width = grid.Width;
+            int height = grid.Height;
+            int count = checked(width * height);
 
-            BuildInfluence(world, grid, groundY);
-            BuildCost(grid, count);
+            _kernel.Prepare(count);
 
-            return grid.ReplaceDensityCost(_outputCost);
+            using (CaptureMarker.Auto())
+            {
+                BuildMonsterCounts(
+                    world,
+                    width,
+                    height,
+                    groundY,
+                    _kernel.MonsterCounts);
+            }
+
+            byte[] walkable = grid.GetWalkableKernel();
+
+            using (KernelMarker.Auto())
+                _kernel.Build(walkable, width, height);
+
+            return grid.ReplaceDensityCost(_kernel.OutputCost);
         }
 
-        private void BuildInfluence(
+        private void BuildMonsterCounts(
             MonsterWorld world,
-            RuntimeNavigationGrid grid,
-            float groundY)
+            int width,
+            int height,
+            float groundY,
+            int[] monsterCounts)
         {
             for (int slot = 0; slot < world.SlotCount; slot++)
             {
@@ -61,63 +86,21 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     continue;
 
                 Vector2 position = world.Motion[slot].Position;
-                Vector3 worldPosition = new Vector3(position.x, groundY, position.y);
+                Vector3 worldPosition =
+                    new(position.x, groundY, position.y);
 
                 if (!RoomSpatialUtility.WorldToCell(
-                        _roomRoot, worldPosition, out Vector2Int cell))
+                        _roomRoot,
+                        worldPosition,
+                        out Vector2Int cell))
                     continue;
 
-                AddInfluence(grid, cell.x, cell.y);
+                if ((uint)cell.x >= (uint)width ||
+                    (uint)cell.y >= (uint)height)
+                    continue;
+
+                monsterCounts[cell.y * width + cell.x]++;
             }
-        }
-
-        private void AddInfluence(RuntimeNavigationGrid grid, int centerX, int centerY)
-        {
-            for (int y = -DensityRadiusCells; y <= DensityRadiusCells; y++)
-            {
-                for (int x = -DensityRadiusCells; x <= DensityRadiusCells; x++)
-                {
-                    int targetX = centerX + x;
-                    int targetY = centerY + y;
-
-                    if ((uint)targetX >= (uint)grid.Width ||
-                        (uint)targetY >= (uint)grid.Height ||
-                        !grid.IsWalkable(targetX, targetY))
-                        continue;
-
-                    int distance = Mathf.Max(Mathf.Abs(x), Mathf.Abs(y));
-                    int weight = DensityRadiusCells + 1 - distance;
-
-                    _influence[targetY * grid.Width + targetX] += weight;
-                }
-            }
-        }
-
-        private void BuildCost(RuntimeNavigationGrid grid, int count)
-        {
-            for (int i = 0; i < count; i++)
-            {
-                int targetCost = Mathf.Min(
-                    _influence[i] * CostPerInfluence,
-                    MaxDensityCost);
-
-                _smoothedCost[i] = Mathf.Lerp(
-                    _smoothedCost[i],
-                    targetCost,
-                    SmoothFactor);
-
-                _outputCost[i] = (ushort)Mathf.RoundToInt(_smoothedCost[i]);
-            }
-        }
-
-        private void EnsureCapacity(int count)
-        {
-            if (_influence.Length == count)
-                return;
-
-            _influence = new int[count];
-            _smoothedCost = new float[count];
-            _outputCost = new ushort[count];
         }
     }
 }

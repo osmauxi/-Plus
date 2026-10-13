@@ -1,3 +1,4 @@
+using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using ProjectGame.HotFix.Gameplay.Player;
@@ -119,8 +120,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return true;
         }
 
-        public MonsterPresentationFrame CaptureFrame(uint serverTick) =>
-            MonsterPresentationPackingSystem.Capture(World, serverTick, _quantizer);
+        public void CaptureFrame(uint serverTick, MonsterPresentationFrame destination) =>
+            MonsterPresentationPackingSystem.CaptureInto(World, serverTick, _quantizer, destination);
 
         public void EndRoom()
         {

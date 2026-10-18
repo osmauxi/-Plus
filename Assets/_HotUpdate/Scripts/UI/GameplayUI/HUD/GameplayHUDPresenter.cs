@@ -8,6 +8,8 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
     /// <summary>P：编排 HUD 数据、动态队友条，以及全部 DOTween 触发与回收。</summary>
     public sealed class GameplayHUDPresenter : BaseGameplayPresenter<GameplayHUDView>
     {
+        private const float PerformanceSampleWindow = .25f;
+
         [SerializeField, Min(0)] private float _fastDuration = .16f;
         [SerializeField, Min(0)] private float _bufferDelay = .18f;
         [SerializeField, Min(0)] private float _bufferDuration = .42f;
@@ -18,6 +20,8 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         private readonly List<ulong> _removed = new();
         private Sequence _contentTween;
         private HUDAmmoState _lastAmmo;
+        private float _performanceElapsed;
+        private int _performanceFrames;
         private bool _rendered;
 
         public override GameplayUIId Id => GameplayUIId.GameplayHUD;
@@ -39,16 +43,37 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
         }
         private void Update()
         {
-            if (IsInitialized) _runtime.Synchronize(_model);
+            if (!IsInitialized) return;
+            _runtime.Synchronize(_model);
+            if (IsVisible) SamplePerformance();
         }
 
         protected override void OnShown()
         {
+            ResetPerformanceSample();
             View.ContentAlpha = 0;
             _contentTween?.Kill();
             _contentTween = DOTween.Sequence().SetUpdate(true)
                 .Append(DOTween.To(() => View.ContentAlpha, x => View.ContentAlpha = x, 1, .2f))
                 .SetLink(View.gameObject);
+        }
+
+        private void SamplePerformance()
+        {
+            _performanceElapsed += Time.unscaledDeltaTime;
+            _performanceFrames++;
+            if (_performanceElapsed < PerformanceSampleWindow) return;
+
+            View.SetPerformance(
+                _performanceFrames / _performanceElapsed,
+                _performanceElapsed * 1000f / _performanceFrames);
+            ResetPerformanceSample();
+        }
+
+        private void ResetPerformanceSample()
+        {
+            _performanceElapsed = 0f;
+            _performanceFrames = 0;
         }
 
         protected override void RenderView()
@@ -162,7 +187,11 @@ namespace ProjectGame.HotFix.UI.Gameplay.HUD
             _lastAmmo = ammo;
         }
 
-        protected override void OnHidden() => KillTweens();
+        protected override void OnHidden()
+        {
+            KillTweens();
+            ResetPerformanceSample();
+        }
         protected override void OnShutdown()
         {
             _model.Changed -= Refresh;

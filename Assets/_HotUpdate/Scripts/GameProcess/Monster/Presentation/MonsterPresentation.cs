@@ -177,8 +177,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     presentation[slot].AttackSequence,
                     presentation[slot].HitSequence);
             }
-            if (stateIndex != destination.ActiveCount)
-                throw new InvalidOperationException("Monster AliveCount 与 Active Slot 数量不一致。");
         }
     }
 

@@ -125,6 +125,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private RoomView _roomView;
         private int _generationId = -1;
         private int _totalSpawned;
+        private float _activeSpawnRadius;
         private ushort _resolvedMonsterConfigIndex;
         private bool _ownsMonsterRoom;
 
@@ -226,10 +227,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                 if (!TryBuildSpawnPlans(batchCount))
                 {
-                    Debug.LogError(
-                        $"[{nameof(MonsterNavigationStressTestManager)}] 无法为完整批次找到合法出生点，" +
-                        $"Batch={batchCount}，AttemptsPerMonster={_spawnAttemptsPerMonster}。");
-                    break;
+                    throw new InvalidOperationException(
+                        $"压测房间内已经找不到合法出生点。Batch={batchCount}，" +
+                        $"Radius={_activeSpawnRadius:F1}，AttemptsPerRadius={_spawnAttemptsPerMonster}。");
                 }
 
                 _monsterRuntimeService.Spawn(_spawnPlans);
@@ -240,7 +240,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     Debug.Log(
                         $"[{nameof(MonsterNavigationStressTestManager)}] 已生成批次，" +
                         $"Batch={batchCount}，Alive={_monsterRuntimeService.AliveMonsterCount}，" +
-                        $"Slots={_monsterRuntimeService.MonsterSlotCount}，Total={_totalSpawned}");
+                        $"Slots={_monsterRuntimeService.MonsterSlotCount}，Total={_totalSpawned}，" +
+                        $"Radius={_activeSpawnRadius:F1}");
                 }
 
                 if (batchDelay != null)
@@ -290,6 +291,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _spawnPlans.Capacity = Math.Max(_spawnPlans.Capacity, _spawnBatchSize);
             _batchGroundPositions.Capacity = Math.Max(_batchGroundPositions.Capacity, _spawnBatchSize);
             _totalSpawned = 0;
+            _activeSpawnRadius = _spawnRadius;
         }
 
         private bool TryBuildSpawnPlans(int count)
@@ -301,40 +303,54 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float groundY = _monsterRuntimeService.RoomGroundY;
             RoomSpawnRegion region = _roomView.SpawnRegion;
             float spacingSqr = _minimumSpawnSpacing * _minimumSpawnSpacing;
+            float maximumSpawnRadius = CalculateMaximumSpawnRadius(region, center);
+            float radiusExpansionStep = Mathf.Max(1f, Mathf.Max(_ringThickness, _minimumSpawnSpacing));
 
             for (int monsterIndex = 0; monsterIndex < count; monsterIndex++)
             {
                 bool accepted = false;
 
-                for (int attempt = 0; attempt < _spawnAttemptsPerMonster; attempt++)
+                while (!accepted)
                 {
-                    Vector3 candidate = SampleHorizontalPosition(region, center);
-
-                    if (!TryRaycastGround(region, candidate.x, candidate.z, out Vector3 ground) ||
-                        Mathf.Abs(ground.y - groundY) > _groundHeightTolerance ||
-                        !HasMinimumSpacing(ground, spacingSqr))
+                    for (int attempt = 0; attempt < _spawnAttemptsPerMonster; attempt++)
                     {
-                        continue;
+                        Vector3 candidate = SampleHorizontalPosition(region, center, _activeSpawnRadius);
+
+                        if (!TryRaycastGround(region, candidate.x, candidate.z, out Vector3 ground) ||
+                            Mathf.Abs(ground.y - groundY) > _groundHeightTolerance ||
+                            !HasMinimumSpacing(ground, spacingSqr))
+                        {
+                            continue;
+                        }
+
+                        _batchGroundPositions.Add(ground);
+                        float yaw = _faceSpawnCenter
+                            ? CalculateFacingYaw(ground, center)
+                            : (float)_random.NextDouble() * 360f;
+                        _spawnPlans.Add(new MonsterSpawnPlan(
+                            _resolvedMonsterConfigIndex,
+                            new Vector2(ground.x, ground.z),
+                            yaw));
+                        accepted = true;
+                        break;
                     }
 
-                    _batchGroundPositions.Add(ground);
-                    float yaw = _faceSpawnCenter
-                        ? CalculateFacingYaw(ground, center)
-                        : (float)_random.NextDouble() * 360f;
-                    _spawnPlans.Add(new MonsterSpawnPlan(
-                        _resolvedMonsterConfigIndex,
-                        new Vector2(ground.x, ground.z),
-                        yaw));
-                    accepted = true;
-                    break;
+                    if (accepted)
+                        break;
+
+                    if (_spawnArea == MonsterStressSpawnArea.WholeRoomSpawnRegion ||
+                        _activeSpawnRadius >= maximumSpawnRadius)
+                    {
+                        _spawnPlans.Clear();
+                        _batchGroundPositions.Clear();
+                        return false;
+                    }
+
+                    // 当前环带已被现有怪物占满时继续向外扩圈，并让后续批次沿用新半径。
+                    _activeSpawnRadius = Mathf.Min(
+                        _activeSpawnRadius + radiusExpansionStep,
+                        maximumSpawnRadius);
                 }
-
-                if (accepted)
-                    continue;
-
-                _spawnPlans.Clear();
-                _batchGroundPositions.Clear();
-                return false;
             }
 
             return true;
@@ -362,7 +378,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return center + offset;
         }
 
-        private Vector3 SampleHorizontalPosition(in RoomSpawnRegion region, Vector3 center)
+        private Vector3 SampleHorizontalPosition(
+            in RoomSpawnRegion region,
+            Vector3 center,
+            float spawnRadius)
         {
             if (_spawnArea == MonsterStressSpawnArea.WholeRoomSpawnRegion)
             {
@@ -375,13 +394,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float radius;
             if (_spawnArea == MonsterStressSpawnArea.Disc)
             {
-                radius = Mathf.Sqrt((float)_random.NextDouble()) * _spawnRadius;
+                radius = Mathf.Sqrt((float)_random.NextDouble()) * spawnRadius;
             }
             else if (_ringThickness > 0f)
             {
                 float halfThickness = _ringThickness * 0.5f;
-                float inner = Mathf.Max(0f, _spawnRadius - halfThickness);
-                float outer = _spawnRadius + halfThickness;
+                float inner = Mathf.Max(0f, spawnRadius - halfThickness);
+                float outer = spawnRadius + halfThickness;
                 radius = Mathf.Sqrt(Mathf.Lerp(
                     inner * inner,
                     outer * outer,
@@ -389,7 +408,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
             else
             {
-                radius = _spawnRadius;
+                radius = spawnRadius;
             }
 
             float angle = (float)_random.NextDouble() * Mathf.PI * 2f;
@@ -397,6 +416,36 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 center.x + Mathf.Cos(angle) * radius,
                 center.y,
                 center.z + Mathf.Sin(angle) * radius);
+        }
+
+        private static float CalculateMaximumSpawnRadius(in RoomSpawnRegion region, Vector3 center)
+        {
+            Vector3 half = region.LocalSize * 0.5f;
+            float minimumX = region.LocalCenter.x - half.x;
+            float maximumX = region.LocalCenter.x + half.x;
+            float minimumZ = region.LocalCenter.z - half.z;
+            float maximumZ = region.LocalCenter.z + half.z;
+
+            Vector3 corner0 = region.Space.TransformPoint(new Vector3(minimumX, region.LocalCenter.y, minimumZ));
+            Vector3 corner1 = region.Space.TransformPoint(new Vector3(minimumX, region.LocalCenter.y, maximumZ));
+            Vector3 corner2 = region.Space.TransformPoint(new Vector3(maximumX, region.LocalCenter.y, minimumZ));
+            Vector3 corner3 = region.Space.TransformPoint(new Vector3(maximumX, region.LocalCenter.y, maximumZ));
+
+            float maximumSqrDistance = Mathf.Max(
+                Mathf.Max(
+                    HorizontalSqrDistance(center, corner0),
+                    HorizontalSqrDistance(center, corner1)),
+                Mathf.Max(
+                    HorizontalSqrDistance(center, corner2),
+                    HorizontalSqrDistance(center, corner3)));
+            return Mathf.Sqrt(maximumSqrDistance);
+        }
+
+        private static float HorizontalSqrDistance(Vector3 from, Vector3 to)
+        {
+            float x = to.x - from.x;
+            float z = to.z - from.z;
+            return x * x + z * z;
         }
 
         private bool TrySampleAnyGround(in RoomSpawnRegion region, out Vector3 ground)
@@ -519,6 +568,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _roomView = null;
             _random = null;
             _totalSpawned = 0;
+            _activeSpawnRadius = 0f;
             _resolvedMonsterConfigIndex = 0;
             _spawnPlans.Clear();
             _batchGroundPositions.Clear();

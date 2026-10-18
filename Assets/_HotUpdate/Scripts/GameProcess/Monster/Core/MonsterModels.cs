@@ -168,14 +168,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterRuntimeCatalog(MonsterRuntimeConfig[] items)
         {
-            if (items == null) throw new ArgumentNullException(nameof(items));
-            if (items.Length > ushort.MaxValue + 1)
-                throw new ArgumentException("Monster Runtime 配置超过 ushort 索引容量。", nameof(items));
             _items = items;
             for (int i = 0; i < _items.Length; i++)
             {
-                if (_indices.ContainsKey(_items[i].ConfigId))
-                    throw new ArgumentException($"重复 Monster ConfigId={_items[i].ConfigId}。", nameof(items));
                 _indices.Add(_items[i].ConfigId, checked((ushort)i));
             }
         }
@@ -186,8 +181,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         public ref readonly MonsterRuntimeConfig Get(ushort index)
         {
-            if (index >= _items.Length) 
-                throw new IndexOutOfRangeException($"Monster ConfigIndex={index} 未注册。");
             return ref _items[index];
         }
 
@@ -228,14 +221,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (items == null) 
                 throw new ArgumentNullException(nameof(items));
             _items = items;
-            if (_items.Length > ushort.MaxValue + 1)
-                throw new ArgumentException("Monster AttackProfile 超过 ushort 索引容量。", nameof(items));
         }
 
         public ref readonly MonsterAttackProfile Get(ushort index)
         {
-            if (index >= _items.Length) 
-                throw new IndexOutOfRangeException($"Monster AttackProfileIndex={index} 未注册。");
             return ref _items[index];
         }
     }

@@ -40,12 +40,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public static MonsterRoomBeginData ReadRoomBegin(ref FastBufferReader reader)
         {
             int length = reader.Length - reader.Position;
-            if (length != RoomBeginSize)
-                throw new ArgumentException("Monster RoomBegin 长度不一致。");
-
-            if (!reader.TryBeginRead(RoomBeginSize))
-                throw new OverflowException("Monster RoomBegin 数据被截断。");
-
             Vector2 origin = new(ReadSingle(ref reader), ReadSingle(ref reader));
             Vector2 size = new(ReadSingle(ref reader), ReadSingle(ref reader));
             float groundY = ReadSingle(ref reader);
@@ -95,12 +89,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             using var decodeScope = DecodeMarker.Auto();
             int length = reader.Length - reader.Position;
-
-            if (length < PresentationHeaderSize)
-                throw new ArgumentException("Monster Presentation Header 被截断。");
-
-            if (!reader.TryBeginRead(length))
-                throw new OverflowException("Monster Presentation 数据被截断。");
 
             uint tick = ReadUInt32(ref reader);
             uint slotCountValue = ReadUInt32(ref reader);
@@ -173,24 +161,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             int length = reader.Length - reader.Position;
 
-            if (length < SpawnHeaderSize)
-                throw new ArgumentException("Monster Spawn Header 被截断。");
-
-            if (!reader.TryBeginRead(length))
-                throw new OverflowException("Monster Spawn 数据被截断。");
-
             uint startSlotValue = ReadUInt32(ref reader);
-
-            if (startSlotValue > int.MaxValue)
-                throw new ArgumentException("Monster Spawn StartSlot 超出本地容量。");
 
             ushort count = ReadUInt16(ref reader);
 
             int expectedLength = checked(SpawnHeaderSize + count * 6);
-
-            if (length != expectedLength)
-                throw new ArgumentException("Monster SpawnBatch 长度与 Count 不一致。");
-
             var items = new MonsterSpawnData[count];
 
             for (int i = 0; i < count; i++)

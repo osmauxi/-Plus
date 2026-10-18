@@ -11,6 +11,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
         private readonly RuntimeNavigationGrid _grid;
         private readonly Transform _roomRoot;
         private readonly List<ObstacleState> _states = new();
+        private readonly int[] _blockerCounts;
 
         private struct ObstacleState
         {
@@ -23,11 +24,12 @@ namespace ProjectGame.HotFix.Gameplay.Map
         {
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _roomRoot = roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
+            _blockerCounts = new int[grid.Width * grid.Height];
 
             RegisterRoomObstacles();
         }
         /// <summary>
-        /// ÓÃÓÚ¸ßÆµ¸Ä±äµØ¿é×èµ²ĞÅÏ¢µÄÎïÌåTick
+        /// ç”¨äºé«˜é¢‘æ”¹å˜åœ°å—é˜»æŒ¡ä¿¡æ¯çš„ç‰©ä½“Tick
         /// </summary>
         public void Tick()
         {
@@ -55,7 +57,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
             _states[index] = state;
         }
         /// <summary>
-        /// µÍÆµ£¬ÉõÖÁÒ»´ÎĞÔĞŞ¸ÄµØ¿éĞÅÏ¢µÄÎï¿éµ÷ÓÃ£¬²»½øÈëTick
+        /// ä½é¢‘ï¼Œç”šè‡³ä¸€æ¬¡æ€§ä¿®æ”¹åœ°å—ä¿¡æ¯çš„ç‰©å—è°ƒç”¨ï¼Œä¸è¿›å…¥Tick
         /// </summary>
         public void SetBlocking(RuntimeNavigationObstacle obstacle,bool blocking)
         {
@@ -69,6 +71,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 if (state.IsBlocking == blocking)
                     return;
 
+                if (blocking)
+                    TryCalculateCells(obstacle, out state.Cells);
                 SetBlocked(state.Cells, blocking);
 
                 state.IsBlocking = blocking;
@@ -104,14 +108,17 @@ namespace ProjectGame.HotFix.Gameplay.Map
             for (int y = cells.yMin; y < cells.yMax; y++)
             {
                 for (int x = cells.xMin; x < cells.xMax; x++)
-                    _grid.SetBlocked(x, y, blocked);
+                {
+                    int index = y * _grid.Width + x;
+                    // å·¡å›å¢™å¯èƒ½ç›¸äº¤ï¼›ä¸€é¢å¢™ç§»å¼€ä¸èƒ½æ¸…æ‰å¦ä¸€é¢å¢™ä»å æ®çš„æ ¼å­ã€‚
+                    _blockerCounts[index] += blocked ? 1 : -1;
+                    _grid.SetBlocked(x, y, _blockerCounts[index] > 0);
+                }
             }
         }
 
         /// <summary>
-        /// BoxCollider.boundsµÄËÄ¸öXZ½Ç×ª»»µ½RoomLocal
-        /// µ±Ç°¹æÔòÏŞ¶¨Ç½±ÚÊÇË³×Å·¿¼ä·½ÏòÀ´£¬²»³öÏÖĞ±ÏòÒÆ¶¯µÄÇé¿ö
-        /// Ğ±ÏòÒÆ¶¯Ä¿Ç°»á³öÏÖÕ¼ÓÃ¶îÍâµØ¿é½øBlockµÄÇé¿ö
+        /// å°† BoxCollider è½¬æ¢ä¸ºæˆ¿é—´å±€éƒ¨ AABBï¼Œæ—‹è½¬çš„éšœç¢ä¿å®ˆå æ®å…¶åŒ…å›´èŒƒå›´ã€‚
         /// </summary>
         private bool TryCalculateCells(RuntimeNavigationObstacle obstacle,out RectInt cells)
         {
@@ -122,13 +129,16 @@ namespace ProjectGame.HotFix.Gameplay.Map
             if (box == null)
                 return false;
 
-            Bounds bounds = box.bounds;
-
-            Vector3 min = _roomRoot.InverseTransformPoint(
-                new Vector3(bounds.min.x, bounds.center.y, bounds.min.z));
-
-            Vector3 max = _roomRoot.InverseTransformPoint(
-                new Vector3(bounds.max.x, bounds.center.y, bounds.max.z));
+            // ç›´æ¥ä½¿ç”¨ Transformï¼Œä¿è¯ç§»å¢™ååŒä¸€ Tick å°±èƒ½æ›´æ–°å¯¼èˆªï¼Œæ— éœ€åŒæ­¥æ•´ä¸ªç‰©ç†åœºæ™¯ã€‚
+            Matrix4x4 matrix = _roomRoot.worldToLocalMatrix * box.transform.localToWorldMatrix;
+            Vector3 center = matrix.MultiplyPoint3x4(box.center);
+            Vector3 half = box.size * 0.5f;
+            Vector3 extent = new Vector3(
+                Mathf.Abs(matrix.m00) * half.x + Mathf.Abs(matrix.m01) * half.y + Mathf.Abs(matrix.m02) * half.z,
+                Mathf.Abs(matrix.m10) * half.x + Mathf.Abs(matrix.m11) * half.y + Mathf.Abs(matrix.m12) * half.z,
+                Mathf.Abs(matrix.m20) * half.x + Mathf.Abs(matrix.m21) * half.y + Mathf.Abs(matrix.m22) * half.z);
+            Vector3 min = center - extent;
+            Vector3 max = center + extent;
 
             int minX = Mathf.FloorToInt(
                 (Mathf.Min(min.x, max.x) + RoomSpatialData.HalfSize) /

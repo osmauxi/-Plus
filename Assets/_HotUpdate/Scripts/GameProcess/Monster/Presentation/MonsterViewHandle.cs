@@ -1,24 +1,25 @@
 using System.Collections;
-using System.Collections.Generic;
 using ProjectGame.HotFix.Gameplay.Pooling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
-    /// <summary>池化怪物预制件的表现入口；只负责姿态、动画和命中碰撞体。</summary>
+    /// <summary>池化怪物预制件的表现入口；只负责姿态、VAT 动画和命中碰撞体。</summary>
     [DisallowMultipleComponent]
     public sealed class MonsterViewHandle : MonoBehaviour, IMonsterViewHandle, IPoolable
     {
-        // CPU 极限 A/B：只停用怪物 Animator，保留 Transform、Collider、Renderer、逻辑与网络路径。
-        private const bool DisableAnimatorForCpuAbTest = true;
-
         private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
         private static readonly int AttackHash = Animator.StringToHash("Attack");
         private static readonly int BaseColorHash = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorHash = Shader.PropertyToID("_Color");
         private static readonly int EmissionColorHash = Shader.PropertyToID("_EmissionColor");
+        private static readonly int HitFlashColorHash = Shader.PropertyToID("_HitFlashColor");
+        private static readonly int HitFlashAmountHash = Shader.PropertyToID("_HitFlashAmount");
 
-        [SerializeField] private Animator _animator;
+        [SerializeField] private MonsterVATAsset _vatAsset;
+        [SerializeField] private Material _vatMaterial;
+        [SerializeField, Min(0f)] private float _animationCrossFadeDuration = 0.12f;
+        [SerializeField, Min(0f)] private float _movementThreshold = 0.05f;
         [SerializeField] private Collider[] _damageColliders;
         [SerializeField] private Renderer[] _flashRenderers;
         [SerializeField, Min(0.01f)] private float _hitFlashDuration = 0.08f;
@@ -26,6 +27,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private Vector2 _previousPosition;
         private bool _hasPreviousPose;
+        private MonsterVATPlayer _vatPlayer;
         private MaterialPropertyBlock _propertyBlock;
         private Color[] _baseColors;
         private Color[] _colors;
@@ -39,18 +41,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void Awake()
         {
-            _animator.enabled = !DisableAnimatorForCpuAbTest;
             _propertyBlock = new MaterialPropertyBlock();
-            _baseColors = new Color[_flashRenderers.Length];
-            _colors = new Color[_flashRenderers.Length];
-            _emissionColors = new Color[_flashRenderers.Length];
-            for (int i = 0; i < _flashRenderers.Length; i++)
+            MonsterVATPlayer player = new MonsterVATPlayer();
+            if (player.Initialize(_vatAsset, _vatMaterial, transform, _animationCrossFadeDuration))
             {
-                Material material = _flashRenderers[i].sharedMaterial;
-                _baseColors[i] = material.GetColor(BaseColorHash);
-                _colors[i] = material.GetColor(ColorHash);
-                _emissionColors[i] = material.GetColor(EmissionColorHash);
+                _vatPlayer = player;
+                _flashRenderers = new Renderer[] { _vatPlayer.Renderer };
             }
+
+            InitializeFlashColors();
+        }
+
+        private void Update()
+        {
+            _vatPlayer.Tick(Time.deltaTime);
         }
 
         public void OnRentFromPool()
@@ -58,17 +62,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Slot = -1;
             _hasPreviousPose = false;
             ResetHitFlash();
-            _animator.Rebind();
+            _vatPlayer.ResetToIdle();
+
             for (int i = 0; i < _damageColliders.Length; i++)
-                _damageColliders[i].enabled = true;
+                    _damageColliders[i].enabled = true;
         }
 
         public void OnReturnToPool()
         {
             Slot = -1;
             ResetHitFlash();
-            _animator.ResetTrigger(AttackHash);
-            _animator.SetFloat(MoveSpeedHash, 0f);
+            _vatPlayer.ResetToIdle();
             for (int i = 0; i < _damageColliders.Length; i++)
                 _damageColliders[i].enabled = false;
         }
@@ -80,16 +84,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             worldPosition.x = position.x;
             worldPosition.z = position.y;
             viewTransform.SetPositionAndRotation(worldPosition, Quaternion.Euler(0f, yaw, 0f));
-
-            float moveSpeed = _hasPreviousPose
-                ? Vector2.Distance(_previousPosition, position) / Mathf.Max(Time.deltaTime, 0.0001f)
-                : 0f;
-            _animator.SetFloat(MoveSpeedHash, moveSpeed);
+            float moveSpeed = _hasPreviousPose ? Vector2.Distance(_previousPosition, position) / Mathf.Max(Time.deltaTime, 0.0001f) : 0f;
+             _vatPlayer.SetLocomotion(moveSpeed > _movementThreshold);
             _previousPosition = position;
             _hasPreviousPose = true;
         }
 
-        public void PlayAttack() => _animator.SetTrigger(AttackHash);
+        public void PlayAttack()
+        {
+            _vatPlayer.PlayAttack();
+        }
 
         public void PlayHit()
         {
@@ -106,25 +110,42 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _hitFlashRoutine = null;
         }
 
+        private void InitializeFlashColors()
+        {
+            _baseColors = new Color[_flashRenderers.Length];
+            _colors = new Color[_flashRenderers.Length];
+            _emissionColors = new Color[_flashRenderers.Length];
+            for (int i = 0; i < _flashRenderers.Length; i++)
+            {
+                Renderer renderer = _flashRenderers[i];
+                Material material = renderer != null ? renderer.sharedMaterial : null;
+                _baseColors[i] = material != null && material.HasProperty(BaseColorHash) ? material.GetColor(BaseColorHash) : Color.white;
+                _colors[i] = material != null && material.HasProperty(ColorHash) ? material.GetColor(ColorHash) : Color.white;
+                _emissionColors[i] = material != null && material.HasProperty(EmissionColorHash) ? material.GetColor(EmissionColorHash) : Color.black;
+            }
+        }
+
         private void ResetHitFlash()
         {
-            if (_hitFlashRoutine != null)
-                StopCoroutine(_hitFlashRoutine);
+            StopAllCoroutines();
             _hitFlashRoutine = null;
             SetHitFlash(false);
         }
 
         private void SetHitFlash(bool active)
         {
+            if (_propertyBlock == null || _flashRenderers == null)
+                return;
             for (int i = 0; i < _flashRenderers.Length; i++)
             {
                 Renderer renderer = _flashRenderers[i];
+                if (renderer == null)
+                    continue;
                 _propertyBlock.Clear();
                 renderer.GetPropertyBlock(_propertyBlock);
-                _propertyBlock.SetColor(BaseColorHash, active ? _hitFlashColor : _baseColors[i]);
-                _propertyBlock.SetColor(ColorHash, active ? _hitFlashColor : _colors[i]);
-                _propertyBlock.SetColor(EmissionColorHash,
-                    active ? _hitFlashColor : _emissionColors[i]);
+                _propertyBlock.SetColor(HitFlashColorHash, _hitFlashColor);
+                _propertyBlock.SetFloat(HitFlashAmountHash, active ? 1f : 0f);
+  
                 renderer.SetPropertyBlock(_propertyBlock);
             }
         }

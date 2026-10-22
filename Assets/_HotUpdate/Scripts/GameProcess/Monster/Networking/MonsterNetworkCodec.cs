@@ -40,6 +40,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public static MonsterRoomBeginData ReadRoomBegin(ref FastBufferReader reader)
         {
             int length = reader.Length - reader.Position;
+            if (length != RoomBeginSize || !reader.TryBeginRead(RoomBeginSize))
+                throw new ArgumentException("Monster RoomBegin 数据长度非法。", nameof(length));
             Vector2 origin = new(ReadSingle(ref reader), ReadSingle(ref reader));
             Vector2 size = new(ReadSingle(ref reader), ReadSingle(ref reader));
             float groundY = ReadSingle(ref reader);
@@ -89,6 +91,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             using var decodeScope = DecodeMarker.Auto();
             int length = reader.Length - reader.Position;
+            if (!reader.TryBeginRead(length))
+                throw new ArgumentException("Monster Presentation 数据被截断。", nameof(length));
 
             uint tick = ReadUInt32(ref reader);
             uint slotCountValue = ReadUInt32(ref reader);
@@ -160,12 +164,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public static MonsterSpawnBatch ReadSpawn(ref FastBufferReader reader)
         {
             int length = reader.Length - reader.Position;
+            if (!reader.TryBeginRead(length))
+                throw new ArgumentException("Monster Spawn 数据被截断。", nameof(length));
 
             uint startSlotValue = ReadUInt32(ref reader);
 
             ushort count = ReadUInt16(ref reader);
 
             int expectedLength = checked(SpawnHeaderSize + count * 6);
+            if (startSlotValue > int.MaxValue || length != expectedLength)
+                throw new ArgumentException("Monster Spawn 数据长度或起始 Slot 非法。", nameof(length));
             var items = new MonsterSpawnData[count];
 
             for (int i = 0; i < count; i++)

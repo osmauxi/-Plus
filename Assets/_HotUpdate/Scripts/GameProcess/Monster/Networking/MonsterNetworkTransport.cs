@@ -85,7 +85,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             try 
             { 
                 MonsterNetworkCodec.WriteSpawn(ref writer, batch);
-                _transport.SendToRemoteClients(SpawnMessageName, writer, NetworkDeliveryClass.ReliableEvent);
+                _transport.SendToRemoteClients(SpawnMessageName, writer, NetworkDeliveryClass.FullSnapshot);
             }
             finally
             {
@@ -136,7 +136,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             try 
             {     
                 MonsterNetworkCodec.WritePresentation(ref writer, frame);
-                _transport.SendToRemoteClients(PresentationMessageName, writer, NetworkDeliveryClass.UnreliableEvent);
+                _transport.SendToRemoteClients(PresentationMessageName, writer, NetworkDeliveryClass.FullSnapshot);
             }
             finally
             {

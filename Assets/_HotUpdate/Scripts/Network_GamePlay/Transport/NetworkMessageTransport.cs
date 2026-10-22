@@ -191,6 +191,8 @@ namespace ProjectGame.HotFix.Gameplay.Network
                     return NetworkDelivery.UnreliableSequenced;
 
                 case NetworkDeliveryClass.FullSnapshot:
+                    return NetworkDelivery.ReliableFragmentedSequenced;
+
                 case NetworkDeliveryClass.ReliableEvent:
                     return NetworkDelivery.ReliableSequenced;
 

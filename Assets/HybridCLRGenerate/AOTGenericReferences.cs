@@ -229,6 +229,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<GlobalLocalVFXPool.VFXRegistry>
 	// System.Action<MapGenerator.VariantConfig>
 	// System.Action<MonsterVFXController.PrebakedVFX>
+	// System.Action<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Action<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Action<ProjectGame.HotFix.Core.Session.PlayerSessionData>
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.CameraAimTargetUpdatedEvent>
@@ -255,7 +256,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Action<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Action<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Action<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Action<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
@@ -289,6 +289,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<UnityEngine.Vector3>
 	// System.Action<byte,byte>
 	// System.Action<byte>
+	// System.Action<double>
 	// System.Action<float,float>
 	// System.Action<float>
 	// System.Action<int,byte>
@@ -344,6 +345,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ArraySortHelper<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.ArraySortHelper<MapGenerator.VariantConfig>
 	// System.Collections.Generic.ArraySortHelper<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.ArraySortHelper<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Core.Session.PlayerSessionData>
@@ -356,7 +358,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -381,6 +382,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ArraySortHelper<UnityEngine.Vector2Int>
 	// System.Collections.Generic.ArraySortHelper<UnityEngine.Vector3>
 	// System.Collections.Generic.ArraySortHelper<byte>
+	// System.Collections.Generic.ArraySortHelper<double>
 	// System.Collections.Generic.ArraySortHelper<float>
 	// System.Collections.Generic.ArraySortHelper<int>
 	// System.Collections.Generic.ArraySortHelper<object>
@@ -390,6 +392,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Comparer<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.Comparer<MapGenerator.VariantConfig>
 	// System.Collections.Generic.Comparer<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.Comparer<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Core.Session.PlayerSessionData>
@@ -402,7 +405,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -452,8 +454,10 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Comparer<UnityEngine.Vector2Int>
 	// System.Collections.Generic.Comparer<UnityEngine.Vector3>
 	// System.Collections.Generic.Comparer<byte>
+	// System.Collections.Generic.Comparer<double>
 	// System.Collections.Generic.Comparer<float>
 	// System.Collections.Generic.Comparer<int>
+	// System.Collections.Generic.Comparer<long>
 	// System.Collections.Generic.Comparer<object>
 	// System.Collections.Generic.Comparer<ulong>
 	// System.Collections.Generic.Comparer<ushort>
@@ -716,6 +720,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.ICollection<MapGenerator.VariantConfig>
 	// System.Collections.Generic.ICollection<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.ICollection<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Map.Generation.GridGraphLayoutStrategy.FrontierEdge>
@@ -726,7 +731,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -782,6 +786,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<UnityEngine.Vector2Int>
 	// System.Collections.Generic.ICollection<UnityEngine.Vector3>
 	// System.Collections.Generic.ICollection<byte>
+	// System.Collections.Generic.ICollection<double>
 	// System.Collections.Generic.ICollection<float>
 	// System.Collections.Generic.ICollection<int>
 	// System.Collections.Generic.ICollection<object>
@@ -791,6 +796,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IComparer<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.IComparer<MapGenerator.VariantConfig>
 	// System.Collections.Generic.IComparer<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.IComparer<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Core.Session.PlayerSessionData>
@@ -803,7 +809,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -828,8 +833,10 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IComparer<UnityEngine.Vector2Int>
 	// System.Collections.Generic.IComparer<UnityEngine.Vector3>
 	// System.Collections.Generic.IComparer<byte>
+	// System.Collections.Generic.IComparer<double>
 	// System.Collections.Generic.IComparer<float>
 	// System.Collections.Generic.IComparer<int>
+	// System.Collections.Generic.IComparer<long>
 	// System.Collections.Generic.IComparer<object>
 	// System.Collections.Generic.IComparer<ulong>
 	// System.Collections.Generic.IComparer<ushort>
@@ -838,6 +845,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.IEnumerable<MapGenerator.VariantConfig>
 	// System.Collections.Generic.IEnumerable<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.IEnumerable<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
@@ -849,7 +857,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -905,6 +912,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<UnityEngine.Vector2Int>
 	// System.Collections.Generic.IEnumerable<UnityEngine.Vector3>
 	// System.Collections.Generic.IEnumerable<byte>
+	// System.Collections.Generic.IEnumerable<double>
 	// System.Collections.Generic.IEnumerable<float>
 	// System.Collections.Generic.IEnumerable<int>
 	// System.Collections.Generic.IEnumerable<object>
@@ -914,6 +922,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.IEnumerator<MapGenerator.VariantConfig>
 	// System.Collections.Generic.IEnumerator<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.IEnumerator<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
@@ -925,7 +934,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -981,6 +989,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<UnityEngine.Vector2Int>
 	// System.Collections.Generic.IEnumerator<UnityEngine.Vector3>
 	// System.Collections.Generic.IEnumerator<byte>
+	// System.Collections.Generic.IEnumerator<double>
 	// System.Collections.Generic.IEnumerator<float>
 	// System.Collections.Generic.IEnumerator<int>
 	// System.Collections.Generic.IEnumerator<object>
@@ -998,6 +1007,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IList<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.IList<MapGenerator.VariantConfig>
 	// System.Collections.Generic.IList<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.IList<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Map.Generation.GridGraphLayoutStrategy.FrontierEdge>
@@ -1008,7 +1018,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1034,6 +1043,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IList<UnityEngine.Vector2Int>
 	// System.Collections.Generic.IList<UnityEngine.Vector3>
 	// System.Collections.Generic.IList<byte>
+	// System.Collections.Generic.IList<double>
 	// System.Collections.Generic.IList<float>
 	// System.Collections.Generic.IList<int>
 	// System.Collections.Generic.IList<object>
@@ -1045,7 +1055,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
 	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.IReadOnlyCollection<ProjectGame.HotFix.Gameplay.Weapon.ProjectileImpact>
@@ -1073,7 +1082,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
 	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnData>
 	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.IReadOnlyList<ProjectGame.HotFix.Gameplay.Weapon.ProjectileImpact>
@@ -1129,6 +1137,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List.Enumerator<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.List.Enumerator<MapGenerator.VariantConfig>
 	// System.Collections.Generic.List.Enumerator<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.List.Enumerator<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Map.Generation.GridGraphLayoutStrategy.FrontierEdge>
@@ -1139,7 +1148,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1164,6 +1172,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List.Enumerator<UnityEngine.Vector2Int>
 	// System.Collections.Generic.List.Enumerator<UnityEngine.Vector3>
 	// System.Collections.Generic.List.Enumerator<byte>
+	// System.Collections.Generic.List.Enumerator<double>
 	// System.Collections.Generic.List.Enumerator<float>
 	// System.Collections.Generic.List.Enumerator<int>
 	// System.Collections.Generic.List.Enumerator<object>
@@ -1173,6 +1182,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.List<MapGenerator.VariantConfig>
 	// System.Collections.Generic.List<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.List<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Map.Generation.GridGraphLayoutStrategy.FrontierEdge>
@@ -1183,7 +1193,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1208,6 +1217,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List<UnityEngine.Vector2Int>
 	// System.Collections.Generic.List<UnityEngine.Vector3>
 	// System.Collections.Generic.List<byte>
+	// System.Collections.Generic.List<double>
 	// System.Collections.Generic.List<float>
 	// System.Collections.Generic.List<int>
 	// System.Collections.Generic.List<object>
@@ -1217,6 +1227,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ObjectComparer<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.Generic.ObjectComparer<MapGenerator.VariantConfig>
 	// System.Collections.Generic.ObjectComparer<MonsterVFXController.PrebakedVFX>
+	// System.Collections.Generic.ObjectComparer<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Core.Session.PlayerSessionData>
@@ -1229,7 +1240,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1276,8 +1286,10 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ObjectComparer<UnityEngine.Vector2Int>
 	// System.Collections.Generic.ObjectComparer<UnityEngine.Vector3>
 	// System.Collections.Generic.ObjectComparer<byte>
+	// System.Collections.Generic.ObjectComparer<double>
 	// System.Collections.Generic.ObjectComparer<float>
 	// System.Collections.Generic.ObjectComparer<int>
+	// System.Collections.Generic.ObjectComparer<long>
 	// System.Collections.Generic.ObjectComparer<object>
 	// System.Collections.Generic.ObjectComparer<ulong>
 	// System.Collections.Generic.ObjectComparer<ushort>
@@ -1335,6 +1347,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.ObjectModel.ReadOnlyCollection<GlobalLocalVFXPool.VFXRegistry>
 	// System.Collections.ObjectModel.ReadOnlyCollection<MapGenerator.VariantConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<MonsterVFXController.PrebakedVFX>
+	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Map.Generation.GridGraphLayoutStrategy.FrontierEdge>
@@ -1345,7 +1358,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1370,6 +1382,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.ObjectModel.ReadOnlyCollection<UnityEngine.Vector2Int>
 	// System.Collections.ObjectModel.ReadOnlyCollection<UnityEngine.Vector3>
 	// System.Collections.ObjectModel.ReadOnlyCollection<byte>
+	// System.Collections.ObjectModel.ReadOnlyCollection<double>
 	// System.Collections.ObjectModel.ReadOnlyCollection<float>
 	// System.Collections.ObjectModel.ReadOnlyCollection<int>
 	// System.Collections.ObjectModel.ReadOnlyCollection<object>
@@ -1379,6 +1392,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Comparison<GlobalLocalVFXPool.VFXRegistry>
 	// System.Comparison<MapGenerator.VariantConfig>
 	// System.Comparison<MonsterVFXController.PrebakedVFX>
+	// System.Comparison<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Comparison<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Comparison<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Comparison<ProjectGame.HotFix.Core.Session.PlayerSessionData>
@@ -1391,7 +1405,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Comparison<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1416,6 +1429,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Comparison<UnityEngine.Vector2Int>
 	// System.Comparison<UnityEngine.Vector3>
 	// System.Comparison<byte>
+	// System.Comparison<double>
 	// System.Comparison<float>
 	// System.Comparison<int>
 	// System.Comparison<object>
@@ -1451,6 +1465,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Func<UnityEngine.ResourceManagement.ResourceProviders.SceneInstance>
 	// System.Func<UnityEngine.SceneManagement.Scene>
 	// System.Func<byte>
+	// System.Func<double,double>
 	// System.Func<int>
 	// System.Func<object,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,UnityEngine.SceneManagement.Scene>>>>>>>>
 	// System.Func<object,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,byte>>>>>>>>
@@ -1477,6 +1492,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Func<object,UnityEngine.SceneManagement.Scene>
 	// System.Func<object,byte>
 	// System.Func<object,int>
+	// System.Func<object,long>
 	// System.Func<object,object,object>
 	// System.Func<object,object>
 	// System.Func<object>
@@ -1493,7 +1509,9 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.IEquatable<float>
 	// System.IProgress<float>
 	// System.Linq.Buffer<System.Collections.Generic.KeyValuePair<object,float>>
+	// System.Linq.Buffer<double>
 	// System.Linq.Buffer<object>
+	// System.Linq.Enumerable.<TakeIterator>d__25<object>
 	// System.Linq.Enumerable.Iterator<System.Collections.Generic.KeyValuePair<ulong,object>>
 	// System.Linq.Enumerable.Iterator<object>
 	// System.Linq.Enumerable.Iterator<ulong>
@@ -1508,14 +1526,21 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Linq.Enumerable.WhereSelectListIterator<ulong,object>
 	// System.Linq.EnumerableSorter<System.Collections.Generic.KeyValuePair<object,float>,float>
 	// System.Linq.EnumerableSorter<System.Collections.Generic.KeyValuePair<object,float>>
+	// System.Linq.EnumerableSorter<double,double>
+	// System.Linq.EnumerableSorter<double>
 	// System.Linq.EnumerableSorter<object,int>
+	// System.Linq.EnumerableSorter<object,long>
 	// System.Linq.EnumerableSorter<object>
 	// System.Linq.IOrderedEnumerable<object>
 	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<System.Collections.Generic.KeyValuePair<object,float>>
+	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<double>
 	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<object>
 	// System.Linq.OrderedEnumerable<System.Collections.Generic.KeyValuePair<object,float>,float>
 	// System.Linq.OrderedEnumerable<System.Collections.Generic.KeyValuePair<object,float>>
+	// System.Linq.OrderedEnumerable<double,double>
+	// System.Linq.OrderedEnumerable<double>
 	// System.Linq.OrderedEnumerable<object,int>
+	// System.Linq.OrderedEnumerable<object,long>
 	// System.Linq.OrderedEnumerable<object>
 	// System.Memory<byte>
 	// System.Nullable<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
@@ -1531,6 +1556,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<GlobalLocalVFXPool.VFXRegistry>
 	// System.Predicate<MapGenerator.VariantConfig>
 	// System.Predicate<MonsterVFXController.PrebakedVFX>
+	// System.Predicate<ProjectGame.Core.Navigation.FlowFieldSource>
 	// System.Predicate<ProjectGame.HotFix.Core.Events.LocalEventBus.EventStream.EventSubscriber<object>>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Input.InputManager.ContextRequest>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Map.Generation.GridGraphLayoutStrategy.FrontierEdge>
@@ -1541,7 +1567,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Predicate<ProjectGame.HotFix.Gameplay.Navigation.FlowFieldSource>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -1567,6 +1592,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<UnityEngine.Vector2Int>
 	// System.Predicate<UnityEngine.Vector3>
 	// System.Predicate<byte>
+	// System.Predicate<double>
 	// System.Predicate<float>
 	// System.Predicate<int>
 	// System.Predicate<object>
@@ -2221,6 +2247,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// ProjectGame.HotFix.Gameplay.Map.Generation.MapConnectionDefinition[] System.Array.Empty<ProjectGame.HotFix.Gameplay.Map.Generation.MapConnectionDefinition>()
 		// ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition[] System.Array.Empty<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>()
 		// ProjectGame.HotFix.Gameplay.Monsters.MonsterPackedState[] System.Array.Empty<ProjectGame.HotFix.Gameplay.Monsters.MonsterPackedState>()
+		// ProjectGame.HotFix.Gameplay.Monsters.MonsterVATRenderWorld.InstanceState[] System.Array.Empty<ProjectGame.HotFix.Gameplay.Monsters.MonsterVATRenderWorld.InstanceState>()
 		// ProjectGame.HotFix.Gameplay.Weapon.EffectSnapshot[] System.Array.Empty<ProjectGame.HotFix.Gameplay.Weapon.EffectSnapshot>()
 		// ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption[] System.Array.Empty<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>()
 		// ProjectGame.HotFix.SceneFlow.PhysicalSceneReference[] System.Array.Empty<ProjectGame.HotFix.SceneFlow.PhysicalSceneReference>()
@@ -2232,7 +2259,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// object[] System.Array.Empty<object>()
 		// ulong[] System.Array.Empty<ulong>()
 		// ushort[] System.Array.Empty<ushort>()
-		// System.Void System.Array.Fill<int>(int[],int)
 		// System.Void System.Array.Fill<int>(int[],int,int,int)
 		// int System.Array.IndexOf<object>(object[],object)
 		// int System.Array.IndexOfImpl<object>(object[],object,int,int)
@@ -2243,7 +2269,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Monsters.MonsterPackedState>(ProjectGame.HotFix.Gameplay.Monsters.MonsterPackedState[]&,int)
 		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Monsters.MonsterPresentationData>(ProjectGame.HotFix.Gameplay.Monsters.MonsterPresentationData[]&,int)
 		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Monsters.MonsterStatusData>(ProjectGame.HotFix.Gameplay.Monsters.MonsterStatusData[]&,int)
-		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Navigation.MultiSourceFlowField.HeapNode>(ProjectGame.HotFix.Gameplay.Navigation.MultiSourceFlowField.HeapNode[]&,int)
+		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Monsters.MonsterVATRenderWorld.InstanceState>(ProjectGame.HotFix.Gameplay.Monsters.MonsterVATRenderWorld.InstanceState[]&,int)
 		// System.Void System.Array.Resize<UnityEngine.Vector2>(UnityEngine.Vector2[]&,int)
 		// System.Void System.Array.Resize<byte>(byte[]&,int)
 		// System.Void System.Array.Resize<float>(float[]&,int)
@@ -2261,13 +2287,19 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// bool System.Linq.Enumerable.Any<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
 		// System.Collections.Generic.KeyValuePair<object,float> System.Linq.Enumerable.First<System.Collections.Generic.KeyValuePair<object,float>>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,float>>)
 		// object System.Linq.Enumerable.First<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
+		// object System.Linq.Enumerable.FirstOrDefault<object>(System.Collections.Generic.IEnumerable<object>)
+		// System.Linq.IOrderedEnumerable<double> System.Linq.Enumerable.OrderBy<double,double>(System.Collections.Generic.IEnumerable<double>,System.Func<double,double>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.OrderBy<object,int>(System.Collections.Generic.IEnumerable<object>,System.Func<object,int>)
 		// System.Linq.IOrderedEnumerable<System.Collections.Generic.KeyValuePair<object,float>> System.Linq.Enumerable.OrderByDescending<System.Collections.Generic.KeyValuePair<object,float>,float>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,float>>,System.Func<System.Collections.Generic.KeyValuePair<object,float>,float>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.OrderByDescending<object,int>(System.Collections.Generic.IEnumerable<object>,System.Func<object,int>)
+		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.OrderByDescending<object,long>(System.Collections.Generic.IEnumerable<object>,System.Func<object,long>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Select<System.Collections.Generic.KeyValuePair<ulong,object>,object>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<ulong,object>>,System.Func<System.Collections.Generic.KeyValuePair<ulong,object>,object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Select<ulong,object>(System.Collections.Generic.IEnumerable<ulong>,System.Func<ulong,object>)
+		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Take<object>(System.Collections.Generic.IEnumerable<object>,int)
+		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.TakeIterator<object>(System.Collections.Generic.IEnumerable<object>,int)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.ThenBy<object,int>(System.Linq.IOrderedEnumerable<object>,System.Func<object,int>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.ThenByDescending<object,int>(System.Linq.IOrderedEnumerable<object>,System.Func<object,int>)
+		// double[] System.Linq.Enumerable.ToArray<double>(System.Collections.Generic.IEnumerable<double>)
 		// System.Collections.Generic.List<object> System.Linq.Enumerable.ToList<object>(System.Collections.Generic.IEnumerable<object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Where<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<System.Collections.Generic.KeyValuePair<ulong,object>>.Select<object>(System.Func<System.Collections.Generic.KeyValuePair<ulong,object>,object>)
@@ -2439,6 +2471,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// UnityEngine.Vector2 UnityEngine.InputSystem.InputActionState.ReadValue<UnityEngine.Vector2>(int,int,bool)
 		// float UnityEngine.InputSystem.InputActionState.ReadValue<float>(int,int,bool)
 		// object UnityEngine.JsonUtility.FromJson<object>(string)
+		// object UnityEngine.Object.FindObjectOfType<object>()
 		// object UnityEngine.Object.FindObjectOfType<object>(bool)
 		// object UnityEngine.Object.Instantiate<object>(object)
 		// object UnityEngine.Object.Instantiate<object>(object,UnityEngine.Transform)

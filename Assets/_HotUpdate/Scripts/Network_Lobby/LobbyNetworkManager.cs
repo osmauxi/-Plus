@@ -27,6 +27,7 @@ namespace ProjectGame.HotFix.Netcode
         public static LobbyNetworkManager Instance { get; private set; }
         public static event Action<LobbyNetworkManager> InstanceChanged;
         public bool IsRoomLocked => _isRoomLocked;
+        public bool AllPlayerProfilesSubmitted => AreAllPlayerProfilesSubmitted();
 
         [Header("大厅网络配置")]
         [SerializeField] private int _maxPlayers = 4;

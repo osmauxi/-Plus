@@ -97,6 +97,7 @@ namespace ProjectGame.Bootstrap
         private async void Start()
         {
             DontDestroyOnLoad(gameObject);
+            BenchmarkLaunchOptions.InitializeFromCommandLine();
             SetStage($"启动环境：{Application.platform}，版本 {Application.version}");
             await StartPipelineAsync();
         }
@@ -194,6 +195,11 @@ namespace ProjectGame.Bootstrap
                 Debug.LogError(
                     $"[Bootstrap] 致命错误，启动管线中断：{exception}");
                 _lastError = userFacingError;
+                BenchmarkFileProtocol.WriteStatus(
+                    BenchmarkLaunchOptions.Current,
+                    "bootstrap-failed",
+                    userFacingError,
+                    failed: true);
             }
         }
 
@@ -280,6 +286,16 @@ namespace ProjectGame.Bootstrap
                     $"→ {runtimeUri.AbsoluteUri}");
             }
 
+
+            BenchmarkLaunchOptions benchmark = BenchmarkLaunchOptions.Current;
+            if (benchmark.Enabled && !string.IsNullOrWhiteSpace(benchmark.ContentRoot))
+            {
+                if (TryRewriteToLocalAddressablesFile(runtimeUri, out string benchmarkFileUrl))
+                    return benchmarkFileUrl;
+                throw new FileNotFoundException(
+                    $"Benchmark 本地 Addressables 内容缺失：{runtimeUri.AbsolutePath}",
+                    benchmark.ContentRoot);
+            }
 
             //当前服务器不是本机，直接通过局域网 HTTP 访问。
             if (!IsLocalIpv4Address(runtimeUri.Host))
@@ -474,6 +490,17 @@ namespace ProjectGame.Bootstrap
                 return _localAddressablesRoot;
 
             _localAddressablesRootResolved = true;
+            BenchmarkLaunchOptions benchmark = BenchmarkLaunchOptions.Current;
+            if (benchmark.Enabled && !string.IsNullOrWhiteSpace(benchmark.ContentRoot))
+            {
+                string configuredRoot = Path.GetFullPath(benchmark.ContentRoot);
+                if (!Directory.Exists(configuredRoot))
+                    throw new DirectoryNotFoundException(
+                        $"Benchmark Addressables 目录不存在：{configuredRoot}");
+                _localAddressablesRoot = configuredRoot;
+                return _localAddressablesRoot;
+            }
+
             string platformFolder = GetAddressablesPlatformFolder();
             if (string.IsNullOrEmpty(platformFolder))
                 return null;
@@ -893,6 +920,10 @@ namespace ProjectGame.Bootstrap
             _state = BootstrapState.Running;
             _currentStage = stage;
             Debug.Log($"[Bootstrap] {stage}");
+            BenchmarkFileProtocol.WriteStatus(
+                BenchmarkLaunchOptions.Current,
+                "bootstrap",
+                stage);
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -904,6 +935,10 @@ namespace ProjectGame.Bootstrap
             _currentStage = "配置加载完成，已进入 LobbyScene";
             _downloadProgress = -1f;
             Debug.Log("[Bootstrap] LobbyScene 加载成功，启动管线完成");
+            BenchmarkFileProtocol.WriteStatus(
+                BenchmarkLaunchOptions.Current,
+                "lobby-loaded",
+                "配置加载完成，已进入 LobbyScene");
             DestroyAfterSuccessAsync().Forget();
         }
 

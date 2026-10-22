@@ -71,6 +71,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private bool _hasFlowField;
 
         public bool HasFlowField => _hasFlowField;
+        public int TopologyRebuildCount { get; private set; }
+        public int SourceRebuildCount { get; private set; }
+        public int CostRebuildCount { get; private set; }
+        public uint LastRebuildTick { get; private set; }
 
         /// <summary>
         /// 寻路加强，将移动格设为玩家周围八格
@@ -212,6 +216,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 using (TopologyRebuildMarker.Auto())
                     RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                TopologyRebuildCount++;
+                LastRebuildTick = tick;
 
                 return;
             }
@@ -221,6 +227,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 using (SourceRebuildMarker.Auto())
                     RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                SourceRebuildCount++;
+                LastRebuildTick = tick;
 
                 return;
             }
@@ -242,6 +250,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 using (SourceRebuildMarker.Auto())
                     RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                SourceRebuildCount++;
+                LastRebuildTick = tick;
 
                 return;
             }
@@ -253,7 +263,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 using (CostRebuildMarker.Auto())
                     RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                CostRebuildCount++;
+                LastRebuildTick = tick;
             }
+        }
+
+        public void ResetDiagnostics()
+        {
+            TopologyRebuildCount = 0;
+            SourceRebuildCount = 0;
+            CostRebuildCount = 0;
+            LastRebuildTick = 0;
         }
 
         private void CaptureCurrentSourceCells(MonsterPlayerTargetBuffer players,float groundY)

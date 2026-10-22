@@ -3,7 +3,6 @@ using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.SceneFlow;
 using System.Collections;
 using Unity.Netcode;
-using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using ProjectGame.HotFix.Netcode;
 using ProjectGame.HotFix.Lobby;
@@ -254,12 +253,11 @@ namespace ProjectGame.HotFix.UI.Lobby
         {
             try
             {
-                LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
-                await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy());
-                UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-                transport.SetConnectionData("127.0.0.1", GamePort, "0.0.0.0");
-                if (!NetworkManager.Singleton.StartHost())
-                    throw new System.InvalidOperationException("单人 Host 启动失败");
+                await LobbyConnectionService.StartHostAsync(
+                    LobbyUIManager.Instance.OverviewCoordinator.PersistentPlayerId,
+                    "127.0.0.1",
+                    GamePort,
+                    this.GetCancellationTokenOnDestroy());
                 await NetworkSessionBootstrap.Instance.WaitForLobbyReadyAsync(this.GetCancellationTokenOnDestroy());
                 if (LobbyNetworkManager.Instance == null)
                     throw new System.InvalidOperationException("LobbyNetworkRoot 尚未 Ready");
@@ -388,15 +386,17 @@ namespace ProjectGame.HotFix.UI.Lobby
         {
             if (!_isWorking) return;
 
-            try { await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy()); }
-            catch (System.Exception exception) { Debug.LogError($"创建房间准备失败：{exception}"); return; }
-
-            LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
-            var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-            // Host 自身连接到回环地址，同时在所有网卡监听，局域网客户端才能访问。
-            transport.SetConnectionData("127.0.0.1", GamePort, "0.0.0.0");
-            if (!NetworkManager.Singleton.StartHost())
+            try
             {
+                await LobbyConnectionService.StartHostAsync(
+                    LobbyUIManager.Instance.OverviewCoordinator.PersistentPlayerId,
+                    "127.0.0.1",
+                    GamePort,
+                    this.GetCancellationTokenOnDestroy());
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError($"创建房间准备失败：{exception}");
                 _joinGameView.SetInfText("<color=red>创建房间失败，UDP 端口可能被占用</color>");
                 _joinGameView.ShowInputField();
                 SetJoinBtnStateUI(JoinGameBtnState.Default);
@@ -431,9 +431,6 @@ namespace ProjectGame.HotFix.UI.Lobby
         {
             if (!_isWorking) return;
 
-            try { await NetworkSessionBootstrap.Instance.PrepareConnectionAsync(this.GetCancellationTokenOnDestroy()); }
-            catch (System.Exception exception) { Debug.LogError($"连接准备失败：{exception}"); return; }
-
             string cleanIP = (ip ?? string.Empty).Trim().Replace("\u200B", "");
             if (string.IsNullOrWhiteSpace(cleanIP))
                 cleanIP = LanRuntimeContext.Endpoint.Host;
@@ -441,16 +438,17 @@ namespace ProjectGame.HotFix.UI.Lobby
             _joinGameView.SetInfText($"正在连接 {cleanIP} ...");
             _joinGameView.HideInputField();
 
-            var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-            transport.SetConnectionData(cleanIP, GamePort);
-
-            LobbyUIManager.Instance.OverviewCoordinator.PrepareConnectionPayload();
-            if (!NetworkManager.Singleton.StartClient())
+            try
             {
-                Debug.LogError(
-                    "[OverviewPresenter] NGO 拒绝启动 Client：" +
-                    $"IsListening={NetworkManager.Singleton.IsListening}, " +
-                    $"ShutdownInProgress={NetworkManager.Singleton.ShutdownInProgress}");
+                await LobbyConnectionService.StartClientAsync(
+                    LobbyUIManager.Instance.OverviewCoordinator.PersistentPlayerId,
+                    cleanIP,
+                    GamePort,
+                    this.GetCancellationTokenOnDestroy());
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError($"[OverviewPresenter] Client 启动失败：{exception}");
                 _joinGameView.SetInfText(
                     "<color=red>上一次网络会话尚未完成关闭，请稍后重试</color>");
                 _joinGameView.ShowInputField();

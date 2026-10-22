@@ -25,10 +25,13 @@ namespace ProjectGame.HotFix.Gameplay.Network
     public sealed class NetworkTransportStats
     {
         private readonly Dictionary<string, NetworkMessageStats> _sentByMessage = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, NetworkMessageStats> _receivedByMessage = new(StringComparer.Ordinal);
 
         public long TotalMessageCount { get; private set; }
 
         public long TotalPayloadBytes { get; private set; }
+        public long TotalReceivedMessageCount { get; private set; }
+        public long TotalReceivedPayloadBytes { get; private set; }
         /// <summary>
         /// 用于指定查阅某个消息名称的发送统计信息
         /// </summary>
@@ -48,6 +51,11 @@ namespace ProjectGame.HotFix.Gameplay.Network
         public IReadOnlyDictionary<string, NetworkMessageStats> GetSentSnapshot()
         {
             return new Dictionary<string, NetworkMessageStats>(_sentByMessage, StringComparer.Ordinal);
+        }
+
+        public IReadOnlyDictionary<string, NetworkMessageStats> GetReceivedSnapshot()
+        {
+            return new Dictionary<string, NetworkMessageStats>(_receivedByMessage, StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -71,11 +79,29 @@ namespace ProjectGame.HotFix.Gameplay.Network
             TotalPayloadBytes += payloadBytes;
         }
 
+        internal void RecordReceived(string messageName, int payloadBytes)
+        {
+            if (string.IsNullOrWhiteSpace(messageName))
+                throw new ArgumentException("消息名称不能为空。", nameof(messageName));
+            if (payloadBytes < 0)
+                throw new ArgumentOutOfRangeException(nameof(payloadBytes), payloadBytes, "Payload 字节数不能为负数。");
+
+            _receivedByMessage.TryGetValue(messageName, out NetworkMessageStats current);
+            _receivedByMessage[messageName] = new NetworkMessageStats(
+                current.MessageCount + 1L,
+                current.PayloadBytes + payloadBytes);
+            TotalReceivedMessageCount++;
+            TotalReceivedPayloadBytes += payloadBytes;
+        }
+
         internal void Reset()
         {
             _sentByMessage.Clear();
+            _receivedByMessage.Clear();
             TotalMessageCount = 0L;
             TotalPayloadBytes = 0L;
+            TotalReceivedMessageCount = 0L;
+            TotalReceivedPayloadBytes = 0L;
         }
     }
 }

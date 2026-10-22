@@ -235,10 +235,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private uint _minimumAcceptedTick;
         private uint _latestTick;
         private bool _hasFrame;
+        private int _activeCount;
 
         public int SlotCount { get; private set; }
         public uint LatestTick => _latestTick;
         public bool HasFrame => _hasFrame;
+        public int ActiveCount => _activeCount;
         /// <summary>
         /// 宣布新的房间开始，之前的网络状态作废，数组不清直接覆盖
         /// </summary>
@@ -248,6 +250,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _minimumAcceptedTick = minimumAcceptedTick;
             _latestTick = 0;
             _hasFrame = false;
+            _activeCount = 0;
             Array.Clear(_active, 0, _active.Length);
         }
         /// <summary>
@@ -304,6 +307,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return MonsterFrameApplyResult.SlotCountMismatch;
 
             int stateIndex = 0;
+            int activeCount = 0;
             for (int slot = 0; slot < SlotCount; slot++)
             {
                 //遍历Slot，死的不管
@@ -311,6 +315,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _active[slot] = active;
                 if (!active) 
                     continue;
+                activeCount++;
                 //收到新包，解包后把当前信息丢给previous，更新current
                 MonsterPackedState packed = frame.ActiveStateBuffer[stateIndex++];
                 quantizer.Unpack(packed.PackedPose, out Vector2 position, out float yaw);
@@ -323,6 +328,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
             _latestTick = frame.ServerTick;
             _hasFrame = true;
+            _activeCount = activeCount;
             return MonsterFrameApplyResult.Applied;
         }
         /// <summary>

@@ -32,6 +32,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     [DisallowMultipleComponent]
     public sealed class MonsterNavigationStressTestManager : MonoBehaviour
     {
+        private static bool _hasBenchmarkOverride;
+        private static int _benchmarkMonsterCount;
+        private static int _benchmarkSeed;
+
         [Header("运行依赖")]
         [Tooltip("用于从压测布局的 StartRoomId 获取已经实例化的 RoomView。")]
         [SerializeField] private MapVisualBuilder _mapVisualBuilder;
@@ -132,6 +136,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public bool IsRunning => _ownsMonsterRoom;
         public int TotalSpawned => _totalSpawned;
 
+        public static void ConfigureBenchmark(int monsterCount, int randomSeed)
+        {
+            if (monsterCount < 1)
+                throw new ArgumentOutOfRangeException(nameof(monsterCount));
+
+            _hasBenchmarkOverride = true;
+            _benchmarkMonsterCount = monsterCount;
+            _benchmarkSeed = randomSeed;
+        }
+
         private void OnEnable()
         {
             _mapBuiltSubscription = LocalEvents.Subscribe<MapRuntimeBuiltEvent>(HandleMapBuilt);
@@ -150,6 +164,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void HandleMapBuilt(MapRuntimeBuiltEvent mapEvent)
         {
             StopStressRun(true);
+            ApplyBenchmarkOverride();
 
             if (!_autoStart || mapEvent.Layout.StrategyType != MapLayoutStrategyType.StressArena || !IsServer())
                 return;
@@ -169,6 +184,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _roomView = roomRuntime.View;
             _random = new System.Random(unchecked(mapEvent.Layout.Seed * 486187739 + _seedOffset));
             _spawnRoutine = StartCoroutine(RunStressTest(mapEvent.GenerationId));
+        }
+
+        private void ApplyBenchmarkOverride()
+        {
+            if (!_hasBenchmarkOverride)
+                return;
+
+            _autoStart = true;
+            _targetAliveMonsterCount = _benchmarkMonsterCount;
+            _maximumTotalSpawnCount = _benchmarkMonsterCount;
+            _maintainTargetAliveCount = false;
+            _spawnBatchSize = Math.Min(512, _benchmarkMonsterCount);
+            _seedOffset = _benchmarkSeed;
         }
 
         private void HandleMapClearing(MapRuntimeClearingEvent mapEvent)

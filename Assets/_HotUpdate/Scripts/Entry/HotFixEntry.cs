@@ -6,6 +6,7 @@ using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Resolvers.Resolvers;
 using ProjectGame.HotFix.SceneFlow;
 using ProjectGame.HotFix.UI;
+using ProjectGame.HotFix.Benchmarking;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -60,6 +61,7 @@ namespace ProjectGame.HotFix
                 // 离线 UI 和审批在联网前就需要会话对象。先引导持久 Root，再加载纯大厅场景。
                 await NetworkSessionBootstrap.EnsureAvailableAsync(default);
                 await AddressableSceneLoadService.Shared.LoadSceneAsync(lobbyScenePath, LoadSceneMode.Single, default);
+                BenchmarkRuntimeCoordinator.StartIfEnabled();
 
                 Debug.Log(
                     "<color=yellow>【通过 Addressables 成功进入联机大厅】</color>");

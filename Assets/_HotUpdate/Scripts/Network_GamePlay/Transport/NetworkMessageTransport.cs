@@ -203,6 +203,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
         /// </summary>
         private void Dispatch(string messageName, ulong senderClientId, FastBufferReader reader)
         {
+            _stats.RecordReceived(messageName, reader.Length);
             if (_handlers.TryGetValue(messageName, out NetworkMessageHandler handler))
                 handler(senderClientId, reader);
         }

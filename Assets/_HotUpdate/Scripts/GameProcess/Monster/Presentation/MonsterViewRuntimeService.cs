@@ -21,6 +21,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private float _frameInterval;
 
         public bool IsInitialized { get; private set; }
+        public int ViewSlotCount => _viewWorld?.SlotCount ?? 0;
+        public int ActiveViewCount => _viewWorld?.ActiveViewCount ?? 0;
 
         private void Awake() => enabled = false;
 

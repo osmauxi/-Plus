@@ -506,7 +506,20 @@ public static class AddressablesContentBuildTool
         return hashPath == null ? string.Empty : File.ReadAllText(hashPath).Trim();
     }
 
-    private static string BuildPlayer(string version, string platform)
+    internal static string BuildBenchmarkPlayer()
+    {
+        return BuildPlayer(
+            PlayerSettings.bundleVersion,
+            GetCurrentPlatform(),
+            "BenchmarkBuild",
+            true);
+    }
+
+    private static string BuildPlayer(
+        string version,
+        string platform,
+        string outputRoot = "Builds",
+        bool forceDevelopment = false)
     {
         string[] scenes = EditorBuildSettings.scenes
             .Where(scene => scene.enabled)
@@ -523,17 +536,17 @@ public static class AddressablesContentBuildTool
             : target == BuildTarget.StandaloneOSX
                 ? productName + ".app"
                 : productName;
-        string outputPath = Path.Combine("Builds", platform, version, outputName);
+        string outputPath = Path.Combine(outputRoot, platform, version, outputName);
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
 
         BuildOptions options = BuildOptions.None;
-        if (EditorUserBuildSettings.development)
+        if (forceDevelopment || EditorUserBuildSettings.development)
             options |= BuildOptions.Development;
-        if (EditorUserBuildSettings.connectProfiler)
+        if (!forceDevelopment && EditorUserBuildSettings.connectProfiler)
             options |= BuildOptions.ConnectWithProfiler;
-        if (EditorUserBuildSettings.buildWithDeepProfilingSupport)
+        if (!forceDevelopment && EditorUserBuildSettings.buildWithDeepProfilingSupport)
             options |= BuildOptions.EnableDeepProfilingSupport;
-        if (EditorUserBuildSettings.allowDebugging)
+        if (!forceDevelopment && EditorUserBuildSettings.allowDebugging)
             options |= BuildOptions.AllowDebugging;
         BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {

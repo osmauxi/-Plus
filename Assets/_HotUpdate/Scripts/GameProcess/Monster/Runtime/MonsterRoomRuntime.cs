@@ -45,6 +45,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public Transform RoomRoot => _roomRoot;
         public float GroundY => _groundY;
         public bool HasFlowField => _simulation.HasFlowField;
+        public int TopologyRebuildCount => _simulation.TopologyRebuildCount;
+        public int SourceRebuildCount => _simulation.SourceRebuildCount;
+        public int CostRebuildCount => _simulation.CostRebuildCount;
+        public uint LastFlowFieldRebuildTick => _simulation.LastRebuildTick;
 
         public MonsterRoomRuntime(
             MonsterRuntimeCatalog configs,
@@ -71,6 +75,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             World.EnsureCapacity(expectedTotalMonsterCount);
             _players.Clear();
             _groundY = groundY;
+            _simulation.ResetDiagnostics();
         }
 
         public MonsterSpawnBatch Spawn(IReadOnlyList<MonsterSpawnPlan> plans)

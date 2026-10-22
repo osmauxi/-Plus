@@ -3,6 +3,22 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
+    /// <summary>
+    /// 记录当前播放的VAT动画帧状态，包括当前帧、下一帧和混合权重。
+    /// </summary>
+    public readonly struct VATFrameState
+    {
+        public readonly float CurrentFrame;
+        public readonly float NextFrame;
+        public readonly float Blend;
+
+        public VATFrameState(float currentFrame, float nextFrame, float blend)
+        {
+            CurrentFrame = currentFrame;
+            NextFrame = nextFrame;
+            Blend = blend;
+        }
+    }
     /// <summary>用 VAT 纹理驱动普通 MeshRenderer，支持循环播放与双动画交叉淡入淡出。</summary>
     public sealed class MonsterVATPlayer
     {
@@ -201,19 +217,40 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _sourceLoop = _targetLoop;
             _transitionElapsed = _transitionDuration = 0f;
         }
+        /// <summary>
+        /// 读取当前的VAT动画帧状态，包括当前帧、下一帧和混合权重
+        /// 该方法在每次更新时调用，以获取最新的动画状态
+        /// </summary>
+        /// <returns></returns>
+        public VATFrameState EvaluateFrameState()
+        {
+            if (!_initialized)
+                return default;
 
+            float currentFrame = GetFrame(_sourceClip, _sourceTime, _sourceLoop);
+            float nextFrame = GetFrame(_targetClip, _targetTime, _targetLoop);
+            float blend = _transitionDuration > 0f
+                ? Mathf.Clamp01(_transitionElapsed / _transitionDuration)
+                : 0f;
+
+            return new VATFrameState(currentFrame, nextFrame, blend);
+
+        }
+        /// <summary>
+        /// 应用当前的VAT动画帧状态到材质属性块中，以便在渲染时使用
+        /// </summary>
         private void ApplyFrameProperties()
         {
             if (_vatRenderer == null || _propertyBlock == null)
                 return;
-            float currentFrame = GetFrame(_sourceClip, _sourceTime, _sourceLoop);
-            float nextFrame = GetFrame(_targetClip, _targetTime, _targetLoop);
-            float blend = _transitionDuration > 0f ? Mathf.Clamp01(_transitionElapsed / _transitionDuration) : 0f;
+
+            VATFrameState state = EvaluateFrameState();
+
             _propertyBlock.Clear();
             _vatRenderer.GetPropertyBlock(_propertyBlock);
-            _propertyBlock.SetFloat(CurrentFrameHash, currentFrame);
-            _propertyBlock.SetFloat(NextFrameHash, nextFrame);
-            _propertyBlock.SetFloat(BlendHash, blend);
+            _propertyBlock.SetFloat(CurrentFrameHash, state.CurrentFrame);
+            _propertyBlock.SetFloat(NextFrameHash, state.NextFrame);
+            _propertyBlock.SetFloat(BlendHash, state.Blend);
             _vatRenderer.SetPropertyBlock(_propertyBlock);
         }
 

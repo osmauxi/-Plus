@@ -9,10 +9,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     public interface IMonsterViewHandle
     {
         GameObject Instance { get; }
+        MonsterVATRenderProfile RenderProfile { get; }
         void BindSlot(int slot);
         void SetPose(Vector2 position, float yaw);
-        void PlayAttack();
-        void PlayHit();
     }
 
     public interface IMonsterViewPool
@@ -33,6 +32,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly IMonsterViewPool _pool;
         private readonly MonsterViewCatalog _catalog;
         private readonly MonsterPoseQuantizer _quantizer;
+        private readonly MonsterVATRenderWorld _vatWorld;
         private IMonsterViewHandle[] _views = Array.Empty<IMonsterViewHandle>();
         private byte[] _attackSequence = Array.Empty<byte>();
         private byte[] _hitSequence = Array.Empty<byte>();
@@ -42,11 +42,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public int ActiveViewCount { get; private set; }
 
         public MonsterViewWorld(IMonsterViewPool pool, MonsterViewCatalog catalog,
-            MonsterPoseQuantizer quantizer)
+            MonsterPoseQuantizer quantizer, MonsterVATRenderWorld vatWorld)
         {
             _pool = pool ?? throw new ArgumentNullException(nameof(pool));
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _quantizer = quantizer ?? throw new ArgumentNullException(nameof(quantizer));
+            _vatWorld = vatWorld ?? throw new ArgumentNullException(nameof(vatWorld));
         }
         /// <summary>
         /// 使用MonsterSpawnBatch从池中拿对应的预制件
@@ -76,6 +77,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     _views[slot] = view;
                     view.BindSlot(slot);
                     _quantizer.Unpack(batch.Items[created].PackedPose, out Vector2 position, out float yaw);
+                    _vatWorld.Spawn(slot, view.RenderProfile, position, yaw);
                     view.SetPose(position, yaw);
                     _attackSequence[slot] = 0;
                     _hitSequence[slot] = 0;
@@ -93,6 +95,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                         continue;
                     IMonsterViewHandle view = _views[slot];
                     _views[slot] = null;
+                    _vatWorld.Despawn(slot);
                     ActiveViewCount--;
                     _pool.Return(view);
                 }
@@ -149,12 +152,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Clear(_hitSequence, 0, _hitSequence.Length);
         }
 
+        public void UpdateAndRender(float deltaTime, float unscaledDeltaTime)
+        {
+            EnsureUsable();
+            _vatWorld.UpdateAndRender(deltaTime, unscaledDeltaTime);
+        }
+
         private void ReturnSlot(int slot, IMonsterViewHandle view)
         {
             _views[slot] = null;
             _attackSequence[slot] = 0;
             _hitSequence[slot] = 0;
             ActiveViewCount--;
+            _vatWorld.Despawn(slot);
             _pool.Return(view);
         }
 
@@ -172,11 +182,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (view == null)
                 throw new InvalidOperationException($"Monster Active Slot={slot} 缺少 SpawnBatch View。");
             view.SetPose(position, yaw);
+            _vatWorld.SetPose(slot, position, yaw, Time.deltaTime);
             //只检测变不变，天然支持回绕
             if (attackSequence != _attackSequence[slot])
-                view.PlayAttack();
+                _vatWorld.PlayAttack(slot);
             if (hitSequence != _hitSequence[slot])
-                view.PlayHit();
+                _vatWorld.PlayHit(slot);
             _attackSequence[slot] = attackSequence;
             _hitSequence[slot] = hitSequence;
         }

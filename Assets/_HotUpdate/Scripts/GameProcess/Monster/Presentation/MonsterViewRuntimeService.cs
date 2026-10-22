@@ -17,6 +17,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private MonsterRuntimeService _runtime;
         private RuntimeLocalObjectPool _objectPool;
         private MonsterViewWorld _viewWorld;
+        private MonsterVATRenderWorld _vatWorld;
         private float _lastFrameTime;
         private float _frameInterval;
 
@@ -68,10 +69,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void OnRoomBegan(MonsterRoomBeginData data)
         {
             DisposeViewWorld();
+            _vatWorld = new MonsterVATRenderWorld(data.GroundY);
             _viewWorld = new MonsterViewWorld(
                 this,
                 _runtime.Catalogs.Views,
-                new MonsterPoseQuantizer(data.QuantizationOrigin, data.QuantizationSize));
+                new MonsterPoseQuantizer(data.QuantizationOrigin, data.QuantizationSize),
+                _vatWorld);
             _frameInterval = GameNetworkRuntime.Gameplay.Clock.TickDeltaTime * _runtime.PresentationIntervalTicks;
             _lastFrameTime = Time.unscaledTime;
             enabled = true;
@@ -100,10 +103,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void LateUpdate()
         {
-            if (GameNetworkRuntime.Gameplay.Transport.IsServer)
-                return;
-            float alpha = Mathf.Clamp01((Time.unscaledTime - _lastFrameTime) / _frameInterval);
-            _viewWorld.ApplyReplica(_runtime.Replica, alpha);
+            if (!GameNetworkRuntime.Gameplay.Transport.IsServer)
+            {
+                float alpha = Mathf.Clamp01((Time.unscaledTime - _lastFrameTime) / _frameInterval);
+                _viewWorld.ApplyReplica(_runtime.Replica, alpha);
+            }
+            _viewWorld.UpdateAndRender(Time.deltaTime, Time.unscaledDeltaTime);
         }
 
         public IMonsterViewHandle Rent(string localPoolId)
@@ -131,6 +136,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterViewWorld viewWorld = _viewWorld;
             _viewWorld = null;
             viewWorld?.Dispose();
+            _vatWorld?.Dispose();
+            _vatWorld = null;
         }
 
         private void OnDestroy() => ShutdownAsync(CancellationToken.None).Forget();

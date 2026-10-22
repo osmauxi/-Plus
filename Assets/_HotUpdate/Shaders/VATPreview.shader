@@ -105,6 +105,7 @@ Shader "Custom/VATPreview"
             #pragma multi_compile _ _FORWARD_PLUS
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -206,6 +207,7 @@ Shader "Custom/VATPreview"
             #pragma fragment ShadowFrag
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -270,6 +272,7 @@ Shader "Custom/VATPreview"
             #pragma vertex DepthVert
             #pragma fragment DepthFrag
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling
 
             struct DepthAttributes
             {

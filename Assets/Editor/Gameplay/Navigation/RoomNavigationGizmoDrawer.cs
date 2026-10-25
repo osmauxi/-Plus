@@ -14,6 +14,8 @@ internal static class RoomNavigationGizmoDrawer
     private static readonly Color DynamicObstacleColor = new(1f, 0f, 0.65f, 0.72f);
     private static readonly Color SeparationColor = new(0f, 1f, 1f, 0.95f);
     private static readonly Color FinalVelocityColor = new(1f, 0.82f, 0f, 0.95f);
+    private static readonly Color SpatialQueryColor = new(1f, 0.25f, 0.9f, 0.95f);
+    private static readonly Color HitRadiusColor = new(1f, 0.55f, 0.1f, 0.7f);
 
     private static GUIStyle _labelStyle;
 
@@ -54,6 +56,13 @@ internal static class RoomNavigationGizmoDrawer
 
         if (runtime != null && (settings.DrawRawSeparation || settings.DrawFinalVelocity))
             DrawMonsterSteering(runtime, settings);
+
+        if (runtime != null &&
+            (settings.DrawMonsterSpatialTree || settings.DrawMonsterHitRadius ||
+             settings.DrawLastMonsterSpatialQuery))
+        {
+            DrawMonsterSpatialIndex(runtime, settings);
+        }
     }
 
     private static MonsterRoomRuntime ResolveRuntime(RoomView view)
@@ -334,6 +343,72 @@ internal static class RoomNavigationGizmoDrawer
         return result.sqrMagnitude > maximum * maximum
             ? result.normalized * maximum
             : result;
+    }
+
+    private static void DrawMonsterSpatialIndex(
+        MonsterRoomRuntime runtime,
+        RoomNavigationGizmoSettings settings)
+    {
+        MonsterSpatialIndex index = runtime.SpatialIndex;
+        float worldY = runtime.GroundY + settings.HeightOffset + 0.22f;
+
+        if (settings.DrawMonsterSpatialTree && index.IsBuilt)
+        {
+            for (int i = 0; i < index.NodeCount; i++)
+            {
+                if (!index.TryGetDebugNode(i, out MonsterSpatialNodeDebugData node) || !node.IsLeaf)
+                    continue;
+
+                float density = Mathf.Clamp01((float)node.MonsterCount / MonsterSpatialIndex.SplitThreshold);
+                float depth = Mathf.InverseLerp(
+                    MonsterSpatialIndex.BaseDepth,
+                    MonsterSpatialIndex.MaxDepth,
+                    node.Depth);
+                Gizmos.color = Color.Lerp(
+                    Color.Lerp(new Color(0.1f, 0.75f, 1f, 0.42f), new Color(0.5f, 0.2f, 1f, 0.7f), depth),
+                    new Color(1f, 0.15f, 0.05f, 0.9f),
+                    density);
+                Gizmos.DrawWireCube(
+                    new Vector3(node.Center.x, worldY, node.Center.y),
+                    new Vector3(node.Size, 0.02f, node.Size));
+
+                if (settings.DrawMonsterSpatialCounts && node.MonsterCount > 0)
+                {
+                    Handles.Label(
+                        new Vector3(node.Center.x, worldY + 0.08f, node.Center.y),
+                        $"{node.MonsterCount} / d{node.Depth}",
+                        GetLabelStyle());
+                }
+            }
+        }
+
+        if (settings.DrawMonsterHitRadius)
+        {
+            Handles.color = HitRadiusColor;
+            for (int slot = 0; slot < runtime.World.SlotCount; slot++)
+            {
+                if (!runtime.World.TryGetPosition(slot, out Vector2 position))
+                    continue;
+                Handles.DrawWireDisc(
+                    new Vector3(position.x, worldY + 0.025f, position.y),
+                    Vector3.up,
+                    runtime.MonsterHitRadius);
+            }
+        }
+
+        if (settings.DrawLastMonsterSpatialQuery && index.HasQueryDebugData)
+        {
+            Vector3 start = new(index.LastQueryStart.x, worldY + 0.05f, index.LastQueryStart.y);
+            Vector3 end = new(index.LastQueryEnd.x, worldY + 0.05f, index.LastQueryEnd.y);
+            Handles.color = SpatialQueryColor;
+            Handles.DrawLine(start, end, 2f);
+            Handles.DrawWireDisc(start, Vector3.up, index.LastQueryRadius);
+            Handles.DrawWireDisc(end, Vector3.up, index.LastQueryRadius);
+            Handles.Label(
+                (start + end) * 0.5f + Vector3.up * 0.08f,
+                $"candidates {index.LastQueryCandidateCount}, nodes {index.LastQueryVisitedNodeCount}",
+                GetLabelStyle());
+        }
     }
 
     private static void DrawCell(int x, int y, float localY, float scale)

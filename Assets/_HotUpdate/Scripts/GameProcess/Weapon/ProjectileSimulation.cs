@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectGame.HotFix.Gameplay.Monsters;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon
@@ -14,6 +15,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly ShotRepository _shots;
         private readonly WeaponStatSnapshotRepository _stats;
         private readonly ProjectileSimulationConfig _config;
+        private readonly MonsterRuntimeService _monsters;
         private readonly IProjectileEffectDispatcher _effects;
 
         public event Action<ProjectileImpact> Impact;
@@ -24,12 +26,24 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         private readonly Collider[] _overlapBuffer = new Collider[OverlapBufferSize];
         private readonly RaycastHit[] _castBuffer = new RaycastHit[CastBufferSize];
+        private int[] _monsterCandidates = Array.Empty<int>();
         private readonly Dictionary<uint, HashSet<ulong>> _hitEntities = new();
         private readonly Stack<HashSet<ulong>> _hitEntityPool = new();
 
+        private static readonly ProfilerMarker MonsterNarrowPhaseMarker =
+            new("Weapon.Projectile.MonsterNarrowPhase");
+
+        private enum ContactKind : byte
+        {
+            None,
+            World,
+            Monster,
+        }
+
         private struct Contact
         {
-            public Collider Collider;
+            public ContactKind Kind;
+            public int MonsterSlot;
             public Vector3 Point;
             public Vector3 Normal;
             public float Distance;
@@ -37,12 +51,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         public ProjectileSimulation(ProjectileWorld world, ShotRepository shots,
             WeaponStatSnapshotRepository stats, ProjectileSimulationConfig config,
+            MonsterRuntimeService monsters,
             IProjectileEffectDispatcher effects = null)
         {
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _shots = shots ?? throw new ArgumentNullException(nameof(shots));
             _stats = stats ?? throw new ArgumentNullException(nameof(stats));
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _monsters = monsters ?? throw new ArgumentNullException(nameof(monsters));
             _effects = effects ?? NoneProjectileEffectDispatcher.Instance;
         }
 
@@ -143,25 +159,28 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             //先推进到碰撞位置，碰撞是球体，hit.Point是不准确的
             projectile.Position += direction * hit.Distance;
             remaining = Mathf.Max(0, remaining - hit.Distance);
-            //开始判定碰撞性质
-            //Unity Layer本身有索引，1左移将其转换为对应索引的掩码，按位与判定TargetMask是否包含物体的Layer
-            //LayerMask.Value为多选后处理好了的场景掩码，所以这里可以不做转换直接按位与
-            bool targetLayer = (_config.TargetMask.value & (1 << hit.Collider.gameObject.layer)) != 0;
+            bool isMonsterContact = hit.Kind == ContactKind.Monster;
             ulong targetEntityId = 0;
-            MonsterViewHandle monster = null;
-            bool hasTarget = targetLayer && TryResolveTarget(hit.Collider,
-                out targetEntityId, out _, out monster);
+            bool hasTarget = false;
+
+            if (isMonsterContact)
+            {
+                hasTarget = _monsters.IsMonsterAlive(hit.MonsterSlot);
+                if (hasTarget)
+                    targetEntityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)hit.MonsterSlot;
+            }
+
             ProjectileHitResolution resolution = ProjectileHitResolution.Destroy;
             float damage = stats.Damage * projectile.DamageMultiplier;
             float projectileSize = stats.ProjectileSize * projectile.SizeMultiplier;
             bool isCritical = (projectile.Flags & ProjectileFlags.Critical) != 0;
             float vfxWeight = ProjectileImpactVfxWeight.Calculate(damage, projectileSize, isCritical);
             //是可攻击对象
-            if (targetLayer)
+            if (isMonsterContact)
             {
                 if (hasTarget)
                 {
-                    MonsterRuntimeService.Instance.DamageMonster(monster.Slot, damage);
+                    _monsters.DamageMonster(hit.MonsterSlot, damage);
 
                     RememberHit(projectile.ProjectileId, targetEntityId);
                     projectile.HitCount++;
@@ -219,34 +238,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             return resolution == ProjectileHitResolution.Continue;
         }
 
-        /// <summary>
-        /// 忽略自己，已死亡目标，已经命中过的对象
-        /// </summary>
-        private bool IsIgnored(Collider collider, in ShotContext shot, uint projectileId)
-        {
-            if (!TryResolveTarget(collider, out ulong entityId, out bool isAlive, out _))
-                return false;
-
-            return entityId == shot.OwnerEntityId || HasHit(projectileId, entityId) || !isAlive;
-        }
-
-        private static bool TryResolveTarget(Collider collider, out ulong entityId, out bool isAlive,
-            out MonsterViewHandle monster)
-        {
-            monster = collider.GetComponentInParent<MonsterViewHandle>();
-            if (monster != null && monster.Slot >= 0)
-            {
-                entityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)monster.Slot;
-                MonsterRuntimeService runtime = MonsterRuntimeService.Instance;
-                isAlive = runtime != null && runtime.IsMonsterAlive(monster.Slot);
-                return true;
-            }
-
-            entityId = 0;
-            isAlive = false;
-            return false;
-        }
-
         private bool HasHit(uint projectileId, ulong entityId) =>
             _hitEntities.TryGetValue(projectileId, out HashSet<ulong> entities) && entities.Contains(entityId);
 
@@ -267,10 +258,131 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         internal void MarkTargetAsHit(uint projectileId, ulong targetEntityId) =>
             RememberHit(projectileId, targetEntityId);
 
+
+        /// <summary>
+        /// 无Collider条件下的怪物碰撞检测，使用怪物的圆形受击半径进行判定
+        /// </summary>
+        private bool TryFindMonsterContact(
+            in ProjectileState projectile,
+            in ShotContext shot,
+            float projectileRadius,
+            Vector3 direction,
+            float maxDistance,
+            bool initialOverlap,
+            out Contact contact)
+        {
+            contact = default;
+            MonsterRoomRuntime room = _monsters.AuthorityRoom;
+            if (room == null)
+                return false;
+
+            Vector2 start = new Vector2(projectile.Position.x, projectile.Position.z);
+            Vector2 end = start + new Vector2(direction.x, direction.z) * maxDistance;
+            Vector2 planarDirection = new Vector2(direction.x, direction.z);
+            float planarMagnitude = planarDirection.magnitude;
+            if (planarMagnitude > 0.0001f) planarDirection /= planarMagnitude;
+            //将子弹碰撞半径与怪物的圆形受击半径相加，得到一个组合半径，用于判断子弹与怪物的碰撞
+            float monsterHitRadius = room.MonsterHitRadius;
+            float combinedRadius = projectileRadius + monsterHitRadius;
+            float combinedRadiusSq = combinedRadius * combinedRadius;
+            float nearest = float.PositiveInfinity;
+            bool found = false;
+
+            EnsureMonsterCandidateCapacity(room.World.SlotCount);
+            int candidateCount = room.QueryMonsterCandidates(
+                start, initialOverlap ? start : end, combinedRadius, _monsterCandidates);
+
+            using (MonsterNarrowPhaseMarker.Auto())
+            {
+                for (int i = 0; i < candidateCount; i++)
+                {
+                    int slot = _monsterCandidates[i];
+                    if (!room.World.Meta[slot].IsActive)
+                        continue;
+
+                    ulong entityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)slot;
+                    if (entityId == shot.OwnerEntityId || HasHit(projectile.ProjectileId, entityId))
+                        continue;
+
+                    Vector2 center = room.World.Motion[slot].Position;
+                    Vector2 toCenter = center - start;
+                    float pathDistance;
+
+                    if (initialOverlap)
+                    {
+                        if (toCenter.sqrMagnitude > combinedRadiusSq)
+                            continue;
+                        pathDistance = 0f;
+                    }
+                    else
+                    {
+                        if (toCenter.sqrMagnitude <= combinedRadiusSq)
+                            pathDistance = 0f;
+                        else
+                        {
+                            if (planarMagnitude <= 0.0001f)
+                                continue;
+                            float projection = Vector2.Dot(toCenter, planarDirection);
+                            float discriminant = projection * projection -
+                                                   (toCenter.sqrMagnitude - combinedRadiusSq);
+                            if (projection < 0f || discriminant < 0f)
+                                continue;
+
+                            float horizontalDistance = projection - Mathf.Sqrt(discriminant);
+                            if (horizontalDistance < 0f)
+                                continue;
+                            pathDistance = horizontalDistance / planarMagnitude;
+                            if (pathDistance > maxDistance)
+                                continue;
+                        }
+                    }
+
+                    if (pathDistance >= nearest)
+                        continue;
+
+                    Vector3 projectileAtHit = projectile.Position + direction * pathDistance;
+                    Vector2 normal2 = new Vector2(
+                        projectileAtHit.x - center.x,
+                        projectileAtHit.z - center.y);
+                    if (normal2.sqrMagnitude > 0.0001f)
+                        normal2.Normalize();
+                    else if (planarMagnitude > 0.0001f)
+                        normal2 = -planarDirection;
+                    else
+                        normal2 = Vector2.right;
+
+                    contact = new Contact
+                    {
+                        Kind = ContactKind.Monster,
+                        MonsterSlot = slot,
+                        Point = new Vector3(
+                            center.x + normal2.x * monsterHitRadius,
+                            projectileAtHit.y,
+                            center.y + normal2.y * monsterHitRadius),
+                        Normal = new Vector3(normal2.x, 0f, normal2.y),
+                        Distance = pathDistance
+                    };
+
+                    nearest = pathDistance;
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        private void EnsureMonsterCandidateCapacity(int slotCount)
+        {
+            if (_monsterCandidates.Length >= slotCount)
+                return;
+            int capacity = Math.Max(slotCount, _monsterCandidates.Length == 0 ? 64 : _monsterCandidates.Length * 2);
+            Array.Resize(ref _monsterCandidates, capacity);
+        }
+
         private bool TryCast(in ProjectileState projectile, in ShotContext shot, float radius,
             Vector3 direction, float distance, out Contact contact)
         {
-            int mask = _config.TargetMask | _config.WorldMask;
+            int mask = _config.WorldMask.value;
             //碰撞信息会存进缓存的_castBuffer中，无额外GC
             int count = Physics.SphereCastNonAlloc(
                             projectile.Position,
@@ -287,58 +399,67 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             {
                 RaycastHit hit = _castBuffer[i];
 
-                if (hit.collider == null ||
-                    hit.distance >= nearest ||
-                    IsIgnored(hit.collider, shot, projectile.ProjectileId))
+                if (hit.collider == null || hit.distance >= nearest)
                     continue;
 
                 nearest = hit.distance;
 
                 contact = new Contact
                 {
-                    Collider = hit.collider,
+                    Kind = ContactKind.World,
+                    MonsterSlot = -1,
                     Point = hit.point,
                     Normal = hit.normal,
                     Distance = hit.distance,
                 };
             }
 
-            return contact.Collider != null;
+            if (TryFindMonsterContact(projectile, shot, radius, direction, distance, false, out Contact monsterContact) &&
+                                     (contact.Kind == ContactKind.None || monsterContact.Distance < contact.Distance))
+                contact = monsterContact;
+
+            return contact.Kind != ContactKind.None;
         }
         /// <summary>
         /// 在子弹生成时进行判定，针对子弹生成在碰撞体内部的情况
         /// </summary>
-        private bool TryInitialOverlap(in ProjectileState projectile,in ShotContext shot,float radius,Vector3 direction,out Contact contact)
+        private bool TryInitialOverlap(
+            in ProjectileState projectile,
+            in ShotContext shot,
+            float radius,
+            Vector3 direction,
+            out Contact contact)
         {
-            int mask = _config.TargetMask | _config.WorldMask;
             int count = Physics.OverlapSphereNonAlloc(
                 projectile.Position,
                 radius,
                 _overlapBuffer,
-                mask,
+                _config.WorldMask.value,
                 QueryTriggerInteraction.Collide);
 
             for (int i = 0; i < count; i++)
             {
                 Collider collider = _overlapBuffer[i];
-                if (collider == null || IsIgnored(collider, shot, projectile.ProjectileId)) continue;
+                if (collider == null)
+                    continue;
 
                 Vector3 point = collider.ClosestPoint(projectile.Position);
                 Vector3 normal = projectile.Position - point;
 
                 contact = new Contact
                 {
-                    Collider = collider,
+                    Kind = ContactKind.World,
+                    MonsterSlot = -1,
                     Point = point,
                     Normal = normal.sqrMagnitude > 0.0001f ? normal.normalized : -direction,
-                    Distance = 0f,
+                    Distance = 0f
                 };
 
                 return true;
             }
 
-            contact = default;
-            return false;
+            return TryFindMonsterContact(
+                projectile, shot, radius, direction, 0f, true, out contact);
         }
     }
 

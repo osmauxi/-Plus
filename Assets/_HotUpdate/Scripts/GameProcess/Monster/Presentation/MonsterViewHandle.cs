@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
-    /// <summary>池化怪物碰撞代理；向房间级 VAT 渲染提供共享资源配置。</summary>
+    /// <summary>池化怪物表现句柄；向房间级 VAT 渲染提供共享资源配置。</summary>
     [DisallowMultipleComponent]
     public sealed class MonsterViewHandle : MonoBehaviour, IMonsterViewHandle, IPoolable
     {
@@ -11,7 +11,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         [SerializeField] private Material _vatMaterial;
         [SerializeField, Min(0f)] private float _animationCrossFadeDuration = 0.12f;
         [SerializeField, Min(0f)] private float _movementThreshold = 0.05f;
-        [SerializeField] private Collider[] _damageColliders;
         [SerializeField, Min(0.01f)] private float _hitFlashDuration = 0.08f;
         [SerializeField] private Color _hitFlashColor = Color.white;
 
@@ -44,19 +43,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 renderers[i].enabled = false;
         }
 
-        public void OnRentFromPool()
-        {
-            Slot = -1;
-            for (int i = 0; i < _damageColliders.Length; i++)
-                _damageColliders[i].enabled = true;
-        }
+        public void OnRentFromPool() => Slot = -1;
 
-        public void OnReturnToPool()
-        {
-            Slot = -1;
-            for (int i = 0; i < _damageColliders.Length; i++)
-                _damageColliders[i].enabled = false;
-        }
+        public void OnReturnToPool() => Slot = -1;
 
         public void SetPose(Vector2 position, float yaw)
         {

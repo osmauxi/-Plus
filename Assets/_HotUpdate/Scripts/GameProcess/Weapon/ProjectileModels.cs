@@ -268,7 +268,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
     public sealed class ProjectileSimulationConfig
     {
-        public LayerMask TargetMask;
         public LayerMask WorldMask;
         public float MinimumRadius = 0.02f;
         public float SurfaceOffset = 0.01f;

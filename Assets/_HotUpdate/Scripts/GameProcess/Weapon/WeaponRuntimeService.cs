@@ -70,7 +70,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
     public sealed class WeaponRuntimeService : MonoBehaviour, IGameRuntimeService, IWeaponEventSource,
         IWeaponSpecialEffectCommandSink
     {
-        [SerializeField] private LayerMask _targetMask;
         [SerializeField] private LayerMask _worldMask;
         public static WeaponRuntimeService Instance { get; private set; }
         public bool IsInitialized { get; private set; }
@@ -180,15 +179,18 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 if (!WeaponConfigRules.IsSelectable(row.WeaponID)) 
                     throw new InvalidOperationException($"武器 {row.WeaponID} 缺少 Lobby 资源行。");
             }
-            if ((_targetMask.value & _worldMask.value) != 0 || _targetMask.value == 0 || _worldMask.value == 0)
-                throw new InvalidOperationException("Weapon 的 Target/World LayerMask 必须非空且不重叠。");
+            if (_worldMask.value == 0)
+                throw new InvalidOperationException("Weapon 的 World LayerMask 不能为空。");
+            MonsterRuntimeService monsters = MonsterRuntimeService.Instance ??
+                throw new InvalidOperationException("Weapon 必须在 MonsterRuntimeService 后初始化。");
             _builder = new ShotBuilder(_shots, _world, _specialEffects);
             _simulation = new ProjectileSimulation(_world, _shots, _stats,
-                new ProjectileSimulationConfig { TargetMask = _targetMask, WorldMask = _worldMask },
+                new ProjectileSimulationConfig { WorldMask = _worldMask },
+                monsters,
                 _specialEffects);
             _simulation.Impact += HandleImpact;
             _simulation.Removed += HandleRemoved;
-            _network.Clock.TickCompleted += Tick;
+            _network.Clock.Subscribe(GameplayTickPhase.CombatSimulation, TickCombat);
             Instance = this;
             IsInitialized = true;
             return UniTask.CompletedTask;
@@ -470,7 +472,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 command.Radius, command.Duration);
         }
 
-        private void Tick(uint tick)
+        private void TickCombat(uint tick)
         {
             if (!_network.Transport.IsServer) 
                 return;
@@ -677,7 +679,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             _specialEffects?.ClearOwners();
             if (_network != null) 
-                _network.Clock.TickCompleted -= Tick;
+                _network.Clock.Unsubscribe(GameplayTickPhase.CombatSimulation, TickCombat);
             if (_simulation != null) 
             { 
                 _simulation.Impact -= HandleImpact;

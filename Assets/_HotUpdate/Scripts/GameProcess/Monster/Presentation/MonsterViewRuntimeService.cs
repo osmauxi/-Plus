@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using UnityEngine;
+using UnityEngine.Rendering;
 using RuntimeLocalObjectPool = ProjectGame.HotFix.Gameplay.Pooling.LocalObjectPool;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -77,6 +79,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _vatWorld);
             _frameInterval = GameNetworkRuntime.Gameplay.Clock.TickDeltaTime * _runtime.PresentationIntervalTicks;
             _lastFrameTime = Time.unscaledTime;
+            RenderPipelineManager.beginContextRendering += HandleBeginContextRendering;
             enabled = true;
         }
 
@@ -108,8 +111,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 float alpha = Mathf.Clamp01((Time.unscaledTime - _lastFrameTime) / _frameInterval);
                 _viewWorld.ApplyReplica(_runtime.Replica, alpha);
             }
-            _viewWorld.UpdateAndRender(Time.deltaTime, Time.unscaledDeltaTime);
+            _viewWorld.Update(Time.deltaTime, Time.unscaledDeltaTime);
         }
+
+        private void HandleBeginContextRendering(
+            ScriptableRenderContext context, List<Camera> cameras) => _viewWorld.Render();
 
         public IMonsterViewHandle Rent(string localPoolId)
         {
@@ -133,6 +139,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void ReleaseViewWorld()
         {
+            RenderPipelineManager.beginContextRendering -= HandleBeginContextRendering;
             MonsterViewWorld viewWorld = _viewWorld;
             _viewWorld = null;
             viewWorld?.Dispose();

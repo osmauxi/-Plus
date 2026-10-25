@@ -152,10 +152,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Clear(_hitSequence, 0, _hitSequence.Length);
         }
 
-        public void UpdateAndRender(float deltaTime, float unscaledDeltaTime)
+        public void Update(float deltaTime, float unscaledDeltaTime)
         {
             EnsureUsable();
-            _vatWorld.UpdateAndRender(deltaTime, unscaledDeltaTime);
+            _vatWorld.Update(deltaTime, unscaledDeltaTime);
+        }
+
+        public void Render()
+        {
+            EnsureUsable();
+            _vatWorld.Render();
         }
 
         private void ReturnSlot(int slot, IMonsterViewHandle view)

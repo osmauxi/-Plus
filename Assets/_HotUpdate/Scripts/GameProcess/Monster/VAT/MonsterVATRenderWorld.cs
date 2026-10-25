@@ -139,7 +139,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _states[slot].Active = false;
         }
 
-        public void UpdateAndRender(float deltaTime, float unscaledDeltaTime)
+        public void Update(float deltaTime, float unscaledDeltaTime)
         {
             using (UpdateMarker.Auto())
             {
@@ -151,7 +151,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     Tick(ref state, _groups[state.GroupIndex], deltaTime, unscaledDeltaTime);
                 }
             }
+        }
 
+        public void Render()
+        {
             using (DrawMarker.Auto())
             {
                 for (int i = 0; i < _groups.Count; i++)

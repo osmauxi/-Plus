@@ -1,6 +1,7 @@
 using ProjectGame.HotFix.Gameplay.Navigation;
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Map
@@ -8,6 +9,13 @@ namespace ProjectGame.HotFix.Gameplay.Map
 
     public sealed class RuntimeNavigationObstacleSystem
     {
+        private static readonly ProfilerMarker TickMarker =
+            new("Monster.Navigation.Obstacles.Tick");
+        private static readonly ProfilerMarker CalculateCellsMarker =
+            new("Monster.Navigation.Obstacles.CalculateCells");
+        private static readonly ProfilerMarker ApplyBlockedCellsMarker =
+            new("Monster.Navigation.Obstacles.ApplyBlockedCells");
+
         private readonly RuntimeNavigationGrid _grid;
         private readonly Transform _roomRoot;
         private readonly List<ObstacleState> _states = new();
@@ -33,6 +41,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
         /// </summary>
         public void Tick()
         {
+            using var tickScope = TickMarker.Auto();
+
             for (int i = 0; i < _states.Count; i++)
             {
                 ObstacleState state = _states[i];
@@ -105,6 +115,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
         }
         private void SetBlocked(RectInt cells, bool blocked)
         {
+            using var applyScope = ApplyBlockedCellsMarker.Auto();
+
             for (int y = cells.yMin; y < cells.yMax; y++)
             {
                 for (int x = cells.xMin; x < cells.xMax; x++)
@@ -122,6 +134,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
         /// </summary>
         private bool TryCalculateCells(RuntimeNavigationObstacle obstacle,out RectInt cells)
         {
+            using var calculateScope = CalculateCellsMarker.Auto();
+
             cells = default;
 
             BoxCollider box = obstacle.Bounds;

@@ -1,6 +1,7 @@
 using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using System;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Map
@@ -40,8 +41,14 @@ namespace ProjectGame.HotFix.Gameplay.Map
         private readonly ushort[] _densityCost;
         private readonly bool[] _dynamicBlocked;
 
-        private static readonly int[] NeighborX = { -1, 0, 1, -1, 1, -1, 0, 1 };
-        private static readonly int[] NeighborY = { -1, -1, -1, 0, 0, 1, 1, 1 };
+        private static readonly ProfilerMarker RefreshTopologyMarker =
+            new("Monster.NavigationGrid.Topology.Refresh");
+        private static readonly ProfilerMarker BuildWalkableMarker =
+            new("Monster.NavigationGrid.Topology.BuildWalkable");
+        private static readonly ProfilerMarker BuildConnectionsMarker =
+            new("Monster.NavigationGrid.Topology.BuildConnections");
+        private static readonly ProfilerMarker RefreshCostMarker =
+            new("Monster.NavigationGrid.Cost.Refresh");
 
         private readonly byte[] _staticWalkable;
         private readonly byte[] _walkableCache;
@@ -126,67 +133,32 @@ namespace ProjectGame.HotFix.Gameplay.Map
             if (_cachedTopologyVersion == TopologyVersion)
                 return;
 
+            using var refreshScope = RefreshTopologyMarker.Auto();
+
             int width = Width;
             int height = Height;
             int count = width * height;
 
             //先得到当前最终Walkable状态
-            for (int i = 0; i < count; i++)
+            using (BuildWalkableMarker.Auto())
             {
-                _walkableCache[i] =
-                    _staticWalkable[i] != 0 && !_dynamicBlocked[i]
-                        ? (byte)1
-                        : (byte)0;
+                for (int i = 0; i < count; i++)
+                {
+                    _walkableCache[i] =
+                        _staticWalkable[i] != 0 && !_dynamicBlocked[i]
+                            ? (byte)1
+                            : (byte)0;
+                }
             }
 
             //将八方向能否移动提前压进一个byte
-            for (int y = 0; y < height; y++)
+            using (BuildConnectionsMarker.Auto())
             {
-                for (int x = 0; x < width; x++)
-                {
-                    int current = y * width + x;
-
-                    if (_walkableCache[current] == 0)
-                    {
-                        _connectionMask[current] = 0;
-                        continue;
-                    }
-
-                    byte mask = 0;
-
-                    for (int i = 0; i < 8; i++)
-                    {
-                        int offsetX = NeighborX[i];
-                        int offsetY = NeighborY[i];
-
-                        int nextX = x + offsetX;
-                        int nextY = y + offsetY;
-
-                        if ((uint)nextX >= (uint)width ||
-                            (uint)nextY >= (uint)height)
-                            continue;
-
-                        int next = nextY * width + nextX;
-
-                        if (_walkableCache[next] == 0)
-                            continue;
-
-                        //斜向仍然保持原来的禁止穿墙角规则
-                        if (offsetX != 0 && offsetY != 0)
-                        {
-                            int sideX = y * width + nextX;
-                            int sideY = nextY * width + x;
-
-                            if (_walkableCache[sideX] == 0 ||
-                                _walkableCache[sideY] == 0)
-                                continue;
-                        }
-
-                        mask |= (byte)(1 << i);
-                    }
-
-                    _connectionMask[current] = mask;
-                }
+                NavigationTopologyKernel.BuildConnections(
+                    width,
+                    height,
+                    _walkableCache,
+                    _connectionMask);
             }
 
             _cachedTopologyVersion = TopologyVersion;
@@ -195,6 +167,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
         {
             if (_cachedCostVersion == CostVersion)
                 return;
+
+            using var refreshScope = RefreshCostMarker.Auto();
 
             for (int i = 0; i < _combinedCost.Length; i++)
                 _combinedCost[i] = _additionalCost[i] + _densityCost[i];

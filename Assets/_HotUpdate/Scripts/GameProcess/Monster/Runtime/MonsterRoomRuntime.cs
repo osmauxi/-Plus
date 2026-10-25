@@ -35,6 +35,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly RuntimeNavigationGrid _navigationGrid;
         private readonly RuntimeNavigationObstacleSystem _obstacleSystem;
         private readonly MonsterSimulation _simulation;
+        private readonly MonsterSpatialIndex _spatialIndex;
         private readonly Transform _roomRoot;
 
         private readonly MonsterPlayerTargetBuffer _players = new();
@@ -42,8 +43,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterWorld World { get; }
         public RuntimeNavigationGrid NavigationGrid => _navigationGrid;
+        public MonsterSpatialIndex SpatialIndex => _spatialIndex;
         public Transform RoomRoot => _roomRoot;
         public float GroundY => _groundY;
+        public float MonsterHitRadius { get; }
         public bool HasFlowField => _simulation.HasFlowField;
         public int TopologyRebuildCount => _simulation.TopologyRebuildCount;
         public int SourceRebuildCount => _simulation.SourceRebuildCount;
@@ -56,6 +59,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterPoseQuantizer quantizer,
             RoomSpatialData spatialData,
             Transform roomRoot,
+            float monsterHitRadius,
             int initialCapacity = 64)
         {
             _configs = configs;
@@ -64,9 +68,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _navigationGrid = new RuntimeNavigationGrid(spatialData);
             _obstacleSystem = new RuntimeNavigationObstacleSystem(_navigationGrid, roomRoot);
-            _simulation = new MonsterSimulation(configs, attackProfiles, _navigationGrid, roomRoot);
+            _simulation = new MonsterSimulation(
+                configs,
+                attackProfiles,
+                _navigationGrid,
+                roomRoot);
 
             World = new MonsterWorld(initialCapacity);
+            _spatialIndex = new MonsterSpatialIndex(roomRoot, RoomSpatialData.HalfSize, initialCapacity);
+            MonsterHitRadius = monsterHitRadius;
         }
 
         public void BeginRoom(int expectedTotalMonsterCount, float groundY)
@@ -75,6 +85,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             World.EnsureCapacity(expectedTotalMonsterCount);
             _players.Clear();
             _groundY = groundY;
+            _spatialIndex.Clear();
             _simulation.ResetDiagnostics();
         }
 
@@ -87,7 +98,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 MonsterSpawnPlan plan = plans[i];
                 ref readonly MonsterRuntimeConfig config = ref _configs.Get(plan.ConfigIndex);
-                World.Create(plan.ConfigIndex, plan.Position, plan.Yaw, config.MaxHealth);
+                int slot = World.Create(plan.ConfigIndex, plan.Position, plan.Yaw, config.MaxHealth);
+                _spatialIndex.Add(World, slot);
             }
 
             return MonsterSpawnBatch.FromPlans(startSlot, plans, _quantizer);
@@ -99,6 +111,30 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             MonsterPlayerTargetCapture.Capture(manager, _players);
             _simulation.Tick(World, _players, tick, deltaTime, _groundY);
+            _spatialIndex.Invalidate();
+        }
+
+        public int QueryMonsterCandidates(
+            Vector2 start,
+            Vector2 end,
+            float radius,
+            int[] results) =>
+            _spatialIndex.QuerySweptCircle(World, start, end, radius, results);
+
+        public bool DamageMonster(int slot, float damage)
+        {
+            bool damaged = World.Damage(slot, damage);
+            if (damaged && !World.IsActive(slot))
+                _spatialIndex.Remove(slot);
+            return damaged;
+        }
+
+        public bool PushMonster(int slot, Vector2 offset)
+        {
+            if (!World.Push(slot, offset))
+                return false;
+            _spatialIndex.Relocate(World, slot);
+            return true;
         }
 
         public void SetObstacleBlocking(RuntimeNavigationObstacle obstacle, bool blocking) =>
@@ -132,6 +168,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             World.Clear();
             _players.Clear();
+            _spatialIndex.Clear();
             _groundY = 0f;
         }
     }

@@ -28,6 +28,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// 限制怪物presentation发送频率
         /// </summary>
         [SerializeField, Min(1)] private int _presentationIntervalTicks = 2;
+        [SerializeField, Min(0.01f)] private float _monsterHitRadius = 0.73f;
         //网络依赖
         private GameplayNetworkRuntime _network;
         private NetworkManager _networkManager;
@@ -49,6 +50,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public int PresentationIntervalTicks => _presentationIntervalTicks;
         public int AliveMonsterCount => AuthorityRoom?.World.AliveCount ?? 0;
         public int MonsterSlotCount => AuthorityRoom?.World.SlotCount ?? 0;
+        public float MonsterHitRadius => AuthorityRoom?.MonsterHitRadius ?? _monsterHitRadius;
 
         //模块对外的事件
         public event Action<MonsterRoomBeginData> RoomBegan;
@@ -64,8 +66,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             cancellationToken.ThrowIfCancellationRequested();
             if (Instance != null && Instance != this)
                 throw new InvalidOperationException("重复 MonsterRuntimeService。");
-            if (_initialCapacity < 1 || _presentationIntervalTicks < 1)
-                throw new InvalidOperationException("Monster Capacity 与 PresentationInterval 必须大于 0。");
+            if (_initialCapacity < 1 || _presentationIntervalTicks < 1 ||
+                _monsterHitRadius <= 0f)
+                throw new InvalidOperationException(
+                    "Monster Capacity、PresentationInterval 与 HitRadius 必须大于 0。");
 
             _network = GameNetworkRuntime.Gameplay;
             _networkManager = NetworkManager.Singleton;
@@ -83,12 +87,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 {
                     _authorityWriteFrame = new MonsterPresentationFrame(_initialCapacity);
                     _authorityPublishedFrame = new MonsterPresentationFrame(_initialCapacity);
-                    _network.Clock.TickCompleted += TickAuthority;
+                    _network.Clock.Subscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                    _network.Clock.Subscribe(GameplayTickPhase.Replication, PublishAuthorityState);
                 }
             }
             catch
             {
-                _network.Clock.TickCompleted -= TickAuthority;
+                _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
                 _transport.Shutdown();
                 _transport = null;
                 Replica = null;
@@ -141,7 +147,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (_networkManager.IsServer)
             {
                 AuthorityRoom = new MonsterRoomRuntime(
-                    Catalogs.Runtime, Catalogs.Attacks, _quantizer, spatialData,roomRoot, _initialCapacity);
+                    Catalogs.Runtime, Catalogs.Attacks, _quantizer, spatialData, roomRoot,
+                    _monsterHitRadius, _initialCapacity);
                 _authorityWriteFrame.EnsureCapacity(expectedTotalMonsterCount, expectedTotalMonsterCount);
                 _authorityPublishedFrame.EnsureCapacity(expectedTotalMonsterCount, expectedTotalMonsterCount);
                 AuthorityRoom.BeginRoom(expectedTotalMonsterCount, data.GroundY);
@@ -162,7 +169,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 int slotCount = AuthorityRoom.World.SlotCount;
                 _authorityWriteFrame.EnsureCapacity(slotCount, slotCount);
                 _authorityPublishedFrame.EnsureCapacity(slotCount, slotCount);
-                // 权威端也建立 Replica/View：专用服务器需要表现预制件上的命中碰撞体。
+                // 权威端也建立 Replica/View，供 Host 表现；命中判定只读取 MonsterWorld。
                 ApplySpawnBatchLocal(batch);
                 _transport.SendSpawn(batch);
             }
@@ -173,7 +180,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             AuthorityRoom != null && AuthorityRoom.World.IsActive(slot);
 
         public bool DamageMonster(int slot, float damage) =>
-            AuthorityRoom != null && AuthorityRoom.World.Damage(slot, damage);
+            AuthorityRoom != null && AuthorityRoom.DamageMonster(slot, damage);
 
         public bool TryGetMonsterPosition(int slot, out Vector3 position)
         {
@@ -213,11 +220,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public bool PushMonster(int slot, Vector2 offset) =>
-            AuthorityRoom != null && AuthorityRoom.World.Push(slot, offset);
+            AuthorityRoom != null && AuthorityRoom.PushMonster(slot, offset);
         /// <summary>
-        /// Monster主循环
+        /// Monster 权威模拟；在玩家完成本 Tick 后、弹丸碰撞前推进。
         /// </summary>
-        private void TickAuthority(uint tick)
+        private void TickAuthoritySimulation(uint tick)
         {
             if (!_roomActive || AuthorityRoom == null) 
                 return;
@@ -225,6 +232,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (players == null || !players.IsInitialized) 
                 return;
             AuthorityRoom.Tick(players, tick, _network.Clock.TickDeltaTime);
+        }
+
+        /// <summary>战斗结算完成后发布本 Tick 的最终怪物状态。</summary>
+        private void PublishAuthorityState(uint tick)
+        {
+            if (!_roomActive || AuthorityRoom == null)
+                return;
+            PlayerManager players = PlayerManager.Instance;
+            if (players == null || !players.IsInitialized)
+                return;
             AuthorityTickCompleted?.Invoke();
             if (tick % (uint)_presentationIntervalTicks != 0) 
                 return;
@@ -310,7 +327,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             if (!IsInitialized) return UniTask.CompletedTask;
             EndRoom();
-            if (_network != null) _network.Clock.TickCompleted -= TickAuthority;
+            if (_network != null)
+            {
+                _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
+            }
             _transport?.Shutdown();
             _transport = null;
             _authorityWriteFrame = null;

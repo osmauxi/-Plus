@@ -36,6 +36,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.FlowField.Rebuild.Cost");
         private static readonly ProfilerMarker FlowFieldBuildMarker =
             new("Monster.FlowField.Build");
+        private static readonly ProfilerMarker AcceptSourcesMarker =
+            new("Monster.FlowField.Rebuild.AcceptSources");
+        private static readonly ProfilerMarker BuildSourcesMarker =
+            new("Monster.FlowField.Rebuild.BuildSources");
+        private static readonly ProfilerMarker GetKernelDataMarker =
+            new("Monster.FlowField.Build.GetKernelData");
+        private static readonly ProfilerMarker SolveMarker =
+            new("Monster.FlowField.Build.Solve");
         private static readonly ProfilerMarker DensityUpdateMarker =
             new("Monster.Simulation.DensityUpdate");
         private static readonly ProfilerMarker FlowFieldUpdateMarker =
@@ -348,8 +356,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
         private void RebuildFlowFieldWithCurrentSources(int playerCount,uint tick)
         {
-            AcceptCurrentSources(playerCount);
-            BuildAcceptedFlowSources();
+            using (AcceptSourcesMarker.Auto())
+                AcceptCurrentSources(playerCount);
+
+            using (BuildSourcesMarker.Auto())
+                BuildAcceptedFlowSources();
+
             RebuildFlowField(tick);
         }
         /// <summary>
@@ -390,7 +402,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             using (FlowFieldBuildMarker.Auto())
             {
-                _hasFlowField = _flowField.Build(_navigationGrid.GetKernelData(),_flowSources);
+                NavigationGridKernelData kernelData;
+                using (GetKernelDataMarker.Auto())
+                    kernelData = _navigationGrid.GetKernelData();
+
+                using (SolveMarker.Auto())
+                    _hasFlowField = _flowField.Build(kernelData, _flowSources);
             }
 
             _lastTopologyVersion = _navigationGrid.TopologyVersion;

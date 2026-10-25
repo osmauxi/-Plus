@@ -19,9 +19,10 @@ namespace ProjectGame.HotFix.Benchmarking
     [Serializable]
     internal sealed class BenchmarkRoleMetrics
     {
-        public int schemaVersion = 1;
+        public int schemaVersion = 5;
         public string runId;
         public string role;
+        public string focusTarget;
         public string unityVersion;
         public string platform;
         public string graphicsDevice;
@@ -32,6 +33,9 @@ namespace ProjectGame.HotFix.Benchmarking
         public int targetFrameRate;
         public int monsterCount;
         public int sampleCount;
+        public int focusedFrameCount;
+        public int unfocusedFrameCount;
+        public int focusChangeCount;
         public double actualDurationSeconds;
         public double averageFrameMilliseconds;
         public double p50FrameMilliseconds;
@@ -40,12 +44,21 @@ namespace ProjectGame.HotFix.Benchmarking
         public double p99FrameMilliseconds;
         public double maximumFrameMilliseconds;
         public double averageMainThreadMilliseconds;
+        public double p95MainThreadMilliseconds;
+        public double p99MainThreadMilliseconds;
         public double maximumMainThreadMilliseconds;
         public double averageRenderThreadMilliseconds;
+        public double p95RenderThreadMilliseconds;
+        public double p99RenderThreadMilliseconds;
         public double maximumRenderThreadMilliseconds;
         public double averageGpuFrameMilliseconds;
+        public double p95GpuFrameMilliseconds;
+        public double p99GpuFrameMilliseconds;
         public double maximumGpuFrameMilliseconds;
         public long gcAllocatedBytes;
+        public double averageGcAllocatedBytes;
+        public double p95GcAllocatedBytes;
+        public long maximumGcAllocatedBytes;
         public int gcCollectionCount0;
         public int gcCollectionCount1;
         public int gcCollectionCount2;
@@ -101,17 +114,32 @@ namespace ProjectGame.HotFix.Benchmarking
             public string Name;
             public ProfilerRecorder Recorder;
             public bool Available;
+            public long MaximumValidValue = long.MaxValue;
             public long Sum;
             public long Maximum;
+            public long SampleCount;
             public int NonZeroFrames;
+            public int ValidFrameCount;
+
+            public bool TryGetLatestValue(out long value)
+            {
+                value = -1L;
+                if (!Available || Recorder.Count == 0)
+                    return false;
+
+                value = Recorder.GetSample(Recorder.Count - 1).Value;
+                return value >= 0L && value <= MaximumValidValue;
+            }
 
             public void Accumulate()
             {
-                if (!Available)
+                if (!TryGetLatestValue(out long value))
                     return;
-                long value = Recorder.LastValue;
+                ProfilerRecorderSample sample = Recorder.GetSample(Recorder.Count - 1);
                 Sum += value;
                 Maximum = Math.Max(Maximum, value);
+                SampleCount += sample.Count;
+                ValidFrameCount++;
                 if (value != 0)
                     NonZeroFrames++;
             }
@@ -124,6 +152,10 @@ namespace ProjectGame.HotFix.Benchmarking
         }
 
         private readonly List<double> _frameMilliseconds = new();
+        private readonly List<double> _mainThreadMilliseconds = new();
+        private readonly List<double> _renderThreadMilliseconds = new();
+        private readonly List<double> _gpuFrameMilliseconds = new();
+        private readonly List<long> _gcAllocatedBytes = new();
         private readonly List<string> _frameRows = new();
         private readonly List<Counter> _markerCounters = new();
         private Counter _mainThread;
@@ -147,7 +179,13 @@ namespace ProjectGame.HotFix.Benchmarking
         private int _movementCommands;
         private int _movementWaypoints;
         private float _movementDistance;
+        private bool _focusInitialized;
+        private bool _lastFocused;
+        private int _focusedFrames;
+        private int _unfocusedFrames;
+        private int _focusChanges;
         private bool _capturing;
+        private bool _profilerCapturing;
 
         public void Initialize(BenchmarkLaunchOptions options, BenchmarkMovementDriver movement)
         {
@@ -161,11 +199,16 @@ namespace ProjectGame.HotFix.Benchmarking
                 throw new InvalidOperationException("Benchmark 已经开始采样。");
 
             _frameMilliseconds.Clear();
+            _mainThreadMilliseconds.Clear();
+            _renderThreadMilliseconds.Clear();
+            _gpuFrameMilliseconds.Clear();
+            _gcAllocatedBytes.Clear();
             _frameRows.Clear();
             _markerCounters.Clear();
             _mainThread = StartCounter(ProfilerCategory.Internal, "Main Thread");
             _renderThread = StartCounter(ProfilerCategory.Render, "Render Thread");
             _gpuFrame = StartCounter(ProfilerCategory.Render, "GPU Frame Time");
+            _gpuFrame.MaximumValidValue = 10_000_000_000L;
             _gcAllocated = StartCounter(ProfilerCategory.Memory, "GC Allocated In Frame");
             foreach (string markerName in CustomMarkerNames)
                 _markerCounters.Add(StartCounter(ProfilerCategory.Scripts, markerName));
@@ -185,17 +228,35 @@ namespace ProjectGame.HotFix.Benchmarking
             _movementCommands = _movement.SubmittedCommandCount;
             _movementWaypoints = _movement.WaypointsVisited;
             _movementDistance = _movement.DistanceTravelled;
+            _focusInitialized = false;
+            _focusedFrames = 0;
+            _unfocusedFrames = 0;
+            _focusChanges = 0;
             _captureStartUtc = DateTime.UtcNow;
             _captureStartRealtime = Time.realtimeSinceStartupAsDouble;
+            StartProfilerCapture();
             _capturing = true;
         }
 
         private void LateUpdate()
         {
+            if (_options.Role == _options.FocusRole)
+                BenchmarkProcessFocus.TryBringCurrentProcessToForeground();
+
             if (!_capturing)
                 return;
 
             double frameMs = Time.unscaledDeltaTime * 1000d;
+            bool focused = BenchmarkProcessFocus.IsCurrentProcessForeground;
+            if (_focusInitialized && focused != _lastFocused)
+                _focusChanges++;
+            _focusInitialized = true;
+            _lastFocused = focused;
+            if (focused)
+                _focusedFrames++;
+            else
+                _unfocusedFrames++;
+
             _frameMilliseconds.Add(frameMs);
             _mainThread.Accumulate();
             _renderThread.Accumulate();
@@ -204,6 +265,15 @@ namespace ProjectGame.HotFix.Benchmarking
             foreach (Counter marker in _markerCounters)
                 marker.Accumulate();
 
+            if (_mainThread.TryGetLatestValue(out long mainThreadValue))
+                _mainThreadMilliseconds.Add(mainThreadValue / 1_000_000d);
+            if (_renderThread.TryGetLatestValue(out long renderThreadValue))
+                _renderThreadMilliseconds.Add(renderThreadValue / 1_000_000d);
+            if (_gpuFrame.TryGetLatestValue(out long gpuFrameValue))
+                _gpuFrameMilliseconds.Add(gpuFrameValue / 1_000_000d);
+            if (_gcAllocated.TryGetLatestValue(out long gcAllocatedValue))
+                _gcAllocatedBytes.Add(gcAllocatedValue);
+
             _frameRows.Add(string.Join(",",
                 Time.frameCount.ToString(CultureInfo.InvariantCulture),
                 Time.realtimeSinceStartupAsDouble.ToString("F6", CultureInfo.InvariantCulture),
@@ -211,8 +281,8 @@ namespace ProjectGame.HotFix.Benchmarking
                 ToMilliseconds(_mainThread).ToString("F6", CultureInfo.InvariantCulture),
                 ToMilliseconds(_renderThread).ToString("F6", CultureInfo.InvariantCulture),
                 ToMilliseconds(_gpuFrame).ToString("F6", CultureInfo.InvariantCulture),
-                (_gcAllocated.Available ? _gcAllocated.Recorder.LastValue : -1L)
-                    .ToString(CultureInfo.InvariantCulture)));
+                (gcAllocatedValue >= 0L ? gcAllocatedValue : -1L).ToString(CultureInfo.InvariantCulture),
+                focused ? "true" : "false"));
         }
 
         public BenchmarkRoleMetrics StopAndWrite()
@@ -221,6 +291,7 @@ namespace ProjectGame.HotFix.Benchmarking
                 throw new InvalidOperationException("Benchmark 尚未开始采样。");
 
             _capturing = false;
+            StopProfilerCapture();
             DateTime stoppedUtc = DateTime.UtcNow;
             double duration = Time.realtimeSinceStartupAsDouble - _captureStartRealtime;
             BenchmarkRoleMetrics metrics = BuildMetrics(stoppedUtc, duration);
@@ -229,9 +300,36 @@ namespace ProjectGame.HotFix.Benchmarking
             return metrics;
         }
 
+        private void StartProfilerCapture()
+        {
+            if (!_options.CaptureProfiler || _options.Role != _options.FocusRole)
+                return;
+
+            Profiler.maxUsedMemory = 256 * 1024 * 1024;
+            Profiler.logFile = Path.Combine(_options.RoleResultDirectory, "profiler");
+            Profiler.enableBinaryLog = true;
+            Profiler.enabled = true;
+            _profilerCapturing = true;
+        }
+
+        private void StopProfilerCapture()
+        {
+            if (!_profilerCapturing)
+                return;
+
+            Profiler.enabled = false;
+            Profiler.enableBinaryLog = false;
+            Profiler.logFile = string.Empty;
+            _profilerCapturing = false;
+        }
+
         private BenchmarkRoleMetrics BuildMetrics(DateTime stoppedUtc, double duration)
         {
             double[] sorted = _frameMilliseconds.OrderBy(value => value).ToArray();
+            double[] mainThreadSorted = _mainThreadMilliseconds.OrderBy(value => value).ToArray();
+            double[] renderThreadSorted = _renderThreadMilliseconds.OrderBy(value => value).ToArray();
+            double[] gpuFrameSorted = _gpuFrameMilliseconds.OrderBy(value => value).ToArray();
+            long[] gcAllocatedSorted = _gcAllocatedBytes.OrderBy(value => value).ToArray();
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
             MonsterReplica replica = monsters?.Replica;
             MonsterRoomRuntime authority = monsters?.AuthorityRoom;
@@ -256,10 +354,16 @@ namespace ProjectGame.HotFix.Benchmarking
                                     QualitySettings.vSyncCount == 0 &&
                                     Application.targetFrameRate == -1;
             bool durationValid = sorted.Length > 0 && duration >= _options.CaptureSeconds * 0.95d;
+            int focusSampleCount = _focusedFrames + _unfocusedFrames;
+            bool measuredRole = _options.Role == _options.FocusRole;
+            bool focusValid = !measuredRole ||
+                              focusSampleCount > 0 && (double)_focusedFrames / focusSampleCount >= 0.95d;
             string invalidReason = !environmentValid
                 ? "分辨率、质量档、VSync 或目标帧率与固定基准配置不一致"
                 : !durationValid
                     ? "有效采样帧数为空或采样时长不足"
+                : !focusValid
+                    ? "当前测量角色的 Windows 前台帧占比低于 95%"
                 : !monsterValid
                 ? "怪物权威/Replica/View 数量未达到预期"
                 : !movementValid
@@ -272,6 +376,7 @@ namespace ProjectGame.HotFix.Benchmarking
             {
                 runId = _options.RunId,
                 role = _options.RoleName,
+                focusTarget = _options.FocusRoleName,
                 unityVersion = Application.unityVersion,
                 platform = Application.platform.ToString(),
                 graphicsDevice = SystemInfo.graphicsDeviceName,
@@ -282,6 +387,9 @@ namespace ProjectGame.HotFix.Benchmarking
                 targetFrameRate = Application.targetFrameRate,
                 monsterCount = _options.MonsterCount,
                 sampleCount = sorted.Length,
+                focusedFrameCount = _focusedFrames,
+                unfocusedFrameCount = _unfocusedFrames,
+                focusChangeCount = _focusChanges,
                 actualDurationSeconds = duration,
                 averageFrameMilliseconds = sorted.Length == 0 ? 0d : sorted.Average(),
                 p50FrameMilliseconds = Percentile(sorted, 0.50d),
@@ -289,13 +397,26 @@ namespace ProjectGame.HotFix.Benchmarking
                 p95FrameMilliseconds = Percentile(sorted, 0.95d),
                 p99FrameMilliseconds = Percentile(sorted, 0.99d),
                 maximumFrameMilliseconds = sorted.Length == 0 ? 0d : sorted[^1],
-                averageMainThreadMilliseconds = AverageMilliseconds(_mainThread, sorted.Length),
+                averageMainThreadMilliseconds = AverageMilliseconds(_mainThread),
+                p95MainThreadMilliseconds = MetricPercentile(mainThreadSorted, 0.95d),
+                p99MainThreadMilliseconds = MetricPercentile(mainThreadSorted, 0.99d),
                 maximumMainThreadMilliseconds = MaximumMilliseconds(_mainThread),
-                averageRenderThreadMilliseconds = AverageMilliseconds(_renderThread, sorted.Length),
+                averageRenderThreadMilliseconds = AverageMilliseconds(_renderThread),
+                p95RenderThreadMilliseconds = MetricPercentile(renderThreadSorted, 0.95d),
+                p99RenderThreadMilliseconds = MetricPercentile(renderThreadSorted, 0.99d),
                 maximumRenderThreadMilliseconds = MaximumMilliseconds(_renderThread),
-                averageGpuFrameMilliseconds = AverageMilliseconds(_gpuFrame, sorted.Length),
+                averageGpuFrameMilliseconds = AverageMilliseconds(_gpuFrame),
+                p95GpuFrameMilliseconds = MetricPercentile(gpuFrameSorted, 0.95d),
+                p99GpuFrameMilliseconds = MetricPercentile(gpuFrameSorted, 0.99d),
                 maximumGpuFrameMilliseconds = MaximumMilliseconds(_gpuFrame),
                 gcAllocatedBytes = _gcAllocated.Available ? _gcAllocated.Sum : -1L,
+                averageGcAllocatedBytes = gcAllocatedSorted.Length > 0
+                    ? gcAllocatedSorted.Average(value => (double)value)
+                    : -1d,
+                p95GcAllocatedBytes = gcAllocatedSorted.Length > 0
+                    ? Percentile(gcAllocatedSorted.Select(value => (double)value).ToArray(), 0.95d)
+                    : -1d,
+                maximumGcAllocatedBytes = gcAllocatedSorted.Length > 0 ? gcAllocatedSorted[^1] : -1L,
                 gcCollectionCount0 = GC.CollectionCount(0) - _gc0,
                 gcCollectionCount1 = GC.CollectionCount(1) - _gc1,
                 gcCollectionCount2 = GC.CollectionCount(2) - _gc2,
@@ -316,7 +437,7 @@ namespace ProjectGame.HotFix.Benchmarking
                 movementCommands = movementCommands,
                 movementWaypoints = movementWaypoints,
                 movementDistance = movementDistance,
-                workloadValid = environmentValid && durationValid && monsterValid && movementValid && flowValid,
+                workloadValid = environmentValid && durationValid && focusValid && monsterValid && movementValid && flowValid,
                 invalidReason = invalidReason,
                 captureStartedUtc = _captureStartUtc.ToString("O"),
                 captureStoppedUtc = stoppedUtc.ToString("O"),
@@ -331,41 +452,51 @@ namespace ProjectGame.HotFix.Benchmarking
                 Path.Combine(directory, "metrics.json"),
                 JsonUtility.ToJson(metrics, true));
 
-            var frames = new StringBuilder("frame,realtime_seconds,frame_ms,main_thread_ms,render_thread_ms,gpu_frame_ms,gc_alloc_bytes\n");
+            var frames = new StringBuilder("frame,realtime_seconds,frame_ms,main_thread_ms,render_thread_ms,gpu_frame_ms,gc_alloc_bytes,focused\n");
             foreach (string row in _frameRows)
                 frames.AppendLine(row);
             File.WriteAllText(Path.Combine(directory, "frames.csv"), frames.ToString());
 
-            var markers = new StringBuilder("marker,available,non_zero_frames,total_ms,max_frame_ms\n");
+            var markers = new StringBuilder("marker,available,sample_count,non_zero_frames,total_ms,average_ms_per_sample,average_ms_per_frame,max_frame_ms\n");
             foreach (Counter marker in _markerCounters)
             {
                 markers.Append(EscapeCsv(marker.Name)).Append(',')
                     .Append(marker.Available ? "true" : "false").Append(',')
+                    .Append(marker.SampleCount).Append(',')
                     .Append(marker.NonZeroFrames).Append(',')
                     .Append((marker.Sum / 1_000_000d).ToString("F6", CultureInfo.InvariantCulture)).Append(',')
+                    .Append((marker.SampleCount > 0 ? marker.Sum / 1_000_000d / marker.SampleCount : 0d)
+                        .ToString("F6", CultureInfo.InvariantCulture)).Append(',')
+                    .Append((metrics.sampleCount > 0 ? marker.Sum / 1_000_000d / metrics.sampleCount : 0d)
+                        .ToString("F6", CultureInfo.InvariantCulture)).Append(',')
                     .Append((marker.Maximum / 1_000_000d).ToString("F6", CultureInfo.InvariantCulture))
                     .AppendLine();
             }
             File.WriteAllText(Path.Combine(directory, "markers.csv"), markers.ToString());
 
             var report = new StringBuilder();
-            report.AppendLine($"# {_options.RoleName.ToUpperInvariant()} Benchmark Report");
+            report.AppendLine($"# {(_options.Role == BenchmarkProcessRole.Host ? "Host" : "Client")} 性能基准详细报告");
             report.AppendLine();
-            report.AppendLine($"- Valid: `{metrics.workloadValid}`");
+            report.AppendLine($"- 有效：`{metrics.workloadValid}`");
             if (!metrics.workloadValid)
-                report.AppendLine($"- Invalid reason: {metrics.invalidReason}");
-            report.AppendLine($"- Monsters: {metrics.monsterCount}");
-            report.AppendLine($"- Authority alive / Replica slots-active / View slots-active: {metrics.authorityAliveMonsterCount} / {metrics.replicaSlotCount}-{metrics.replicaActiveCount} / {metrics.viewSlotCount}-{metrics.activeViewCount}");
-            report.AppendLine($"- Samples / duration: {metrics.sampleCount} / {metrics.actualDurationSeconds:F3}s");
-            report.AppendLine($"- Frame ms avg/P50/P90/P95/P99/max: {metrics.averageFrameMilliseconds:F3} / {metrics.p50FrameMilliseconds:F3} / {metrics.p90FrameMilliseconds:F3} / {metrics.p95FrameMilliseconds:F3} / {metrics.p99FrameMilliseconds:F3} / {metrics.maximumFrameMilliseconds:F3}");
-            report.AppendLine($"- Main/Render/GPU average ms: {metrics.averageMainThreadMilliseconds:F3} / {metrics.averageRenderThreadMilliseconds:F3} / {metrics.averageGpuFrameMilliseconds:F3}");
-            report.AppendLine($"- GC allocated bytes / collections gen0-gen1-gen2: {metrics.gcAllocatedBytes} / {metrics.gcCollectionCount0}-{metrics.gcCollectionCount1}-{metrics.gcCollectionCount2}");
-            report.AppendLine($"- Mono used / total allocated memory: {metrics.monoUsedBytes} / {metrics.totalAllocatedMemoryBytes} bytes");
-            report.AppendLine($"- Network application payload sent/received: {metrics.sentPayloadBytes} / {metrics.receivedPayloadBytes} bytes");
-            report.AppendLine($"- FlowField rebuild topology/source/cost: {metrics.topologyRebuildCount} / {metrics.sourceRebuildCount} / {metrics.costRebuildCount}");
-            report.AppendLine($"- Movement commands/distance/waypoints: {metrics.movementCommands} / {metrics.movementDistance:F2} / {metrics.movementWaypoints}");
+                report.AppendLine($"- 无效原因：{metrics.invalidReason}");
+            report.AppendLine($"- 怪物数：{metrics.monsterCount}");
+            report.AppendLine($"- 前台目标：{metrics.focusTarget}");
+            report.AppendLine($"- 权威端存活 / Replica 槽位-激活 / View 槽位-激活：{metrics.authorityAliveMonsterCount} / {metrics.replicaSlotCount}-{metrics.replicaActiveCount} / {metrics.viewSlotCount}-{metrics.activeViewCount}");
+            report.AppendLine($"- 样本数 / 实际时长：{metrics.sampleCount} / {metrics.actualDurationSeconds:F3}s");
+            report.AppendLine($"- 前台/后台帧及切换次数：{metrics.focusedFrameCount}/{metrics.unfocusedFrameCount}，切换 {metrics.focusChangeCount} 次");
+            report.AppendLine($"- 帧间隔 平均/P50/P90/P95/P99/最大(ms)：{metrics.averageFrameMilliseconds:F3} / {metrics.p50FrameMilliseconds:F3} / {metrics.p90FrameMilliseconds:F3} / {metrics.p95FrameMilliseconds:F3} / {metrics.p99FrameMilliseconds:F3} / {metrics.maximumFrameMilliseconds:F3}");
+            report.AppendLine($"- Main Thread 平均/P95/P99/最大(ms)：{FormatOptional(metrics.averageMainThreadMilliseconds)} / {FormatOptional(metrics.p95MainThreadMilliseconds)} / {FormatOptional(metrics.p99MainThreadMilliseconds)} / {FormatOptional(metrics.maximumMainThreadMilliseconds)}");
+            report.AppendLine($"- GPU Frame Time 平均/P95/P99/最大(ms)：{FormatOptional(metrics.averageGpuFrameMilliseconds)} / {FormatOptional(metrics.p95GpuFrameMilliseconds)} / {FormatOptional(metrics.p99GpuFrameMilliseconds)} / {FormatOptional(metrics.maximumGpuFrameMilliseconds)}");
+            report.AppendLine($"- Render Thread：Unavailable（当前 Unity 2022.3 Player 轻量计数器不可用时不推算）");
+            report.AppendLine($"- GC Alloc 总量 / 平均 / P95 / 最大(B)：{metrics.gcAllocatedBytes} / {metrics.averageGcAllocatedBytes:F0} / {metrics.p95GcAllocatedBytes:F0} / {metrics.maximumGcAllocatedBytes}");
+            report.AppendLine($"- GC 次数 Gen0/1/2：{metrics.gcCollectionCount0}/{metrics.gcCollectionCount1}/{metrics.gcCollectionCount2}");
+            report.AppendLine($"- Mono 已用 / 总分配内存：{metrics.monoUsedBytes} / {metrics.totalAllocatedMemoryBytes} B");
+            report.AppendLine($"- 应用层网络发送/接收：{metrics.sentPayloadBytes}/{metrics.receivedPayloadBytes} B，{metrics.sentMessageCount}/{metrics.receivedMessageCount} 条消息");
+            report.AppendLine($"- FlowField 重建 Topology/Source/Cost：{metrics.topologyRebuildCount} / {metrics.sourceRebuildCount} / {metrics.costRebuildCount}");
+            report.AppendLine($"- 移动命令/实际距离/经过路点：{metrics.movementCommands} / {metrics.movementDistance:F2}m / {metrics.movementWaypoints}");
             report.AppendLine();
-            report.AppendLine("## Marker totals");
+            report.AppendLine("## Marker 统计");
             report.AppendLine();
             foreach (Counter marker in _markerCounters
                          .Where(item => item.Available)
@@ -373,28 +504,30 @@ namespace ProjectGame.HotFix.Benchmarking
                          .Take(8))
             {
                 report.AppendLine(
-                    $"- `{marker.Name}`: total {marker.Sum / 1_000_000d:F3} ms, " +
-                    $"max frame {marker.Maximum / 1_000_000d:F3} ms, " +
-                    $"non-zero frames {marker.NonZeroFrames}");
+                    $"- `{marker.Name}`：总计 {marker.Sum / 1_000_000d:F3} ms，" +
+                    $"调用样本 {marker.SampleCount}，" +
+                    $"平均每次 {(marker.SampleCount > 0 ? marker.Sum / 1_000_000d / marker.SampleCount : 0d):F3} ms，" +
+                    $"最大单帧 {marker.Maximum / 1_000_000d:F3} ms，" +
+                    $"非零帧 {marker.NonZeroFrames}");
             }
             report.AppendLine();
-            report.AppendLine("## Evidence-based observations");
+            report.AppendLine("## 基于证据的提示");
             report.AppendLine();
             if (!metrics.workloadValid)
-                report.AppendLine($"- Fact: workload validation failed: {metrics.invalidReason}.");
+                report.AppendLine($"- 工作负载验证失败：{metrics.invalidReason}。");
             if (metrics.p95FrameMilliseconds > 0d &&
                 metrics.p99FrameMilliseconds >= metrics.p95FrameMilliseconds * 1.5d)
-                report.AppendLine("- Fact: P99 is at least 50% higher than P95; inspect long-frame rows and marker peaks.");
+                report.AppendLine("- P99 至少比 P95 高 50%；应联查长帧逐帧记录与 Marker 峰值。");
             if (metrics.gcAllocatedBytes > 0L)
-                report.AppendLine("- Fact: managed allocations occurred during capture; correlate GC allocation rows with long frames.");
+                report.AppendLine("- 采样期间存在托管分配；应把 GC Alloc 逐帧值与长帧对齐检查。");
             Counter highestMarker = _markerCounters
                 .Where(item => item.Available)
                 .OrderByDescending(item => item.Sum)
                 .FirstOrDefault();
             if (highestMarker != null)
-                report.AppendLine($"- Fact: the largest recorded custom-marker total is `{highestMarker.Name}`; this is a lead, not a proven root cause.");
+                report.AppendLine($"- 自定义 Marker 累计耗时最高的是 `{highestMarker.Name}`；这是排查线索，不等同于已证明根因。");
             report.AppendLine();
-            report.AppendLine("Unavailable counters are stored as -1 or marked false in CSV; UTP headers, RTT, loss and retransmission are not inferred.");
+            report.AppendLine("不可用计数器在 CSV 中保存为 -1 或 false；最大 Payload、UTP 协议开销、RTT、丢包率和重传次数均不推算。");
             File.WriteAllText(Path.Combine(directory, "REPORT.md"), report.ToString());
         }
 
@@ -403,7 +536,11 @@ namespace ProjectGame.HotFix.Benchmarking
             var counter = new Counter { Name = name };
             try
             {
-                counter.Recorder = ProfilerRecorder.StartNew(category, name, 1);
+                counter.Recorder = ProfilerRecorder.StartNew(
+                    category,
+                    name,
+                    1,
+                    ProfilerRecorderOptions.Default | ProfilerRecorderOptions.SumAllSamplesInFrame);
                 counter.Available = counter.Recorder.Valid;
             }
             catch (Exception exception)
@@ -414,15 +551,23 @@ namespace ProjectGame.HotFix.Benchmarking
         }
 
         private static double ToMilliseconds(Counter counter) =>
-            counter.Available ? counter.Recorder.LastValue / 1_000_000d : -1d;
+            counter.TryGetLatestValue(out long value) ? value / 1_000_000d : -1d;
 
-        private static double AverageMilliseconds(Counter counter, int sampleCount) =>
-            counter.Available && sampleCount > 0
-                ? counter.Sum / 1_000_000d / sampleCount
+        private static double AverageMilliseconds(Counter counter) =>
+            counter.Available && counter.ValidFrameCount > 0
+                ? counter.Sum / 1_000_000d / counter.ValidFrameCount
                 : -1d;
 
         private static double MaximumMilliseconds(Counter counter) =>
-            counter.Available ? counter.Maximum / 1_000_000d : -1d;
+            counter.Available && counter.ValidFrameCount > 0
+                ? counter.Maximum / 1_000_000d
+                : -1d;
+
+        private static double MetricPercentile(double[] sorted, double percentile) =>
+            sorted.Length > 0 ? Percentile(sorted, percentile) : -1d;
+
+        private static string FormatOptional(double value) =>
+            value >= 0d ? value.ToString("F3", CultureInfo.InvariantCulture) : "Unavailable";
 
         private static double Percentile(double[] sorted, double percentile)
         {
@@ -449,6 +594,7 @@ namespace ProjectGame.HotFix.Benchmarking
         {
             if (_capturing)
                 DisposeCounters();
+            StopProfilerCapture();
         }
     }
 }

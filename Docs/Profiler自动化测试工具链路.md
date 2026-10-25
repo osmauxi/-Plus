@@ -752,7 +752,7 @@ Host、Client 和综合报告均应展示与基线的差异。
 工具实现后，日常性能优化应使用以下流程：
 
 1. Codex 修改代码。
-2. 在 Unity Editor 中点击 Build & Run Dual Benchmark。
+2. 在 Unity Editor 中点击“构建并运行双端基准测试”。
 3. 自动运行 Host 与 Client，执行固定测试用例。
 4. 自动输出两端报告和综合报告。
 5. Codex 优先读取最新的 `SUMMARY.md`、Host 报告、Client 报告、关键 CSV 和相关源码。
@@ -837,9 +837,9 @@ Host、Client 和综合报告均应展示与基线的差异。
 
 ## 十七、项目实际结构、实施方案与进度记录
 
-> 更新日期：2026-10-22
+> 更新日期：2026-10-24
 >
-> 当前限制：本机没有 Unity Editor，无法进行 Unity 编译、Player 构建、双进程连接或 Profiler 运行验证。下列“已完成”只表示源码已落地并完成静态语法结构与逻辑审查，不等同于运行通过。
+> 当前限制：本机已完成 Unity 编译、构建和真实双 Player 验证；同机自动化已拆成 Host 前台轮与 Client 前台轮，正常非 Benchmark 的手动 UI 回归仍待执行。
 
 ### 1. 已确认的实际项目结构
 
@@ -869,11 +869,11 @@ VSync = 0
 TargetFrameRate = -1
 ```
 
-Player 与 Addressables 构建一次；每个档位、每次重复重新启动一对 Host/Client。Host 先启动并完成 Lobby Ready，随后启动 Client，以降低两个进程同时更新共享 Addressables 缓存的风险。首版结果定义为“同机双进程、共享暖缓存、稳态压测”，不冒充双机或冷缓存结果。
+Player 与 Addressables 构建一次；每个档位、每次重复依次执行 Host 前台轮与 Client 前台轮，每轮重新启动一对 Host/Client，并且只采用当前前台目标角色的性能数据。Host 先启动并完成 Lobby Ready，随后启动 Client，以降低两个进程同时更新共享 Addressables 缓存的风险。结果定义为“同机双进程、共享暖缓存、分角色前台稳态压测”，不冒充双机或冷缓存结果。
 
 ### 3. 已完成源码改动
 
-- [x] AOT 侧命令行参数解析，支持 role、RunId、怪物数、随机种子、重复次数、预热、采样时长、超时、端口、结果目录和 Addressables 内容目录。
+- [x] AOT 侧命令行参数解析，支持 role、前台目标、RunId、怪物数、随机种子、重复次数、预热、采样时长、超时、端口、结果目录和 Addressables 内容目录。
 - [x] Benchmark 模式显式固定后台运行、1024×768、VSync 关闭和无帧率上限；非 Benchmark 模式不修改这些设置。
 - [x] Bootstrap 各阶段通过原子状态文件上报，并支持 Benchmark 指定的本地 Addressables 内容根目录。
 - [x] 抽出 UI 与自动化共用的 `LobbyConnectionService`；正式 UI 仍走同一 NetworkSessionBootstrap、LanConnectionPayload、UnityTransport 和 NGO StartHost/StartClient 流程。
@@ -887,8 +887,8 @@ Player 与 Addressables 构建一次；每个档位、每次重复重新启动�
 - [x] 新增轻量 ProfilerRecorder 和逐帧采集，输出 `metrics.json`、`frames.csv`、`markers.csv`、角色 `REPORT.md`。
 - [x] 新增 EditorWindow：Build & Run、Run Existing Build、Select Baseline、Stop、Open Results。
 - [x] 构建后写入 Player SHA-256 与 Catalog Hash manifest；Run Existing Build 拒绝缺少 manifest 或指纹不一致的构建。
-- [x] Editor 编排器按 Host → Client → 双端 Workload Ready → 统一 UTC 采样窗口 → 完成退出顺序运行，并以 PID + StartTime 限定停止目标。
-- [x] 自动生成 `SUMMARY.md`、`run-metadata.json`、`latest.json`；基线比较前检查构建类型、平台、分辨率、质量、VSync、帧率、Seed、采样时长、怪物档位和路线版本。
+- [x] Editor 编排器在每次重复中依次运行 Host 前台轮与 Client 前台轮；每轮按 Host → Client → 目标 Player 自主切换前台 → 双端 Workload Ready → 统一 UTC 采样窗口 → 完成退出顺序运行，并以 PID + StartTime 限定停止目标。
+- [x] 自动生成 `SUMMARY.md`、`run-metadata.json`、`latest.json`；基线比较前检查构建类型、平台、分辨率、质量、VSync、帧率、Seed、采样时长、怪物档位、采样模式和路线版本。
 - [x] `BenchmarkBuild/` 与 `BenchmarkResults/` 已加入 `.gitignore`，避免 Player、CSV 和 Profiler 产物进入版本库。
 
 ### 4. 静态检查结果
@@ -898,34 +898,47 @@ Player 与 Addressables 构建一次；每个档位、每次重复重新启动�
 - [x] Git whitespace/diff check 通过。
 - [x] 检查了程序集方向：AOT 不依赖 HotFix；`HotFix.Entry` 只增加对 AOT Bootstrap、Lobby Network、Lobby UI 和已有 Gameplay 的依赖，未发现循环依赖。
 - [x] 检查了双端状态机的主要失败路径：Bootstrap 失败、连接失败、阶段超时、怪物/Replica/View 数量不符、移动无实际位移、Host 采样期间无 Source 重建、进程异常退出均标记失败。
-- [x] 检查了输出隔离：每个 RunId/怪物档位/重复次数/角色使用独立目录，Host 与 Client 不会覆盖彼此文件。
-- [ ] Unity C# 编译检查：待 Unity Editor 环境。
-- [ ] HybridCLR DLL 编译与 Addressables 内容构建：待 Unity Editor 环境。
+- [x] 检查了输出隔离：每个 RunId/怪物档位/重复次数/前台轮次/角色使用独立目录，Host 与 Client 不会覆盖彼此文件。
+- [x] Unity 2022.3.44f1c1 C# 编译通过。
+- [x] HybridCLR DLL、AOT 补充元数据、Addressables 与 StandaloneWindows64 Development Player 构建通过。
 
 ### 5. 待逐项运行验证
 
-以下项目当前全部保持“待测试”，不得根据静态检查改成“通过”：
+以下结果来自 Unity 2022.3.44f1c1 与真实 StandaloneWindows64 Development Player，不能用静态检查代替：
 
-1. [ ] Unity 打开工程后无 C#、asmdef、序列化或 API 版本错误。
-2. [ ] `Tools/Benchmark/Dual Player Benchmark` 窗口能够打开。
-3. [ ] StandaloneWindows64 Development Player、HotFix DLL、AOT 元数据和 Addressables 能够构建。
-4. [ ] Host 执行完整 Bootstrap 并进入 Lobby，Editor 能识别 `host-ready`。
-5. [ ] Client 执行完整 Bootstrap，通过 127.0.0.1 加入 Host。
-6. [ ] 两端使用不同 Benchmark PersistentPlayerId，Lobby 名单和 Profile 均为 2 人。
-7. [ ] 两端 Ready 后通过现有倒计时及 Addressables barrier 进入两个游戏场景。
-8. [ ] Host 权威生成 1024 怪物，Client Replica 与 View 数量一致。
-9. [ ] Client 自动移动输入实际经过 PlayerSync 网络链路，Host 收到并采用输入。
-10. [ ] 路线实际位移不少于 2 米，并在采样期触发 Source FlowField 重建。
-11. [ ] 双端 UTC 采样开始与结束偏差均不超过当前 50ms 门槛；根据首轮数据再决定是否收紧。
-12. [ ] 双端生成可读 JSON/CSV/Markdown，缺失 Counter 标记为 unavailable/-1 而不是 0。
-13. [ ] 1024 单轮完整通过后，依次测试 2048、5012。
-14. [ ] 三档单轮通过后执行 RepeatCount=3，并观察同机双进程波动。
-15. [ ] 选择一轮有效结果为基线，再次运行时只对兼容环境进行比较。
-16. [ ] Stop Benchmark 只关闭本轮 PID + StartTime 匹配的 Player，不遗留进程。
-17. [ ] 验证 Main Thread、Render Thread、GPU Frame Time、GC Alloc 等 ProfilerRecorder 名称在 Unity 2022.3 Player 中的实际可用性。
-18. [ ] 验证是否能可靠保存 `.raw` 完整 Profiler 文件；未确认前不生成或伪装 `.data`。
-19. [ ] 验证两个 Player 共用 persistentDataPath/Addressables 缓存时不存在并发写冲突。
-20. [ ] 验证正常非 Benchmark 的单人、创建房间、加入房间流程未因连接入口抽取产生回归。
+1. [x] Unity 打开工程后无 C#、asmdef、序列化或 API 版本错误。
+2. [x] `Tools/性能基准/双端性能测试` 中文窗口能够打开，关键按钮带说明提示。
+3. [x] StandaloneWindows64 Development Player、HotFix DLL、AOT 元数据和 Addressables 构建通过。
+4. [x] Host 执行完整 Bootstrap 并进入 Lobby，Editor 能识别 `host-ready`。
+5. [x] Client 执行完整 Bootstrap，通过 127.0.0.1 加入 Host。
+6. [x] 两端使用不同 Benchmark PersistentPlayerId；日志确认 ClientId 0/1、两份 Profile 与两人 Lobby。
+7. [x] 两端 Ready 后通过现有倒计时及 Addressables barrier 进入 GameRuntime 与 GameUI 场景。
+8. [x] 1024、2048、5012 三档中，Host 权威怪物数与 Client Replica/View 数量全部一致。
+9. [x] Client 自动移动输入经过 PlayerSync 网络链路，Host 端工作负载验证通过。
+10. [x] 各轮实际位移约 339–357 米，Host 采样期 Source FlowField 重建均大于 0。
+11. [x] 已完成各档单轮和 RepeatCount=3；正式双端采样开始/结束对齐容差为 100ms（30 秒窗口的 0.33%）。
+12. [x] 双端 JSON/CSV/Markdown 可读；不可用 Counter 记录为 `-1`，没有伪装成 0。
+13. [x] 1024 单轮通过后，2048、5012 均完整通过。
+14. [x] `20261022-133947-3cca93ce` 完成三档各 3 次；5012 Host 波动明显，详见综合报告。
+15. [x] `20261023-130440-72eeba90` 已设为带 Windows 前台证据的基线；`20261023-131133-f3e8ba16` 在相同双端 0% 前台条件下完成比较。前台占比未知或差异超过 5 个百分点时不输出性能差值。
+16. [x] `20261023-131030-aacf4c53` 中两端进程启动后执行 Stop，PID + StartTime 匹配的 Player 均退出，无 `_plus` 进程遗留。
+17. [x] Unity 2022.3 Player 中 Main Thread、GPU Frame Time、GC Alloc 可用；Render Thread 当前返回 `-1`，按不可用处理。
+18. [x] 已实现可选完整 `.raw` Profiler 自动采集；`20261025-064407-c376a952` 生成 18/18 份可读 raw，合计 6.16 GiB。它与轻量采样模式隔离，不伪装为 `.data`。
+19. [x] 多轮 Host/Client 共用 persistentDataPath 与暖 Addressables 缓存运行完成，未出现缓存并发写冲突。状态文件写入竞争已改为进程内串行，并为 Windows 文件替换失败提供覆盖写入降级。
+20. [x] `20261024-035109-16b5cb39` 完成三档各 1 次双前台轮：12/12 角色结果有效；6 个被测角色前台占比均为 100%；双端采样开始/结束偏差均小于 50ms；无 `_plus` 进程遗留。
+21. [ ] 正常非 Benchmark 的单人、手动创建房间、手动加入房间流程仍需人工 UI 回归；Benchmark 已覆盖同一 Bootstrap、Lobby 连接、两人 Ready 与场景切换主链路。
+22. [x] `20261025-064407-c376a952` 完成三档各 3 次完整 Profiler 双前台轮：18 个测量角色全部有效，前台占比最低 99.98%，36/36 份 metrics 与 18/18 份 raw 完整落盘；详见该 Run 的 `FULL_PROFILER_REPORT.md`。
+
+### 5.1 前台焦点对同机双端结果的影响
+
+- `Application.runInBackground = true` 只保证失焦后继续执行，不保证 Windows 或显卡驱动给予与前台窗口相同的调度。
+- 同一 Windows 桌面不可能让两个独立 Player 同时成为前台窗口。纯自动化还可能让 Editor 或自动化工具保持前台。
+- 从 metrics schema 3 起，每帧通过 Windows 前台窗口所属 PID 记录 `focused`；综合报告显示每个角色的前台帧占比。
+- `20261023-130440-72eeba90` 与 `20261023-131133-f3e8ba16` 中 Host、Client 的前台占比都为 0%，证明纯自动化时确实可能两个游戏窗口都不在前台。
+- 当前同机模式已实现“Host 前台”和“Client 前台”两轮：目标 Player 通过 PID 定位并自主申请 Windows 前台，Editor 确认焦点后才下发采样命令；采样期间目标角色前台占比低于 95% 时该角色结果无效。
+- 综合报告仍保留陪跑角色数据用于工作负载证据，但标记为 support role，不参与性能差值；目录结构为 `repeat-<NN>/focus-<host|client>/<role>/`。
+- `20261024-035109-16b5cb39` 中 1024、2048、5012 的 Host/Client 被测角色前台占比均为 100%，所有双端采样区间偏差均小于 50ms。
+- 该单机方案解决了后台降帧导致的角色测量偏差，但两端仍共享 CPU、GPU、内存和缓存；需要隔离硬件争用的绝对数据时仍应使用两台物理机。
 
 ### 6. 当前明确限制
 
@@ -935,20 +948,16 @@ Player 与 Addressables 构建一次；每个档位、每次重复重新启动�
 - 两端运行在同一台机器，CPU、GPU、内存和缓存互相影响。
 - `ProfilerRecorder` 轻量数据不能替代完整 Profiler 调用树。
 - 当前只记录应用层 Named Message Payload；RTT、丢包、重传和传输层额外字节仍是 Unavailable。
-- 当前没有 Unity 环境，因此没有实际 Host、Client 或性能数值，也没有可选基线；不得填写伪造结果。
+- 同机自动化不能同时让 Host、Client 都成为 Windows 前台窗口，因此每次重复会启动两对进程分别采样；报告必须保留每端前台帧占比，且只比较相同前台目标与采样模式的结果。
 
 ### 7. 后续测试顺序
 
-恢复 Unity 环境后严格按以下顺序执行，任一步失败就修复并重新从该步开始：
+后续继续验证按以下顺序执行，任一步失败就保留完整 RunId 结果并修复：
 
-1. 打开工程并解决 C# / asmdef 编译错误。
-2. 只构建 HotFix DLL、AOT 元数据与 Addressables，检查 Catalog 和本地内容路径。
-3. 构建 Development Player，手动运行一次普通非 Benchmark 流程做回归。
-4. 运行 `1024 × 1` 双进程基准，检查连接、场景、怪物、移动、FlowField 和报告完整性。
-5. 运行 `2048 × 1`、`5012 × 1`。
-6. 运行 `1024 / 2048 / 5012 × 3`，选取有效结果建立首个基线。
-7. 验证停止、异常退出、超时、Client 连接失败和工作负载无效等失败路径。
-8. 最后验证可选完整 Profiler 原始文件及冷缓存模式。
+1. 人工完成正常非 Benchmark 的单人、创建房间、加入房间 UI 回归。
+2. 如需隔离双进程硬件争用的绝对性能，增加双机远程编排；同机结果继续只在相同前台目标、前台占比和采样模式下比较。
+3. 根据 `20261025-064407-c376a952/FULL_PROFILER_REPORT.md`，优先拆解 5012 Host 的 `Monster.Simulation.EntityTick` 与 `Monster.View.ApplyAuthority`；完整 raw 已保留，轻量 Marker 用于跨版本稳定比较。
+4. 如需隔离内容缓存影响，再单独增加冷缓存模式；完整 Profiler 原始文件模式已经完成。
 
 ### 8. 本轮新增与修改文件
 
@@ -983,4 +992,4 @@ Player 与 Addressables 构建一次；每个档位、每次重复重新启动�
 
 ### 9. 交接入口
 
-独立交接说明已整理至 `Docs/Profiler自动化工具准备-交接.md`，包含工具入口、默认参数、执行链路、输出目录、首轮验证顺序、重点风险和版本库边界。后续 Unity 环境中的每一项实测结果仍需同步回本节“待逐项运行验证”，不得只记录在临时日志或口头交接中。
+独立交接说明已整理至 `Docs/Profiler自动化工具准备-交接.md`，包含工具入口、默认参数、执行链路、输出目录、验证结果、重点风险和版本库边界。后续每一项实测结果仍需同步回本节“待逐项运行验证”，不得只记录在临时日志或口头交接中。

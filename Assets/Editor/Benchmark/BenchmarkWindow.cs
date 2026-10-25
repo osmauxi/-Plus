@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using ProjectGame.Bootstrap;
@@ -26,52 +27,104 @@ namespace ProjectGame.Editor.Benchmarking
         private float _captureSeconds = 30f;
         private float _stageTimeoutSeconds = 180f;
         private int _gamePort = LanEndpoint.DefaultGamePort;
+        private bool _captureProfiler;
 
-        [MenuItem("Tools/Benchmark/Dual Player Benchmark")]
+        [MenuItem("Tools/性能基准/双端性能测试")]
         public static void Open()
         {
             BenchmarkWindow window = GetWindow<BenchmarkWindow>();
-            window.titleContent = new GUIContent("Dual Benchmark");
+            window.titleContent = new GUIContent("双端性能基准");
             window.minSize = new Vector2(460f, 430f);
             window.Show();
         }
 
         private void OnGUI()
         {
-            EditorGUILayout.LabelField("Dual Player Performance Benchmark", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("主机 + 客户端双端性能基准测试", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "固定用例：1024 / 2048 / 5012。每个用例重启一对 Host + Client，构建只执行一次。",
+                "固定用例：1024 / 2048 / 5012。每次重复会依次执行 Host 前台轮和 Client 前台轮，每轮各启动一对进程。",
                 MessageType.Info);
+            EditorGUILayout.HelpBox(
+                "每轮只采信前台目标角色的性能数据，另一端仅提供网络与工作负载。目标角色前台帧占比低于 95% 时该轮无效；总运行时长约为原模式的两倍。",
+                MessageType.Warning);
 
             using (new EditorGUI.DisabledScope(BenchmarkProcessOrchestrator.IsRunning))
             {
-                _seed = EditorGUILayout.IntField("Random Seed", _seed);
-                _repeatCount = EditorGUILayout.IntSlider("Repeat Count", _repeatCount, 1, 10);
-                _warmupSeconds = EditorGUILayout.Slider("Warmup Seconds", _warmupSeconds, 0f, 60f);
-                _captureSeconds = EditorGUILayout.Slider("Capture Seconds", _captureSeconds, 5f, 300f);
-                _stageTimeoutSeconds = EditorGUILayout.Slider("Stage Timeout", _stageTimeoutSeconds, 30f, 600f);
-                _gamePort = EditorGUILayout.IntField("Base Game Port", _gamePort);
+                _seed = EditorGUILayout.IntField(
+                    new GUIContent("随机种子", "主机端和客户端使用相同种子，确保每轮压力场景可复现。"),
+                    _seed);
+                _repeatCount = EditorGUILayout.IntSlider(
+                    new GUIContent("每档重复次数", "每个怪物数量分别执行的次数，用于降低单次采样波动。"),
+                    _repeatCount,
+                    1,
+                    10);
+                _warmupSeconds = EditorGUILayout.Slider(
+                    new GUIContent("预热时长（秒）", "正式记录前等待的时间，用于避开场景初始化和缓存预热。"),
+                    _warmupSeconds,
+                    0f,
+                    60f);
+                _captureSeconds = EditorGUILayout.Slider(
+                    new GUIContent("采样时长（秒）", "每轮正式记录帧时间与工作负载计数器的持续时间。"),
+                    _captureSeconds,
+                    5f,
+                    300f);
+                _stageTimeoutSeconds = EditorGUILayout.Slider(
+                    new GUIContent("阶段超时（秒）", "主机端或客户端在单个启动阶段允许等待的最长时间。"),
+                    _stageTimeoutSeconds,
+                    30f,
+                    600f);
+                _gamePort = EditorGUILayout.IntField(
+                    new GUIContent("起始游戏端口", "不同怪物档位会从该端口开始依次使用端口。"),
+                    _gamePort);
+                _captureProfiler = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "保存完整 Profiler 原始数据",
+                        "仅在每轮被测前台角色的正式采样窗口内生成 profiler.raw；会产生额外开销，不能与普通轻量基线混用。"),
+                    _captureProfiler);
 
                 GUILayout.Space(8f);
-                if (GUILayout.Button("Build & Run Dual Benchmark", GUILayout.Height(34f)))
+                EditorGUILayout.HelpBox(
+                    "首次运行请选择“构建并运行”。该操作会重新生成 HybridCLR、构建 Addressables 和 Development Player，然后自动启动双进程测试。",
+                    MessageType.Warning);
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "构建并运行双端基准测试",
+                            "重新生成 HybridCLR、构建 Addressables 和 Development Player，再依次执行 Host/Client 前台双轮测试。"),
+                        GUILayout.Height(34f)))
                     BuildAndRun();
-                if (GUILayout.Button("Run Existing Build", GUILayout.Height(30f)))
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "使用现有构建运行",
+                            "选择已有 Player；仅当构建指纹与当前 Catalog 一致时才会启动测试。"),
+                        GUILayout.Height(30f)))
                     RunExistingBuild();
-                if (GUILayout.Button("Select Baseline", GUILayout.Height(26f)))
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "选择历史基线",
+                            "选择包含 SUMMARY.md 的历史 RunId 目录，用于后续兼容环境下的性能对比。"),
+                        GUILayout.Height(26f)))
                     SelectBaseline();
             }
 
             using (new EditorGUI.DisabledScope(!BenchmarkProcessOrchestrator.IsRunning))
             {
-                if (GUILayout.Button("Stop Benchmark", GUILayout.Height(28f)))
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "停止当前基准测试",
+                            "只终止本轮记录且启动时间匹配的 Host/Client 进程，并保留已经生成的结果。"),
+                        GUILayout.Height(28f)))
                     BenchmarkProcessOrchestrator.Stop("用户从 EditorWindow 停止测试");
             }
 
-            if (GUILayout.Button("Open Benchmark Results", GUILayout.Height(26f)))
+            if (GUILayout.Button(
+                    new GUIContent(
+                        "打开测试结果目录",
+                        "在文件管理器中打开 BenchmarkResults。"),
+                    GUILayout.Height(26f)))
                 EditorUtility.RevealInFinder(BenchmarkPaths.ResultsRoot);
 
             GUILayout.Space(10f);
-            EditorGUILayout.LabelField("Status", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("当前状态", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(BenchmarkProcessOrchestrator.Status, MessageType.None);
             Repaint();
         }
@@ -100,7 +153,7 @@ namespace ProjectGame.Editor.Benchmarking
             catch (Exception exception)
             {
                 Debug.LogError($"[Benchmark] Build & Run 失败：{exception}");
-                EditorUtility.DisplayDialog("Benchmark 构建失败", exception.Message, "确定");
+                EditorUtility.DisplayDialog("性能基准构建失败", exception.Message, "确定");
             }
         }
 
@@ -108,12 +161,12 @@ namespace ProjectGame.Editor.Benchmarking
         {
             string initial = EditorPrefs.GetString(LastExecutableKey, string.Empty);
             string directory = string.IsNullOrEmpty(initial) ? string.Empty : Path.GetDirectoryName(initial);
-            string executable = EditorUtility.OpenFilePanel("选择 Benchmark Player", directory, "exe");
+            string executable = EditorUtility.OpenFilePanel("选择性能基准 Player", directory, "exe");
             if (string.IsNullOrEmpty(executable))
                 return;
             if (!TryValidateBuildManifest(executable, out string validationError))
             {
-                EditorUtility.DisplayDialog("Benchmark Build 无效", validationError, "确定");
+                EditorUtility.DisplayDialog("性能基准构建无效", validationError, "确定");
                 return;
             }
             EditorPrefs.SetString(LastExecutableKey, executable);
@@ -134,6 +187,7 @@ namespace ProjectGame.Editor.Benchmarking
                     CaptureSeconds = _captureSeconds,
                     StageTimeoutSeconds = _stageTimeoutSeconds,
                     BaseGamePort = (ushort)_gamePort,
+                    CaptureProfiler = _captureProfiler,
                 });
         }
 
@@ -178,7 +232,7 @@ namespace ProjectGame.Editor.Benchmarking
                 BuildManifestFileName);
             if (!File.Exists(manifestPath))
             {
-                error = $"缺少 {BuildManifestFileName}；请先使用 Build & Run 生成可追溯构建。";
+                error = $"缺少 {BuildManifestFileName}；请先使用“构建并运行双端基准测试”生成可追溯构建。";
                 return false;
             }
 
@@ -255,6 +309,7 @@ namespace ProjectGame.Editor.Benchmarking
         public float CaptureSeconds;
         public float StageTimeoutSeconds;
         public ushort BaseGamePort;
+        public bool CaptureProfiler;
     }
 
     internal static class BenchmarkPaths
@@ -268,6 +323,54 @@ namespace ProjectGame.Editor.Benchmarking
     internal static class BenchmarkProcessOrchestrator
     {
         private static readonly int[] Cases = BenchmarkLaunchOptions.DefaultMonsterCounts;
+        private static readonly BenchmarkProcessRole[] FocusTargets =
+        {
+            BenchmarkProcessRole.Host,
+            BenchmarkProcessRole.Client,
+        };
+        private const int SwRestore = 9;
+
+        private delegate bool EnumWindowsCallback(IntPtr window, IntPtr parameter);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetForegroundWindow(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetFocus(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern void SwitchToThisWindow(IntPtr window, bool altTab);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool BringWindowToTop(IntPtr window);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ShowWindowAsync(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool AttachThreadInput(uint attachThread, uint attachToThread, bool attach);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
         private static Process _host;
         private static Process _client;
         private static DateTime _hostStartTime;
@@ -278,11 +381,13 @@ namespace ProjectGame.Editor.Benchmarking
         private static string _runDirectory;
         private static int _caseIndex;
         private static int _repeatIndex;
+        private static int _focusTargetIndex;
         private static bool _captureCommandWritten;
+        private static DateTime _nextFocusRefreshUtc;
         private static DateTime _stageDeadlineUtc;
 
         public static bool IsRunning { get; private set; }
-        public static string Status { get; private set; } = "Idle";
+        public static string Status { get; private set; } = "空闲";
 
         static BenchmarkProcessOrchestrator()
         {
@@ -317,6 +422,7 @@ namespace ProjectGame.Editor.Benchmarking
             Directory.CreateDirectory(_runDirectory);
             _caseIndex = 0;
             _repeatIndex = 1;
+            _focusTargetIndex = 0;
             IsRunning = true;
             WriteRunMetadata();
             LaunchCurrentHost();
@@ -329,7 +435,7 @@ namespace ProjectGame.Editor.Benchmarking
             _host = null;
             _client = null;
             IsRunning = false;
-            Status = "Stopped: " + reason;
+            Status = "已停止：" + reason;
             if (!string.IsNullOrEmpty(_runDirectory))
                 BenchmarkSummaryWriter.WriteSummary(_runDirectory, Cases, _settings, false, reason);
         }
@@ -360,13 +466,22 @@ namespace ProjectGame.Editor.Benchmarking
                     return;
                 }
 
+                if (_captureCommandWritten)
+                    EnsureTargetForeground();
+
                 if (!_captureCommandWritten &&
                     hostStatus?.stage == "workload-ready" &&
                     clientStatus?.stage == "workload-ready")
                 {
+                    if (!TryFocusProcess(CurrentFocusProcess) || !IsProcessForeground(CurrentFocusProcess))
+                    {
+                        Status = $"正在切换到 {CurrentPassLabel}：{Cases[_caseIndex]} 个怪物，第 {_repeatIndex} 次";
+                        return;
+                    }
+
                     WriteCaptureCommand();
                     _captureCommandWritten = true;
-                    Status = $"Capturing {Cases[_caseIndex]} monsters, repeat {_repeatIndex}";
+                    Status = $"正在采样 {CurrentPassLabel}：{Cases[_caseIndex]} 个怪物，第 {_repeatIndex} 次";
                     _stageDeadlineUtc = DateTime.UtcNow.AddSeconds(
                         _settings.CaptureSeconds + _settings.StageTimeoutSeconds);
                     return;
@@ -388,11 +503,12 @@ namespace ProjectGame.Editor.Benchmarking
         private static void LaunchCurrentHost()
         {
             _captureCommandWritten = false;
+            _nextFocusRefreshUtc = DateTime.MinValue;
             int monsterCount = Cases[_caseIndex];
             ushort port = checked((ushort)(_settings.BaseGamePort + _caseIndex));
             _host = Launch("host", monsterCount, port, out _hostStartTime);
             _client = null;
-            Status = $"Waiting Host: {monsterCount} monsters, repeat {_repeatIndex}";
+            Status = $"正在等待主机端（{CurrentPassLabel}）：{monsterCount} 个怪物，第 {_repeatIndex} 次";
             _stageDeadlineUtc = DateTime.UtcNow.AddSeconds(_settings.StageTimeoutSeconds);
         }
 
@@ -401,7 +517,7 @@ namespace ProjectGame.Editor.Benchmarking
             int monsterCount = Cases[_caseIndex];
             ushort port = checked((ushort)(_settings.BaseGamePort + _caseIndex));
             _client = Launch("client", monsterCount, port, out _clientStartTime);
-            Status = $"Waiting Client/workload: {monsterCount} monsters, repeat {_repeatIndex}";
+            Status = $"正在等待客户端与压力场景（{CurrentPassLabel}）：{monsterCount} 个怪物，第 {_repeatIndex} 次";
             _stageDeadlineUtc = DateTime.UtcNow.AddSeconds(_settings.StageTimeoutSeconds);
         }
 
@@ -418,6 +534,7 @@ namespace ProjectGame.Editor.Benchmarking
             {
                 "-benchmark",
                 $"-benchmark-role={role}",
+                $"-benchmark-focus={CurrentFocusName}",
                 $"-benchmark-run-id={_runId}",
                 $"-benchmark-monsters={monsterCount}",
                 $"-benchmark-seed={_settings.Seed}",
@@ -427,6 +544,7 @@ namespace ProjectGame.Editor.Benchmarking
                 $"-benchmark-timeout={Format(_settings.StageTimeoutSeconds)}",
                 "-benchmark-host=127.0.0.1",
                 $"-benchmark-port={port}",
+                $"-benchmark-profiler={(_settings.CaptureProfiler ? 1 : 0)}",
                 $"-benchmark-result-root={Quote(BenchmarkPaths.ResultsRoot)}",
                 $"-benchmark-content-root={Quote(BenchmarkPaths.ContentRoot)}",
                 $"-logFile {Quote(logPath)}",
@@ -468,6 +586,14 @@ namespace ProjectGame.Editor.Benchmarking
             _host = null;
             _client = null;
 
+            _focusTargetIndex++;
+            if (_focusTargetIndex < FocusTargets.Length)
+            {
+                LaunchCurrentHost();
+                return;
+            }
+
+            _focusTargetIndex = 0;
             _repeatIndex++;
             if (_repeatIndex <= _settings.RepeatCount)
             {
@@ -484,7 +610,7 @@ namespace ProjectGame.Editor.Benchmarking
             }
 
             IsRunning = false;
-            Status = "Completed";
+            Status = "已完成";
             BenchmarkSummaryWriter.WriteSummary(_runDirectory, Cases, _settings, true, string.Empty);
             BenchmarkSummaryWriter.WriteLatest(_runDirectory, _runId);
             AssetDatabase.Refresh();
@@ -498,9 +624,14 @@ namespace ProjectGame.Editor.Benchmarking
                 return null;
             try
             {
-                return JsonUtility.FromJson<BenchmarkProcessStatus>(File.ReadAllText(path));
+                return JsonUtility.FromJson<BenchmarkProcessStatus>(
+                    BenchmarkFileProtocol.ReadAllTextShared(path));
             }
             catch (IOException)
+            {
+                return null;
+            }
+            catch (ArgumentException)
             {
                 return null;
             }
@@ -510,7 +641,93 @@ namespace ProjectGame.Editor.Benchmarking
             _runDirectory,
             $"monsters-{Cases[_caseIndex]}",
             $"repeat-{_repeatIndex:D2}",
+            $"focus-{CurrentFocusName}",
             role);
+
+        private static BenchmarkProcessRole CurrentFocusTarget => FocusTargets[_focusTargetIndex];
+        private static string CurrentFocusName =>
+            CurrentFocusTarget == BenchmarkProcessRole.Host ? "host" : "client";
+        private static string CurrentPassLabel =>
+            CurrentFocusTarget == BenchmarkProcessRole.Host ? "Host 前台轮" : "Client 前台轮";
+        private static Process CurrentFocusProcess =>
+            CurrentFocusTarget == BenchmarkProcessRole.Host ? _host : _client;
+
+        private static void EnsureTargetForeground()
+        {
+            Process process = CurrentFocusProcess;
+            if (process == null || process.HasExited)
+                return;
+
+            DateTime now = DateTime.UtcNow;
+            if (!IsProcessForeground(process) || now >= _nextFocusRefreshUtc)
+            {
+                TryFocusProcess(process);
+                _nextFocusRefreshUtc = now.AddSeconds(1d);
+            }
+        }
+
+        private static bool IsProcessForeground(Process process)
+        {
+            if (process == null || process.HasExited)
+                return false;
+            IntPtr foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero)
+                return false;
+            GetWindowThreadProcessId(foreground, out uint processId);
+            return processId == process.Id;
+        }
+
+        private static bool TryFocusProcess(Process process)
+        {
+            if (process == null || process.HasExited)
+                return false;
+
+            IntPtr targetWindow = FindVisibleWindow(process.Id);
+            if (targetWindow == IntPtr.Zero)
+                return false;
+
+            uint currentThread = GetCurrentThreadId();
+            uint targetThread = GetWindowThreadProcessId(targetWindow, out _);
+            IntPtr foregroundWindow = GetForegroundWindow();
+            uint foregroundThread = foregroundWindow == IntPtr.Zero
+                ? 0
+                : GetWindowThreadProcessId(foregroundWindow, out _);
+            bool attachedForeground = foregroundThread != 0 && foregroundThread != currentThread &&
+                                      AttachThreadInput(currentThread, foregroundThread, true);
+            bool attachedTarget = targetThread != 0 && targetThread != currentThread &&
+                                  AttachThreadInput(currentThread, targetThread, true);
+            try
+            {
+                ShowWindowAsync(targetWindow, SwRestore);
+                BringWindowToTop(targetWindow);
+                SwitchToThisWindow(targetWindow, true);
+                SetForegroundWindow(targetWindow);
+                SetFocus(targetWindow);
+            }
+            finally
+            {
+                if (attachedTarget)
+                    AttachThreadInput(currentThread, targetThread, false);
+                if (attachedForeground)
+                    AttachThreadInput(currentThread, foregroundThread, false);
+            }
+
+            return IsProcessForeground(process);
+        }
+
+        private static IntPtr FindVisibleWindow(int processId)
+        {
+            IntPtr result = IntPtr.Zero;
+            EnumWindows((window, _) =>
+            {
+                GetWindowThreadProcessId(window, out uint windowProcessId);
+                if (windowProcessId != processId || !IsWindowVisible(window))
+                    return true;
+                result = window;
+                return false;
+            }, IntPtr.Zero);
+            return result;
+        }
 
         private static void ThrowIfFailed(Process process, string role)
         {
@@ -544,9 +761,14 @@ namespace ProjectGame.Editor.Benchmarking
         {
             string gitCommit = ReadGit("rev-parse HEAD", out bool commitKnown);
             string gitStatus = ReadGit("status --porcelain", out bool statusKnown);
+            string buildManifestPath = Path.Combine(
+                Path.GetDirectoryName(_executable) ?? string.Empty,
+                "benchmark-build.json");
+            BenchmarkBuildManifest buildManifest = JsonUtility.FromJson<BenchmarkBuildManifest>(
+                File.ReadAllText(buildManifestPath));
             var metadata = new BenchmarkRunMetadata
             {
-                schemaVersion = 1,
+                schemaVersion = 3,
                 runId = _runId,
                 createdUtc = DateTime.UtcNow.ToString("O"),
                 unityVersion = Application.unityVersion,
@@ -564,7 +786,15 @@ namespace ProjectGame.Editor.Benchmarking
                 warmupSeconds = _settings.WarmupSeconds,
                 captureSeconds = _settings.CaptureSeconds,
                 monsterCounts = string.Join(",", Cases),
-                cacheMode = "shared-warm-cache-host-first",
+                executableSha256 = buildManifest.executableSha256,
+                contentCatalogHash = buildManifest.contentCatalogHash,
+                buildCreatedUtc = buildManifest.createdUtc,
+                samplingMode = _settings.CaptureProfiler
+                    ? "dual-pass-foreground-profiler-v1"
+                    : "dual-pass-foreground-v1",
+                captureProfiler = _settings.CaptureProfiler,
+                frameTimeDefinition = "Time.unscaledDeltaTime（相邻渲染帧间隔）",
+                cacheMode = "isolated-per-player",
                 routeVersion = "square-12m-v1",
             };
             BenchmarkFileProtocol.WriteJsonAtomically(
@@ -624,6 +854,12 @@ namespace ProjectGame.Editor.Benchmarking
         public float warmupSeconds;
         public float captureSeconds;
         public string monsterCounts;
+        public string executableSha256;
+        public string contentCatalogHash;
+        public string buildCreatedUtc;
+        public string samplingMode;
+        public bool captureProfiler;
+        public string frameTimeDefinition;
         public string cacheMode;
         public string routeVersion;
     }
@@ -632,21 +868,63 @@ namespace ProjectGame.Editor.Benchmarking
     internal sealed class BenchmarkMetricsDto
     {
         public bool workloadValid;
+        public string focusTarget;
         public int sampleCount;
+        public int focusedFrameCount;
+        public int unfocusedFrameCount;
+        public int focusChangeCount;
         public double actualDurationSeconds;
         public double averageFrameMilliseconds;
+        public double p50FrameMilliseconds;
+        public double p90FrameMilliseconds;
         public double p95FrameMilliseconds;
         public double p99FrameMilliseconds;
+        public double maximumFrameMilliseconds;
+        public double averageMainThreadMilliseconds;
+        public double p95MainThreadMilliseconds;
+        public double p99MainThreadMilliseconds;
+        public double maximumMainThreadMilliseconds;
+        public double averageRenderThreadMilliseconds;
+        public double p95RenderThreadMilliseconds;
+        public double p99RenderThreadMilliseconds;
+        public double maximumRenderThreadMilliseconds;
+        public double averageGpuFrameMilliseconds;
+        public double p95GpuFrameMilliseconds;
+        public double p99GpuFrameMilliseconds;
+        public double maximumGpuFrameMilliseconds;
+        public long gcAllocatedBytes;
+        public double averageGcAllocatedBytes;
+        public double p95GcAllocatedBytes;
+        public long maximumGcAllocatedBytes;
+        public int gcCollectionCount0;
+        public int gcCollectionCount1;
+        public int gcCollectionCount2;
         public string captureStartedUtc;
         public string captureStoppedUtc;
+        public long sentMessageCount;
         public long sentPayloadBytes;
+        public long receivedMessageCount;
         public long receivedPayloadBytes;
         public int authorityAliveMonsterCount;
+        public int replicaSlotCount;
         public int replicaActiveCount;
         public int activeViewCount;
         public int viewSlotCount;
+        public int topologyRebuildCount;
         public int sourceRebuildCount;
+        public int costRebuildCount;
+        public int movementCommands;
+        public int movementWaypoints;
         public float movementDistance;
+    }
+
+    internal sealed class BenchmarkMarkerDto
+    {
+        public string Name;
+        public long SampleCount;
+        public int NonZeroFrames;
+        public double TotalMilliseconds;
+        public double MaximumFrameMilliseconds;
     }
 
     [Serializable]
@@ -664,6 +942,8 @@ namespace ProjectGame.Editor.Benchmarking
 
     internal static class BenchmarkSummaryWriter
     {
+        private const double PairAlignmentToleranceMilliseconds = 100d;
+
         public static void WriteBaseline(string runDirectory)
         {
             Directory.CreateDirectory(BenchmarkPaths.ResultsRoot);
@@ -690,126 +970,472 @@ namespace ProjectGame.Editor.Benchmarking
             bool completed,
             string failure)
         {
+            BenchmarkRunMetadata metadata = ReadMetadata(runDirectory);
             string baselineDirectory = ReadBaselineDirectory();
-            string baselineNote = "Unavailable";
+            BenchmarkRunMetadata baselineMetadata = null;
+            string baselineCompatibility = "未选择基线";
             if (!string.IsNullOrEmpty(baselineDirectory))
             {
+                baselineMetadata = ReadMetadata(baselineDirectory);
                 if (AreRunsCompatible(runDirectory, baselineDirectory, out string incompatibility))
-                    baselineNote = baselineDirectory;
+                    baselineCompatibility = "兼容，可计算同口径差值";
                 else
                 {
-                    baselineNote = "Incompatible: " + incompatibility;
+                    baselineCompatibility = "不兼容：" + incompatibility;
                     baselineDirectory = string.Empty;
                 }
             }
+
             var summary = new StringBuilder();
-            summary.AppendLine("# Dual Player Benchmark Summary");
+            summary.AppendLine("# 双端性能基准汇总");
             summary.AppendLine();
-            summary.AppendLine($"- Completed: `{completed}`");
+            summary.AppendLine("## 1. 测试身份与有效性");
+            summary.AppendLine();
+            summary.AppendLine($"- RunId：`{metadata?.runId ?? Path.GetFileName(runDirectory)}`");
+            summary.AppendLine($"- 测试完成：`{FormatBool(completed)}`");
             if (!completed)
-                summary.AppendLine($"- Failure/stop reason: {failure}");
-            summary.AppendLine($"- Cases: {string.Join(", ", cases)}");
-            summary.AppendLine($"- Repeats: {settings?.RepeatCount ?? 0}");
-            summary.AppendLine($"- Baseline: {baselineNote}");
+                summary.AppendLine($"- 失败或停止原因：{failure}");
+            summary.AppendLine($"- Git：`{FormatGit(metadata)}`");
+            summary.AppendLine($"- 构建：`{metadata?.buildType ?? "不可用"}` / `{metadata?.target ?? "不可用"}` / Unity `{metadata?.unityVersion ?? "不可用"}`");
+            summary.AppendLine($"- Player SHA-256：`{metadata?.executableSha256 ?? "不可用"}`");
+            summary.AppendLine($"- Catalog 指纹：`{metadata?.contentCatalogHash ?? "不可用"}`");
+            summary.AppendLine($"- 固定环境：{metadata?.resolution ?? "不可用"}，质量档 `{metadata?.quality ?? "不可用"}`，VSync `{metadata?.vSync.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`，目标帧率 `{metadata?.targetFrameRate.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`");
+            summary.AppendLine($"- 压测配置：怪物 {string.Join(" / ", cases)}，每档 {settings?.RepeatCount ?? 0} 次，Seed `{metadata?.seed.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`，预热 {settings?.WarmupSeconds ?? 0:F1}s，计划采样 {settings?.CaptureSeconds ?? 0:F1}s");
+            summary.AppendLine($"- 采样模式：`{metadata?.samplingMode ?? "不可用"}`；完整 Profiler：`{FormatBool(metadata?.captureProfiler == true)}`；缓存：`{metadata?.cacheMode ?? "不可用"}`；路线：`{metadata?.routeVersion ?? "不可用"}`");
+            summary.AppendLine($"- “帧时”统计口径：{metadata?.frameTimeDefinition ?? "不可用"}；Main Thread 与 GPU Frame Time 是独立维度，不能相加为总帧耗时。");
+            summary.AppendLine($"- 双端采样对齐口径：开始/结束时间偏差均不超过 {PairAlignmentToleranceMilliseconds:F0} ms（30 秒窗口的 0.33%）。");
+            if (metadata?.captureProfiler == true)
+                summary.AppendLine("- 数据质量提示：完整 Profiler 模式的开头 1～2 帧包含二进制采集启动开销；最大帧需结合 `frames.csv` 中的位置以及 Main/GPU 时间判断，P95/P99 不受单个启动帧影响。");
+            summary.AppendLine($"- 有效性能样本：{FormatValidRepeatCounts(runDirectory, cases, settings?.RepeatCount ?? 0)}");
+            summary.AppendLine($"- 基线 RunId：`{baselineMetadata?.runId ?? "不可用"}`");
+            summary.AppendLine($"- 基线兼容性：{baselineCompatibility}");
             summary.AppendLine();
-            summary.AppendLine("| Monsters | Repeat | Role | Role valid | Pair aligned | Pair start/end skew | Samples | Avg ms | P95 ms | P99 ms | Baseline delta |");
-            summary.AppendLine("|---:|---:|---|---|---|---:|---:|---:|---:|---:|---|");
+
+            summary.AppendLine("## 2. Host / Client 性能概览");
+            summary.AppendLine();
+            summary.AppendLine("### 2.1 帧间隔");
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 重复 | 角色 | 双端有效 | 对齐与开始/结束偏差 | 实际时长(s) | 前台占比 | 样本数 | 平均(ms) | P50 | P90 | P95 | P99 | 最大 | 相对基线 |");
+            summary.AppendLine("|---:|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|");
 
             foreach (int monsterCount in cases)
             {
                 for (int repeat = 1; repeat <= (settings?.RepeatCount ?? 0); repeat++)
                 {
-                    string repeatDirectory = Path.Combine(
-                        runDirectory,
-                        $"monsters-{monsterCount}",
-                        $"repeat-{repeat:D2}");
-                    BenchmarkMetricsDto hostMetrics = ReadMetrics(
-                        Path.Combine(repeatDirectory, "host", "metrics.json"));
-                    BenchmarkMetricsDto clientMetrics = ReadMetrics(
-                        Path.Combine(repeatDirectory, "client", "metrics.json"));
-                    double startSkewMilliseconds = CalculateStartSkewMilliseconds(
-                        hostMetrics,
-                        clientMetrics);
-                    double stopSkewMilliseconds = CalculateStopSkewMilliseconds(
-                        hostMetrics,
-                        clientMetrics);
-                    bool pairAligned = !double.IsNaN(startSkewMilliseconds) &&
-                                       !double.IsNaN(stopSkewMilliseconds) &&
-                                       startSkewMilliseconds <= 50d &&
-                                       stopSkewMilliseconds <= 50d;
-
-                    foreach (string role in new[] { "host", "client" })
+                    foreach (string focusTarget in new[] { "host", "client" })
                     {
+                        string passDirectory = Path.Combine(
+                            runDirectory,
+                            $"monsters-{monsterCount}",
+                            $"repeat-{repeat:D2}",
+                            $"focus-{focusTarget}");
+                        BenchmarkMetricsDto hostMetrics = ReadMetrics(
+                            Path.Combine(passDirectory, "host", "metrics.json"));
+                        BenchmarkMetricsDto clientMetrics = ReadMetrics(
+                            Path.Combine(passDirectory, "client", "metrics.json"));
+                        double startSkewMilliseconds = CalculateStartSkewMilliseconds(
+                            hostMetrics,
+                            clientMetrics);
+                        double stopSkewMilliseconds = CalculateStopSkewMilliseconds(
+                            hostMetrics,
+                            clientMetrics);
+                        bool pairAligned = !double.IsNaN(startSkewMilliseconds) &&
+                                           !double.IsNaN(stopSkewMilliseconds) &&
+                                           startSkewMilliseconds <= PairAlignmentToleranceMilliseconds &&
+                                           stopSkewMilliseconds <= PairAlignmentToleranceMilliseconds;
+
+                        string role = focusTarget;
+                        BenchmarkMetricsDto metrics = role == "host" ? hostMetrics : clientMetrics;
+                        BenchmarkMetricsDto companion = role == "host" ? clientMetrics : hostMetrics;
                         string relative = Path.Combine(
                             $"monsters-{monsterCount}",
                             $"repeat-{repeat:D2}",
+                            $"focus-{focusTarget}",
                             role,
                             "metrics.json");
-                        BenchmarkMetricsDto metrics = role == "host" ? hostMetrics : clientMetrics;
                         BenchmarkMetricsDto baseline = string.IsNullOrEmpty(baselineDirectory)
                             ? null
                             : ReadMetrics(Path.Combine(baselineDirectory, relative));
                         if (metrics == null)
                         {
-                            summary.AppendLine($"| {monsterCount} | {repeat} | {role} | missing | false | - | 0 | - | - | - | - |");
+                            summary.AppendLine($"| {monsterCount} | {repeat} | {FormatRole(role)} | 缺失 | 否 / 不可用 | - | - | 0 | - | - | - | - | - | - | - |");
                             continue;
                         }
 
+                        bool pairValid = metrics.workloadValid && companion?.workloadValid == true && pairAligned;
+                        string delta = pairAligned
+                            ? FormatDelta(metrics, baseline)
+                            : "不可用（采样偏差过大）";
                         summary.AppendLine(
-                            $"| {monsterCount} | {repeat} | {role} | {metrics.workloadValid} | {pairAligned} | " +
-                            $"{FormatSkew(startSkewMilliseconds, stopSkewMilliseconds)} | " +
+                            $"| {monsterCount} | {repeat} | {FormatRole(role)} | {FormatBool(pairValid)} | " +
+                            $"{FormatBool(pairAligned)} / {FormatSkew(startSkewMilliseconds, stopSkewMilliseconds)} | " +
+                            $"{metrics.actualDurationSeconds:F3} | {FormatFocusedFrames(metrics)} | " +
                             $"{metrics.sampleCount} | {metrics.averageFrameMilliseconds:F3} | " +
+                            $"{metrics.p50FrameMilliseconds:F3} | {metrics.p90FrameMilliseconds:F3} | " +
                             $"{metrics.p95FrameMilliseconds:F3} | {metrics.p99FrameMilliseconds:F3} | " +
-                            $"{(pairAligned ? FormatDelta(metrics, baseline) : "N/A (capture skew)")} |");
+                            $"{metrics.maximumFrameMilliseconds:F3} | {delta} |");
                     }
                 }
             }
 
             summary.AppendLine();
-            summary.AppendLine("## Workload counters");
+            summary.AppendLine("### 2.2 Main Thread、GPU 与 GC");
             summary.AppendLine();
-            summary.AppendLine("| Monsters | Repeat | Role | Authority alive | Replica active | View slots/active | Source rebuilds | Movement m | Sent bytes | Received bytes |");
-            summary.AppendLine("|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|");
+            summary.AppendLine("| 怪物数 | 重复 | 角色 | Main Thread 平均/P95/P99/最大(ms) | GPU 平均/P95/P99/最大(ms) | GC Alloc 平均/P95/最大(B) | GC 次数 Gen0/1/2 |");
+            summary.AppendLine("|---:|---:|---|---|---|---|---|");
             foreach (int monsterCount in cases)
             {
                 for (int repeat = 1; repeat <= (settings?.RepeatCount ?? 0); repeat++)
                 {
                     foreach (string role in new[] { "host", "client" })
                     {
+                        BenchmarkMetricsDto metrics = ReadMeasuredMetrics(runDirectory, monsterCount, repeat, role);
+                        if (metrics == null)
+                            continue;
+                        summary.AppendLine(
+                            $"| {monsterCount} | {repeat} | {FormatRole(role)} | " +
+                            $"{FormatTiming(metrics.averageMainThreadMilliseconds, metrics.p95MainThreadMilliseconds, metrics.p99MainThreadMilliseconds, metrics.maximumMainThreadMilliseconds)} | " +
+                            $"{FormatTiming(metrics.averageGpuFrameMilliseconds, metrics.p95GpuFrameMilliseconds, metrics.p99GpuFrameMilliseconds, metrics.maximumGpuFrameMilliseconds)} | " +
+                            $"{FormatAllocation(metrics.averageGcAllocatedBytes, metrics.p95GcAllocatedBytes, metrics.maximumGcAllocatedBytes)} | " +
+                            $"{metrics.gcCollectionCount0}/{metrics.gcCollectionCount1}/{metrics.gcCollectionCount2} |");
+                    }
+                }
+            }
+            summary.AppendLine();
+            summary.AppendLine("Render Thread 在当前 Unity 2022.3 Player 轻量计数器中按 `Unavailable` 处理；完整调用关系请查看对应 `profiler.raw`。Main Thread、GPU 与帧间隔互为诊断维度，不能相加。");
+
+            summary.AppendLine();
+            summary.AppendLine("## 3. 工作负载与网络");
+            summary.AppendLine();
+            summary.AppendLine("### 3.1 工作负载一致性");
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 重复 | 前台轮 | Host 存活 | Client Replica | Client View 槽/激活 | Host 移动 m/命令/路点 | Client 移动 m/命令/路点 | Host 重建 Topology/Source/Cost（Hz） |");
+            summary.AppendLine("|---:|---:|---|---:|---:|---:|---|---|---|");
+            AppendWorkloadRows(summary, runDirectory, cases, settings?.RepeatCount ?? 0);
+            summary.AppendLine();
+            summary.AppendLine("移动距离表示采样窗口内角色实际走过的路径长度，不等同于路线完成率；路线版本、命令数和路点数用于判断各重复的负载是否相近。");
+            summary.AppendLine();
+            summary.AppendLine("### 3.2 应用层网络速率");
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 重复 | 角色 | 发送 KiB/s | 接收 KiB/s | 发送消息/s | 接收消息/s | 平均发送/接收 Payload(B) |");
+            summary.AppendLine("|---:|---:|---|---:|---:|---:|---:|---|");
+            AppendNetworkRows(summary, runDirectory, cases, settings?.RepeatCount ?? 0);
+            summary.AppendLine();
+            summary.AppendLine("最大 Payload、UTP 协议开销、RTT、丢包率和重传次数：`Unavailable`，不从累计字节数反推。");
+
+            summary.AppendLine();
+            summary.AppendLine("## 4. 关键热点与性能回归");
+            summary.AppendLine();
+            summary.AppendLine("以下 Top 5 来自轻量 Marker，按相同档位和角色的重复累计总耗时排序；完整调用树以 `profiler.raw` 为准。");
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 角色 | Marker | 总耗时(ms) | 调用样本数 | 平均每次(ms) | 平均每帧(ms) | 最大单帧(ms) |");
+            summary.AppendLine("|---:|---|---|---:|---:|---:|---:|---:|");
+            AppendHotspotRows(summary, runDirectory, cases, settings?.RepeatCount ?? 0);
+            summary.AppendLine();
+            summary.AppendLine($"基线判断：{baselineCompatibility}。不兼容或缺失时不对小幅变化作提升/退化结论。");
+
+            summary.AppendLine();
+            summary.AppendLine("## 5. 详细数据入口");
+            summary.AppendLine();
+            summary.AppendLine("- [运行元数据](run-metadata.json)");
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 重复 | 角色 | 详细报告 | 指标 | 逐帧 | Marker | 完整 Profiler |");
+            summary.AppendLine("|---:|---:|---|---|---|---|---|---|");
+            AppendEvidenceLinks(summary, runDirectory, cases, settings?.RepeatCount ?? 0, metadata?.captureProfiler == true);
+            summary.AppendLine();
+            summary.AppendLine($"每次重复会运行两对进程：Host 前台轮只采信 Host，Client 前台轮只采信 Client；另一端仅提供网络与工作负载。前台占比低于 95%，或双端采样开始/结束偏差任一超过 {PairAlignmentToleranceMilliseconds:F0} ms，均不作为有效性能样本。");
+            File.WriteAllText(Path.Combine(runDirectory, "SUMMARY.md"), summary.ToString());
+        }
+
+        private static string FormatGit(BenchmarkRunMetadata metadata)
+        {
+            if (metadata == null || !metadata.gitStatusKnown)
+                return "不可用";
+            string commit = string.IsNullOrEmpty(metadata.gitCommit)
+                ? "不可用"
+                : metadata.gitCommit.Substring(0, Math.Min(12, metadata.gitCommit.Length));
+            return commit + (metadata.gitDirty ? "（工作区有未提交修改）" : "（工作区干净）");
+        }
+
+        private static string FormatValidRepeatCounts(
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount)
+        {
+            var parts = new List<string>();
+            foreach (int monsterCount in cases)
+            {
+                foreach (string role in new[] { "host", "client" })
+                {
+                    int valid = 0;
+                    for (int repeat = 1; repeat <= repeatCount; repeat++)
+                    {
+                        string passDirectory = Path.Combine(
+                            runDirectory,
+                            $"monsters-{monsterCount}",
+                            $"repeat-{repeat:D2}",
+                            $"focus-{role}");
+                        BenchmarkMetricsDto host = ReadMetrics(Path.Combine(passDirectory, "host", "metrics.json"));
+                        BenchmarkMetricsDto client = ReadMetrics(Path.Combine(passDirectory, "client", "metrics.json"));
+                        BenchmarkMetricsDto measured = role == "host" ? host : client;
+                        if (measured?.workloadValid == true &&
+                            host?.workloadValid == true &&
+                            client?.workloadValid == true &&
+                            CalculateStartSkewMilliseconds(host, client) <= PairAlignmentToleranceMilliseconds &&
+                            CalculateStopSkewMilliseconds(host, client) <= PairAlignmentToleranceMilliseconds)
+                            valid++;
+                    }
+                    parts.Add($"{monsterCount} {FormatRole(role)} {valid}/{repeatCount}");
+                }
+            }
+            return string.Join("；", parts);
+        }
+
+        private static BenchmarkMetricsDto ReadMeasuredMetrics(
+            string runDirectory,
+            int monsterCount,
+            int repeat,
+            string role)
+        {
+            return ReadMetrics(Path.Combine(
+                runDirectory,
+                $"monsters-{monsterCount}",
+                $"repeat-{repeat:D2}",
+                $"focus-{role}",
+                role,
+                "metrics.json"));
+        }
+
+        private static string FormatTiming(double average, double p95, double p99, double maximum)
+        {
+            return average < 0d || p95 < 0d || p99 < 0d || maximum < 0d
+                ? "Unavailable"
+                : $"{average:F3}/{p95:F3}/{p99:F3}/{maximum:F3}";
+        }
+
+        private static string FormatAllocation(double average, double p95, long maximum)
+        {
+            return average < 0d || p95 < 0d || maximum < 0L
+                ? "Unavailable"
+                : $"{average:F0}/{p95:F0}/{maximum}";
+        }
+
+        private static void AppendWorkloadRows(
+            StringBuilder summary,
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount)
+        {
+            foreach (int monsterCount in cases)
+            {
+                for (int repeat = 1; repeat <= repeatCount; repeat++)
+                {
+                    foreach (string focusTarget in new[] { "host", "client" })
+                    {
+                        string passDirectory = Path.Combine(
+                            runDirectory,
+                            $"monsters-{monsterCount}",
+                            $"repeat-{repeat:D2}",
+                            $"focus-{focusTarget}");
+                        BenchmarkMetricsDto host = ReadMetrics(Path.Combine(passDirectory, "host", "metrics.json"));
+                        BenchmarkMetricsDto client = ReadMetrics(Path.Combine(passDirectory, "client", "metrics.json"));
+                        if (host == null || client == null)
+                            continue;
+                        summary.AppendLine(
+                            $"| {monsterCount} | {repeat} | {FormatRole(focusTarget)} | {host.authorityAliveMonsterCount} | " +
+                            $"{client.replicaSlotCount}/{client.replicaActiveCount} | {client.viewSlotCount}/{client.activeViewCount} | " +
+                            $"{FormatMovement(host)} | {FormatMovement(client)} | {FormatRebuilds(host)} |");
+                    }
+                }
+            }
+        }
+
+        private static string FormatMovement(BenchmarkMetricsDto metrics) =>
+            $"{metrics.movementDistance:F2}/{metrics.movementCommands}/{metrics.movementWaypoints}";
+
+        private static string FormatRebuilds(BenchmarkMetricsDto metrics)
+        {
+            double duration = metrics.actualDurationSeconds;
+            return $"{metrics.topologyRebuildCount}/{metrics.sourceRebuildCount}/{metrics.costRebuildCount} " +
+                   $"({Rate(metrics.topologyRebuildCount, duration):F2}/{Rate(metrics.sourceRebuildCount, duration):F2}/{Rate(metrics.costRebuildCount, duration):F2})";
+        }
+
+        private static void AppendNetworkRows(
+            StringBuilder summary,
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount)
+        {
+            foreach (int monsterCount in cases)
+            {
+                for (int repeat = 1; repeat <= repeatCount; repeat++)
+                {
+                    foreach (string role in new[] { "host", "client" })
+                    {
+                        BenchmarkMetricsDto metrics = ReadMeasuredMetrics(runDirectory, monsterCount, repeat, role);
+                        if (metrics == null)
+                            continue;
+                        double duration = metrics.actualDurationSeconds;
+                        summary.AppendLine(
+                            $"| {monsterCount} | {repeat} | {FormatRole(role)} | " +
+                            $"{Rate(metrics.sentPayloadBytes, duration) / 1024d:F2} | " +
+                            $"{Rate(metrics.receivedPayloadBytes, duration) / 1024d:F2} | " +
+                            $"{Rate(metrics.sentMessageCount, duration):F2} | " +
+                            $"{Rate(metrics.receivedMessageCount, duration):F2} | " +
+                            $"{AveragePayload(metrics.sentPayloadBytes, metrics.sentMessageCount):F1}/" +
+                            $"{AveragePayload(metrics.receivedPayloadBytes, metrics.receivedMessageCount):F1} |");
+                    }
+                }
+            }
+        }
+
+        private static double Rate(long value, double duration) => duration > 0d ? value / duration : 0d;
+
+        private static double AveragePayload(long bytes, long messages) =>
+            messages > 0L ? (double)bytes / messages : 0d;
+
+        private static void AppendHotspotRows(
+            StringBuilder summary,
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount)
+        {
+            foreach (int monsterCount in cases)
+            {
+                foreach (string role in new[] { "host", "client" })
+                {
+                    var aggregate = new Dictionary<string, BenchmarkMarkerDto>(StringComparer.Ordinal);
+                    int totalFrames = 0;
+                    for (int repeat = 1; repeat <= repeatCount; repeat++)
+                    {
+                        BenchmarkMetricsDto metrics = ReadMeasuredMetrics(runDirectory, monsterCount, repeat, role);
+                        if (metrics == null)
+                            continue;
+                        totalFrames += metrics.sampleCount;
                         string path = Path.Combine(
                             runDirectory,
                             $"monsters-{monsterCount}",
                             $"repeat-{repeat:D2}",
+                            $"focus-{role}",
                             role,
-                            "metrics.json");
-                        BenchmarkMetricsDto metrics = ReadMetrics(path);
-                        if (metrics == null)
-                            continue;
+                            "markers.csv");
+                        foreach (BenchmarkMarkerDto marker in ReadMarkers(path))
+                        {
+                            if (!aggregate.TryGetValue(marker.Name, out BenchmarkMarkerDto current))
+                            {
+                                current = new BenchmarkMarkerDto { Name = marker.Name };
+                                aggregate.Add(marker.Name, current);
+                            }
+                            current.SampleCount += marker.SampleCount;
+                            current.NonZeroFrames += marker.NonZeroFrames;
+                            current.TotalMilliseconds += marker.TotalMilliseconds;
+                            current.MaximumFrameMilliseconds = Math.Max(
+                                current.MaximumFrameMilliseconds,
+                                marker.MaximumFrameMilliseconds);
+                        }
+                    }
+
+                    foreach (BenchmarkMarkerDto marker in aggregate.Values
+                                 .Where(item => item.TotalMilliseconds > 0d)
+                                 .OrderByDescending(item => item.TotalMilliseconds)
+                                 .Take(5))
+                    {
                         summary.AppendLine(
-                            $"| {monsterCount} | {repeat} | {role} | {metrics.authorityAliveMonsterCount} | " +
-                            $"{metrics.replicaActiveCount} | {metrics.viewSlotCount}/{metrics.activeViewCount} | " +
-                            $"{metrics.sourceRebuildCount} | {metrics.movementDistance:F2} | " +
-                            $"{metrics.sentPayloadBytes} | {metrics.receivedPayloadBytes} |");
+                            $"| {monsterCount} | {FormatRole(role)} | `{marker.Name}` | " +
+                            $"{marker.TotalMilliseconds:F3} | {marker.SampleCount} | " +
+                            $"{(marker.SampleCount > 0 ? marker.TotalMilliseconds / marker.SampleCount : 0d):F3} | " +
+                            $"{(totalFrames > 0 ? marker.TotalMilliseconds / totalFrames : 0d):F3} | " +
+                            $"{marker.MaximumFrameMilliseconds:F3} |");
                     }
                 }
             }
+        }
 
-            summary.AppendLine();
-            summary.AppendLine("Host and Client frame times are reported separately and are never added together.");
-            summary.AppendLine("Pair skew is shown as start/end; direct comparison requires both <= 50 ms.");
-            summary.AppendLine("UTP protocol overhead, RTT, loss and retransmission remain unavailable unless a later runtime integration exposes them.");
-            File.WriteAllText(Path.Combine(runDirectory, "SUMMARY.md"), summary.ToString());
+        private static IEnumerable<BenchmarkMarkerDto> ReadMarkers(string path)
+        {
+            if (!File.Exists(path))
+                yield break;
+            foreach (string line in File.ReadLines(path).Skip(1))
+            {
+                int nameEnd = line.IndexOf("\",", 1, StringComparison.Ordinal);
+                if (nameEnd < 0)
+                    continue;
+                string name = line.Substring(1, nameEnd - 1).Replace("\"\"", "\"");
+                string[] values = line.Substring(nameEnd + 2).Split(',');
+                if (values.Length < 7 || !bool.TryParse(values[0], out bool available) || !available)
+                    continue;
+                yield return new BenchmarkMarkerDto
+                {
+                    Name = name,
+                    SampleCount = long.Parse(values[1], CultureInfo.InvariantCulture),
+                    NonZeroFrames = int.Parse(values[2], CultureInfo.InvariantCulture),
+                    TotalMilliseconds = double.Parse(values[3], CultureInfo.InvariantCulture),
+                    MaximumFrameMilliseconds = double.Parse(values[6], CultureInfo.InvariantCulture),
+                };
+            }
+        }
+
+        private static void AppendEvidenceLinks(
+            StringBuilder summary,
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount,
+            bool captureProfiler)
+        {
+            foreach (int monsterCount in cases)
+            {
+                for (int repeat = 1; repeat <= repeatCount; repeat++)
+                {
+                    foreach (string role in new[] { "host", "client" })
+                    {
+                        string relativeDirectory = $"monsters-{monsterCount}/repeat-{repeat:D2}/focus-{role}/{role}";
+                        string rawPath = Path.Combine(runDirectory, relativeDirectory.Replace('/', Path.DirectorySeparatorChar), "profiler.raw");
+                        string profiler = captureProfiler && File.Exists(rawPath)
+                            ? $"[profiler.raw]({relativeDirectory}/profiler.raw)"
+                            : "Unavailable";
+                        summary.AppendLine(
+                            $"| {monsterCount} | {repeat} | {FormatRole(role)} | " +
+                            $"[REPORT]({relativeDirectory}/REPORT.md) | " +
+                            $"[metrics]({relativeDirectory}/metrics.json) | " +
+                            $"[frames]({relativeDirectory}/frames.csv) | " +
+                            $"[markers]({relativeDirectory}/markers.csv) | {profiler} |");
+                    }
+                }
+            }
         }
 
         private static string FormatDelta(BenchmarkMetricsDto current, BenchmarkMetricsDto baseline)
         {
             if (baseline == null || !baseline.workloadValid || !current.workloadValid)
-                return "N/A";
+                return "不可用";
+            if (!TryGetFocusedRatio(current, out double currentFocused))
+                return "不可用（当前前台占比未知）";
+            if (!TryGetFocusedRatio(baseline, out double baselineFocused))
+                return "不可用（基线前台占比未知）";
+            if (Math.Abs(currentFocused - baselineFocused) > 0.05d)
+                return "不可用（前台条件不一致）";
+
             double avg = PercentChange(current.averageFrameMilliseconds, baseline.averageFrameMilliseconds);
             double p95 = PercentChange(current.p95FrameMilliseconds, baseline.p95FrameMilliseconds);
             double p99 = PercentChange(current.p99FrameMilliseconds, baseline.p99FrameMilliseconds);
-            string warning = avg > 5d || p95 > 5d || p99 > 10d ? " REGRESSION" : string.Empty;
-            return $"avg {avg:+0.0;-0.0;0.0}%, p95 {p95:+0.0;-0.0;0.0}%, p99 {p99:+0.0;-0.0;0.0}%{warning}";
+            string warning = avg > 5d || p95 > 5d || p99 > 10d ? " 性能回退" : string.Empty;
+            return $"平均 {avg:+0.0;-0.0;0.0}%，P95 {p95:+0.0;-0.0;0.0}%，P99 {p99:+0.0;-0.0;0.0}%{warning}";
+        }
+
+        private static string FormatRole(string role) => role == "host" ? "Host" : "Client";
+
+        private static string FormatBool(bool value) => value ? "是" : "否";
+
+        private static string FormatFocusedFrames(BenchmarkMetricsDto metrics)
+        {
+            return TryGetFocusedRatio(metrics, out double ratio) ? $"{ratio * 100d:F1}%" : "不可用";
+        }
+
+        private static bool TryGetFocusedRatio(BenchmarkMetricsDto metrics, out double ratio)
+        {
+            int total = metrics.focusedFrameCount + metrics.unfocusedFrameCount;
+            ratio = total == 0 ? 0d : (double)metrics.focusedFrameCount / total;
+            return total > 0;
         }
 
         private static double PercentChange(double current, double baseline) =>
@@ -844,7 +1470,7 @@ namespace ProjectGame.Editor.Benchmarking
         private static string FormatSkew(double startMilliseconds, double stopMilliseconds)
         {
             if (double.IsNaN(startMilliseconds) || double.IsNaN(stopMilliseconds))
-                return "N/A";
+                return "不可用";
             return startMilliseconds.ToString("F1", CultureInfo.InvariantCulture) + "/" +
                    stopMilliseconds.ToString("F1", CultureInfo.InvariantCulture) + " ms";
         }
@@ -885,24 +1511,34 @@ namespace ProjectGame.Editor.Benchmarking
         {
             BenchmarkRunMetadata current = ReadMetadata(currentDirectory);
             BenchmarkRunMetadata baseline = ReadMetadata(baselineDirectory);
-            if (current == null || baseline == null)
+            if (current == null)
             {
-                reason = "missing run-metadata.json";
+                reason = $"本轮缺少 {Path.Combine(currentDirectory, "run-metadata.json")}";
+                return false;
+            }
+            if (baseline == null)
+            {
+                reason = $"基线缺少 {Path.Combine(baselineDirectory, "run-metadata.json")}";
                 return false;
             }
 
             var mismatches = new List<string>();
-            if (current.schemaVersion != baseline.schemaVersion) mismatches.Add("schema");
-            if (current.buildType != baseline.buildType) mismatches.Add("buildType");
-            if (current.target != baseline.target) mismatches.Add("target");
-            if (current.resolution != baseline.resolution) mismatches.Add("resolution");
-            if (current.quality != baseline.quality) mismatches.Add("quality");
-            if (current.vSync != baseline.vSync) mismatches.Add("vSync");
-            if (current.targetFrameRate != baseline.targetFrameRate) mismatches.Add("targetFrameRate");
-            if (current.seed != baseline.seed) mismatches.Add("seed");
-            if (current.captureSeconds != baseline.captureSeconds) mismatches.Add("captureSeconds");
-            if (current.monsterCounts != baseline.monsterCounts) mismatches.Add("monsterCounts");
-            if (current.routeVersion != baseline.routeVersion) mismatches.Add("routeVersion");
+            if (current.schemaVersion != baseline.schemaVersion) mismatches.Add("数据格式版本");
+            if (current.buildType != baseline.buildType) mismatches.Add("构建类型");
+            if (current.target != baseline.target) mismatches.Add("目标平台");
+            if (current.resolution != baseline.resolution) mismatches.Add("分辨率");
+            if (current.quality != baseline.quality) mismatches.Add("质量档");
+            if (current.vSync != baseline.vSync) mismatches.Add("VSync");
+            if (current.targetFrameRate != baseline.targetFrameRate) mismatches.Add("目标帧率");
+            if (current.seed != baseline.seed) mismatches.Add("随机种子");
+            if (current.captureSeconds != baseline.captureSeconds) mismatches.Add("采样时长");
+            if (current.monsterCounts != baseline.monsterCounts) mismatches.Add("怪物档位");
+            if (current.executableSha256 != baseline.executableSha256) mismatches.Add("Player 构建指纹");
+            if (current.contentCatalogHash != baseline.contentCatalogHash) mismatches.Add("Catalog 指纹");
+            if (current.samplingMode != baseline.samplingMode) mismatches.Add("采样模式");
+            if (current.frameTimeDefinition != baseline.frameTimeDefinition) mismatches.Add("帧时统计口径");
+            if (current.cacheMode != baseline.cacheMode) mismatches.Add("AssetBundle 缓存模式");
+            if (current.routeVersion != baseline.routeVersion) mismatches.Add("路线版本");
             reason = string.Join(", ", mismatches);
             return mismatches.Count == 0;
         }

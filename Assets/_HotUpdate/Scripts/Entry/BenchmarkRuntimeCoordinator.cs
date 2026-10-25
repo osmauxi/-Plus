@@ -6,6 +6,7 @@ using ProjectGame.HotFix.Core.Network;
 using ProjectGame.HotFix.Gameplay.Benchmarking;
 using ProjectGame.HotFix.Gameplay.Monsters;
 using ProjectGame.HotFix.Gameplay.Player;
+using ProjectGame.HotFix.Gameplay.Runtime;
 using ProjectGame.HotFix.Gameplay.State;
 using ProjectGame.HotFix.Netcode;
 using ProjectGame.HotFix.SceneFlow;
@@ -83,12 +84,7 @@ namespace ProjectGame.HotFix.Benchmarking
                         "Client 连接 Host",
                         options,
                         cancellationToken);
-                    await RunStageAsync(
-                        token => NetworkSessionBootstrap.Instance.WaitForLobbyReadyAsync(token),
-                        "等待 Client Lobby Root",
-                        options,
-                        cancellationToken);
-                    BenchmarkFileProtocol.WriteStatus(options, "client-connected", "Client 已连接且 Lobby Root Ready");
+                    BenchmarkFileProtocol.WriteStatus(options, "client-connected", "Client 已连接 Host");
                 }
 
                 await WaitUntilAsync(
@@ -152,6 +148,15 @@ namespace ProjectGame.HotFix.Benchmarking
                     await WaitUntilAsync(
                         () => movement.DistanceTravelled >= 2f,
                         "验证 Client 自动移动",
+                        options,
+                        cancellationToken);
+                }
+
+                if (options.Role == options.FocusRole)
+                {
+                    await WaitUntilAsync(
+                        BenchmarkProcessFocus.TryBringCurrentProcessToForeground,
+                        "切换目标 Player 到 Windows 前台",
                         options,
                         cancellationToken);
                 }
@@ -269,7 +274,8 @@ namespace ProjectGame.HotFix.Benchmarking
             CancellationToken cancellationToken)
         {
             double deadline = Time.realtimeSinceStartupAsDouble + options.StageTimeoutSeconds;
-            while (!BenchmarkFileProtocol.TryReadCaptureCommand(options, out BenchmarkCaptureCommand command))
+            BenchmarkCaptureCommand command;
+            while (!BenchmarkFileProtocol.TryReadCaptureCommand(options, out command))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (Time.realtimeSinceStartupAsDouble >= deadline)

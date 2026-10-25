@@ -31,6 +31,8 @@ namespace ProjectGame.Bootstrap
 
     public static class BenchmarkFileProtocol
     {
+        private static readonly object WriteLock = new object();
+
         public const string StatusFileName = "status.json";
         public const string CaptureCommandFileName = "capture-command.json";
 
@@ -77,7 +79,7 @@ namespace ProjectGame.Bootstrap
 
             try
             {
-                command = JsonUtility.FromJson<BenchmarkCaptureCommand>(File.ReadAllText(path));
+                command = JsonUtility.FromJson<BenchmarkCaptureCommand>(ReadAllTextShared(path));
                 return command != null &&
                        command.runId == options.RunId &&
                        command.startUtcTicks > 0 &&
@@ -91,15 +93,47 @@ namespace ProjectGame.Bootstrap
 
         public static void WriteJsonAtomically(string path, string contents)
         {
-            string directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(directory))
-                Directory.CreateDirectory(directory);
+            lock (WriteLock)
+            {
+                string directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
 
-            string temporaryPath = path + ".tmp";
-            File.WriteAllText(temporaryPath, contents);
-            if (File.Exists(path))
-                File.Delete(path);
-            File.Move(temporaryPath, path);
+                string temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    File.WriteAllText(temporaryPath, contents);
+                    if (!File.Exists(path))
+                        File.Move(temporaryPath, path);
+                    else
+                    {
+                        try
+                        {
+                            File.Replace(temporaryPath, path, null);
+                        }
+                        catch (IOException)
+                        {
+                            File.Copy(temporaryPath, path, true);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (File.Exists(temporaryPath))
+                        File.Delete(temporaryPath);
+                }
+            }
+        }
+
+        public static string ReadAllTextShared(string path)
+        {
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
         }
     }
 }

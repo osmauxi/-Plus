@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace ProjectGame.Bootstrap
@@ -11,6 +12,134 @@ namespace ProjectGame.Bootstrap
         None = 0,
         Host = 1,
         Client = 2,
+    }
+
+    public static class BenchmarkProcessFocus
+    {
+#if UNITY_STANDALONE_WIN
+        private static readonly uint CurrentProcessId = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+        private const int SwRestore = 9;
+        private const byte VkMenu = 0x12;
+        private const uint KeyEventKeyUp = 0x0002;
+
+        private delegate bool EnumWindowsCallback(IntPtr window, IntPtr parameter);
+        private static readonly EnumWindowsCallback FindWindowCallback = FindCurrentProcessWindow;
+        private static IntPtr _currentProcessWindow;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr window);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ShowWindowAsync(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool BringWindowToTop(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetActiveWindow(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetFocus(IntPtr window);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool AttachThreadInput(uint attachThread, uint attachToThread, bool attach);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        private static extern void SwitchToThisWindow(IntPtr window, bool altTab);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetForegroundWindow(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
+#endif
+
+        public static bool IsCurrentProcessForeground
+        {
+            get
+            {
+#if UNITY_STANDALONE_WIN
+                IntPtr foreground = GetForegroundWindow();
+                if (foreground == IntPtr.Zero)
+                    return false;
+                GetWindowThreadProcessId(foreground, out uint processId);
+                return processId == CurrentProcessId;
+#else
+                return Application.isFocused;
+#endif
+            }
+        }
+
+        public static bool TryBringCurrentProcessToForeground()
+        {
+#if UNITY_STANDALONE_WIN
+            if (IsCurrentProcessForeground)
+                return true;
+
+            _currentProcessWindow = IntPtr.Zero;
+            EnumWindows(FindWindowCallback, IntPtr.Zero);
+            IntPtr targetWindow = _currentProcessWindow;
+            if (targetWindow == IntPtr.Zero)
+                return false;
+
+            IntPtr foregroundWindow = GetForegroundWindow();
+            uint foregroundThread = foregroundWindow == IntPtr.Zero
+                ? 0
+                : GetWindowThreadProcessId(foregroundWindow, out _);
+            uint currentThread = GetCurrentThreadId();
+            bool attached = foregroundThread != 0 && foregroundThread != currentThread &&
+                            AttachThreadInput(currentThread, foregroundThread, true);
+            keybd_event(VkMenu, 0, 0, UIntPtr.Zero);
+            try
+            {
+                ShowWindowAsync(targetWindow, SwRestore);
+                BringWindowToTop(targetWindow);
+                SetActiveWindow(targetWindow);
+                SetFocus(targetWindow);
+                SwitchToThisWindow(targetWindow, true);
+                SetForegroundWindow(targetWindow);
+            }
+            finally
+            {
+                keybd_event(VkMenu, 0, KeyEventKeyUp, UIntPtr.Zero);
+                if (attached)
+                    AttachThreadInput(currentThread, foregroundThread, false);
+            }
+            return IsCurrentProcessForeground;
+#else
+            return Application.isFocused;
+#endif
+        }
+
+#if UNITY_STANDALONE_WIN
+        [AOT.MonoPInvokeCallback(typeof(EnumWindowsCallback))]
+        private static bool FindCurrentProcessWindow(IntPtr window, IntPtr parameter)
+        {
+            GetWindowThreadProcessId(window, out uint processId);
+            if (processId != CurrentProcessId || !IsWindowVisible(window))
+                return true;
+            _currentProcessWindow = window;
+            return false;
+        }
+#endif
     }
 
     /// <summary>
@@ -27,6 +156,7 @@ namespace ProjectGame.Bootstrap
 
         public bool Enabled { get; private set; }
         public BenchmarkProcessRole Role { get; private set; }
+        public BenchmarkProcessRole FocusRole { get; private set; }
         public string RunId { get; private set; } = string.Empty;
         public int MonsterCount { get; private set; } = DefaultMonsterCounts[0];
         public int RandomSeed { get; private set; } = 12345;
@@ -34,12 +164,14 @@ namespace ProjectGame.Bootstrap
         public float WarmupSeconds { get; private set; } = 5f;
         public float CaptureSeconds { get; private set; } = 30f;
         public float StageTimeoutSeconds { get; private set; } = 120f;
+        public bool CaptureProfiler { get; private set; }
         public string HostAddress { get; private set; } = "127.0.0.1";
         public ushort GamePort { get; private set; } = LanEndpoint.DefaultGamePort;
         public string ResultRoot { get; private set; } = string.Empty;
         public string ContentRoot { get; private set; } = string.Empty;
 
         public string RoleName => Role == BenchmarkProcessRole.Host ? "host" : "client";
+        public string FocusRoleName => FocusRole == BenchmarkProcessRole.Host ? "host" : "client";
         public string PlayerId => $"benchmark-{RunId}-{RoleName}";
         public string CaseName => $"monsters-{MonsterCount}";
 
@@ -49,6 +181,7 @@ namespace ProjectGame.Bootstrap
             RunId,
             CaseName,
             $"repeat-{RepeatIndex:D2}",
+            $"focus-{FocusRoleName}",
             RoleName);
 
         public static BenchmarkLaunchOptions InitializeFromCommandLine()
@@ -66,6 +199,17 @@ namespace ProjectGame.Bootstrap
             Application.targetFrameRate = -1;
             if (!Application.isBatchMode)
                 Screen.SetResolution(1024, 768, FullScreenMode.Windowed);
+
+            string cachePath = Path.Combine(
+                Application.temporaryCachePath,
+                "BenchmarkAssetBundleCache",
+                options.RunId,
+                options.CaseName,
+                $"repeat-{options.RepeatIndex:D2}",
+                $"focus-{options.FocusRoleName}",
+                options.RoleName);
+            Directory.CreateDirectory(cachePath);
+            Caching.currentCacheForWriting = Caching.AddCache(cachePath);
 
             BenchmarkFileProtocol.WriteStatus(options, "bootstrap-start", "Benchmark 参数已解析");
             return options;
@@ -116,6 +260,13 @@ namespace ProjectGame.Bootstrap
                     ? BenchmarkProcessRole.Client
                     : throw new ArgumentException($"无效 benchmark role：{role}");
 
+            string focusRole = Require(values, "benchmark-focus");
+            options.FocusRole = focusRole.Equals("host", StringComparison.OrdinalIgnoreCase)
+                ? BenchmarkProcessRole.Host
+                : focusRole.Equals("client", StringComparison.OrdinalIgnoreCase)
+                    ? BenchmarkProcessRole.Client
+                    : throw new ArgumentException($"无效 benchmark focus：{focusRole}");
+
             options.RunId = Require(values, "benchmark-run-id");
             options.MonsterCount = ReadInt(values, "benchmark-monsters", options.MonsterCount, 1, 100000);
             options.RandomSeed = ReadInt(values, "benchmark-seed", options.RandomSeed, int.MinValue, int.MaxValue);
@@ -123,6 +274,7 @@ namespace ProjectGame.Bootstrap
             options.WarmupSeconds = ReadFloat(values, "benchmark-warmup", options.WarmupSeconds, 0f, 3600f);
             options.CaptureSeconds = ReadFloat(values, "benchmark-duration", options.CaptureSeconds, 1f, 3600f);
             options.StageTimeoutSeconds = ReadFloat(values, "benchmark-timeout", options.StageTimeoutSeconds, 10f, 3600f);
+            options.CaptureProfiler = ReadInt(values, "benchmark-profiler", 0, 0, 1) == 1;
             options.HostAddress = Read(values, "benchmark-host", options.HostAddress).Trim();
             options.GamePort = checked((ushort)ReadInt(
                 values,

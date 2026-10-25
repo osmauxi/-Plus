@@ -1,13 +1,41 @@
 using System;
+using Unity.Profiling;
 
 namespace ProjectGame.HotFix.Gameplay.Network
 {
+    /// <summary>单个 Gameplay Tick 内固定执行的系统阶段。</summary>
+    public enum GameplayTickPhase
+    {
+        PreSimulation,
+        ActorSimulation,
+        WorldSimulation,
+        CombatSimulation,
+        PostSimulation,
+        Replication,
+        Completed,
+        Count,
+    }
+
     /// <summary>
     /// 当前 Peer 上所有 Gameplay 网络系统共享的会话时间轴。
     /// 由独立 GameplayNetworkTickDriver 推进，不依赖 NGO Tick 或 Unity Time。
     /// </summary>
     public sealed class NetworkSimulationClock
     {
+        private static readonly ProfilerMarker[] PhaseMarkers =
+        {
+            new("Gameplay.TickClock.PreSimulation"),
+            new("Gameplay.TickClock.ActorSimulation"),
+            new("Gameplay.TickClock.WorldSimulation"),
+            new("Gameplay.TickClock.CombatSimulation"),
+            new("Gameplay.TickClock.PostSimulation"),
+            new("Gameplay.TickClock.Replication"),
+            new("Gameplay.TickClock.Completed"),
+        };
+
+        private readonly Action<uint>[] _phaseHandlers =
+            new Action<uint>[(int)GameplayTickPhase.Count];
+
         public int TickRate { get; }
 
         public float TickDeltaTime { get; }
@@ -17,10 +45,19 @@ namespace ProjectGame.HotFix.Gameplay.Network
         /// <summary>启动时对齐的服务器 Tick，之后随本地节拍推进；不是持续网络对时结果。</summary>
         public uint EstimatedServerTick { get; private set; }
 
-        /// <summary>全局Tick推进完成后进行广播</summary>
-        public event Action<uint> TickAdvanced;
-        /// <summary>所有玩家完成本 Tick 后推进弹丸等后置系统，不依赖订阅先后顺序。</summary>
-        public event Action<uint> TickCompleted;
+        /// <summary>旧入口：等价于 ActorSimulation。新系统应显式订阅阶段。</summary>
+        public event Action<uint> TickAdvanced
+        {
+            add => Subscribe(GameplayTickPhase.ActorSimulation, value);
+            remove => Unsubscribe(GameplayTickPhase.ActorSimulation, value);
+        }
+
+        /// <summary>旧入口：等价于 Completed。新系统应显式订阅阶段。</summary>
+        public event Action<uint> TickCompleted
+        {
+            add => Subscribe(GameplayTickPhase.Completed, value);
+            remove => Unsubscribe(GameplayTickPhase.Completed, value);
+        }
 
         public NetworkSimulationClock(int tickRate)
         {
@@ -30,6 +67,12 @@ namespace ProjectGame.HotFix.Gameplay.Network
             TickRate = tickRate;
             TickDeltaTime = 1f / tickRate;
         }
+
+        public void Subscribe(GameplayTickPhase phase, Action<uint> handler) =>
+            _phaseHandlers[(int)phase] += handler;
+
+        public void Unsubscribe(GameplayTickPhase phase, Action<uint> handler) =>
+            _phaseHandlers[(int)phase] -= handler;
 
         /// <summary>开始或重新开始网络会话；不会派发 Gameplay Tick。</summary>
         public void ResetSession(uint startingTick = 0u, uint? startingServerTick = null)
@@ -55,8 +98,11 @@ namespace ProjectGame.HotFix.Gameplay.Network
         {
             CurrentTick = unchecked(CurrentTick + 1u);
             EstimatedServerTick = unchecked(EstimatedServerTick + 1u);
-            TickAdvanced?.Invoke(CurrentTick);
-            TickCompleted?.Invoke(CurrentTick);
+            for (int phase = 0; phase < (int)GameplayTickPhase.Count; phase++)
+            {
+                using (PhaseMarkers[phase].Auto())
+                    _phaseHandlers[phase]?.Invoke(CurrentTick);
+            }
             return CurrentTick;
         }
     }

@@ -1,4 +1,5 @@
 using System;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Network
@@ -12,6 +13,11 @@ namespace ProjectGame.HotFix.Gameplay.Network
     public sealed class GameplayNetworkTickDriver : MonoBehaviour
     {
         public const int MaxTicksPerFrame = 4;
+
+        private static readonly ProfilerMarker ScheduleMarker =
+            new("Gameplay.TickDriver.Schedule");
+        private static readonly ProfilerMarker DispatchMarker =
+            new("Gameplay.TickDriver.Dispatch");
 
         private NetworkSimulationClock _clock;
         private double _accumulatedSeconds;
@@ -58,20 +64,28 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (!IsInitialized)
                 return 0;
 
-            NetworkSimulationClock clock = _clock;
-            double interval = 1d / clock.TickRate;
-            _accumulatedSeconds += elapsedSeconds;
-            // 只补偿浮点减法误差，避免恰好到边界时少派发一个 Tick。
-            double dueTicks = Math.Floor((_accumulatedSeconds + interval * 1e-9d) / interval);
-            int tickCount = (int)Math.Min(dueTicks, MaxTicksPerFrame);
-            _accumulatedSeconds = Math.Max(0d, _accumulatedSeconds - dueTicks * interval);
-            DroppedTimeSeconds += Math.Max(0d, dueTicks - tickCount) * interval;
+            NetworkSimulationClock clock;
+            int tickCount;
+            using (ScheduleMarker.Auto())
+            {
+                clock = _clock;
+                double interval = 1d / clock.TickRate;
+                _accumulatedSeconds += elapsedSeconds;
+                // 只补偿浮点减法误差，避免恰好到边界时少派发一个 Tick。
+                double dueTicks = Math.Floor((_accumulatedSeconds + interval * 1e-9d) / interval);
+                tickCount = (int)Math.Min(dueTicks, MaxTicksPerFrame);
+                _accumulatedSeconds = Math.Max(0d, _accumulatedSeconds - dueTicks * interval);
+                DroppedTimeSeconds += Math.Max(0d, dueTicks - tickCount) * interval;
+            }
 
             int advanced = 0;
-            while (advanced < tickCount && _clock == clock)
+            using (DispatchMarker.Auto())
             {
-                clock.AdvanceOneTick();
-                advanced++;
+                while (advanced < tickCount && _clock == clock)
+                {
+                    clock.AdvanceOneTick();
+                    advanced++;
+                }
             }
             return advanced;
         }

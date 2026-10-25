@@ -84,8 +84,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 _weaponRuntime.ProjectileImpact += QueueImpact;
                 _weaponRuntime.ProjectileRemoved += QueueRemoved;
                 _weaponRuntime.SpecialEffectVfx += QueueSpecialEffectVfx;
-                // 本服务在 WeaponRuntimeService 之后初始化，所以调用顺序是先模拟、后发送。
-                _network.Clock.TickCompleted += FlushServerFrame;
+                _network.Clock.Subscribe(GameplayTickPhase.Replication, FlushServerFrame);
             }
 
             Instance = this;
@@ -99,7 +98,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
             if (_network != null && _network.Transport.IsServer)
             {
-                _network.Clock.TickCompleted -= FlushServerFrame;
+                _network.Clock.Unsubscribe(GameplayTickPhase.Replication, FlushServerFrame);
                 if (_weaponRuntime != null)
                 {
                     _weaponRuntime.ShotFired -= QueueShot;

@@ -28,7 +28,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
         {
             // 地图由已初始化 Gameplay 网络服务的关卡流程租借，回池时解除订阅。
             _clock = GameNetworkRuntime.Gameplay.Clock;
-            _clock.TickAdvanced += HandleTick;
+            _clock.Subscribe(GameplayTickPhase.PreSimulation, HandleTick);
             HandleTick(0);
         }
 
@@ -36,7 +36,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
         {
             if (_clock != null)
             {
-                _clock.TickAdvanced -= HandleTick;
+                _clock.Unsubscribe(GameplayTickPhase.PreSimulation, HandleTick);
                 _clock = null;
             }
             transform.localPosition = _pointA;

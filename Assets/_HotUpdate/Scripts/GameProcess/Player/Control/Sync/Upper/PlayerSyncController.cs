@@ -325,7 +325,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             {
                 // 独立 TickDriver 统一派发 Gameplay Tick，玩家不直接依赖 NGO Tick。
                 // PlayerSimulationClock 仍是玩家专用游标，Owner Hard Resync 不会重置全局会话时间轴。
-                _networkRuntime.Clock.TickAdvanced += HandleGameplayTick;
+                _networkRuntime.Clock.Subscribe(GameplayTickPhase.ActorSimulation, HandleGameplayTick);
                 _subscribedToGameplayTick = true;
             }
             ResetSnapshotBaseline();
@@ -337,7 +337,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         public override void OnNetworkDespawn()
         {
             if (_subscribedToGameplayTick && _networkRuntime != null)
-                _networkRuntime.Clock.TickAdvanced -= HandleGameplayTick;
+                _networkRuntime.Clock.Unsubscribe(GameplayTickPhase.ActorSimulation, HandleGameplayTick);
 
             _subscribedToGameplayTick = false;
 

@@ -101,7 +101,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
 
             if (_networkManager.IsServer)
             {
-                _clock.TickCompleted += HandleTickCompleted;
+                _clock.Subscribe(GameplayTickPhase.PostSimulation, HandleTickCompleted);
                 _playerManager.PlayerRegistered += HandlePlayerRegistered;
                 _playerManager.PlayerUnregistered += HandlePlayerUnregistered;
                 _battleManager.RoomBattleCleared += HandleBattleCleared;
@@ -706,7 +706,8 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
 
             if (_networkManager != null && _networkManager.IsServer)
             {
-                if (_clock != null) _clock.TickCompleted -= HandleTickCompleted;
+                if (_clock != null)
+                    _clock.Unsubscribe(GameplayTickPhase.PostSimulation, HandleTickCompleted);
                 if (_playerManager != null)
                 {
                     _playerManager.PlayerRegistered -= HandlePlayerRegistered;

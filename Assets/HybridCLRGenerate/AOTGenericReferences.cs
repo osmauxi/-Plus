@@ -297,6 +297,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<int,int>
 	// System.Action<int,object>
 	// System.Action<int>
+	// System.Action<long>
 	// System.Action<object,ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectOwnerStatSnapshot>
 	// System.Action<object,byte>
 	// System.Action<object,object>
@@ -385,6 +386,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ArraySortHelper<double>
 	// System.Collections.Generic.ArraySortHelper<float>
 	// System.Collections.Generic.ArraySortHelper<int>
+	// System.Collections.Generic.ArraySortHelper<long>
 	// System.Collections.Generic.ArraySortHelper<object>
 	// System.Collections.Generic.ArraySortHelper<ulong>
 	// System.Collections.Generic.ArraySortHelper<ushort>
@@ -789,6 +791,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<double>
 	// System.Collections.Generic.ICollection<float>
 	// System.Collections.Generic.ICollection<int>
+	// System.Collections.Generic.ICollection<long>
 	// System.Collections.Generic.ICollection<object>
 	// System.Collections.Generic.ICollection<ulong>
 	// System.Collections.Generic.ICollection<ushort>
@@ -915,6 +918,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<double>
 	// System.Collections.Generic.IEnumerable<float>
 	// System.Collections.Generic.IEnumerable<int>
+	// System.Collections.Generic.IEnumerable<long>
 	// System.Collections.Generic.IEnumerable<object>
 	// System.Collections.Generic.IEnumerable<ulong>
 	// System.Collections.Generic.IEnumerable<ushort>
@@ -992,6 +996,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<double>
 	// System.Collections.Generic.IEnumerator<float>
 	// System.Collections.Generic.IEnumerator<int>
+	// System.Collections.Generic.IEnumerator<long>
 	// System.Collections.Generic.IEnumerator<object>
 	// System.Collections.Generic.IEnumerator<ulong>
 	// System.Collections.Generic.IEnumerator<ushort>
@@ -1046,6 +1051,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IList<double>
 	// System.Collections.Generic.IList<float>
 	// System.Collections.Generic.IList<int>
+	// System.Collections.Generic.IList<long>
 	// System.Collections.Generic.IList<object>
 	// System.Collections.Generic.IList<ulong>
 	// System.Collections.Generic.IList<ushort>
@@ -1175,6 +1181,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List.Enumerator<double>
 	// System.Collections.Generic.List.Enumerator<float>
 	// System.Collections.Generic.List.Enumerator<int>
+	// System.Collections.Generic.List.Enumerator<long>
 	// System.Collections.Generic.List.Enumerator<object>
 	// System.Collections.Generic.List.Enumerator<ulong>
 	// System.Collections.Generic.List.Enumerator<ushort>
@@ -1220,6 +1227,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List<double>
 	// System.Collections.Generic.List<float>
 	// System.Collections.Generic.List<int>
+	// System.Collections.Generic.List<long>
 	// System.Collections.Generic.List<object>
 	// System.Collections.Generic.List<ulong>
 	// System.Collections.Generic.List<ushort>
@@ -1385,6 +1393,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.ObjectModel.ReadOnlyCollection<double>
 	// System.Collections.ObjectModel.ReadOnlyCollection<float>
 	// System.Collections.ObjectModel.ReadOnlyCollection<int>
+	// System.Collections.ObjectModel.ReadOnlyCollection<long>
 	// System.Collections.ObjectModel.ReadOnlyCollection<object>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ulong>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ushort>
@@ -1432,6 +1441,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Comparison<double>
 	// System.Comparison<float>
 	// System.Comparison<int>
+	// System.Comparison<long>
 	// System.Comparison<object>
 	// System.Comparison<ulong>
 	// System.Comparison<ushort>
@@ -1465,8 +1475,12 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Func<UnityEngine.ResourceManagement.ResourceProviders.SceneInstance>
 	// System.Func<UnityEngine.SceneManagement.Scene>
 	// System.Func<byte>
+	// System.Func<double,byte>
 	// System.Func<double,double>
 	// System.Func<int>
+	// System.Func<long,byte>
+	// System.Func<long,double>
+	// System.Func<long,long>
 	// System.Func<object,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,UnityEngine.SceneManagement.Scene>>>>>>>>
 	// System.Func<object,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,byte>>>>>>>>
 	// System.Func<object,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,object>>>>>>>>
@@ -1510,35 +1524,47 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.IProgress<float>
 	// System.Linq.Buffer<System.Collections.Generic.KeyValuePair<object,float>>
 	// System.Linq.Buffer<double>
+	// System.Linq.Buffer<long>
 	// System.Linq.Buffer<object>
 	// System.Linq.Enumerable.<TakeIterator>d__25<object>
 	// System.Linq.Enumerable.Iterator<System.Collections.Generic.KeyValuePair<ulong,object>>
+	// System.Linq.Enumerable.Iterator<double>
+	// System.Linq.Enumerable.Iterator<long>
 	// System.Linq.Enumerable.Iterator<object>
 	// System.Linq.Enumerable.Iterator<ulong>
 	// System.Linq.Enumerable.WhereArrayIterator<object>
+	// System.Linq.Enumerable.WhereEnumerableIterator<double>
 	// System.Linq.Enumerable.WhereEnumerableIterator<object>
 	// System.Linq.Enumerable.WhereListIterator<object>
 	// System.Linq.Enumerable.WhereSelectArrayIterator<System.Collections.Generic.KeyValuePair<ulong,object>,object>
+	// System.Linq.Enumerable.WhereSelectArrayIterator<long,double>
 	// System.Linq.Enumerable.WhereSelectArrayIterator<ulong,object>
 	// System.Linq.Enumerable.WhereSelectEnumerableIterator<System.Collections.Generic.KeyValuePair<ulong,object>,object>
+	// System.Linq.Enumerable.WhereSelectEnumerableIterator<long,double>
 	// System.Linq.Enumerable.WhereSelectEnumerableIterator<ulong,object>
 	// System.Linq.Enumerable.WhereSelectListIterator<System.Collections.Generic.KeyValuePair<ulong,object>,object>
+	// System.Linq.Enumerable.WhereSelectListIterator<long,double>
 	// System.Linq.Enumerable.WhereSelectListIterator<ulong,object>
 	// System.Linq.EnumerableSorter<System.Collections.Generic.KeyValuePair<object,float>,float>
 	// System.Linq.EnumerableSorter<System.Collections.Generic.KeyValuePair<object,float>>
 	// System.Linq.EnumerableSorter<double,double>
 	// System.Linq.EnumerableSorter<double>
+	// System.Linq.EnumerableSorter<long,long>
+	// System.Linq.EnumerableSorter<long>
 	// System.Linq.EnumerableSorter<object,int>
 	// System.Linq.EnumerableSorter<object,long>
 	// System.Linq.EnumerableSorter<object>
 	// System.Linq.IOrderedEnumerable<object>
 	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<System.Collections.Generic.KeyValuePair<object,float>>
 	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<double>
+	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<long>
 	// System.Linq.OrderedEnumerable.<GetEnumerator>d__1<object>
 	// System.Linq.OrderedEnumerable<System.Collections.Generic.KeyValuePair<object,float>,float>
 	// System.Linq.OrderedEnumerable<System.Collections.Generic.KeyValuePair<object,float>>
 	// System.Linq.OrderedEnumerable<double,double>
 	// System.Linq.OrderedEnumerable<double>
+	// System.Linq.OrderedEnumerable<long,long>
+	// System.Linq.OrderedEnumerable<long>
 	// System.Linq.OrderedEnumerable<object,int>
 	// System.Linq.OrderedEnumerable<object,long>
 	// System.Linq.OrderedEnumerable<object>
@@ -1595,6 +1621,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<double>
 	// System.Predicate<float>
 	// System.Predicate<int>
+	// System.Predicate<long>
 	// System.Predicate<object>
 	// System.Predicate<ulong>
 	// System.Predicate<ushort>
@@ -2285,14 +2312,17 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// int System.HashCode.Combine<ulong,uint>(ulong,uint)
 		// bool System.Linq.Enumerable.All<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
 		// bool System.Linq.Enumerable.Any<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
+		// double System.Linq.Enumerable.Average<long>(System.Collections.Generic.IEnumerable<long>,System.Func<long,double>)
 		// System.Collections.Generic.KeyValuePair<object,float> System.Linq.Enumerable.First<System.Collections.Generic.KeyValuePair<object,float>>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,float>>)
 		// object System.Linq.Enumerable.First<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
 		// object System.Linq.Enumerable.FirstOrDefault<object>(System.Collections.Generic.IEnumerable<object>)
 		// System.Linq.IOrderedEnumerable<double> System.Linq.Enumerable.OrderBy<double,double>(System.Collections.Generic.IEnumerable<double>,System.Func<double,double>)
+		// System.Linq.IOrderedEnumerable<long> System.Linq.Enumerable.OrderBy<long,long>(System.Collections.Generic.IEnumerable<long>,System.Func<long,long>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.OrderBy<object,int>(System.Collections.Generic.IEnumerable<object>,System.Func<object,int>)
 		// System.Linq.IOrderedEnumerable<System.Collections.Generic.KeyValuePair<object,float>> System.Linq.Enumerable.OrderByDescending<System.Collections.Generic.KeyValuePair<object,float>,float>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,float>>,System.Func<System.Collections.Generic.KeyValuePair<object,float>,float>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.OrderByDescending<object,int>(System.Collections.Generic.IEnumerable<object>,System.Func<object,int>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.OrderByDescending<object,long>(System.Collections.Generic.IEnumerable<object>,System.Func<object,long>)
+		// System.Collections.Generic.IEnumerable<double> System.Linq.Enumerable.Select<long,double>(System.Collections.Generic.IEnumerable<long>,System.Func<long,double>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Select<System.Collections.Generic.KeyValuePair<ulong,object>,object>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<ulong,object>>,System.Func<System.Collections.Generic.KeyValuePair<ulong,object>,object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Select<ulong,object>(System.Collections.Generic.IEnumerable<ulong>,System.Func<ulong,object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Take<object>(System.Collections.Generic.IEnumerable<object>,int)
@@ -2300,8 +2330,10 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.ThenBy<object,int>(System.Linq.IOrderedEnumerable<object>,System.Func<object,int>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.Enumerable.ThenByDescending<object,int>(System.Linq.IOrderedEnumerable<object>,System.Func<object,int>)
 		// double[] System.Linq.Enumerable.ToArray<double>(System.Collections.Generic.IEnumerable<double>)
+		// long[] System.Linq.Enumerable.ToArray<long>(System.Collections.Generic.IEnumerable<long>)
 		// System.Collections.Generic.List<object> System.Linq.Enumerable.ToList<object>(System.Collections.Generic.IEnumerable<object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Where<object>(System.Collections.Generic.IEnumerable<object>,System.Func<object,bool>)
+		// System.Collections.Generic.IEnumerable<double> System.Linq.Enumerable.Iterator<long>.Select<double>(System.Func<long,double>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<System.Collections.Generic.KeyValuePair<ulong,object>>.Select<object>(System.Func<System.Collections.Generic.KeyValuePair<ulong,object>,object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<ulong>.Select<object>(System.Func<ulong,object>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.IOrderedEnumerable<object>.CreateOrderedEnumerable<int>(System.Func<object,int>,System.Collections.Generic.IComparer<int>,bool)

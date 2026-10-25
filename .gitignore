@@ -101,3 +101,7 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]creenshots/
 /[Aa]ssets/[Ss]creenshots.meta
 
+
+# 构建产物与本地性能采样（不入库）
+/[Pp]rofiler[Cc]aptures/
+/[Ss]erverData/

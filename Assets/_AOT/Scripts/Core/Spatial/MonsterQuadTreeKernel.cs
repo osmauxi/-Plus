@@ -62,6 +62,7 @@ namespace ProjectGame.Core.Spatial
         private int _overflowHead = Unlinked;
 
         public int NodeCount => _nodeCount;
+        public int NodeCapacity => _nodes.Length;
         public Vector2 RootCenter => _rootCenter;
         public float RootSize => _rootHalfSize * 2f;
         public int LastQueryCandidateCount { get; private set; }

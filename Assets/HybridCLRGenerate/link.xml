@@ -26,6 +26,8 @@
     <type fullname="ProjectGame.Core.Navigation.NavigationGridKernelData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.NavigationTopologyKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.SeparationKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Spatial.MonsterQuadTreeKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Spatial.MonsterQuadTreeNodeData" preserve="all" />
     <type fullname="SyncObjectPool" preserve="all" />
   </assembly>
   <assembly fullname="Cinemachine">

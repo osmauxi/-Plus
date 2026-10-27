@@ -99,20 +99,24 @@ NetworkSimulationClock.AdvanceOneTick
 
 ## 6. Gizmos 与 Profiler
 
-菜单 `Tools/Navigation/可视化设置` 的 `怪物空间索引` 区域提供：
+菜单 `Tools/Navigation/可视化设置` 现在通过单一 `显示模式` 切换调试内容，避免网格、数值、箭头和四叉树同时覆盖。与空间索引直接相关的模式为 `怪物四叉树分布`，提供：
 
-- `四叉树叶节点`：绘制实际叶节点，颜色同时表达深度和密度；
+- 始终绘制实际叶节点；青色到紫色表示层级加深，红色表示局部怪物密度升高；
 - `叶节点怪物数量`：显示非空叶节点的怪物数与深度；
 - `受击半径`：绘制每只活跃怪物的 XZ 受击圆；
 - `最近一次弹丸查询`：绘制最近一次扫掠起终点、查询半径、候选数和访问节点数。
 
-索引按需构建，因此房间开始后尚未发生怪物查询时不会显示叶节点。Profiler 新增：
+`怪物四叉树分布` 模式会在 Scene Gizmos 绘制前确保索引已经构建，因此房间开始后即使尚未发生弹丸查询，也能直接看到空间划分。该主动构建只存在于 Editor 调试入口；性能采样时应切换为 `关闭` 并关闭 Gizmos，避免调试绘制与按需构建影响数据。
+
+`寻路 Grid 权重` 是另一个独立模式，只显示寻路实际使用的单格附加权重 `AdditionalCost + DensityCost`。`流场积分值` 则表示单元到最近流场源点的累计成本，两者不再混在同一个“显示层”选项中。
+
+Profiler 新增：
 
 - `Monster.SpatialIndex.Build`
 - `Monster.SpatialIndex.Query`
 - `Weapon.Projectile.MonsterNarrowPhase`
 
-这些 Marker 分别用于观察每 Tick 首次重建、每颗弹丸宽相查询与候选精确检测。任何性能结论必须通过 Player 同构场景重新采样，本次文档不预填未经测量的数据。
+这些 Marker 分别用于观察每 Tick 首次重建、每颗弹丸宽相查询与候选精确检测。2026-10-27 已完成独立 Player 三档复测，结果见第 10 节。
 
 ## 7. 本次修改清单
 
@@ -124,7 +128,7 @@ NetworkSimulationClock.AdvanceOneTick
 - `GameRoot.prefab` 移除 TargetMask 序列化项并记录怪物受击半径；
 - `MonsterViewHandle` 移除受击 Collider 引用和池化启停逻辑；
 - `Zombie_standard.prefab` 移除标准怪物 `DamageHitbox` GameObject 与 `BoxCollider`；
-- 导航 Gizmo 设置和绘制器增加四叉树、密度、受击圆与最近查询可视化；
+- 导航 Gizmo 设置和绘制器改为互斥显示模式，并增加四叉树、密度、受击圆与最近查询可视化；
 - 更新 Monster 架构与性能基线文档。
 
 ## 8. 后续方向的预留
@@ -148,6 +152,8 @@ NetworkSimulationClock.AdvanceOneTick
 - VAT 动画状态仍在 `LateUpdate` 中每帧推进，`Graphics.DrawMeshInstanced` 提交改由 `RenderPipelineManager.beginContextRendering` 驱动。Editor Pause 停止动画和 Gameplay Tick 后，Scene/Game 重绘仍会提交冻结姿态，不再让全部怪物消失。
 
 正常 URP Player 的单渲染上下文中，怪物状态遍历、属性数组上传和批量 Draw 次数与修改前一致，只增加一次渲染回调派发。Editor 的额外 Scene/Game 重绘会产生对应的额外提交，这是调试可见性所需成本；后续性能复测仍应以独立 Player 构建为准。
+
+2026-10-26 将原有并行开关整理为互斥 `显示模式`：`基础导航网格`、`寻路 Grid 权重`、`流场积分值`、`流场方向`、`怪物转向` 与 `怪物四叉树分布`。切换模式后 Scene 只绘制当前关注的数据，四叉树不再被大量权重数字和流场箭头遮挡。
 
 ## 10. 2026-10-27 房间空间查询与阶段对齐修正
 
@@ -196,3 +202,18 @@ Weapon effect
 快照的提交点需要放在本 Tick 的位置、死亡和击退变更都完成之后；如果为了降低 Build 延迟而在更早阶段建桶，就必须同时维护死亡、迁移和新增 Slot 的增量覆盖层。这样才能保证 Density、Separation、范围效果和弹丸在同一 Tick 读取同一份空间事实。
 
 本阶段未移除弹丸自身的 Collider/GameObject；那是表现生命周期的后续独立改造，不应与本次怪物命中和空间查询语义混在一起。
+## 11. 四叉树 AOT 迁移前 A0 基线
+
+迁移前正式 A0 使用 [RunId 20261027-130023-32cb3592](../BenchmarkResults/runs/20261027-130023-32cb3592/SUMMARY.md)：Windows Development Player、1024 × 768、Performant、VSync 关闭、双端分别前台采样、每档 3 次、每次 30 秒。该轮使用轻量采样，不保存 `profiler.raw`，所有 Host/Client 重复均通过前台占比、双端时间对齐和工作负载验证。
+
+| 怪物数 | 有效 Host 重复 | Build 平均每次 (ms) | Build 频率 (Hz) | Query 平均每次 (ms) | Query 频率 (Hz) | EntityTick 平均每次 (ms) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1024 | 3/3 | 1.362 | 28.46 | 0.0076 | 187.97 | 2.453 |
+| 2048 | 3/3 | 2.777 | 29.00 | 0.0075 | 191.28 | 4.864 |
+| 5012 | 3/3 | 5.909 | 28.54 | 0.0068 | 188.83 | 10.671 |
+
+5012 档三次 Build 平均分别为 5.726、6.365、5.636 ms，变异系数约 5.5%；Build 频率变异系数约 1.3%。平均候选数为 0.79～0.96，平均访问节点为 17.73～17.97，射击数为 127～128，说明三次重复的四叉树负载足够一致。Build 约占 EntityTick 单次耗时的 55.4%，是本轮 AOT 迁移的主要量化目标；Query 已在 0.01 ms 以下，不以其小幅变化驱动结构替换。
+
+旧的完整 Profiler 样本 `20261026-162947-530d99d1` 仅保留为历史问题证据。它包含旧 Host 表现同步路径、完整 Profiler 额外开销，且 5012 Host 未通过当前双端对齐规则，不能作为 AOT 收益的唯一分母。A1 必须继续使用与 A0 相同的轻量采样模式、路线、Seed 和三次重复。
+
+具体迁移边界、Parity 要求和通过阈值见 [怪物四叉树核心AOT迁移执行方案.md](怪物四叉树核心AOT迁移执行方案.md)。

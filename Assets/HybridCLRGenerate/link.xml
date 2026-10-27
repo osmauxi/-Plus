@@ -288,6 +288,8 @@
     <type fullname="UnityEngine.Renderer" preserve="all" />
     <type fullname="UnityEngine.Rendering.LightProbeUsage" preserve="all" />
     <type fullname="UnityEngine.Rendering.ReflectionProbeUsage" preserve="all" />
+    <type fullname="UnityEngine.Rendering.RenderPipelineManager" preserve="all" />
+    <type fullname="UnityEngine.Rendering.ScriptableRenderContext" preserve="all" />
     <type fullname="UnityEngine.Rendering.ShadowCastingMode" preserve="all" />
     <type fullname="UnityEngine.RequireComponent" preserve="all" />
     <type fullname="UnityEngine.RuntimeInitializeOnLoadMethodAttribute" preserve="all" />

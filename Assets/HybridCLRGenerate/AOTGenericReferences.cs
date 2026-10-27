@@ -252,6 +252,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<ProjectGame.HotFix.Gameplay.Map.Generation.MapRuntimeClearingEvent>
 	// System.Action<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Action<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterRoomBeginData>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
@@ -281,6 +282,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<System.Collections.Generic.KeyValuePair<ulong,object>>
 	// System.Action<System.ValueTuple<object,object>>
 	// System.Action<Unity.Netcode.NetworkManager.ConnectionApprovalRequest,object>
+	// System.Action<UnityEngine.Rendering.ScriptableRenderContext,object>
 	// System.Action<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle,object>
 	// System.Action<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<UnityEngine.ResourceManagement.ResourceProviders.SceneInstance>>
 	// System.Action<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<object>>
@@ -356,6 +358,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -404,6 +407,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -730,6 +734,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -809,6 +814,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -857,6 +863,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -935,6 +942,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1020,6 +1028,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1151,6 +1160,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1197,6 +1207,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1245,6 +1256,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1363,6 +1375,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1411,6 +1424,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
@@ -1590,6 +1604,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Map.RuntimeNavigationObstacleSystem.ObstacleState>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterMeleeAttackRequest>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>

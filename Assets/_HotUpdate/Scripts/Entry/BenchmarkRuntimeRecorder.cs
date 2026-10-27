@@ -10,6 +10,7 @@ using ProjectGame.HotFix.Gameplay.Monsters;
 using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Player.Sync;
+using ProjectGame.HotFix.Gameplay.Weapon;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -19,7 +20,7 @@ namespace ProjectGame.HotFix.Benchmarking
     [Serializable]
     internal sealed class BenchmarkRoleMetrics
     {
-        public int schemaVersion = 5;
+        public int schemaVersion = 6;
         public string runId;
         public string role;
         public string focusTarget;
@@ -79,6 +80,24 @@ namespace ProjectGame.HotFix.Benchmarking
         public int movementCommands;
         public int movementWaypoints;
         public float movementDistance;
+        public int spatialBuildCount;
+        public int spatialQueryCount;
+        public long spatialCandidateCount;
+        public long spatialVisitedNodeCount;
+        public double averageSpatialCandidateCount;
+        public int p50SpatialCandidateCount;
+        public int p95SpatialCandidateCount;
+        public int maximumSpatialCandidateCount;
+        public double averageSpatialVisitedNodeCount;
+        public int p50SpatialVisitedNodeCount;
+        public int p95SpatialVisitedNodeCount;
+        public int maximumSpatialVisitedNodeCount;
+        public double averageSpatialCandidateRatio;
+        public double p95SpatialCandidateRatio;
+        public int shotFiredCount;
+        public int projectileSpawnedCount;
+        public double averageActiveProjectileCount;
+        public int maximumActiveProjectileCount;
         public bool workloadValid;
         public string invalidReason;
         public string captureStartedUtc;
@@ -107,6 +126,9 @@ namespace ProjectGame.HotFix.Benchmarking
             "Monster.Presentation.Serialize",
             "Monster.Presentation.Decode",
             "Monster.View.ApplyAuthority",
+            "Monster.SpatialIndex.Build",
+            "Monster.SpatialIndex.Query",
+            "Weapon.Projectile.MonsterNarrowPhase",
         };
 
         private sealed class Counter
@@ -120,6 +142,7 @@ namespace ProjectGame.HotFix.Benchmarking
             public long SampleCount;
             public int NonZeroFrames;
             public int ValidFrameCount;
+            public readonly List<long> FrameValues = new();
 
             public bool TryGetLatestValue(out long value)
             {
@@ -140,6 +163,7 @@ namespace ProjectGame.HotFix.Benchmarking
                 Maximum = Math.Max(Maximum, value);
                 SampleCount += sample.Count;
                 ValidFrameCount++;
+                FrameValues.Add(value);
                 if (value != 0)
                     NonZeroFrames++;
             }
@@ -179,6 +203,13 @@ namespace ProjectGame.HotFix.Benchmarking
         private int _movementCommands;
         private int _movementWaypoints;
         private float _movementDistance;
+        private MonsterSpatialIndexDiagnostics _spatialDiagnostics;
+        private WeaponRuntimeService _weaponRuntime;
+        private int _shotFiredCount;
+        private int _projectileSpawnedCount;
+        private long _activeProjectileCountSum;
+        private int _activeProjectileSampleCount;
+        private int _maximumActiveProjectileCount;
         private bool _focusInitialized;
         private bool _lastFocused;
         private int _focusedFrames;
@@ -228,6 +259,17 @@ namespace ProjectGame.HotFix.Benchmarking
             _movementCommands = _movement.SubmittedCommandCount;
             _movementWaypoints = _movement.WaypointsVisited;
             _movementDistance = _movement.DistanceTravelled;
+            _spatialDiagnostics = default;
+            if (_options.Role == BenchmarkProcessRole.Host)
+                authority.SpatialIndex.BeginPerformanceDiagnostics();
+            _weaponRuntime = WeaponRuntimeService.Instance;
+            _shotFiredCount = 0;
+            _projectileSpawnedCount = 0;
+            _activeProjectileCountSum = 0L;
+            _activeProjectileSampleCount = 0;
+            _maximumActiveProjectileCount = 0;
+            _weaponRuntime.ShotFired += OnShotFired;
+            _weaponRuntime.ProjectileSpawned += OnProjectileSpawned;
             _focusInitialized = false;
             _focusedFrames = 0;
             _unfocusedFrames = 0;
@@ -265,6 +307,11 @@ namespace ProjectGame.HotFix.Benchmarking
             foreach (Counter marker in _markerCounters)
                 marker.Accumulate();
 
+            int activeProjectileCount = _weaponRuntime.ActiveProjectileCount;
+            _activeProjectileCountSum += activeProjectileCount;
+            _activeProjectileSampleCount++;
+            _maximumActiveProjectileCount = Math.Max(_maximumActiveProjectileCount, activeProjectileCount);
+
             if (_mainThread.TryGetLatestValue(out long mainThreadValue))
                 _mainThreadMilliseconds.Add(mainThreadValue / 1_000_000d);
             if (_renderThread.TryGetLatestValue(out long renderThreadValue))
@@ -291,6 +338,10 @@ namespace ProjectGame.HotFix.Benchmarking
                 throw new InvalidOperationException("Benchmark 尚未开始采样。");
 
             _capturing = false;
+            _weaponRuntime.ShotFired -= OnShotFired;
+            _weaponRuntime.ProjectileSpawned -= OnProjectileSpawned;
+            if (_options.Role == BenchmarkProcessRole.Host)
+                _spatialDiagnostics = MonsterRuntimeService.Instance.AuthorityRoom.SpatialIndex.EndPerformanceDiagnostics();
             StopProfilerCapture();
             DateTime stoppedUtc = DateTime.UtcNow;
             double duration = Time.realtimeSinceStartupAsDouble - _captureStartRealtime;
@@ -348,6 +399,8 @@ namespace ProjectGame.HotFix.Benchmarking
                   replica.ActiveCount == _options.MonsterCount &&
                   view != null && view.ActiveViewCount == _options.MonsterCount;
             bool flowValid = _options.Role != BenchmarkProcessRole.Host || sourceRebuilds > 0;
+            bool spatialValid = _options.Role != BenchmarkProcessRole.Host ||
+                                _spatialDiagnostics.QueryCount > 0 && _shotFiredCount > 0;
             bool environmentValid = Screen.width == 1024 &&
                                     Screen.height == 768 &&
                                     QualitySettings.names[QualitySettings.GetQualityLevel()] == "Performant" &&
@@ -370,6 +423,8 @@ namespace ProjectGame.HotFix.Benchmarking
                     ? "自动移动没有产生足够实际位移"
                     : !flowValid
                         ? "Host 采样期间没有发生 Source FlowField 重建"
+                    : !spatialValid
+                        ? "Host 采样期间没有产生射击或四叉树查询"
                         : string.Empty;
 
             return new BenchmarkRoleMetrics
@@ -437,7 +492,27 @@ namespace ProjectGame.HotFix.Benchmarking
                 movementCommands = movementCommands,
                 movementWaypoints = movementWaypoints,
                 movementDistance = movementDistance,
-                workloadValid = environmentValid && durationValid && focusValid && monsterValid && movementValid && flowValid,
+                spatialBuildCount = _spatialDiagnostics.BuildCount,
+                spatialQueryCount = _spatialDiagnostics.QueryCount,
+                spatialCandidateCount = _spatialDiagnostics.TotalCandidateCount,
+                spatialVisitedNodeCount = _spatialDiagnostics.TotalVisitedNodeCount,
+                averageSpatialCandidateCount = Average(_spatialDiagnostics.TotalCandidateCount, _spatialDiagnostics.QueryCount),
+                p50SpatialCandidateCount = _spatialDiagnostics.P50CandidateCount,
+                p95SpatialCandidateCount = _spatialDiagnostics.P95CandidateCount,
+                maximumSpatialCandidateCount = _spatialDiagnostics.MaximumCandidateCount,
+                averageSpatialVisitedNodeCount = Average(_spatialDiagnostics.TotalVisitedNodeCount, _spatialDiagnostics.QueryCount),
+                p50SpatialVisitedNodeCount = _spatialDiagnostics.P50VisitedNodeCount,
+                p95SpatialVisitedNodeCount = _spatialDiagnostics.P95VisitedNodeCount,
+                maximumSpatialVisitedNodeCount = _spatialDiagnostics.MaximumVisitedNodeCount,
+                averageSpatialCandidateRatio = Ratio(
+                    Average(_spatialDiagnostics.TotalCandidateCount, _spatialDiagnostics.QueryCount),
+                    _options.MonsterCount),
+                p95SpatialCandidateRatio = Ratio(_spatialDiagnostics.P95CandidateCount, _options.MonsterCount),
+                shotFiredCount = _shotFiredCount,
+                projectileSpawnedCount = _projectileSpawnedCount,
+                averageActiveProjectileCount = Average(_activeProjectileCountSum, _activeProjectileSampleCount),
+                maximumActiveProjectileCount = _maximumActiveProjectileCount,
+                workloadValid = environmentValid && durationValid && focusValid && monsterValid && movementValid && flowValid && spatialValid,
                 invalidReason = invalidReason,
                 captureStartedUtc = _captureStartUtc.ToString("O"),
                 captureStoppedUtc = stoppedUtc.ToString("O"),
@@ -457,7 +532,7 @@ namespace ProjectGame.HotFix.Benchmarking
                 frames.AppendLine(row);
             File.WriteAllText(Path.Combine(directory, "frames.csv"), frames.ToString());
 
-            var markers = new StringBuilder("marker,available,sample_count,non_zero_frames,total_ms,average_ms_per_sample,average_ms_per_frame,max_frame_ms\n");
+            var markers = new StringBuilder("marker,available,sample_count,non_zero_frames,total_ms,average_ms_per_sample,average_ms_per_frame,p95_frame_ms,max_frame_ms\n");
             foreach (Counter marker in _markerCounters)
             {
                 markers.Append(EscapeCsv(marker.Name)).Append(',')
@@ -469,6 +544,7 @@ namespace ProjectGame.HotFix.Benchmarking
                         .ToString("F6", CultureInfo.InvariantCulture)).Append(',')
                     .Append((metrics.sampleCount > 0 ? marker.Sum / 1_000_000d / metrics.sampleCount : 0d)
                         .ToString("F6", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(MarkerPercentileMilliseconds(marker, 0.95d).ToString("F6", CultureInfo.InvariantCulture)).Append(',')
                     .Append((marker.Maximum / 1_000_000d).ToString("F6", CultureInfo.InvariantCulture))
                     .AppendLine();
             }
@@ -495,6 +571,13 @@ namespace ProjectGame.HotFix.Benchmarking
             report.AppendLine($"- 应用层网络发送/接收：{metrics.sentPayloadBytes}/{metrics.receivedPayloadBytes} B，{metrics.sentMessageCount}/{metrics.receivedMessageCount} 条消息");
             report.AppendLine($"- FlowField 重建 Topology/Source/Cost：{metrics.topologyRebuildCount} / {metrics.sourceRebuildCount} / {metrics.costRebuildCount}");
             report.AppendLine($"- 移动命令/实际距离/经过路点：{metrics.movementCommands} / {metrics.movementDistance:F2}m / {metrics.movementWaypoints}");
+            report.AppendLine($"- 射击/生成弹丸/活动弹丸平均-最大：{metrics.shotFiredCount} / {metrics.projectileSpawnedCount} / {metrics.averageActiveProjectileCount:F2}-{metrics.maximumActiveProjectileCount}");
+            if (_options.Role == BenchmarkProcessRole.Host)
+            {
+                report.AppendLine($"- 四叉树 Build/Query：{metrics.spatialBuildCount} / {metrics.spatialQueryCount} 次");
+                report.AppendLine($"- Query 候选数 平均/P50/P95/最大：{metrics.averageSpatialCandidateCount:F2} / {metrics.p50SpatialCandidateCount} / {metrics.p95SpatialCandidateCount} / {metrics.maximumSpatialCandidateCount}（占怪物总数 {metrics.averageSpatialCandidateRatio:P2} / {metrics.p95SpatialCandidateRatio:P2}）");
+                report.AppendLine($"- Query 访问节点 平均/P50/P95/最大：{metrics.averageSpatialVisitedNodeCount:F2} / {metrics.p50SpatialVisitedNodeCount} / {metrics.p95SpatialVisitedNodeCount} / {metrics.maximumSpatialVisitedNodeCount}");
+            }
             report.AppendLine();
             report.AppendLine("## Marker 统计");
             report.AppendLine();
@@ -507,6 +590,7 @@ namespace ProjectGame.HotFix.Benchmarking
                     $"- `{marker.Name}`：总计 {marker.Sum / 1_000_000d:F3} ms，" +
                     $"调用样本 {marker.SampleCount}，" +
                     $"平均每次 {(marker.SampleCount > 0 ? marker.Sum / 1_000_000d / marker.SampleCount : 0d):F3} ms，" +
+                    $"P95 单帧 {MarkerPercentileMilliseconds(marker, 0.95d):F3} ms，" +
                     $"最大单帧 {marker.Maximum / 1_000_000d:F3} ms，" +
                     $"非零帧 {marker.NonZeroFrames}");
             }
@@ -562,6 +646,21 @@ namespace ProjectGame.HotFix.Benchmarking
             counter.Available && counter.ValidFrameCount > 0
                 ? counter.Maximum / 1_000_000d
                 : -1d;
+
+        private static double MarkerPercentileMilliseconds(Counter counter, double percentile)
+        {
+            if (!counter.Available || counter.FrameValues.Count == 0)
+                return 0d;
+            long[] sorted = counter.FrameValues.OrderBy(value => value).ToArray();
+            int rank = Math.Max(1, (int)Math.Ceiling(percentile * sorted.Length));
+            return sorted[Math.Min(rank - 1, sorted.Length - 1)] / 1_000_000d;
+        }
+
+        private static double Average(long total, int count) => count > 0 ? (double)total / count : 0d;
+        private static double Ratio(double value, int total) => total > 0 ? value / total : 0d;
+
+        private void OnShotFired(ShotContext _) => _shotFiredCount++;
+        private void OnProjectileSpawned(ProjectileSpawn _) => _projectileSpawnedCount++;
 
         private static double MetricPercentile(double[] sorted, double percentile) =>
             sorted.Length > 0 ? Percentile(sorted, percentile) : -1d;

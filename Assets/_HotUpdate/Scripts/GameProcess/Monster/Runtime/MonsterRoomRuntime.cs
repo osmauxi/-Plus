@@ -144,6 +144,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool DamageMonster(int slot, float damage)
         {
+            if (ProjectGame.HotFix.Gameplay.Benchmarking.BenchmarkMovementDriver.SuppressMonsterDamage)
+                return World.Meta[slot].IsActive;
+
             bool damaged = World.Damage(slot, damage);
             if (damaged && !World.IsActive(slot))
                 _spatialIndex.Remove(slot);
@@ -163,6 +166,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool TryGetFlowFieldDebugCell(int x, int y, out FlowFieldCellDebugData cell) =>
             _simulation.TryGetFlowFieldDebugCell(x, y, out cell);
+
+        public bool TryGetTopologyReferenceFlowFieldDebugCell(
+            int x,
+            int y,
+            out FlowFieldCellDebugData cell) =>
+            _simulation.TryGetTopologyReferenceFlowFieldDebugCell(x, y, out cell);
+
+        public bool IsFlowProgressCorrectionCell(int x, int y) =>
+            _simulation.IsFlowProgressCorrectionCell(x, y);
 
         public Vector2 GetRawSeparation(int slot) => _simulation.GetRawSeparation(slot);
 

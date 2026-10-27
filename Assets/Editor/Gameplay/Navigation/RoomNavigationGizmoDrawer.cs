@@ -14,8 +14,11 @@ internal static class RoomNavigationGizmoDrawer
     private static readonly Color DynamicObstacleColor = new(1f, 0f, 0.65f, 0.72f);
     private static readonly Color SeparationColor = new(0f, 1f, 1f, 0.95f);
     private static readonly Color FinalVelocityColor = new(1f, 0.82f, 0f, 0.95f);
+    private static readonly Color TopologyReferenceColor = new(0.25f, 1f, 0.3f, 0.95f);
+    private static readonly Color FlowProgressCorrectionColor = new(1f, 0.15f, 0.05f, 0.95f);
     private static readonly Color SpatialQueryColor = new(1f, 0.25f, 0.9f, 0.95f);
     private static readonly Color HitRadiusColor = new(1f, 0.55f, 0.1f, 0.7f);
+    private static readonly Vector3[] SpatialLeafPoints = new Vector3[5];
 
     private static GUIStyle _labelStyle;
 
@@ -23,7 +26,8 @@ internal static class RoomNavigationGizmoDrawer
     private static void DrawRoomNavigation(RoomView view, GizmoType gizmoType)
     {
         RoomNavigationGizmoSettings settings = RoomNavigationGizmoSettings.instance;
-        if (!settings.Enabled || view == null || view.SpatialData == null)
+        if (settings.DisplayMode == RoomNavigationGizmoMode.Disabled ||
+            view == null || view.SpatialData == null)
             return;
 
         bool selected = (gizmoType & (GizmoType.Selected | GizmoType.InSelectionHierarchy)) != 0;
@@ -34,35 +38,47 @@ internal static class RoomNavigationGizmoDrawer
         Matrix4x4 previousMatrix = Gizmos.matrix;
         Color previousColor = Gizmos.color;
 
-        Gizmos.matrix = view.transform.localToWorldMatrix;
+        switch (settings.DisplayMode)
+        {
+            case RoomNavigationGizmoMode.NavigationGrid:
+                Gizmos.matrix = view.transform.localToWorldMatrix;
+                if (settings.DrawStaticCells)
+                    DrawStaticCells(view.SpatialData, settings);
+                if (runtime != null && settings.DrawDynamicBlocked)
+                    DrawDynamicBlocked(runtime.NavigationGrid, settings);
+                if (settings.DrawGrid)
+                    DrawGrid(view.SpatialData, settings.HeightOffset + 0.05f);
+                break;
 
-        if (settings.DrawStaticCells)
-            DrawStaticCells(view.SpatialData, settings);
+            case RoomNavigationGizmoMode.GridCost when runtime != null:
+                Gizmos.matrix = view.transform.localToWorldMatrix;
+                DrawCostLayer(view.transform, runtime, settings, false);
+                break;
 
-        if (runtime != null && settings.CostLayer != RoomNavigationCostLayer.None)
-            DrawCostLayer(view.transform, runtime, settings);
+            case RoomNavigationGizmoMode.FlowIntegration when runtime != null:
+                Gizmos.matrix = view.transform.localToWorldMatrix;
+                DrawCostLayer(view.transform, runtime, settings, true);
+                break;
 
-        if (runtime != null && settings.DrawDynamicBlocked)
-            DrawDynamicBlocked(runtime.NavigationGrid, settings);
+            case RoomNavigationGizmoMode.FlowDirections when runtime != null:
+                Gizmos.matrix = view.transform.localToWorldMatrix;
+                DrawFlowField(runtime, settings);
+                break;
 
-        if (settings.DrawGrid)
-            DrawGrid(view.SpatialData, settings.HeightOffset + 0.05f);
+            case RoomNavigationGizmoMode.MonsterSteering when runtime != null:
+                Gizmos.matrix = Matrix4x4.identity;
+                DrawMonsterSteering(runtime, settings);
+                break;
 
-        if (runtime != null && (settings.DrawFlowDirections || settings.DrawFlowSources))
-            DrawFlowField(runtime, settings);
+            case RoomNavigationGizmoMode.MonsterSpatialIndex when runtime != null:
+                Gizmos.matrix = Matrix4x4.identity;
+                runtime.SpatialIndex.EnsureBuiltForDebug(runtime.World);
+                DrawMonsterSpatialIndex(runtime, settings);
+                break;
+        }
 
         Gizmos.matrix = previousMatrix;
         Gizmos.color = previousColor;
-
-        if (runtime != null && (settings.DrawRawSeparation || settings.DrawFinalVelocity))
-            DrawMonsterSteering(runtime, settings);
-
-        if (runtime != null &&
-            (settings.DrawMonsterSpatialTree || settings.DrawMonsterHitRadius ||
-             settings.DrawLastMonsterSpatialQuery))
-        {
-            DrawMonsterSpatialIndex(runtime, settings);
-        }
     }
 
     private static MonsterRoomRuntime ResolveRuntime(RoomView view)
@@ -154,11 +170,11 @@ internal static class RoomNavigationGizmoDrawer
     private static void DrawCostLayer(
         Transform roomRoot,
         MonsterRoomRuntime runtime,
-        RoomNavigationGizmoSettings settings)
+        RoomNavigationGizmoSettings settings,
+        bool flowIntegration)
     {
-        int maximum = settings.AutoNormalizeCost ||
-                      settings.CostLayer == RoomNavigationCostLayer.FlowIntegration
-            ? FindMaximumCost(runtime, settings.CostLayer)
+        int maximum = flowIntegration || settings.AutoNormalizeCost
+            ? FindMaximumCost(runtime, flowIntegration)
             : settings.CostDisplayMaximum;
 
         maximum = Mathf.Max(1, maximum);
@@ -168,7 +184,7 @@ internal static class RoomNavigationGizmoDrawer
         {
             for (int cellX = 0; cellX < runtime.NavigationGrid.Width; cellX++)
             {
-                if (!TryGetCost(runtime, settings.CostLayer, cellX, cellY, out int cost))
+                if (!TryGetCost(runtime, flowIntegration, cellX, cellY, out int cost))
                     continue;
 
                 if (cost > 0)
@@ -178,10 +194,10 @@ internal static class RoomNavigationGizmoDrawer
                     DrawCell(cellX, cellY, y, settings.CellFillScale * 0.86f);
                 }
 
-                if (!settings.DrawCellWeightNumbers ||
-                    cost == 0 && !settings.IncludeZeroWeightNumbers ||
-                    cellX % settings.WeightNumberStride != 0 ||
-                    cellY % settings.WeightNumberStride != 0)
+                if (!settings.DrawCostNumbers ||
+                    cost == 0 && !settings.IncludeZeroCostNumbers ||
+                    cellX % settings.CostNumberStride != 0 ||
+                    cellY % settings.CostNumberStride != 0)
                 {
                     continue;
                 }
@@ -192,7 +208,7 @@ internal static class RoomNavigationGizmoDrawer
         }
     }
 
-    private static int FindMaximumCost(MonsterRoomRuntime runtime, RoomNavigationCostLayer layer)
+    private static int FindMaximumCost(MonsterRoomRuntime runtime, bool flowIntegration)
     {
         int maximum = 1;
 
@@ -200,7 +216,8 @@ internal static class RoomNavigationGizmoDrawer
         {
             for (int x = 0; x < runtime.NavigationGrid.Width; x++)
             {
-                if (TryGetCost(runtime, layer, x, y, out int cost) && cost != int.MaxValue)
+                if (TryGetCost(runtime, flowIntegration, x, y, out int cost) &&
+                    cost != int.MaxValue)
                     maximum = Mathf.Max(maximum, cost);
             }
         }
@@ -210,14 +227,14 @@ internal static class RoomNavigationGizmoDrawer
 
     private static bool TryGetCost(
         MonsterRoomRuntime runtime,
-        RoomNavigationCostLayer layer,
+        bool flowIntegration,
         int x,
         int y,
         out int cost)
     {
         cost = 0;
 
-        if (layer == RoomNavigationCostLayer.FlowIntegration)
+        if (flowIntegration)
         {
             if (!runtime.TryGetFlowFieldDebugCell(x, y, out FlowFieldCellDebugData flow) ||
                 !flow.IsReachable)
@@ -235,13 +252,7 @@ internal static class RoomNavigationGizmoDrawer
             return false;
         }
 
-        cost = layer switch
-        {
-            RoomNavigationCostLayer.Additional => grid.AdditionalCost,
-            RoomNavigationCostLayer.Density => grid.DensityCost,
-            RoomNavigationCostLayer.TotalGrid => grid.TotalAdditionalCost,
-            _ => 0
-        };
+        cost = grid.TotalAdditionalCost;
 
         return true;
     }
@@ -269,21 +280,49 @@ internal static class RoomNavigationGizmoDrawer
                 Vector3 center = GetCellCenter(cellX, cellY, y);
                 Gizmos.color = GetSourceColor(flow.SourceIndex);
 
-                if (settings.DrawFlowSources && flow.IsSource)
+                if (settings.DrawFlowProgressCorrections &&
+                    runtime.IsFlowProgressCorrectionCell(cellX, cellY))
+                {
+                    Gizmos.color = FlowProgressCorrectionColor;
+                    Gizmos.DrawWireCube(
+                        center + Vector3.up * 0.04f,
+                        new Vector3(
+                            RoomSpatialData.CellSize * 0.82f,
+                            0f,
+                            RoomSpatialData.CellSize * 0.82f));
+                }
+
+                if (flow.IsSource)
                     Gizmos.DrawSphere(center, RoomSpatialData.CellSize * 0.13f);
 
-                if (!settings.DrawFlowDirections ||
-                    flow.Direction.sqrMagnitude <= 0.000001f ||
-                    cellX % stride != 0 ||
-                    cellY % stride != 0)
+                if (cellX % stride != 0 || cellY % stride != 0)
                 {
                     continue;
                 }
 
-                Vector2 direction = flow.Direction.normalized;
-                Vector3 vector = new Vector3(direction.x, 0f, direction.y) *
-                                 settings.FlowArrowLength * RoomSpatialData.CellSize;
-                DrawArrow(center - vector * 0.5f, vector, RoomSpatialData.CellSize * 0.12f);
+                if (flow.Direction.sqrMagnitude > 0.000001f)
+                {
+                    Gizmos.color = GetSourceColor(flow.SourceIndex);
+                    Vector2 direction = flow.Direction.normalized;
+                    Vector3 vector = new Vector3(direction.x, 0f, direction.y) *
+                                     settings.FlowArrowLength * RoomSpatialData.CellSize;
+                    DrawArrow(center - vector * 0.5f, vector, RoomSpatialData.CellSize * 0.12f);
+                }
+
+                if (settings.DrawTopologyReferenceDirections &&
+                    runtime.TryGetTopologyReferenceFlowFieldDebugCell(
+                        cellX,
+                        cellY,
+                        out FlowFieldCellDebugData topologyFlow) &&
+                    topologyFlow.Direction.sqrMagnitude > 0.000001f)
+                {
+                    Gizmos.color = TopologyReferenceColor;
+                    Vector2 direction = topologyFlow.Direction.normalized;
+                    Vector3 vector = new Vector3(direction.x, 0f, direction.y) *
+                                     settings.FlowArrowLength * RoomSpatialData.CellSize * 0.72f;
+                    Vector3 origin = center + Vector3.up * 0.07f;
+                    DrawArrow(origin - vector * 0.5f, vector, RoomSpatialData.CellSize * 0.1f);
+                }
             }
         }
     }
@@ -351,8 +390,9 @@ internal static class RoomNavigationGizmoDrawer
     {
         MonsterSpatialIndex index = runtime.SpatialIndex;
         float worldY = runtime.GroundY + settings.HeightOffset + 0.22f;
+        Color previousHandlesColor = Handles.color;
 
-        if (settings.DrawMonsterSpatialTree && index.IsBuilt)
+        if (index.IsBuilt)
         {
             for (int i = 0; i < index.NodeCount; i++)
             {
@@ -364,13 +404,11 @@ internal static class RoomNavigationGizmoDrawer
                     MonsterSpatialIndex.BaseDepth,
                     MonsterSpatialIndex.MaxDepth,
                     node.Depth);
-                Gizmos.color = Color.Lerp(
-                    Color.Lerp(new Color(0.1f, 0.75f, 1f, 0.42f), new Color(0.5f, 0.2f, 1f, 0.7f), depth),
-                    new Color(1f, 0.15f, 0.05f, 0.9f),
+                Color color = Color.Lerp(
+                    Color.Lerp(new Color(0.1f, 0.75f, 1f, 0.9f), new Color(0.5f, 0.2f, 1f, 0.95f), depth),
+                    new Color(1f, 0.15f, 0.05f, 1f),
                     density);
-                Gizmos.DrawWireCube(
-                    new Vector3(node.Center.x, worldY, node.Center.y),
-                    new Vector3(node.Size, 0.02f, node.Size));
+                DrawSpatialLeaf(node, worldY, color);
 
                 if (settings.DrawMonsterSpatialCounts && node.MonsterCount > 0)
                 {
@@ -409,6 +447,30 @@ internal static class RoomNavigationGizmoDrawer
                 $"candidates {index.LastQueryCandidateCount}, nodes {index.LastQueryVisitedNodeCount}",
                 GetLabelStyle());
         }
+
+        Handles.color = previousHandlesColor;
+    }
+
+    private static void DrawSpatialLeaf(
+        MonsterSpatialNodeDebugData node,
+        float worldY,
+        Color color)
+    {
+        float halfSize = node.Size * 0.5f;
+        SpatialLeafPoints[0] = new Vector3(
+            node.Center.x - halfSize, worldY, node.Center.y - halfSize);
+        SpatialLeafPoints[1] = new Vector3(
+            node.Center.x + halfSize, worldY, node.Center.y - halfSize);
+        SpatialLeafPoints[2] = new Vector3(
+            node.Center.x + halfSize, worldY, node.Center.y + halfSize);
+        SpatialLeafPoints[3] = new Vector3(
+            node.Center.x - halfSize, worldY, node.Center.y + halfSize);
+        SpatialLeafPoints[4] = SpatialLeafPoints[0];
+
+        Handles.color = color;
+        Handles.DrawAAPolyLine(
+            node.Depth > MonsterSpatialIndex.BaseDepth ? 3f : 2f,
+            SpatialLeafPoints);
     }
 
     private static void DrawCell(int x, int y, float localY, float scale)

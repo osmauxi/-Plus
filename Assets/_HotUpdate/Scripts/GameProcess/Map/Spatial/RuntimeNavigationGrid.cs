@@ -54,6 +54,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
         private readonly byte[] _walkableCache;
         private readonly byte[] _connectionMask;
         private readonly int[] _combinedCost;
+        private readonly int[] _topologyReferenceCost;
 
         private int _cachedTopologyVersion = -1;
         private int _cachedCostVersion = -1;
@@ -62,6 +63,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
         public int TopologyVersion { get; private set; }
         //避障Cost版本号，每次动态Cost信息改变时+1
         public int CostVersion { get; private set; }
+        //不含怪物密度的Cost版本号，仅普通AdditionalCost变化时+1
+        public int TopologyReferenceCostVersion { get; private set; }
 
         public int Width => _staticData.Width;
         public int Height => _staticData.Height;
@@ -80,6 +83,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
             _walkableCache = new byte[count];
             _connectionMask = new byte[count];
             _combinedCost = new int[count];
+            _topologyReferenceCost = new int[count];
 
             for (int y = 0; y < Height; y++)
             {
@@ -127,6 +131,23 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 _walkableCache,
                 _connectionMask,
                 _combinedCost);
+        }
+        /// <summary>
+        /// 构建不含怪物密度的参考Kernel，用于判断密度Flow是否在墙边背离基础拓扑。
+        /// </summary>
+        public NavigationGridKernelData GetTopologyReferenceKernelData()
+        {
+            RefreshTopologyCache();
+
+            for (int i = 0; i < _topologyReferenceCost.Length; i++)
+                _topologyReferenceCost[i] = _additionalCost[i];
+
+            return new NavigationGridKernelData(
+                Width,
+                Height,
+                _walkableCache,
+                _connectionMask,
+                _topologyReferenceCost);
         }
         private void RefreshTopologyCache()
         {
@@ -238,6 +259,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
 
             _additionalCost[index] = cost;
             CostVersion++;
+            TopologyReferenceCostVersion++;
         }
 
         public void AddAdditionalCost(int x, int y, ushort cost)
@@ -254,6 +276,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
 
             _additionalCost[index] = next;
             CostVersion++;
+            TopologyReferenceCostVersion++;
         }
 
         public void ClearDynamicBlocked()
@@ -272,12 +295,14 @@ namespace ProjectGame.HotFix.Gameplay.Map
 
             Array.Clear(_additionalCost, 0, _additionalCost.Length);
             CostVersion++;
+            TopologyReferenceCostVersion++;
         }
 
         public void ClearRuntime()
         {
             bool topologyChanged = ContainsBlockedCell();
-            bool costChanged = ContainsNonZero(_additionalCost) || ContainsNonZero(_densityCost);
+            bool additionalCostChanged = ContainsNonZero(_additionalCost);
+            bool costChanged = additionalCostChanged || ContainsNonZero(_densityCost);
 
             if (!topologyChanged && !costChanged)
                 return;
@@ -289,6 +314,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
                 TopologyVersion++;
             if (costChanged)
                 CostVersion++;
+            if (additionalCostChanged)
+                TopologyReferenceCostVersion++;
         }
 
         private bool ContainsBlockedCell()

@@ -30,6 +30,44 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
     }
 
+    public readonly struct MonsterSpatialIndexDiagnostics
+    {
+        public readonly int BuildCount;
+        public readonly int QueryCount;
+        public readonly long TotalCandidateCount;
+        public readonly long TotalVisitedNodeCount;
+        public readonly int P50CandidateCount;
+        public readonly int P95CandidateCount;
+        public readonly int MaximumCandidateCount;
+        public readonly int P50VisitedNodeCount;
+        public readonly int P95VisitedNodeCount;
+        public readonly int MaximumVisitedNodeCount;
+
+        public MonsterSpatialIndexDiagnostics(
+            int buildCount,
+            int queryCount,
+            long totalCandidateCount,
+            long totalVisitedNodeCount,
+            int p50CandidateCount,
+            int p95CandidateCount,
+            int maximumCandidateCount,
+            int p50VisitedNodeCount,
+            int p95VisitedNodeCount,
+            int maximumVisitedNodeCount)
+        {
+            BuildCount = buildCount;
+            QueryCount = queryCount;
+            TotalCandidateCount = totalCandidateCount;
+            TotalVisitedNodeCount = totalVisitedNodeCount;
+            P50CandidateCount = p50CandidateCount;
+            P95CandidateCount = p95CandidateCount;
+            MaximumCandidateCount = maximumCandidateCount;
+            P50VisitedNodeCount = p50VisitedNodeCount;
+            P95VisitedNodeCount = p95VisitedNodeCount;
+            MaximumVisitedNodeCount = maximumVisitedNodeCount;
+        }
+    }
+
     /// <summary>
     /// 房间级怪物宽相空间索引。固定建立基础粒度，再只对高密叶节点继续四分。
     /// 节点和 Slot 链表均使用连续数组，完成预热后查询不产生托管分配。
@@ -109,6 +147,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private int _nodeCount;
         private int _overflowHead = Unlinked;
         private bool _isBuilt;
+        private bool _performanceDiagnosticsEnabled;
+        private int[] _candidateCountHistogram;
+        private int[] _visitedNodeCountHistogram;
+        private int _diagnosticBuildCount;
+        private int _diagnosticQueryCount;
+        private long _diagnosticTotalCandidateCount;
+        private long _diagnosticTotalVisitedNodeCount;
+        private int _diagnosticMaximumCandidateCount;
+        private int _diagnosticMaximumVisitedNodeCount;
 
         public bool IsBuilt => _isBuilt;
         public int BuildVersion { get; private set; }
@@ -140,6 +187,40 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public void Invalidate() => _isBuilt = false;
+
+        /// <summary>
+        /// Editor Gizmo 绘制入口。仅在四叉树显示模式下主动补建尚未被弹丸查询触发的索引。
+        /// </summary>
+        public void EnsureBuiltForDebug(MonsterWorld world) => EnsureBuilt(world);
+
+        public void BeginPerformanceDiagnostics()
+        {
+            _candidateCountHistogram = new int[_nextSlot.Length + 1];
+            _visitedNodeCountHistogram = new int[_nodes.Length + 1];
+            _diagnosticBuildCount = 0;
+            _diagnosticQueryCount = 0;
+            _diagnosticTotalCandidateCount = 0L;
+            _diagnosticTotalVisitedNodeCount = 0L;
+            _diagnosticMaximumCandidateCount = 0;
+            _diagnosticMaximumVisitedNodeCount = 0;
+            _performanceDiagnosticsEnabled = true;
+        }
+
+        public MonsterSpatialIndexDiagnostics EndPerformanceDiagnostics()
+        {
+            _performanceDiagnosticsEnabled = false;
+            return new MonsterSpatialIndexDiagnostics(
+                _diagnosticBuildCount,
+                _diagnosticQueryCount,
+                _diagnosticTotalCandidateCount,
+                _diagnosticTotalVisitedNodeCount,
+                Percentile(_candidateCountHistogram, _diagnosticQueryCount, 0.50f),
+                Percentile(_candidateCountHistogram, _diagnosticQueryCount, 0.95f),
+                _diagnosticMaximumCandidateCount,
+                Percentile(_visitedNodeCountHistogram, _diagnosticQueryCount, 0.50f),
+                Percentile(_visitedNodeCountHistogram, _diagnosticQueryCount, 0.95f),
+                _diagnosticMaximumVisitedNodeCount);
+        }
 
         public void Clear()
         {
@@ -240,6 +321,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                 LastQueryCandidateCount = resultCount;
                 LastQueryVisitedNodeCount = visitedNodeCount;
+                if (_performanceDiagnosticsEnabled)
+                {
+                    _diagnosticQueryCount++;
+                    _diagnosticTotalCandidateCount += resultCount;
+                    _diagnosticTotalVisitedNodeCount += visitedNodeCount;
+                    _diagnosticMaximumCandidateCount = Math.Max(_diagnosticMaximumCandidateCount, resultCount);
+                    _diagnosticMaximumVisitedNodeCount = Math.Max(_diagnosticMaximumVisitedNodeCount, visitedNodeCount);
+                    _candidateCountHistogram[resultCount]++;
+                    _visitedNodeCountHistogram[visitedNodeCount]++;
+                }
                 return resultCount;
             }
         }
@@ -287,7 +378,25 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                 _isBuilt = true;
                 BuildVersion++;
+                if (_performanceDiagnosticsEnabled)
+                    _diagnosticBuildCount++;
             }
+        }
+
+        private static int Percentile(int[] histogram, int sampleCount, float percentile)
+        {
+            if (sampleCount == 0)
+                return 0;
+
+            int target = Mathf.CeilToInt(sampleCount * percentile);
+            int accumulated = 0;
+            for (int value = 0; value < histogram.Length; value++)
+            {
+                accumulated += histogram[value];
+                if (accumulated >= target)
+                    return value;
+            }
+            return histogram.Length - 1;
         }
 
         private void BuildBaseTree(int nodeIndex)

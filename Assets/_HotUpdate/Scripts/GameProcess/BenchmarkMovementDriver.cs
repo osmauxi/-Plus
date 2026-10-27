@@ -9,6 +9,8 @@ namespace ProjectGame.HotFix.Gameplay.Benchmarking
     [RequireComponent(typeof(PlayerSyncController))]
     public sealed class BenchmarkMovementDriver : MonoBehaviour
     {
+        public static bool SuppressMonsterDamage { get; private set; }
+
         private static readonly Vector3[] RouteOffsets =
         {
             new(12f, 0f, 0f),
@@ -23,6 +25,7 @@ namespace ProjectGame.HotFix.Gameplay.Benchmarking
         private Vector3 _routeOrigin;
         private Vector3 _lastPosition;
         private int _targetIndex;
+        private double _configuredRealtime;
         private bool _configured;
 
         public int SubmittedCommandCount { get; private set; }
@@ -35,11 +38,15 @@ namespace ProjectGame.HotFix.Gameplay.Benchmarking
             _routeOrigin = transform.position;
             _lastPosition = transform.position;
             _targetIndex = (int)((uint)seed % (uint)RouteOffsets.Length);
+            _configuredRealtime = Time.realtimeSinceStartupAsDouble;
             SubmittedCommandCount = 0;
             WaypointsVisited = 0;
             DistanceTravelled = 0f;
+            SuppressMonsterDamage = true;
             _configured = true;
         }
+
+        private void OnDestroy() => SuppressMonsterDamage = false;
 
         private void Update()
         {
@@ -65,11 +72,15 @@ namespace ProjectGame.HotFix.Gameplay.Benchmarking
             Vector3 direction = delta.sqrMagnitude > 0.000001f
                 ? delta.normalized
                 : Vector3.zero;
+            double fireCycleSeconds = (Time.realtimeSinceStartupAsDouble - _configuredRealtime) % 2d;
+            bool firePulse = fireCycleSeconds < 0.5d;
             var command = new PlayerInputCommand
             {
                 WorldMove = new Vector2(direction.x, direction.z),
-                AimDirection = Vector2.zero,
-                Buttons = PlayerInputButtons.None,
+                AimDirection = new Vector2(direction.x, direction.z),
+                Buttons = firePulse
+                    ? PlayerInputButtons.AimHeld | PlayerInputButtons.FireHeld
+                    : PlayerInputButtons.None,
                 ReloadRequestSequence = 0,
             };
             _syncController.SubmitLocalInput(command);

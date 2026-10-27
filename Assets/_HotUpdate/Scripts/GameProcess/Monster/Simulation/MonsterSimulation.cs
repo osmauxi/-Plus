@@ -19,6 +19,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private int _lastTopologyVersion = -1;
         private int _lastCostVersion = -1;
+        private int _lastTopologyReferenceCostVersion = -1;
         //Source变化触发重建的最小间隔
         private const uint SourceRebuildIntervalTicks = 12;
         //Source变化允许的最大过期时间，超过这个时间就强制重建FlowField
@@ -36,6 +37,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.FlowField.Rebuild.Cost");
         private static readonly ProfilerMarker FlowFieldBuildMarker =
             new("Monster.FlowField.Build");
+        private static readonly ProfilerMarker TopologyReferenceBuildMarker =
+            new("Monster.FlowField.Build.TopologyReference");
         private static readonly ProfilerMarker AcceptSourcesMarker =
             new("Monster.FlowField.Rebuild.AcceptSources");
         private static readonly ProfilerMarker BuildSourcesMarker =
@@ -62,6 +65,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly Transform _roomRoot;
 
         private readonly MultiSourceFlowField _flowField = new();
+        private readonly MultiSourceFlowField _topologyReferenceFlowField = new();
         private readonly List<FlowFieldSource> _flowSources = new(MonsterPlayerTargetBuffer.MaximumCapacity);
         //当前玩家的实际位置
         private readonly Vector2Int[] _currentSourceCells = new Vector2Int[MonsterPlayerTargetBuffer.MaximumCapacity];
@@ -77,6 +81,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private bool _sourcePending;
         private uint _sourceDirtySinceTick;
         private bool _hasFlowField;
+        private bool _hasTopologyReferenceFlowField;
 
         public bool HasFlowField => _hasFlowField;
         public int PendingMeleeAttackCount => _pendingMeleeAttacks.Count;
@@ -190,6 +195,38 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return _flowField.TryGetDebugCell(x, y, out cell);
         }
 
+        public bool TryGetTopologyReferenceFlowFieldDebugCell(
+            int x,
+            int y,
+            out FlowFieldCellDebugData cell)
+        {
+            if (!_hasTopologyReferenceFlowField)
+            {
+                cell = default;
+                return false;
+            }
+
+            return _topologyReferenceFlowField.TryGetDebugCell(x, y, out cell);
+        }
+
+        public bool IsFlowProgressCorrectionCell(int x, int y)
+        {
+            if (!_hasFlowField || !_hasTopologyReferenceFlowField ||
+                !_flowField.TryGet(x, y, out Vector2 densityDirection, out _) ||
+                !_topologyReferenceFlowField.TryGet(
+                    x,
+                    y,
+                    out Vector2 topologyDirection,
+                    out _))
+            {
+                return false;
+            }
+
+            return ShouldUseTopologyReferenceDirection(
+                densityDirection,
+                topologyDirection);
+        }
+
         public Vector2 GetRawSeparation(int slot) => _separation.Get(slot);
 
         public void ExecutePendingMeleeAttacks(MonsterMeleePhysicsResolver resolver)
@@ -224,6 +261,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             bool costChanged =
                 _lastCostVersion != _navigationGrid.CostVersion;
 
+            bool topologyReferenceCostChanged =
+                _lastTopologyReferenceCostVersion !=
+                _navigationGrid.TopologyReferenceCostVersion;
+
             if (sourceChanged)
             {
                 if (!_sourcePending)
@@ -241,7 +282,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (topologyChanged)
             {
                 using (TopologyRebuildMarker.Auto())
-                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick, true);
                 TopologyRebuildCount++;
                 LastRebuildTick = tick;
 
@@ -252,7 +293,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (sourceStructureChanged)
             {
                 using (SourceRebuildMarker.Auto())
-                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick, true);
                 SourceRebuildCount++;
                 LastRebuildTick = tick;
 
@@ -275,7 +316,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 (sourceMovedFarEnough || sourceMaxStaleReached))
             {
                 using (SourceRebuildMarker.Auto())
-                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                    RebuildFlowFieldWithCurrentSources(players.Count, tick, true);
                 SourceRebuildCount++;
                 LastRebuildTick = tick;
 
@@ -288,7 +329,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 MonsterMath.HasReached(tick, _nextCostRebuildTick))
             {
                 using (CostRebuildMarker.Auto())
-                    RebuildFlowFieldWithCurrentSources(players.Count, tick);
+                    RebuildFlowFieldWithCurrentSources(
+                        players.Count,
+                        tick,
+                        sourceChanged || topologyReferenceCostChanged);
                 CostRebuildCount++;
                 LastRebuildTick = tick;
             }
@@ -372,7 +416,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             return changed;
         }
-        private void RebuildFlowFieldWithCurrentSources(int playerCount,uint tick)
+        private void RebuildFlowFieldWithCurrentSources(
+            int playerCount,
+            uint tick,
+            bool rebuildTopologyReference)
         {
             using (AcceptSourcesMarker.Auto())
                 AcceptCurrentSources(playerCount);
@@ -380,7 +427,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             using (BuildSourcesMarker.Auto())
                 BuildAcceptedFlowSources();
 
-            RebuildFlowField(tick);
+            RebuildFlowField(tick, rebuildTopologyReference);
         }
         /// <summary>
         /// FlowField正式承认玩家Cell位置
@@ -416,7 +463,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     i);
             }
         }
-        private void RebuildFlowField(uint tick)
+        private void RebuildFlowField(uint tick, bool rebuildTopologyReference)
         {
             using (FlowFieldBuildMarker.Auto())
             {
@@ -428,8 +475,24 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     _hasFlowField = _flowField.Build(kernelData, _flowSources);
             }
 
+            if (rebuildTopologyReference)
+            {
+                using (TopologyReferenceBuildMarker.Auto())
+                {
+                    NavigationGridKernelData kernelData =
+                        _navigationGrid.GetTopologyReferenceKernelData();
+                    _hasTopologyReferenceFlowField =
+                        _topologyReferenceFlowField.Build(kernelData, _flowSources);
+                }
+            }
+
             _lastTopologyVersion = _navigationGrid.TopologyVersion;
             _lastCostVersion = _navigationGrid.CostVersion;
+            if (rebuildTopologyReference)
+            {
+                _lastTopologyReferenceCostVersion =
+                    _navigationGrid.TopologyReferenceCostVersion;
+            }
 
             _nextSourceRebuildTick =
                 tick + SourceRebuildIntervalTicks;
@@ -508,6 +571,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!_flowField.TryGet(cell.x, cell.y, out Vector2 localDirection, out int sourceIndex))
                 return false;
 
+            if (_hasTopologyReferenceFlowField &&
+                _topologyReferenceFlowField.TryGet(
+                    cell.x,
+                    cell.y,
+                    out Vector2 topologyDirection,
+                    out int topologySourceIndex) &&
+                ShouldUseTopologyReferenceDirection(
+                    localDirection,
+                    topologyDirection))
+            {
+                localDirection = topologyDirection;
+                sourceIndex = topologySourceIndex;
+            }
+
             if ((uint)sourceIndex >= (uint)players.Count)
                 return false;
 
@@ -523,6 +600,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
 
             return true;
+        }
+
+        private static bool ShouldUseTopologyReferenceDirection(
+            Vector2 densityDirection,
+            Vector2 topologyDirection)
+        {
+            return densityDirection.sqrMagnitude > 0.000001f &&
+                   topologyDirection.sqrMagnitude > 0.000001f &&
+                   Vector2.Dot(densityDirection, topologyDirection) <= 0f;
         }
         /// <summary>
         /// 找最近的、同时存在有效Flow数据的Walkable Cell。

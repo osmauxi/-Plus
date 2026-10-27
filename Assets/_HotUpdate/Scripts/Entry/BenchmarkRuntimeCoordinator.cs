@@ -131,6 +131,11 @@ namespace ProjectGame.HotFix.Benchmarking
                     localPlayer.GetComponent<BenchmarkMovementDriver>() ??
                     localPlayer.gameObject.AddComponent<BenchmarkMovementDriver>();
                 movement.Configure(options.RandomSeed + (int)options.Role);
+                BenchmarkFileProtocol.WriteStatus(
+                    options,
+                    "driver-configured",
+                    $"自动移动与射击驱动已启动；Alive={MonsterRuntimeService.Instance.AliveMonsterCount}，" +
+                    $"Slots={MonsterRuntimeService.Instance.MonsterSlotCount}");
 
                 if (options.Role == BenchmarkProcessRole.Host)
                 {

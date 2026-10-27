@@ -768,7 +768,7 @@ namespace ProjectGame.Editor.Benchmarking
                 File.ReadAllText(buildManifestPath));
             var metadata = new BenchmarkRunMetadata
             {
-                schemaVersion = 3,
+                schemaVersion = 4,
                 runId = _runId,
                 createdUtc = DateTime.UtcNow.ToString("O"),
                 unityVersion = Application.unityVersion,
@@ -795,7 +795,7 @@ namespace ProjectGame.Editor.Benchmarking
                 captureProfiler = _settings.CaptureProfiler,
                 frameTimeDefinition = "Time.unscaledDeltaTime（相邻渲染帧间隔）",
                 cacheMode = "isolated-per-player",
-                routeVersion = "square-12m-v1",
+                routeVersion = "square-12m-fire-v3",
             };
             BenchmarkFileProtocol.WriteJsonAtomically(
                 Path.Combine(_runDirectory, "run-metadata.json"),
@@ -916,6 +916,24 @@ namespace ProjectGame.Editor.Benchmarking
         public int movementCommands;
         public int movementWaypoints;
         public float movementDistance;
+        public int spatialBuildCount;
+        public int spatialQueryCount;
+        public long spatialCandidateCount;
+        public long spatialVisitedNodeCount;
+        public double averageSpatialCandidateCount;
+        public int p50SpatialCandidateCount;
+        public int p95SpatialCandidateCount;
+        public int maximumSpatialCandidateCount;
+        public double averageSpatialVisitedNodeCount;
+        public int p50SpatialVisitedNodeCount;
+        public int p95SpatialVisitedNodeCount;
+        public int maximumSpatialVisitedNodeCount;
+        public double averageSpatialCandidateRatio;
+        public double p95SpatialCandidateRatio;
+        public int shotFiredCount;
+        public int projectileSpawnedCount;
+        public double averageActiveProjectileCount;
+        public int maximumActiveProjectileCount;
     }
 
     internal sealed class BenchmarkMarkerDto
@@ -924,6 +942,7 @@ namespace ProjectGame.Editor.Benchmarking
         public long SampleCount;
         public int NonZeroFrames;
         public double TotalMilliseconds;
+        public double P95FrameMilliseconds;
         public double MaximumFrameMilliseconds;
     }
 
@@ -1003,7 +1022,11 @@ namespace ProjectGame.Editor.Benchmarking
             summary.AppendLine($"- 压测配置：怪物 {string.Join(" / ", cases)}，每档 {settings?.RepeatCount ?? 0} 次，Seed `{metadata?.seed.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`，预热 {settings?.WarmupSeconds ?? 0:F1}s，计划采样 {settings?.CaptureSeconds ?? 0:F1}s");
             summary.AppendLine($"- 采样模式：`{metadata?.samplingMode ?? "不可用"}`；完整 Profiler：`{FormatBool(metadata?.captureProfiler == true)}`；缓存：`{metadata?.cacheMode ?? "不可用"}`；路线：`{metadata?.routeVersion ?? "不可用"}`");
             summary.AppendLine($"- “帧时”统计口径：{metadata?.frameTimeDefinition ?? "不可用"}；Main Thread 与 GPU Frame Time 是独立维度，不能相加为总帧耗时。");
-            summary.AppendLine($"- 双端采样对齐口径：开始/结束时间偏差均不超过 {PairAlignmentToleranceMilliseconds:F0} ms（30 秒窗口的 0.33%）。");
+            double captureMilliseconds = (settings?.CaptureSeconds ?? 0f) * 1000d;
+            string alignmentWindowRatio = captureMilliseconds > 0d
+                ? (PairAlignmentToleranceMilliseconds / captureMilliseconds).ToString("P2", CultureInfo.InvariantCulture)
+                : "不可用";
+            summary.AppendLine($"- 双端采样对齐口径：开始/结束时间偏差均不超过 {PairAlignmentToleranceMilliseconds:F0} ms（计划采样窗口的 {alignmentWindowRatio}）。");
             if (metadata?.captureProfiler == true)
                 summary.AppendLine("- 数据质量提示：完整 Profiler 模式的开头 1～2 帧包含二进制采集启动开销；最大帧需结合 `frames.csv` 中的位置以及 Main/GPU 时间判断，P95/P99 不受单个启动帧影响。");
             summary.AppendLine($"- 有效性能样本：{FormatValidRepeatCounts(runDirectory, cases, settings?.RepeatCount ?? 0)}");
@@ -1115,7 +1138,22 @@ namespace ProjectGame.Editor.Benchmarking
             summary.AppendLine();
             summary.AppendLine("移动距离表示采样窗口内角色实际走过的路径长度，不等同于路线完成率；路线版本、命令数和路点数用于判断各重复的负载是否相近。");
             summary.AppendLine();
-            summary.AppendLine("### 3.2 应用层网络速率");
+            summary.AppendLine("### 3.2 四叉树与弹丸宽相");
+            summary.AppendLine();
+            summary.AppendLine("下表只读取 Host 前台轮。候选占比越低，说明四叉树相对全量遍历裁剪掉的怪物越多；访问节点数反映为获得这些候选所付出的树遍历工作量。");
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 重复 | 双端对齐有效 | 射击/弹丸 | 活动弹丸 平均/最大 | Build 次数/Hz | Query 次数/Hz | 候选数 平均/P50/P95/最大 | 候选占比 平均/P95 | 访问节点 平均/P50/P95/最大 |");
+            summary.AppendLine("|---:|---:|---|---:|---:|---:|---:|---|---|---|");
+            AppendSpatialIndexRows(summary, runDirectory, cases, settings?.RepeatCount ?? 0);
+            summary.AppendLine();
+            summary.AppendLine("| 怪物数 | 重复 | 双端对齐有效 | Build 平均每次 / P95单帧 / 最大单帧(ms) | Query 平均每次 / P95单帧 / 最大单帧(ms) | 窄相 平均每次 / P95单帧 / 最大单帧(ms) |");
+            summary.AppendLine("|---:|---:|---|---|---|---|");
+            AppendSpatialMarkerRows(summary, runDirectory, cases, settings?.RepeatCount ?? 0);
+            summary.AppendLine();
+            summary.AppendLine("Build、Query、窄相 Marker 分别衡量重建、树查询和候选精确碰撞检测，不能相加后当作完整帧时；应结合 Query 频率、候选占比及 Main Thread 一起判断。");
+
+            summary.AppendLine();
+            summary.AppendLine("### 3.3 应用层网络速率");
             summary.AppendLine();
             summary.AppendLine("| 怪物数 | 重复 | 角色 | 发送 KiB/s | 接收 KiB/s | 发送消息/s | 接收消息/s | 平均发送/接收 Payload(B) |");
             summary.AppendLine("|---:|---:|---|---:|---:|---:|---:|---|");
@@ -1128,8 +1166,8 @@ namespace ProjectGame.Editor.Benchmarking
             summary.AppendLine();
             summary.AppendLine("以下 Top 5 来自轻量 Marker，按相同档位和角色的重复累计总耗时排序；完整调用树以 `profiler.raw` 为准。");
             summary.AppendLine();
-            summary.AppendLine("| 怪物数 | 角色 | Marker | 总耗时(ms) | 调用样本数 | 平均每次(ms) | 平均每帧(ms) | 最大单帧(ms) |");
-            summary.AppendLine("|---:|---|---|---:|---:|---:|---:|---:|");
+            summary.AppendLine("| 怪物数 | 角色 | Marker | 总耗时(ms) | 调用样本数 | 平均每次(ms) | 平均每帧(ms) | P95单帧(ms) | 最大单帧(ms) |");
+            summary.AppendLine("|---:|---|---|---:|---:|---:|---:|---:|---:|");
             AppendHotspotRows(summary, runDirectory, cases, settings?.RepeatCount ?? 0);
             summary.AppendLine();
             summary.AppendLine($"基线判断：{baselineCompatibility}。不兼容或缺失时不对小幅变化作提升/退化结论。");
@@ -1294,6 +1332,79 @@ namespace ProjectGame.Editor.Benchmarking
         private static double AveragePayload(long bytes, long messages) =>
             messages > 0L ? (double)bytes / messages : 0d;
 
+        private static void AppendSpatialIndexRows(
+            StringBuilder summary,
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount)
+        {
+            foreach (int monsterCount in cases)
+            {
+                for (int repeat = 1; repeat <= repeatCount; repeat++)
+                {
+                    BenchmarkMetricsDto metrics = ReadMeasuredMetrics(runDirectory, monsterCount, repeat, "host");
+                    if (metrics == null)
+                        continue;
+                    summary.AppendLine(
+                        $"| {monsterCount} | {repeat} | {FormatBool(IsMeasuredPairValid(runDirectory, monsterCount, repeat, "host"))} | " +
+                        $"{metrics.shotFiredCount}/{metrics.projectileSpawnedCount} | " +
+                        $"{metrics.averageActiveProjectileCount:F2}/{metrics.maximumActiveProjectileCount} | " +
+                        $"{metrics.spatialBuildCount}/{Rate(metrics.spatialBuildCount, metrics.actualDurationSeconds):F2} | " +
+                        $"{metrics.spatialQueryCount}/{Rate(metrics.spatialQueryCount, metrics.actualDurationSeconds):F2} | " +
+                        $"{metrics.averageSpatialCandidateCount:F2}/{metrics.p50SpatialCandidateCount}/{metrics.p95SpatialCandidateCount}/{metrics.maximumSpatialCandidateCount} | " +
+                        $"{metrics.averageSpatialCandidateRatio:P2}/{metrics.p95SpatialCandidateRatio:P2} | " +
+                        $"{metrics.averageSpatialVisitedNodeCount:F2}/{metrics.p50SpatialVisitedNodeCount}/{metrics.p95SpatialVisitedNodeCount}/{metrics.maximumSpatialVisitedNodeCount} |");
+                }
+            }
+        }
+
+        private static void AppendSpatialMarkerRows(
+            StringBuilder summary,
+            string runDirectory,
+            IReadOnlyList<int> cases,
+            int repeatCount)
+        {
+            foreach (int monsterCount in cases)
+            {
+                for (int repeat = 1; repeat <= repeatCount; repeat++)
+                {
+                    Dictionary<string, BenchmarkMarkerDto> markers = ReadMeasuredMarkers(
+                        runDirectory,
+                        monsterCount,
+                        repeat,
+                        "host").ToDictionary(marker => marker.Name, StringComparer.Ordinal);
+                    summary.AppendLine(
+                        $"| {monsterCount} | {repeat} | {FormatBool(IsMeasuredPairValid(runDirectory, monsterCount, repeat, "host"))} | " +
+                        $"{FormatSpatialMarker(markers, "Monster.SpatialIndex.Build")} | " +
+                        $"{FormatSpatialMarker(markers, "Monster.SpatialIndex.Query")} | " +
+                        $"{FormatSpatialMarker(markers, "Weapon.Projectile.MonsterNarrowPhase")} |");
+                }
+            }
+        }
+
+        private static string FormatSpatialMarker(
+            IReadOnlyDictionary<string, BenchmarkMarkerDto> markers,
+            string name)
+        {
+            if (!markers.TryGetValue(name, out BenchmarkMarkerDto marker) || marker.SampleCount == 0)
+                return "Unavailable";
+            return $"{marker.TotalMilliseconds / marker.SampleCount:F4} / " +
+                   $"{marker.P95FrameMilliseconds:F4} / {marker.MaximumFrameMilliseconds:F4}";
+        }
+
+        private static IEnumerable<BenchmarkMarkerDto> ReadMeasuredMarkers(
+            string runDirectory,
+            int monsterCount,
+            int repeat,
+            string role) =>
+            ReadMarkers(Path.Combine(
+                runDirectory,
+                $"monsters-{monsterCount}",
+                $"repeat-{repeat:D2}",
+                $"focus-{role}",
+                role,
+                "markers.csv"));
+
         private static void AppendHotspotRows(
             StringBuilder summary,
             string runDirectory,
@@ -1309,7 +1420,7 @@ namespace ProjectGame.Editor.Benchmarking
                     for (int repeat = 1; repeat <= repeatCount; repeat++)
                     {
                         BenchmarkMetricsDto metrics = ReadMeasuredMetrics(runDirectory, monsterCount, repeat, role);
-                        if (metrics == null)
+                        if (metrics == null || !IsMeasuredPairValid(runDirectory, monsterCount, repeat, role))
                             continue;
                         totalFrames += metrics.sampleCount;
                         string path = Path.Combine(
@@ -1329,6 +1440,9 @@ namespace ProjectGame.Editor.Benchmarking
                             current.SampleCount += marker.SampleCount;
                             current.NonZeroFrames += marker.NonZeroFrames;
                             current.TotalMilliseconds += marker.TotalMilliseconds;
+                            current.P95FrameMilliseconds = Math.Max(
+                                current.P95FrameMilliseconds,
+                                marker.P95FrameMilliseconds);
                             current.MaximumFrameMilliseconds = Math.Max(
                                 current.MaximumFrameMilliseconds,
                                 marker.MaximumFrameMilliseconds);
@@ -1345,6 +1459,7 @@ namespace ProjectGame.Editor.Benchmarking
                             $"{marker.TotalMilliseconds:F3} | {marker.SampleCount} | " +
                             $"{(marker.SampleCount > 0 ? marker.TotalMilliseconds / marker.SampleCount : 0d):F3} | " +
                             $"{(totalFrames > 0 ? marker.TotalMilliseconds / totalFrames : 0d):F3} | " +
+                            $"{marker.P95FrameMilliseconds:F3} | " +
                             $"{marker.MaximumFrameMilliseconds:F3} |");
                     }
                 }
@@ -1362,7 +1477,7 @@ namespace ProjectGame.Editor.Benchmarking
                     continue;
                 string name = line.Substring(1, nameEnd - 1).Replace("\"\"", "\"");
                 string[] values = line.Substring(nameEnd + 2).Split(',');
-                if (values.Length < 7 || !bool.TryParse(values[0], out bool available) || !available)
+                if (values.Length < 8 || !bool.TryParse(values[0], out bool available) || !available)
                     continue;
                 yield return new BenchmarkMarkerDto
                 {
@@ -1370,9 +1485,29 @@ namespace ProjectGame.Editor.Benchmarking
                     SampleCount = long.Parse(values[1], CultureInfo.InvariantCulture),
                     NonZeroFrames = int.Parse(values[2], CultureInfo.InvariantCulture),
                     TotalMilliseconds = double.Parse(values[3], CultureInfo.InvariantCulture),
-                    MaximumFrameMilliseconds = double.Parse(values[6], CultureInfo.InvariantCulture),
+                    P95FrameMilliseconds = double.Parse(values[6], CultureInfo.InvariantCulture),
+                    MaximumFrameMilliseconds = double.Parse(values[7], CultureInfo.InvariantCulture),
                 };
             }
+        }
+
+        private static bool IsMeasuredPairValid(
+            string runDirectory,
+            int monsterCount,
+            int repeat,
+            string role)
+        {
+            string passDirectory = Path.Combine(
+                runDirectory,
+                $"monsters-{monsterCount}",
+                $"repeat-{repeat:D2}",
+                $"focus-{role}");
+            BenchmarkMetricsDto host = ReadMetrics(Path.Combine(passDirectory, "host", "metrics.json"));
+            BenchmarkMetricsDto client = ReadMetrics(Path.Combine(passDirectory, "client", "metrics.json"));
+            return host?.workloadValid == true &&
+                   client?.workloadValid == true &&
+                   CalculateStartSkewMilliseconds(host, client) <= PairAlignmentToleranceMilliseconds &&
+                   CalculateStopSkewMilliseconds(host, client) <= PairAlignmentToleranceMilliseconds;
         }
 
         private static void AppendEvidenceLinks(

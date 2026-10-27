@@ -337,6 +337,21 @@ AOT 与 HotUpdate 旧实现分别执行同一组 Query：
 
 若内核没有反射入口且 IL2CPP 已确认保留，可以不依赖 link.xml 作为唯一保障，但仍应以最终符号和 Player 冒烟结果为准。
 
+### 8.1 实际产物核验（2026-10-28）
+
+本轮已经完成完整的 HybridCLR、Addressables 和 Development IL2CPP Player 构建，并使用最终 Player 完成双端压测：
+
+- Unity `2022.3.44f1c1`，`StandaloneWindows64` Development Build；
+- `AOT_Core.cpp` 中已生成 `MonsterQuadTreeKernel.Build`、`Add`、`Remove`、`Relocate` 和 `QuerySweptCircle` 原生符号；
+- `Assets/HybridCLRGenerate/link.xml` 已保留 `MonsterQuadTreeKernel` 和 `MonsterQuadTreeNodeData`；
+- `GameAssembly.dll` SHA-256：`2A42DA2DC04235512EFE6A8711BA3B16E0F9655D5E4D7472E2D6AC844F57CFEB`；
+- `global-metadata.dat` SHA-256：`7B59E85779572B3FFB951C68CC34D85DB0BB43108D2000DAFC9442EF8E962DAB`；
+- Catalog 指纹：`69ce53a68b210a6e796f7fd7e50920c1`；
+- Editor 一致性验证再次通过，覆盖空树、5012 固定随机数据、稀疏 Slot、边界与越界、16/17 分裂阈值、最大深度以及 Add/Remove/Relocate；
+- Unity 当前编译错误为 0，最终 Player 的 Host/Client 18 轮均正常启动和结束。
+
+`_plus.exe` 的 SHA-256 仍为 `C78C8067850AEA9F5ACA5D0CDC9201E5CE24E22C176B4C2F515982C8E8C5B322`。这是 Unity Player 壳文件未变化，不代表原生游戏代码未更新；本轮以 `GameAssembly.dll`、IL2CPP 原生符号、Catalog 和运行结果共同识别 AOT 构建。
+
 ## 9. A/B 量化和通过条件
 
 ### A0：当前 HotUpdate 基线
@@ -388,6 +403,65 @@ AOT 与 HotUpdate 旧实现分别执行同一组 Query：
 - 以 A0 平均值换算，A1 Build `≤ 2.95 ms` 为超过 50% 收益，`≥ 4.73 ms` 为不足 20% 收益；
 - Build 下降明显但 Host 仍个位数 FPS：下一优先级转向 EntityTick、Tick 补跑和其它线性系统；
 - Query 已在 0.01 ms 量级：不因为 Query 小幅变化替换查询算法。
+
+#### A1 冻结结果（2026-10-28）
+
+- AOT 适配器源码提交：`157d818`；
+- 压测 RunId：`20261027-161455-47937465`；
+- 对照 RunId：`20261027-130023-32cb3592`；
+- 两轮均使用 `dual-pass-foreground-v1`、Seed `12345`、路线 `square-12m-fire-v3`、5 秒预热、30 秒采样、每档 3 次，不保存完整 Profiler；
+- 1024 / 2048 / 5012 的 Host、Client 均为 3/3 有效，采样期间前台占比均为 100%；
+- 5012 档两轮均为 5012 个 Host 存活怪物、5012 个 Client Replica 和 5012 个激活 View。
+
+自动汇总将两轮标记为“Catalog 指纹不兼容”：A0 为 `f54c125628c921e992e790a03ea65a5b`，A1 为 `69ce53a68b210a6e796f7fd7e50920c1`。本次 Catalog 变化来自 AOT/HotFix DLL 与 Player 的预期重建，因此不能要求待比较的两个版本具有相同 Catalog；手工 A/B 仍以相同运行配置、工作负载和明确的构建身份进行。A1 的 `run-metadata.json` 同时记录了 `gitDirty=true`，原因是采样时生成后的 DLL 与链接文件尚未提交。它不影响本轮直接 Marker 的算法结论，但降低了作为长期自动回归基线的可复现等级。
+
+##### 四叉树直接 Marker
+
+以下平均值按三次 Host 前台轮的 Marker 样本数加权，Build 包含 HotFix 输入缓冲写入和 AOT 内核执行，不把跨程序集适配成本移到 Marker 外。
+
+| 怪物数 | Build A0 (ms/次) | Build A1 (ms/次) | Build 变化 | Query A0 (ms/次) | Query A1 (ms/次) | Query 变化 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1024 | 1.3622 | 0.1028 | -92.5%，13.25 倍 | 0.00757 | 0.00074 | -90.2%，10.20 倍 |
+| 2048 | 2.7757 | 0.2070 | -92.5%，13.41 倍 | 0.00749 | 0.00082 | -89.1%，9.16 倍 |
+| 5012 | 5.9101 | 0.4947 | -91.6%，11.95 倍 | 0.00685 | 0.00083 | -87.9%，8.25 倍 |
+
+5012 档的 Build 三次分别从 `5.726 / 6.365 / 5.636 ms` 变为 `0.495 / 0.494 / 0.495 ms`。A1 的 Build P95 单帧为 `0.538 / 0.539 / 0.546 ms`，A0 为 `6.229 / 7.711 / 5.815 ms`。结果不仅大幅下降，而且三次重复之间非常稳定。
+
+| 5012 工作负载/结构指标 | A0 | A1 | 变化与判断 |
+|---|---:|---:|---|
+| Build 频率 | 28.54 Hz | 27.80 Hz | -2.6%，属于采样工作量小幅波动 |
+| Query 频率 | 188.83 Hz | 184.15 Hz | -2.5%，负载近似一致 |
+| Host 移动距离，三次平均 | 304.98 m | 306.81 m | +0.6%，路线负载一致 |
+| 射击次数，三次合计 | 383 | 397 | +3.7%，A1 并未降低武器压力 |
+| 每次 Query 访问节点 | 17.84 | 17.92 | +0.4%，树结构和遍历规模稳定 |
+| 每次 Query 候选数 | 0.89 | 0.52 | 绝对值都低于 1；受射击相位和位置影响，不作为加速证据 |
+
+候选数没有要求跨独立运行逐次相等；正确性由固定输入的一致性验证负责。运行时访问节点数几乎不变，并且 Build/Query 次数、路线和射击压力接近，说明这次收益不是通过降低四叉树工作量获得。
+
+##### 5012 整体性能
+
+| 指标 | A0 | A1 | 变化 |
+|---|---:|---:|---:|
+| Host 帧间隔，全部帧加权 | 17.117 ms | 10.617 ms | -38.0% |
+| Host Main Thread，全部帧加权 | 17.055 ms | 10.578 ms | -38.0% |
+| Host 帧间隔，三次原始均值 | 15.189 / 23.687 / 14.872 ms | 10.555 / 10.774 / 10.524 ms | A1 波动显著收敛 |
+| Host Main Thread P95，三次平均 | 33.69 ms | 25.54 ms | -24.2% |
+| `Monster.Simulation.EntityTick` | 10.673 ms/次 | 9.945 ms/次 | -6.8% |
+| `Monster.Simulation.SeparationBuild` | 1.193 ms/次 | 1.068 ms/次 | -10.5%，不视为 AOT 直接收益 |
+| Host GPU Frame Time | 2.682 ms | 2.537 ms | -5.4%，不是本次 CPU 迁移目标 |
+| Host GC Alloc，按帧加权 | 1827 B/帧 | 1669 B/帧 | -8.7%，没有新增分配回归 |
+| Client 帧间隔，全部帧加权 | 8.197 ms | 8.224 ms | +0.3%，5012 Client 基本不变 |
+
+A0 的第二次 Host 轮为 `23.687 ms`，明显慢于另外两次，因此不能把整帧 `-38.0%` 全部解释为 AOT 的确定收益。即使使用三次中位重复比较，Host 平均帧间隔也从 `15.189 ms` 降到 `10.555 ms`，下降 `30.5%`。直接 Build Marker 的 `-91.6%`、三次重复稳定性以及所有怪物档位一致的缩放趋势，是本次迁移最可靠的证据。
+
+##### 评估结论
+
+1. **AOT 迁移通过。** 5012 Build 为 `0.4947 ms/次`，明显低于 `2.95 ms` 的“收益超过 50%”门槛；实际下降 `91.6%`。四叉树应保留在 `AOT_Core`，不回退到 HotFix 解释执行。
+2. **正确性与运行负载通过。** 固定数据 parity 为 0 差异，Player 双端 18 轮完成；访问节点、Build/Query 频率和路线负载没有系统性下降。
+3. **Query 不再是优化对象。** A1 Query 只有约 `0.00083 ms/次`，继续优化四叉树查询不会形成可见整帧收益。
+4. **Build 已退出主要热点。** 5012 A1 的主要 Marker 已转为 EntityTick `9.945 ms/次`、Presentation Capture `1.864 ms/次`、Presentation Apply `1.392 ms/次` 和 Separation Build `1.068 ms/次`；四叉树 Build 只剩约 `0.495 ms/次`。
+5. **可以进入统一空间快照阶段。** 本轮足以作为《怪物统一空间快照执行方案》的 S0 性能参考；下一阶段应合并 Density 与 Separation 的重复全量采集，而不是继续改四叉树算法或立即替换为 Grid。
+6. **长期回归基线仍应补强。** 在生成物提交后，建议补一轮干净工作区确认样本；同时调整自动兼容判断，使 Catalog/构建指纹用于识别版本而不是要求 A/B 两轮完全相同。当前 A1 可用于架构决策，但自动报表不应把它误称为“相同构建回归”。
 
 ## 10. 回滚和交付物
 

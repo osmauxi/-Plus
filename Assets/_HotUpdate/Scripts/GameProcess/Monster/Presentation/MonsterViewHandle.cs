@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
-    /// <summary>池化怪物表现句柄；向房间级 VAT 渲染提供共享资源配置。</summary>
+    /// <summary>池化怪物表现资源句柄；不再承载命中 Collider 或运行时 Pose。</summary>
     [DisallowMultipleComponent]
     public sealed class MonsterViewHandle : MonoBehaviour, IMonsterViewHandle, IPoolable
     {
@@ -47,13 +47,5 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void OnReturnToPool() => Slot = -1;
 
-        public void SetPose(Vector2 position, float yaw)
-        {
-            Transform viewTransform = transform;
-            Vector3 worldPosition = viewTransform.position;
-            worldPosition.x = position.x;
-            worldPosition.z = position.y;
-            viewTransform.SetPositionAndRotation(worldPosition, Quaternion.Euler(0f, yaw, 0f));
-        }
     }
 }

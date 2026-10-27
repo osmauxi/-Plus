@@ -15,7 +15,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         private readonly MonsterRuntimeCatalog _configs;
         private readonly MonsterAttackCatalog _attackProfiles;
-        private readonly MonsterMeleePhysicsResolver _melee = new();
+        private readonly List<MonsterMeleeAttackRequest> _pendingMeleeAttacks = new(64);
 
         private int _lastTopologyVersion = -1;
         private int _lastCostVersion = -1;
@@ -79,6 +79,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private bool _hasFlowField;
 
         public bool HasFlowField => _hasFlowField;
+        public int PendingMeleeAttackCount => _pendingMeleeAttacks.Count;
         public int TopologyRebuildCount { get; private set; }
         public int SourceRebuildCount { get; private set; }
         public int CostRebuildCount { get; private set; }
@@ -113,6 +114,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void Tick(MonsterWorld world, MonsterPlayerTargetBuffer players, uint tick,
             float deltaTime, float groundY)
         {
+            _pendingMeleeAttacks.Clear();
+
             using (DensityUpdateMarker.Auto())
                 _densitySystem.Update(world, _navigationGrid, tick, groundY);
 
@@ -188,6 +191,21 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public Vector2 GetRawSeparation(int slot) => _separation.Get(slot);
+
+        public void ExecutePendingMeleeAttacks(MonsterMeleePhysicsResolver resolver)
+        {
+            if (resolver == null)
+                throw new ArgumentNullException(nameof(resolver));
+
+            for (int i = 0; i < _pendingMeleeAttacks.Count; i++)
+            {
+                MonsterMeleeAttackRequest request = _pendingMeleeAttacks[i];
+                resolver.Execute(request.Origin, request.Direction, request.Profile, request.Damage);
+            }
+
+            _pendingMeleeAttacks.Clear();
+        }
+
         /// <summary>
         /// 地块重建入口，每次Tick都会检查是否需要重建FlowField
         /// </summary>
@@ -744,8 +762,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
                 Vector3 root = new Vector3(motion.Position.x, groundY, motion.Position.y);
                 ref readonly MonsterAttackProfile profile = ref _attackProfiles.Get(config.AttackProfileIndex);
-                _melee.Execute(root + rotation * profile.OriginOffset,
-                    rotation * Vector3.forward, profile, config.AttackDamage);
+                _pendingMeleeAttacks.Add(new MonsterMeleeAttackRequest(
+                    root + rotation * profile.OriginOffset,
+                    rotation * Vector3.forward,
+                    profile,
+                    config.AttackDamage));
                 attack.Phase = MonsterAttackPhase.Recovery;
                 attack.PhaseEndTick = tick + config.RecoveryTicks;
             }

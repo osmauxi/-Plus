@@ -36,8 +36,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterSpatialIndex
     {
+        /// <summary>
+        /// 基础四叉树深度，共256个叶子节点
+        /// </summary>
         public const int BaseDepth = 4;
+        /// <summary>
+        /// 最大四叉树深度，根据节点怪物数量考虑继续细分，但不会超过最大深度
+        /// </summary>
         public const int MaxDepth = 6;
+        /// <summary>
+        /// 触发节点细分的最低怪物数量，单节点超过此数量开始考虑细分
+        /// </summary>
         public const int SplitThreshold = 16;
 
         private const int Unlinked = -1;
@@ -50,23 +59,53 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private struct Node
         {
+            /// <summary>
+            /// 当前节点区域划分的中心点
+            /// </summary>
             public Vector2 Center;
+            /// <summary>
+            /// 当前节点区域划分的半边长
+            /// </summary>
             public float HalfSize;
+            /// <summary>
+            /// 当前节点的第一个子节点索引，
+            /// 若为负数则表示当前节点为叶节点
+            /// </summary>
             public int FirstChild;
+            /// <summary>
+            /// 当前节点的第一个怪物槽位索引
+            /// 若为负数则表示当前节点没有怪物槽位
+            /// </summary>
             public int HeadSlot;
+            /// <summary>
+            /// 当前节点的怪物数量
+            /// </summary>
             public int Count;
+            /// <summary>
+            /// 当前节点的深度
+            /// </summary>
             public byte Depth;
+            /// <summary>
+            /// 当前节点的Morton编码，用于快速定位节点
+            /// </summary>
             public uint MortonCode;
         }
 
         private readonly Vector2 _rootCenter;
         private readonly float _rootHalfSize;
 
+        //一整块连续的节点存储空间，四个叶子在数组里连续分布，顺序为左下、右下、左上、右上
+        //node中FirstChild为1，则其子节点索引为1、2、3、4，分别对应左下、右下、左上、右上
         private Node[] _nodes;
         private int[] _queryStack;
+        //跟separation部分类似的索引链表
+        //每个slot对应一个链表节点，链表节点存储在数组中，使用索引表示链表关系
         private int[] _nextSlot;
+        //跟_nextSlot实现双向链表，删除操作直接取得前驱和后继，O(1)删除
         private int[] _previousSlot;
+        //每个slot对应一个叶节点索引，表示该slot所在的叶节点
         private int[] _leafBySlot;
+        //当前已经创建了多少个有效节点
         private int _nodeCount;
         private int _overflowHead = Unlinked;
         private bool _isBuilt;
@@ -88,7 +127,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             CalculateWorldBounds(roomRoot, roomHalfSize, out Vector2 min, out Vector2 max);
             _rootCenter = (min + max) * 0.5f;
             _rootHalfSize = Mathf.Max(max.x - min.x, max.y - min.y) * 0.5f;
-
+            //算出当前深度支持的最大节点数量，预分配数组空间，避免运行时频繁扩容
             int maximumNodeCount = FullTreeNodeCount(MaxDepth);
             _nodes = new Node[maximumNodeCount];
             _queryStack = new int[maximumNodeCount];
@@ -319,6 +358,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             ref Node node = ref _nodes[nodeIndex];
             float childHalfSize = node.HalfSize * 0.5f;
+            //拿节点数量作为子节点的起始索引，创建四个子节点
             int firstChild = _nodeCount;
             byte childDepth = (byte)(node.Depth + 1);
             uint childMorton = node.MortonCode << 2;

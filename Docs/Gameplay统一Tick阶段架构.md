@@ -15,6 +15,8 @@
 | `PreSimulation` | 在权威模拟前更新动态地图状态；当前为巡逻墙 |
 | `ActorSimulation` | 玩家权威模拟、Owner 预测，以及由玩家射击确认产生的弹丸 |
 | `WorldSimulation` | 怪物 AI、寻路与移动，并把怪物空间索引标脏 |
+| `PhysicsSync` | 所有 Actor/World Transform 更新完成后，统一提交 Unity Physics 场景 |
+| `MeleeCombat` | 结算 WorldSimulation 产生的怪物近战请求 |
 | `CombatSimulation` | 弹丸移动、空间查询、伤害、持续伤害区和武器特殊效果 |
 | `PostSimulation` | 房间归属、集合与战斗流程等结算 |
 | `Replication` | 捕获并发送本 Tick 最终状态；Host 表现也在这里刷新 |
@@ -40,10 +42,16 @@ GameplayNetworkTickDriver.Update
         -> MonsterRuntimeService.TickAuthoritySimulation
            -> MonsterRoomRuntime.Tick
               -> MonsterSimulation.Tick
+                  -> 记录 MonsterMeleeAttackRequest
               -> MonsterSpatialIndex.Invalidate
+     -> PhysicsSync
+        -> WeaponRuntimeService.SyncPhysicsTransforms
+     -> MeleeCombat
+        -> MonsterRuntimeService.ResolveAuthorityCombat
+           -> MonsterRoomRuntime.ResolveCombat
+              -> MonsterMeleePhysicsResolver
      -> CombatSimulation
         -> WeaponRuntimeService.TickCombat
-           -> Physics.SyncTransforms
            -> ProjectileSimulation.Tick
               -> MonsterSpatialIndex.QuerySweptCircle
               -> MonsterRuntimeService.DamageMonster
@@ -52,14 +60,14 @@ GameplayNetworkTickDriver.Update
         -> RoomFlowController.HandleTickCompleted
      -> Replication
         -> MonsterRuntimeService.PublishAuthorityState
-           -> AuthorityTickCompleted（Host 怪物表现）
-           -> CaptureFrame / SendPresentation（按发送间隔）
+            -> CaptureFrame / SendPresentation（按发送间隔）
+            -> Host 按 PresentationFrame 应用怪物表现
         -> WeaponPresentationService.FlushServerFrame
      -> Completed
         -> 仅兼容旧 TickCompleted 订阅
 ```
 
-关键保证是 `Actor -> World -> Combat -> Replication`。同 Tick 确认的射击可以在 Combat 阶段推进；弹丸造成的死亡、击退与状态变化会在随后 Replication 阶段进入怪物最终状态和表现帧。
+关键保证是 `Actor -> World -> PhysicsSync -> MeleeCombat -> Combat -> Replication`。同 Tick 确认的射击可以在 Combat 阶段推进；弹丸造成的死亡、击退与状态变化会在随后 Replication 阶段进入怪物最终状态和表现帧。怪物近战不再在 WorldSimulation 中直接访问 Unity Physics 或修改玩家生命。
 
 ## 4. 订阅规则
 
@@ -76,6 +84,8 @@ GameplayNetworkTickDriver.Update
 - `Gameplay.TickClock.PreSimulation`
 - `Gameplay.TickClock.ActorSimulation`
 - `Gameplay.TickClock.WorldSimulation`
+- `Gameplay.TickClock.PhysicsSync`
+- `Gameplay.TickClock.MeleeCombat`
 - `Gameplay.TickClock.CombatSimulation`
 - `Gameplay.TickClock.PostSimulation`
 - `Gameplay.TickClock.Replication`
@@ -102,4 +112,11 @@ GameplayNetworkTickDriver.Update
 2. 移除怪物 GameObject 只替换 `Replication` 后的表现生命周期，不改变权威模拟顺序。
 3. 怪物网络内/中/外层同步在 `Replication` 中决定接收者、频率与群组编码；四叉树可提供空间候选和群组输入，但同步层级不能只由叶节点深度决定。
 4. 怪物寻路重建继续属于 `WorldSimulation`，可独立量化并优化，不向时钟层增加专用分支。
+
+## 8. 2026-10-27 架构对齐修正
+
+- 新增 `PhysicsSync` 与 `MeleeCombat` 阶段。`Physics.SyncTransforms()` 从 Weapon 的 Combat 热路径移到明确的阶段订阅中，当前仍由 Weapon 服务注册，但其职责已限定为提交动态 WorldMask 碰撞体。
+- `MonsterSimulation` 只在 `WorldSimulation` 记录近战请求；`MonsterMeleePhysicsResolver` 在 `MeleeCombat`、Physics 同步之后执行，避免 WorldSimulation 使用未同步的 Unity Physics 场景。
+- `MonsterViewHandle` 不再暴露或写入运行时 Pose。怪物命中已经走 `MonsterWorld + MonsterSpatialIndex`，表现层只更新 VAT 状态；后续可继续移除每怪 GameObject。
+- Weapon 的范围伤害与连锁闪电已通过 `MonsterRuntimeService.QueryMonsterCircleCandidates` 进入房间空间索引入口，先消除业务层直接遍历全部 Slot 的分叉路径。四叉树实现暂不替换，固定网格统一快照作为后续评估方向。
 

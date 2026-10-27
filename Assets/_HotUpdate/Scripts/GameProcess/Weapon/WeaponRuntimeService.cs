@@ -95,6 +95,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly List<DamageAreaState> _damageAreas = new();
         private readonly Dictionary<ulong, Dictionary<ushort, float>> _shieldCapacities = new();
         private readonly List<int> _effectTargets = new(64);
+        private int[] _monsterQueryBuffer = Array.Empty<int>();
         private readonly HashSet<int> _lightningVisited = new();
         private readonly List<LightningNode> _lightningNodes = new(16);
         private WeaponStatModifierCalculator _effectCalculator;
@@ -190,6 +191,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 _specialEffects);
             _simulation.Impact += HandleImpact;
             _simulation.Removed += HandleRemoved;
+            _network.Clock.Subscribe(GameplayTickPhase.PhysicsSync, SyncPhysicsTransforms);
             _network.Clock.Subscribe(GameplayTickPhase.CombatSimulation, TickCombat);
             Instance = this;
             IsInitialized = true;
@@ -477,11 +479,19 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             if (!_network.Transport.IsServer) 
                 return;
             _currentTick = tick;
-            //强行更新玩家本Tick的移动，再进行子弹Tick
-            Physics.SyncTransforms();
             _simulation.Tick(_network.Clock.TickDeltaTime);
             TickStormClouds(_network.Clock.TickDeltaTime);
             TickDamageAreas(_network.Clock.TickDeltaTime);
+        }
+
+        /// <summary>
+        /// 在所有 Actor/World Transform 更新完成后，统一提交本 Tick 的 Unity Physics 场景。
+        /// 当前主要服务动态墙等 WorldMask 碰撞体；怪物命中不依赖 Collider。
+        /// </summary>
+        private void SyncPhysicsTransforms(uint tick)
+        {
+            if (_network.Transport.IsServer)
+                Physics.SyncTransforms();
         }
 
         private static int ToMonsterSlot(ulong entityId) =>
@@ -521,15 +531,42 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             return false;
         }
 
-        private static void CollectMonsters(MonsterRuntimeService monsters, Vector3 position,
+        private void CollectMonsters(MonsterRuntimeService monsters, Vector3 position,
             float radius, List<int> results)
         {
             results.Clear();
+            int candidateCount = QueryMonsterCircleCandidates(monsters, position, radius);
             float radiusSqr = radius * radius;
-            for (int slot = 0; slot < monsters.MonsterSlotCount; slot++)
+            for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
+            {
+                int slot = _monsterQueryBuffer[candidateIndex];
                 if (monsters.TryGetMonsterPosition(slot, out Vector3 monsterPosition) &&
                     (monsterPosition - position).sqrMagnitude <= radiusSqr)
                     results.Add(slot);
+            }
+        }
+
+        private int QueryMonsterCircleCandidates(
+            MonsterRuntimeService monsters,
+            Vector3 position,
+            float radius)
+        {
+            EnsureMonsterQueryCapacity(monsters.MonsterSlotCount);
+            return monsters.QueryMonsterCircleCandidates(
+                new Vector2(position.x, position.z),
+                radius,
+                _monsterQueryBuffer);
+        }
+
+        private void EnsureMonsterQueryCapacity(int slotCount)
+        {
+            if (_monsterQueryBuffer.Length >= slotCount)
+                return;
+
+            int capacity = Math.Max(
+                slotCount,
+                _monsterQueryBuffer.Length == 0 ? 64 : _monsterQueryBuffer.Length * 2);
+            Array.Resize(ref _monsterQueryBuffer, capacity);
         }
 
         private void ApplyLightning(MonsterRuntimeService monsters, int targetSlot,
@@ -560,8 +597,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     int nearestSlot = -1;
                     float nearestDistance = radiusSqr;
                     Vector3 nearestPosition = default;
-                    for (int slot = 0; slot < monsters.MonsterSlotCount; slot++)
+                    int candidateCount = QueryMonsterCircleCandidates(
+                        monsters, node.Position, searchRadius);
+                    for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
                     {
+                        int slot = _monsterQueryBuffer[candidateIndex];
                         if (_lightningVisited.Contains(slot) ||
                             !monsters.TryGetMonsterPosition(slot, out Vector3 candidatePosition))
                             continue;
@@ -678,8 +718,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public UniTask ShutdownAsync(CancellationToken cancellationToken)
         {
             _specialEffects?.ClearOwners();
-            if (_network != null) 
+            if (_network != null)
+            {
+                _network.Clock.Unsubscribe(GameplayTickPhase.PhysicsSync, SyncPhysicsTransforms);
                 _network.Clock.Unsubscribe(GameplayTickPhase.CombatSimulation, TickCombat);
+            }
             if (_simulation != null) 
             { 
                 _simulation.Impact -= HandleImpact;

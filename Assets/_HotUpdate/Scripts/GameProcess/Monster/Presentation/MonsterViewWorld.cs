@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
-using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
-    /// <summary>Monster 表现句柄；只接收已经插值的 Pose 和一次性动画脉冲。</summary>
+    /// <summary>Monster 表现句柄；只承载池化实例和渲染资源，不参与权威 Pose 写入。</summary>
     public interface IMonsterViewHandle
     {
         GameObject Instance { get; }
         MonsterVATRenderProfile RenderProfile { get; }
         void BindSlot(int slot);
-        void SetPose(Vector2 position, float yaw);
     }
 
     public interface IMonsterViewPool
@@ -26,9 +24,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterViewWorld : IDisposable
     {
-        private static readonly ProfilerMarker ApplyAuthorityMarker =
-            new ProfilerMarker("Monster.View.ApplyAuthority");
-
         private readonly IMonsterViewPool _pool;
         private readonly MonsterViewCatalog _catalog;
         private readonly MonsterPoseQuantizer _quantizer;
@@ -78,7 +73,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     view.BindSlot(slot);
                     _quantizer.Unpack(batch.Items[created].PackedPose, out Vector2 position, out float yaw);
                     _vatWorld.Spawn(slot, view.RenderProfile, position, yaw);
-                    view.SetPose(position, yaw);
                     _attackSequence[slot] = 0;
                     _hitSequence[slot] = 0;
                     ActiveViewCount++;
@@ -118,26 +112,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     throw new InvalidOperationException($"Monster Replica 缺少 Slot={slot}。");            
                 ApplyState(slot, state.IsActive, state.Position, state.Yaw,
                     state.AttackSequence, state.HitSequence);
-            }
-        }
-
-        /// <summary>权威端每 Tick 直接同步 View，确保随后执行的子弹物理使用当前碰撞体位置。</summary>
-        public void ApplyAuthority(MonsterWorld world)
-        {
-            EnsureUsable();
-            if (world == null)
-                throw new ArgumentNullException(nameof(world));
-            if (world.SlotCount != SlotCount)
-                throw new InvalidOperationException(
-                    $"Monster View/Authority SlotCount 不一致：View={SlotCount}, Authority={world.SlotCount}。");
-
-            using var applyAuthorityScope = ApplyAuthorityMarker.Auto();
-            for (int slot = 0; slot < SlotCount; slot++)
-            {
-                MonsterMotionData motion = world.Motion[slot];
-                ApplyState(slot, world.Meta[slot].IsActive, motion.Position, motion.Yaw,
-                    world.Presentation[slot].AttackSequence,
-                    world.Presentation[slot].HitSequence);
             }
         }
 
@@ -187,7 +161,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
             if (view == null)
                 throw new InvalidOperationException($"Monster Active Slot={slot} 缺少 SpawnBatch View。");
-            view.SetPose(position, yaw);
             _vatWorld.SetPose(slot, position, yaw, Time.deltaTime);
             //只检测变不变，天然支持回绕
             if (attackSequence != _attackSequence[slot])

@@ -57,7 +57,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public event Action RoomEnded;
         public event Action<MonsterSpawnBatch> SpawnBatchReceived;
         public event Action<MonsterPresentationFrame, MonsterFrameApplyResult> PresentationFrameApplied;
-        public event Action AuthorityTickCompleted;
 
         public UniTask InitializeAsync(CancellationToken cancellationToken)
         {
@@ -88,12 +87,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     _authorityWriteFrame = new MonsterPresentationFrame(_initialCapacity);
                     _authorityPublishedFrame = new MonsterPresentationFrame(_initialCapacity);
                     _network.Clock.Subscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                    _network.Clock.Subscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
                     _network.Clock.Subscribe(GameplayTickPhase.Replication, PublishAuthorityState);
                 }
             }
             catch
             {
                 _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                _network.Clock.Unsubscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
                 _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
                 _transport.Shutdown();
                 _transport = null;
@@ -193,6 +194,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return false;
         }
 
+        public int QueryMonsterCircleCandidates(
+            Vector2 center,
+            float radius,
+            int[] results)
+        {
+            if (AuthorityRoom == null)
+                return 0;
+
+            return AuthorityRoom.QueryMonsterCircleCandidates(center, radius, results);
+        }
+
         public bool TryGetMonsterHealthRatio(int slot, out float ratio)
         {
             if (AuthorityRoom == null || !AuthorityRoom.World.IsActive(slot))
@@ -234,6 +246,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             AuthorityRoom.Tick(players, tick, _network.Clock.TickDeltaTime);
         }
 
+        private void ResolveAuthorityCombat(uint tick)
+        {
+            if (!_roomActive || AuthorityRoom == null)
+                return;
+
+            AuthorityRoom.ResolveCombat();
+        }
+
         /// <summary>战斗结算完成后发布本 Tick 的最终怪物状态。</summary>
         private void PublishAuthorityState(uint tick)
         {
@@ -242,7 +262,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             PlayerManager players = PlayerManager.Instance;
             if (players == null || !players.IsInitialized)
                 return;
-            AuthorityTickCompleted?.Invoke();
             if (tick % (uint)_presentationIntervalTicks != 0) 
                 return;
             AuthorityRoom.CaptureFrame(tick, _authorityWriteFrame);
@@ -330,6 +349,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (_network != null)
             {
                 _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                _network.Clock.Unsubscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
                 _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
             }
             _transport?.Shutdown();
@@ -342,7 +362,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _networkManager = null;
             SpawnBatchReceived = null;
             PresentationFrameApplied = null;
-            AuthorityTickCompleted = null;
             RoomBegan = null;
             RoomEnded = null;
             if (Instance == this) Instance = null;

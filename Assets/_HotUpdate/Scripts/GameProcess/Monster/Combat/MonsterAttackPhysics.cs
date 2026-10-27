@@ -3,6 +3,26 @@ using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
+    public readonly struct MonsterMeleeAttackRequest
+    {
+        public readonly Vector3 Origin;
+        public readonly Vector3 Direction;
+        public readonly MonsterAttackProfile Profile;
+        public readonly float Damage;
+
+        public MonsterMeleeAttackRequest(
+            Vector3 origin,
+            Vector3 direction,
+            in MonsterAttackProfile profile,
+            float damage)
+        {
+            Origin = origin;
+            Direction = direction;
+            Profile = profile;
+            Damage = damage;
+        }
+    }
+
     /// <summary>服务器怪物近战检测：取最近玩家并直接扣除玩家生命。</summary>
     public sealed class MonsterMeleePhysicsResolver
     {

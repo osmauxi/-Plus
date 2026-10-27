@@ -46,7 +46,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _runtime.RoomEnded += OnRoomEnded;
             _runtime.SpawnBatchReceived += OnSpawnBatchReceived;
             _runtime.PresentationFrameApplied += OnPresentationFrameApplied;
-            _runtime.AuthorityTickCompleted += OnAuthorityTickCompleted;
             enabled = false;
             IsInitialized = true;
         }
@@ -60,7 +59,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _runtime.RoomEnded -= OnRoomEnded;
             _runtime.SpawnBatchReceived -= OnSpawnBatchReceived;
             _runtime.PresentationFrameApplied -= OnPresentationFrameApplied;
-            _runtime.AuthorityTickCompleted -= OnAuthorityTickCompleted;
             DisposeViewWorld();
             _runtime = null;
             _objectPool = null;
@@ -88,20 +86,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void OnSpawnBatchReceived(MonsterSpawnBatch batch)
         {
             _viewWorld.ApplySpawnBatch(batch);
-            if (GameNetworkRuntime.Gameplay.Transport.IsServer)
-                _viewWorld.ApplyAuthority(_runtime.AuthorityRoom.World);
-            else
-                _viewWorld.ApplyReplica(_runtime.Replica, 1f);
+            _viewWorld.ApplyReplica(_runtime.Replica, 1f);
         }
-
-        private void OnAuthorityTickCompleted() =>
-            _viewWorld.ApplyAuthority(_runtime.AuthorityRoom.World);
 
         private void OnPresentationFrameApplied(
             MonsterPresentationFrame frame, MonsterFrameApplyResult result)
         {
-            if (result == MonsterFrameApplyResult.Applied)
-                _lastFrameTime = Time.unscaledTime;
+            if (result != MonsterFrameApplyResult.Applied)
+                return;
+
+            _lastFrameTime = Time.unscaledTime;
+            if (GameNetworkRuntime.Gameplay.Transport.IsServer)
+                _viewWorld.ApplyReplica(_runtime.Replica, 1f);
         }
 
         private void LateUpdate()

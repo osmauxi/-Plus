@@ -25,7 +25,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     }
 
     /// <summary>
-    /// 一个房间内的服务器怪物状态、导航环境与模拟入口
+    /// 主要管房间级别的怪物状态、导航环境与模拟逻辑
     /// </summary>
     public sealed class MonsterRoomRuntime
     {
@@ -35,6 +35,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly RuntimeNavigationGrid _navigationGrid;
         private readonly RuntimeNavigationObstacleSystem _obstacleSystem;
         private readonly MonsterSimulation _simulation;
+        private readonly MonsterMeleePhysicsResolver _melee = new();
         private readonly MonsterSpatialIndex _spatialIndex;
         private readonly Transform _roomRoot;
 
@@ -68,11 +69,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _navigationGrid = new RuntimeNavigationGrid(spatialData);
             _obstacleSystem = new RuntimeNavigationObstacleSystem(_navigationGrid, roomRoot);
-            _simulation = new MonsterSimulation(
-                configs,
-                attackProfiles,
-                _navigationGrid,
-                roomRoot);
+            _simulation = new MonsterSimulation(configs,attackProfiles,_navigationGrid,roomRoot);
 
             World = new MonsterWorld(initialCapacity);
             _spatialIndex = new MonsterSpatialIndex(roomRoot, RoomSpatialData.HalfSize, initialCapacity);
@@ -111,15 +108,39 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             MonsterPlayerTargetCapture.Capture(manager, _players);
             _simulation.Tick(World, _players, tick, deltaTime, _groundY);
+            //simulation过后，怪物位置可能发生变化，这里是触发四叉树的检测更新
+            //实际更新是在等人真正查询的时候触发，根据标记判定是否先进行更新
             _spatialIndex.Invalidate();
         }
 
+        /// <summary>
+        /// 在 PhysicsSync 阶段之后结算本 Tick 由 WorldSimulation 产生的近战请求。
+        /// </summary>
+        public void ResolveCombat()
+        {
+            _simulation.ExecutePendingMeleeAttacks(_melee);
+        }
+
+        /// <summary>
+        /// 查询从start到end的扫掠圆形范围内的怪物候选者，子弹模拟不直接访问四叉树
+        /// </summary>
+        /// <param name="start">子弹开始位置</param>
+        /// <param name="end">子弹结束位置</param>
+        /// <param name="radius">子弹半径</param>
+        /// <param name="results">怪物候选者列表</param>
+        /// <returns>候选者数量</returns>
         public int QueryMonsterCandidates(
             Vector2 start,
             Vector2 end,
             float radius,
             int[] results) =>
             _spatialIndex.QuerySweptCircle(World, start, end, radius, results);
+
+        public int QueryMonsterCircleCandidates(
+            Vector2 center,
+            float radius,
+            int[] results) =>
+            _spatialIndex.QuerySweptCircle(World, center, center, radius, results);
 
         public bool DamageMonster(int slot, float damage)
         {

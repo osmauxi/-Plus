@@ -117,6 +117,7 @@ namespace ProjectGame.HotFix.Benchmarking
             "Monster.Simulation.FlowFieldUpdate",
             "Monster.Simulation.SeparationBuild",
             "Monster.Simulation.EntityTick",
+            "Monster.OccupancySnapshot.Build",
             "Monster.Density.Capture",
             "Monster.Density.Kernel",
             "Monster.Separation.Capture",

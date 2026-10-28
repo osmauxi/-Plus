@@ -3,6 +3,7 @@ using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using ProjectGame.HotFix.Gameplay.Player;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -29,6 +30,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterRoomRuntime
     {
+        private static readonly ProfilerMarker OccupancySnapshotBuildMarker =
+            new("Monster.OccupancySnapshot.Build");
+
         private readonly MonsterRuntimeCatalog _configs;
         private readonly MonsterPoseQuantizer _quantizer;
 
@@ -116,7 +120,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _obstacleSystem.Tick();
 
             MonsterPlayerTargetCapture.Capture(manager, _players);
-            _occupancySnapshot.Build(World, _groundY);
+            using (OccupancySnapshotBuildMarker.Auto())
+                _occupancySnapshot.Build(World, _groundY);
             _simulation.Tick(
                 World,
                 _players,

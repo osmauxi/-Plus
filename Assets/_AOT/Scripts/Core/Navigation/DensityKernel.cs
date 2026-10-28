@@ -8,7 +8,6 @@ namespace ProjectGame.Core.Navigation
         private readonly int _maxDensityCost;
         private readonly float _smoothFactor;
 
-        private int[] _monsterCounts = Array.Empty<int>();
         private int[] _influence = Array.Empty<int>();
         private float[] _smoothedCost = Array.Empty<float>();
         private ushort[] _outputCost = Array.Empty<ushort>();
@@ -17,7 +16,6 @@ namespace ProjectGame.Core.Navigation
         private readonly sbyte[] _kernelY;
         private readonly byte[] _kernelWeight;
 
-        public int[] MonsterCounts => _monsterCounts;
         public ushort[] OutputCost => _outputCost;
 
         public DensityKernel(
@@ -58,18 +56,22 @@ namespace ProjectGame.Core.Navigation
         public void Prepare(int count)
         {
             EnsureCapacity(count);
-            Array.Clear(_monsterCounts, 0, count);
             Array.Clear(_influence, 0, count);
         }
 
-        public void Build(byte[] walkable, int width, int height)
+        public void Build(
+            int[] monsterCounts,
+            byte[] walkable,
+            int width,
+            int height)
         {
             int count = width * height;
-            BuildInfluence(walkable, width, height, count);
+            BuildInfluence(monsterCounts, walkable, width, height, count);
             BuildCost(count);
         }
 
         private void BuildInfluence(
+            int[] monsterCounts,
             byte[] walkable,
             int width,
             int height,
@@ -77,7 +79,7 @@ namespace ProjectGame.Core.Navigation
         {
             for (int center = 0; center < count; center++)
             {
-                int monsterCount = _monsterCounts[center];
+                int monsterCount = monsterCounts[center];
 
                 if (monsterCount == 0)
                     continue;
@@ -127,7 +129,6 @@ namespace ProjectGame.Core.Navigation
             if (_influence.Length == count)
                 return;
 
-            _monsterCounts = new int[count];
             _influence = new int[count];
             _smoothedCost = new float[count];
             _outputCost = new ushort[count];

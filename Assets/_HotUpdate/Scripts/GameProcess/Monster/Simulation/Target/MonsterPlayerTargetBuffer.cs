@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Player;
 using UnityEngine;
 
@@ -11,6 +12,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         public const int MaximumCapacity = 4;
         private readonly MonsterPlayerTarget[] _items = new MonsterPlayerTarget[MaximumCapacity];
+        private readonly Vector2Int[] _cells = new Vector2Int[MaximumCapacity];
+        private readonly bool[] _cellValid = new bool[MaximumCapacity];
+        private readonly bool[] _cellWalkable = new bool[MaximumCapacity];
 
         public int Count { get; private set; }
         internal MonsterPlayerTarget[] Items => _items;
@@ -21,6 +25,30 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             _items[Count++] = new MonsterPlayerTarget(position);
         }
+
+        internal void UpdateNavigationCells(
+            Transform roomRoot,
+            RuntimeNavigationGrid grid,
+            float groundY)
+        {
+            for (int i = 0; i < Count; i++)
+            {
+                Vector2 position = _items[i].Position;
+                bool valid = RoomSpatialUtility.WorldToCell(
+                    roomRoot,
+                    new Vector3(position.x, groundY, position.y),
+                    out Vector2Int cell);
+
+                _cellValid[i] = valid;
+                _cells[i] = cell;
+                _cellWalkable[i] = valid && grid.IsWalkable(cell.x, cell.y);
+            }
+        }
+
+        internal bool IsCellWalkable(int index) =>
+            (uint)index < (uint)Count && _cellValid[index] && _cellWalkable[index];
+
+        internal Vector2Int GetCell(int index) => _cells[index];
     }
 
     /// <summary>

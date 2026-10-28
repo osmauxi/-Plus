@@ -35,6 +35,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly RuntimeNavigationGrid _navigationGrid;
         private readonly RuntimeNavigationObstacleSystem _obstacleSystem;
         private readonly MonsterSimulation _simulation;
+        private readonly MonsterOccupancySnapshot _occupancySnapshot;
         private readonly MonsterMeleePhysicsResolver _melee = new();
         private readonly MonsterSpatialIndex _spatialIndex;
         private readonly Transform _roomRoot;
@@ -70,6 +71,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _navigationGrid = new RuntimeNavigationGrid(spatialData);
             _obstacleSystem = new RuntimeNavigationObstacleSystem(_navigationGrid, roomRoot);
             _simulation = new MonsterSimulation(configs,attackProfiles,_navigationGrid,roomRoot);
+            _occupancySnapshot = new MonsterOccupancySnapshot(
+                roomRoot,
+                _navigationGrid.Width,
+                _navigationGrid.Height,
+                RoomSpatialData.HalfSize,
+                3f,
+                initialCapacity);
 
             World = new MonsterWorld(initialCapacity);
             _spatialIndex = new MonsterSpatialIndex(roomRoot, RoomSpatialData.HalfSize, initialCapacity);
@@ -82,6 +90,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             World.EnsureCapacity(expectedTotalMonsterCount);
             _players.Clear();
             _groundY = groundY;
+            _occupancySnapshot.Clear();
             _spatialIndex.Clear();
             _simulation.ResetDiagnostics();
         }
@@ -107,7 +116,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _obstacleSystem.Tick();
 
             MonsterPlayerTargetCapture.Capture(manager, _players);
-            _simulation.Tick(World, _players, tick, deltaTime, _groundY);
+            _occupancySnapshot.Build(World, _groundY);
+            _simulation.Tick(
+                World,
+                _players,
+                tick,
+                deltaTime,
+                _groundY,
+                _occupancySnapshot);
             //simulation过后，怪物位置可能发生变化，这里是触发四叉树的检测更新
             //实际更新是在等人真正查询的时候触发，根据标记判定是否先进行更新
             _spatialIndex.Invalidate();
@@ -201,6 +217,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             World.Clear();
             _players.Clear();
+            _occupancySnapshot.Clear();
             _spatialIndex.Clear();
             _groundY = 0f;
         }

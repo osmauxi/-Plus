@@ -1,9 +1,6 @@
 using System;
 using ProjectGame.Core.Navigation;
-using ProjectGame.HotFix.Gameplay.Map;
-using ProjectGame.HotFix.Gameplay.Navigation;
 using Unity.Profiling;
-using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
@@ -18,19 +15,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const uint UpdateIntervalTicks = 6;
         private const float SmoothFactor = 0.25f;
 
-        private static readonly ProfilerMarker CaptureMarker =
-            new("Monster.Density.Capture");
+        private readonly DensityKernel _kernel;
         private static readonly ProfilerMarker KernelMarker =
             new("Monster.Density.Kernel");
-
-        private readonly Transform _roomRoot;
-        private readonly DensityKernel _kernel;
         private uint _nextUpdateTick;
 
-        public MonsterNavigationDensitySystem(Transform roomRoot)
+        public MonsterNavigationDensitySystem()
         {
-            _roomRoot =
-                roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
             _kernel = new DensityKernel(
                 DensityRadiusCells,
                 CostPerInfluence,
@@ -39,11 +30,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public bool Update(
-            MonsterWorld world,
+            MonsterOccupancySnapshot snapshot,
             RuntimeNavigationGrid grid,
-            uint tick,
-            float groundY)
+            uint tick)
         {
+            if (snapshot == null)
+                throw new ArgumentNullException(nameof(snapshot));
+
             if (!MonsterMath.HasReached(tick, _nextUpdateTick))
                 return false;
 
@@ -53,54 +46,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int height = grid.Height;
             int count = checked(width * height);
 
-            _kernel.Prepare(count);
+            if (snapshot.FineWidth != width || snapshot.FineHeight != height)
+                throw new InvalidOperationException(
+                    $"Density 快照尺寸不一致：Snapshot={snapshot.FineWidth}x{snapshot.FineHeight}，Grid={width}x{height}。");
 
-            using (CaptureMarker.Auto())
-            {
-                BuildMonsterCounts(
-                    world,
-                    width,
-                    height,
-                    groundY,
-                    _kernel.MonsterCounts);
-            }
+            _kernel.Prepare(count);
 
             byte[] walkable = grid.GetWalkableKernel();
 
             using (KernelMarker.Auto())
-                _kernel.Build(walkable, width, height);
+                _kernel.Build(snapshot.FineCellCounts, walkable, width, height);
 
             return grid.ReplaceDensityCost(_kernel.OutputCost);
-        }
-
-        private void BuildMonsterCounts(
-            MonsterWorld world,
-            int width,
-            int height,
-            float groundY,
-            int[] monsterCounts)
-        {
-            for (int slot = 0; slot < world.SlotCount; slot++)
-            {
-                if (!world.Meta[slot].IsActive)
-                    continue;
-
-                Vector2 position = world.Motion[slot].Position;
-                Vector3 worldPosition =
-                    new(position.x, groundY, position.y);
-
-                if (!RoomSpatialUtility.WorldToCell(
-                        _roomRoot,
-                        worldPosition,
-                        out Vector2Int cell))
-                    continue;
-
-                if ((uint)cell.x >= (uint)width ||
-                    (uint)cell.y >= (uint)height)
-                    continue;
-
-                monsterCounts[cell.y * width + cell.x]++;
-            }
         }
     }
 }

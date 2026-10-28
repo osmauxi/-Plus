@@ -113,38 +113,50 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _separation = new MonsterSeparationSystem(roomRoot,RoomSpatialData.HalfSize,3f,4f);
 
-            _densitySystem = new MonsterNavigationDensitySystem(roomRoot);
+            _densitySystem = new MonsterNavigationDensitySystem();
         }
 
-        public void Tick(MonsterWorld world, MonsterPlayerTargetBuffer players, uint tick,
-            float deltaTime, float groundY)
+        public void Tick(
+            MonsterWorld world,
+            MonsterPlayerTargetBuffer players,
+            uint tick,
+            float deltaTime,
+            float groundY,
+            MonsterOccupancySnapshot occupancySnapshot)
         {
+            if (occupancySnapshot == null)
+                throw new ArgumentNullException(nameof(occupancySnapshot));
+
             _pendingMeleeAttacks.Clear();
+            players.UpdateNavigationCells(_roomRoot, _navigationGrid, groundY);
 
             using (DensityUpdateMarker.Auto())
-                _densitySystem.Update(world, _navigationGrid, tick, groundY);
+                _densitySystem.Update(occupancySnapshot, _navigationGrid, tick);
 
             using (FlowFieldUpdateMarker.Auto())
                 UpdateFlowField(players, tick, groundY);
 
             using (SeparationBuildMarker.Auto())
-                _separation.Build(world);
+                _separation.Build(occupancySnapshot);
 
             using var entityTickScope = EntityTickMarker.Auto();
 
-            for (int slot = 0; slot < world.SlotCount; slot++)
+            for (int activeIndex = 0;
+                 activeIndex < occupancySnapshot.ActiveCount;
+                 activeIndex++)
             {
-                if (!world.Meta[slot].IsActive)
-                    continue;
+                int slot = occupancySnapshot.ActiveSlots[activeIndex];
+                Vector2 position = world.Motion[slot].Position;
 
                 bool hasTarget = TryGetFlowTarget(
-                    world.Motion[slot].Position,
+                    position,
+                    occupancySnapshot.FineCellOfSlot[slot],
                     players,
-                    groundY,
                     out Vector2 targetPosition,
                     out float targetDistanceSqr,
                     out Vector2 flowDirection,
-                    out bool isRecovering);
+                    out bool isRecovering,
+                    out bool targetWalkable);
 
                 ref readonly MonsterRuntimeConfig config = ref _configs.Get(world.Meta[slot].ConfigIndex);
 
@@ -166,7 +178,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                 Vector2 navigationVelocity = CalculateVelocity(
                     world, slot, config, tick,
-                    hasTarget, targetPosition, flowDirection, groundY);
+                    hasTarget,
+                    targetPosition,
+                    flowDirection,
+                    targetWalkable);
 
                 Vector2 velocity = navigationVelocity;
 
@@ -524,26 +539,35 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _flowSources.Add(new FlowFieldSource(fallback.X, fallback.Y, sourceIndex));
         }
         private bool TryGetFlowTarget(
-                 Vector2 position,
-                MonsterPlayerTargetBuffer players,
-                float groundY,
+            Vector2 position,
+            int cellIndex,
+            MonsterPlayerTargetBuffer players,
                 out Vector2 targetPosition,
                 out float targetDistanceSqr,
                 out Vector2 flowDirection,
-                out bool isRecovering)
+                out bool isRecovering,
+                out bool targetWalkable)
         {
             targetPosition = default;
             targetDistanceSqr = float.MaxValue;
             flowDirection = Vector2.zero;
             isRecovering = false;
+            targetWalkable = false;
 
             if (!_hasFlowField)
                 return false;
 
-            Vector3 worldPosition = new Vector3(position.x, groundY, position.y);
-
-            if (!RoomSpatialUtility.WorldToCell(_roomRoot, worldPosition, out Vector2Int cell))
+            if (cellIndex < 0)
                 return false;
+
+            int cellWidth = _navigationGrid.Width;
+            int cellCount = checked(cellWidth * _navigationGrid.Height);
+            if (cellIndex >= cellCount)
+                return false;
+
+            Vector2Int cell = new Vector2Int(
+                cellIndex % cellWidth,
+                cellIndex / cellWidth);
 
             //当前怪物已经处于非法格：不要读取这个格子的Flow，而是先找附近可达Flow Cell脱困。
             if (!_navigationGrid.IsWalkable(cell.x, cell.y))
@@ -555,6 +579,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     return false;
 
                 targetPosition = players.Items[recoverySource].Position;
+                targetWalkable = players.IsCellWalkable(recoverySource);
                 targetDistanceSqr = (targetPosition - position).sqrMagnitude;
 
                 Vector2 recoveryTarget = CellToWorld(recoveryCell);
@@ -589,6 +614,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return false;
 
             targetPosition = players.Items[sourceIndex].Position;
+            targetWalkable = players.IsCellWalkable(sourceIndex);
             targetDistanceSqr = (targetPosition - position).sqrMagnitude;
 
             if (localDirection.sqrMagnitude > 0.000001f)
@@ -871,7 +897,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 bool hasTarget,
                 Vector2 targetPosition,
                 Vector2 flowDirection,
-                float groundY)
+                bool targetWalkable)
         {
             if (world.Attack[slot].Phase != MonsterAttackPhase.Ready || !hasTarget)
                 return Vector2.zero;
@@ -888,21 +914,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     return Vector2.zero;
 
                 // 玩家卡进障碍时也不要继续钻墙。
-                if (!CanDirectChaseTarget(targetPosition, groundY))
+                if (!targetWalkable)
                     return Vector2.zero;
 
                 direction = offset.normalized;
             }
 
             return direction * config.MoveSpeed * world.GetSpeedMultiplier(slot, tick);
-        }
-
-        private bool CanDirectChaseTarget(Vector2 targetPosition, float groundY)
-        {
-            Vector3 worldTarget = new Vector3(targetPosition.x, groundY, targetPosition.y);
-
-            return RoomSpatialUtility.WorldToCell(_roomRoot, worldTarget, out Vector2Int targetCell) &&
-                   _navigationGrid.IsWalkable(targetCell.x, targetCell.y);
         }
 
         private Vector2 CellToWorld(GridPoint cell)

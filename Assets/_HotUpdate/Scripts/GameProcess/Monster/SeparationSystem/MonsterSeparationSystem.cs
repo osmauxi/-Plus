@@ -1,4 +1,3 @@
-using System;
 using ProjectGame.Core.Navigation;
 using Unity.Profiling;
 using UnityEngine;
@@ -6,18 +5,12 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
     /// <summary>
-    /// 从 MonsterWorld 采集活跃位置，并由 AOT Kernel 计算分离速度。
+    /// 从房间级空间快照读取活跃位置和粗粒度桶，并由 AOT Kernel 计算分离速度。
     /// </summary>
     public sealed class MonsterSeparationSystem
     {
-        private static readonly ProfilerMarker CaptureMarker =
-            new("Monster.Separation.Capture");
         private static readonly ProfilerMarker KernelMarker =
             new("Monster.Separation.Kernel");
-
-        private Vector2[] _positions = Array.Empty<Vector2>();
-        private int[] _activeSlots = Array.Empty<int>();
-        private int _activeCount;
 
         private readonly SeparationKernel _kernel;
 
@@ -40,47 +33,24 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 strength);
         }
 
-        public void Build(MonsterWorld world)
+        public void Build(MonsterOccupancySnapshot snapshot)
         {
-            EnsureCaptureCapacity(world.SlotCount);
-            _activeCount = 0;
-
-            using (CaptureMarker.Auto())
-            {
-                for (int slot = 0; slot < world.SlotCount; slot++)
-                {
-                    if (!world.Meta[slot].IsActive)
-                        continue;
-
-                    _positions[slot] = world.Motion[slot].Position;
-                    _activeSlots[_activeCount++] = slot;
-                }
-            }
+            if (snapshot == null)
+                throw new System.ArgumentNullException(nameof(snapshot));
 
             using (KernelMarker.Auto())
             {
-                _kernel.Build(
-                    _positions,
-                    _activeSlots,
-                    _activeCount,
-                    world.SlotCount);
+                _kernel.BuildFromBuckets(
+                    snapshot.Positions,
+                    snapshot.BucketHeads,
+                    snapshot.ActiveBuckets,
+                    snapshot.ActiveBucketCount,
+                    snapshot.NextSlot,
+                    snapshot.SlotCount);
             }
         }
 
         public Vector2 Get(int slot) => _kernel.Get(slot);
-
-        private void EnsureCaptureCapacity(int count)
-        {
-            if (_positions.Length >= count)
-                return;
-
-            int capacity = Math.Max(
-                count,
-                _positions.Length == 0 ? 64 : _positions.Length * 2);
-
-            Array.Resize(ref _positions, capacity);
-            Array.Resize(ref _activeSlots, capacity);
-        }
 
         private static void CalculateWorldBounds(
             Transform roomRoot,

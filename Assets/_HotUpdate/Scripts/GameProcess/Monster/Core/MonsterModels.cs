@@ -14,29 +14,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         Recovery,
     }
     #region 网络同步数据
-    //SoA,将不同模块数据进行拆分，而不是面向对象中一个结构放一起，这里进行简单的SoA拆分
-    //优化结构的同时不提高太多复杂度
-    public struct MonsterMetaData
-    {
-        /// <summary>
-        /// 怪物对应MonsterRuntimeCatalog中的基础数据ID
-        /// </summary>
-        public ushort ConfigIndex;
-        /// <summary>
-        /// 是否存活，非存活不会进行更新
-        /// </summary>
-        public bool IsActive;
-    }
-    /// <summary>
-    /// 权威移动状态数据
-    /// </summary>
-    public struct MonsterMotionData
-    {
-        //因为游戏特性，基本能视为X_Z平面的二维游戏，所以数据均被进行压缩
-        public Vector2 Position;
-        public Vector2 Velocity;
-        public float Yaw;
-    }
     /// <summary>只存在于服务器 MonsterWorld，不进入网络快照。</summary>
     public struct MonsterHealthData
     {

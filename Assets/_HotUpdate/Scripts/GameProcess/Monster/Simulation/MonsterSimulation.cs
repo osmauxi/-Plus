@@ -1,4 +1,5 @@
 using ProjectGame.Core.Navigation;
+using ProjectGame.Core.Monsters;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using System;

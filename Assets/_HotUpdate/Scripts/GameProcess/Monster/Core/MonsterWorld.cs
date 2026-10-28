@@ -1,4 +1,5 @@
 using System;
+using ProjectGame.Core.Monsters;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters

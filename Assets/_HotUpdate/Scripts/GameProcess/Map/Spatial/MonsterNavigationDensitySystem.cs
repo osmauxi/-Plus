@@ -1,5 +1,6 @@
 using System;
 using ProjectGame.Core.Navigation;
+using ProjectGame.HotFix.Gameplay.Map;
 using Unity.Profiling;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters

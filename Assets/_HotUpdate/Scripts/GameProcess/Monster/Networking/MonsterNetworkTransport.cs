@@ -2,6 +2,7 @@ using ProjectGame.HotFix.Gameplay.Network;
 using System;
 using Unity.Collections;
 using Unity.Netcode;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -19,6 +20,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterNetworkTransport
     {
+        private static readonly ProfilerMarker SendPresentationMarker =
+            new("Monster.Network.SendPresentation");
+        private static readonly ProfilerMarker SendTransportMarker =
+            new("Monster.Network.SendPresentation.Transport");
+        private static readonly ProfilerMarker ReceivePresentationMarker =
+            new("Monster.Network.ReceivePresentation");
+
         //注册四种消息类型
         internal const string SpawnMessageName = "PG.Monster.Spawn";
         internal const string PresentationMessageName = "PG.Monster.Presentation";
@@ -129,6 +137,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void SendPresentation(MonsterPresentationFrame frame)
         {
             EnsureServer();
+            using var sendScope = SendPresentationMarker.Auto();
             int length = MonsterNetworkCodec.GetPresentationByteCount(frame);
             ValidatePayloadLength(length);
 
@@ -136,7 +145,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             try 
             {     
                 MonsterNetworkCodec.WritePresentation(ref writer, frame);
-                _transport.SendToRemoteClients(PresentationMessageName, writer, NetworkDeliveryClass.FullSnapshot);
+                using (SendTransportMarker.Auto())
+                    _transport.SendToRemoteClients(
+                        PresentationMessageName,
+                        writer,
+                        NetworkDeliveryClass.FullSnapshot);
             }
             finally
             {
@@ -205,6 +218,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!CanReceive(senderClientId)) return;
             try
             {
+                using var receiveScope = ReceivePresentationMarker.Auto();
                 ValidatePayloadLength(reader.Length - reader.Position);
                 MonsterNetworkCodec.ReadPresentationInto(ref reader, _receiveWriteFrame);
                 MonsterPresentationFrame received = _receiveWriteFrame;

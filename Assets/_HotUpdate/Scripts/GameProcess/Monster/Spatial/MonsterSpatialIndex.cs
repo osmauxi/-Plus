@@ -84,8 +84,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private static readonly ProfilerMarker QueryMarker =
             new("Monster.SpatialIndex.Query");
 
+        // 四叉树内核，负责索引构建和查询
         private readonly MonsterQuadTreeKernel _kernel;
+        //保存每个slot的位置
         private Vector2[] _spatialPositions;
+        //标记每个slot是否活跃，1表示活跃，0表示不活跃
         private byte[] _spatialActiveMask;
         private bool _isBuilt;
         private bool _performanceDiagnosticsEnabled;
@@ -115,6 +118,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             CalculateWorldBounds(roomRoot, roomHalfSize, out Vector2 min, out Vector2 max);
             Vector2 rootCenter = (min + max) * 0.5f;
             float rootHalfSize = Mathf.Max(max.x - min.x, max.y - min.y) * 0.5f;
+            //AOT内核不直接绑定到MonsterWorld，而是通过HotFix层传入位置数组和活跃掩码数组
             _spatialPositions = new Vector2[initialMonsterCapacity];
             _spatialActiveMask = new byte[initialMonsterCapacity];
             _kernel = new MonsterQuadTreeKernel(rootCenter, rootHalfSize, initialMonsterCapacity);
@@ -259,7 +263,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 node.MortonCode);
             return true;
         }
-
+        /// <summary>
+        /// 查询前确保索引已构建，且是最新的
+        /// </summary>
         private void EnsureBuilt(MonsterWorld world)
         {
             if (_isBuilt)

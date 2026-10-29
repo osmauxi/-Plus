@@ -55,6 +55,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.Simulation.SeparationBuild");
         private static readonly ProfilerMarker EntityTickMarker =
             new("Monster.Simulation.EntityTick");
+        // EntityTick 总 Marker 已存在；这些子 Marker 只拆分主要阶段，
+        // 不继续细化到单个数学表达式，避免量化时被 Marker 自身污染。
+        private static readonly ProfilerMarker EntityTargetMarker =
+            new("Monster.Simulation.EntityTick.Target");
+        private static readonly ProfilerMarker EntityAttackMarker =
+            new("Monster.Simulation.EntityTick.Attack");
+        private static readonly ProfilerMarker EntityNavigationMarker =
+            new("Monster.Simulation.EntityTick.Navigation");
+        private static readonly ProfilerMarker EntitySeparationMarker =
+            new("Monster.Simulation.EntityTick.Separation");
+        private static readonly ProfilerMarker EntityConstraintMarker =
+            new("Monster.Simulation.EntityTick.Constraint");
 
         private uint _nextSourceRebuildTick;
         private uint _nextCostRebuildTick;
@@ -148,15 +160,24 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 int slot = occupancySnapshot.ActiveSlots[activeIndex];
                 Vector2 position = world.Motion[slot].Position;
 
-                bool hasTarget = TryGetFlowTarget(
-                    position,
-                    occupancySnapshot.FineCellOfSlot[slot],
-                    players,
-                    out Vector2 targetPosition,
-                    out float targetDistanceSqr,
-                    out Vector2 flowDirection,
-                    out bool isRecovering,
-                    out bool targetWalkable);
+                bool hasTarget;
+                Vector2 targetPosition;
+                float targetDistanceSqr;
+                Vector2 flowDirection;
+                bool isRecovering;
+                bool targetWalkable;
+                using (EntityTargetMarker.Auto())
+                {
+                    hasTarget = TryGetFlowTarget(
+                        position,
+                        occupancySnapshot.FineCellOfSlot[slot],
+                        players,
+                        out targetPosition,
+                        out targetDistanceSqr,
+                        out flowDirection,
+                        out isRecovering,
+                        out targetWalkable);
+                }
 
                 ref readonly MonsterRuntimeConfig config = ref _configs.Get(world.Meta[slot].ConfigIndex);
 
@@ -174,26 +195,37 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     continue;
                 }
 
-                TickAttack(world, slot, config, tick, groundY, hasTarget, targetDistanceSqr);
+                using (EntityAttackMarker.Auto())
+                    TickAttack(world, slot, config, tick, groundY, hasTarget, targetDistanceSqr);
 
-                Vector2 navigationVelocity = CalculateVelocity(
-                    world, slot, config, tick,
-                    hasTarget,
-                    targetPosition,
-                    flowDirection,
-                    targetWalkable);
+                Vector2 navigationVelocity;
+                using (EntityNavigationMarker.Auto())
+                {
+                    navigationVelocity = CalculateVelocity(
+                        world, slot, config, tick,
+                        hasTarget,
+                        targetPosition,
+                        flowDirection,
+                        targetWalkable);
+                }
 
                 Vector2 velocity = navigationVelocity;
 
                 if (world.Attack[slot].Phase == MonsterAttackPhase.Ready)
-                    velocity = ApplySeparation(world, slot, config, tick, velocity);
+                {
+                    using (EntitySeparationMarker.Auto())
+                        velocity = ApplySeparation(world, slot, config, tick, velocity);
+                }
                 //进行一次SepartionForce的安全性检查，保证其不会把怪物推进墙中
-                velocity = ConstrainMovement(
-                    world.Motion[slot].Position,
-                    navigationVelocity,
-                    velocity,
-                    deltaTime,
-                    groundY);
+                using (EntityConstraintMarker.Auto())
+                {
+                    velocity = ConstrainMovement(
+                        world.Motion[slot].Position,
+                        navigationVelocity,
+                        velocity,
+                        deltaTime,
+                        groundY);
+                }
 
                 Integrate(world, slot, velocity, deltaTime);
             }

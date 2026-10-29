@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Unity.Netcode;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -19,6 +20,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     [DisallowMultipleComponent]
     public sealed class MonsterRuntimeService : MonoBehaviour,IGameRuntimeService,IMonsterNetworkReceiver
     {
+        private static readonly ProfilerMarker PublishMarker =
+            new("Monster.Replication.Publish");
+        private static readonly ProfilerMarker CaptureMarker =
+            new("Monster.Replication.Capture");
+        private static readonly ProfilerMarker ApplyLocalMarker =
+            new("Monster.Replication.ApplyLocal");
+        private static readonly ProfilerMarker SendPresentationMarker =
+            new("Monster.Replication.SendPresentation");
+        private static readonly ProfilerMarker ReceiveApplyMarker =
+            new("Monster.Replication.ReceiveApply");
+
         public const ulong MonsterEntityIdBase = 1UL << 63;
         /// <summary>
         /// 房间World/Replica等运行时容器预留容量
@@ -264,12 +276,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
             if (tick % (uint)_presentationIntervalTicks != 0) 
                 return;
-            AuthorityRoom.CaptureFrame(tick, _authorityWriteFrame);
+            using var publishScope = PublishMarker.Auto();
+            using (CaptureMarker.Auto())
+                AuthorityRoom.CaptureFrame(tick, _authorityWriteFrame);
             MonsterPresentationFrame publishedFrame = _authorityWriteFrame;
             _authorityWriteFrame = _authorityPublishedFrame;
             _authorityPublishedFrame = publishedFrame;
-            ApplyPresentationFrameLocal(_authorityPublishedFrame);
-            _transport.SendPresentation(_authorityPublishedFrame);
+            using (ApplyLocalMarker.Auto())
+                ApplyPresentationFrameLocal(_authorityPublishedFrame);
+            using (SendPresentationMarker.Auto())
+                _transport.SendPresentation(_authorityPublishedFrame);
         }
 
         public void ReceiveRoomBegin(MonsterRoomBeginData data)
@@ -310,6 +326,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void ApplyPresentationFrameLocal(MonsterPresentationFrame frame)
         {
+            using var applyScope = ReceiveApplyMarker.Auto();
             MonsterFrameApplyResult result = Replica.Apply(frame, _quantizer);
             PresentationFrameApplied?.Invoke(frame, result);
         }

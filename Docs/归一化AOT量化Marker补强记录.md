@@ -106,3 +106,17 @@ Gameplay.TickClock.Replication
 - 当前没有完整 Profiler 调用树，不能用轻量 Marker 代替完整 Profiler；
 - 如果长帧只出现在少量帧，需要结合逐帧 CSV 的长帧行和 Marker 峰值判断。
 
+## 7. 路径 3 修复记录
+
+基于 `20261029-151522-d3b8f494` 的 Target/Constraint 热点分析，已继续落地：
+
+- Target 的 Cell 级 Flow/恢复缓存与批量 AOT 解析；
+- Constraint 的房间矩阵缓存和纯数据 AOT 内核；
+- `Target.Cache`、`Target.Recovery`、`Constraint.Kernel` 三个补充 Marker。
+
+具体改动、修复前量化、口径调整和待补的修复后数据见：
+
+《Target 与 Constraint 路径 3 优化修复报告》
+
+该报告明确保留了修复后量化空栏；在 Unity 生成物、运行时 parity 和 5012 同口径压测完成前，不把预期收益写成实测收益。
+

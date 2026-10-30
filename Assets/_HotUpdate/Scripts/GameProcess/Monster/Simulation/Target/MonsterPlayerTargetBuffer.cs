@@ -12,18 +12,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         public const int MaximumCapacity = 4;
         private readonly MonsterPlayerTarget[] _items = new MonsterPlayerTarget[MaximumCapacity];
+        private readonly Vector2[] _positions = new Vector2[MaximumCapacity];
         private readonly Vector2Int[] _cells = new Vector2Int[MaximumCapacity];
         private readonly bool[] _cellValid = new bool[MaximumCapacity];
-        private readonly bool[] _cellWalkable = new bool[MaximumCapacity];
+        private readonly byte[] _cellWalkable = new byte[MaximumCapacity];
 
         public int Count { get; private set; }
         internal MonsterPlayerTarget[] Items => _items;
+        internal Vector2[] Positions => _positions;
+        internal byte[] CellWalkable => _cellWalkable;
 
         public void Clear() => Count = 0;
 
         public void Add(Vector2 position)
         {
             _items[Count++] = new MonsterPlayerTarget(position);
+            _positions[Count - 1] = position;
         }
 
         internal void UpdateNavigationCells(
@@ -41,12 +45,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                 _cellValid[i] = valid;
                 _cells[i] = cell;
-                _cellWalkable[i] = valid && grid.IsWalkable(cell.x, cell.y);
+                _cellWalkable[i] = (byte)(valid && grid.IsWalkable(cell.x, cell.y) ? 1 : 0);
             }
         }
 
         internal bool IsCellWalkable(int index) =>
-            (uint)index < (uint)Count && _cellValid[index] && _cellWalkable[index];
+            (uint)index < (uint)Count && _cellValid[index] && _cellWalkable[index] != 0;
 
         internal Vector2Int GetCell(int index) => _cells[index];
     }

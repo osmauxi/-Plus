@@ -59,6 +59,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         // 不继续细化到单个数学表达式，避免量化时被 Marker 自身污染。
         private static readonly ProfilerMarker EntityTargetMarker =
             new("Monster.Simulation.EntityTick.Target");
+        private static readonly ProfilerMarker EntityTargetCacheMarker =
+            new("Monster.Simulation.EntityTick.Target.Cache");
+        private static readonly ProfilerMarker EntityTargetRecoveryMarker =
+            new("Monster.Simulation.EntityTick.Target.Recovery");
         private static readonly ProfilerMarker EntityAttackMarker =
             new("Monster.Simulation.EntityTick.Attack");
         private static readonly ProfilerMarker EntityNavigationMarker =
@@ -67,6 +71,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.Simulation.EntityTick.Separation");
         private static readonly ProfilerMarker EntityConstraintMarker =
             new("Monster.Simulation.EntityTick.Constraint");
+        private static readonly ProfilerMarker EntityConstraintKernelMarker =
+            new("Monster.Simulation.EntityTick.Constraint.Kernel");
 
         private uint _nextSourceRebuildTick;
         private uint _nextCostRebuildTick;
@@ -79,6 +85,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MultiSourceFlowField _flowField = new();
         private readonly MultiSourceFlowField _topologyReferenceFlowField = new();
         private readonly List<FlowFieldSource> _flowSources = new(MonsterPlayerTargetBuffer.MaximumCapacity);
+        private readonly FlowTargetCellData[] _flowCellData;
+        private readonly int[] _recoveryCacheVersions;
         //当前玩家的实际位置
         private readonly Vector2Int[] _currentSourceCells = new Vector2Int[MonsterPlayerTargetBuffer.MaximumCapacity];
         //上一次重建FlowField时的Source列表是否有效，用于判断Source是否发生变化
@@ -89,6 +97,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly bool[] _acceptedSourceValid = new bool[MonsterPlayerTargetBuffer.MaximumCapacity];
 
         private int _acceptedSourceCount;
+        private int _flowFieldDataVersion;
+        private int _flowCellCacheVersion = -1;
+        private RoomGridTransformData _gridTransform;
+        private float _gridTransformGroundY = float.NaN;
+        private byte[] _walkableCells = Array.Empty<byte>();
+        private Vector2[] _targetPositionScratch = Array.Empty<Vector2>();
+        private MonsterTargetResult[] _targetResults = Array.Empty<MonsterTargetResult>();
 
         private bool _sourcePending;
         private uint _sourceDirtySinceTick;
@@ -126,6 +141,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _separation = new MonsterSeparationSystem(roomRoot,RoomSpatialData.HalfSize,3f,4f);
 
             _densitySystem = new MonsterNavigationDensitySystem();
+            int cellCount = checked(_navigationGrid.Width * _navigationGrid.Height);
+            _flowCellData = new FlowTargetCellData[cellCount];
+            _recoveryCacheVersions = new int[cellCount];
+            Array.Fill(_recoveryCacheVersions, -1);
         }
 
         public void Tick(
@@ -140,6 +159,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 throw new ArgumentNullException(nameof(occupancySnapshot));
 
             _pendingMeleeAttacks.Clear();
+            EnsureGridTransform(groundY);
             players.UpdateNavigationCells(_roomRoot, _navigationGrid, groundY);
 
             using (DensityUpdateMarker.Auto())
@@ -153,31 +173,34 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             using var entityTickScope = EntityTickMarker.Auto();
 
+            EnsureTargetCapacity(world.Capacity);
+            RefreshFlowCellCache();
+            PrepareRecoveryCache(world, occupancySnapshot);
+            using (EntityTargetMarker.Auto())
+                FlowTargetKernel.ResolveBatch(
+                    occupancySnapshot.ActiveSlots,
+                    occupancySnapshot.ActiveCount,
+                    _targetPositionScratch,
+                    occupancySnapshot.FineCellOfSlot,
+                    _flowCellData,
+                    players.Positions,
+                    players.CellWalkable,
+                    players.Count,
+                    _targetResults);
+
             for (int activeIndex = 0;
                  activeIndex < occupancySnapshot.ActiveCount;
                  activeIndex++)
             {
                 int slot = occupancySnapshot.ActiveSlots[activeIndex];
                 Vector2 position = world.Motion[slot].Position;
-
-                bool hasTarget;
-                Vector2 targetPosition;
-                float targetDistanceSqr;
-                Vector2 flowDirection;
-                bool isRecovering;
-                bool targetWalkable;
-                using (EntityTargetMarker.Auto())
-                {
-                    hasTarget = TryGetFlowTarget(
-                        position,
-                        occupancySnapshot.FineCellOfSlot[slot],
-                        players,
-                        out targetPosition,
-                        out targetDistanceSqr,
-                        out flowDirection,
-                        out isRecovering,
-                        out targetWalkable);
-                }
+                MonsterTargetResult target = _targetResults[slot];
+                bool hasTarget = (target.Flags & MonsterTargetResult.HasTarget) != 0;
+                bool isRecovering = (target.Flags & MonsterTargetResult.Recovering) != 0;
+                bool targetWalkable = (target.Flags & MonsterTargetResult.TargetWalkable) != 0;
+                Vector2 targetPosition = target.TargetPosition;
+                float targetDistanceSqr = target.TargetDistanceSqr;
+                Vector2 flowDirection = target.FlowDirection;
 
                 ref readonly MonsterRuntimeConfig config = ref _configs.Get(world.Meta[slot].ConfigIndex);
 
@@ -219,12 +242,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 //进行一次SepartionForce的安全性检查，保证其不会把怪物推进墙中
                 using (EntityConstraintMarker.Auto())
                 {
-                    velocity = ConstrainMovement(
-                        world.Motion[slot].Position,
-                        navigationVelocity,
-                        velocity,
-                        deltaTime,
-                        groundY);
+                    using (EntityConstraintKernelMarker.Auto())
+                        velocity = MovementConstraintKernel.Constrain(
+                            _gridTransform,
+                            _walkableCells,
+                            _navigationGrid.Width,
+                            _navigationGrid.Height,
+                            world.Motion[slot].Position,
+                            navigationVelocity,
+                            velocity,
+                            deltaTime);
                 }
 
                 Integrate(world, slot, velocity, deltaTime);
@@ -391,6 +418,132 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             SourceRebuildCount = 0;
             CostRebuildCount = 0;
             LastRebuildTick = 0;
+            _flowFieldDataVersion++;
+            _flowCellCacheVersion = -1;
+            Array.Fill(_recoveryCacheVersions, -1);
+        }
+
+        private void EnsureGridTransform(float groundY)
+        {
+            if (!float.IsNaN(_gridTransformGroundY) &&
+                Mathf.Abs(_gridTransformGroundY - groundY) <= 0.0001f)
+                return;
+
+            _gridTransform = new RoomGridTransformData(
+                _roomRoot.worldToLocalMatrix,
+                _roomRoot.localToWorldMatrix,
+                groundY,
+                RoomSpatialData.HalfSize,
+                RoomSpatialData.CellSize);
+            _gridTransformGroundY = groundY;
+        }
+
+        private void EnsureTargetCapacity(int capacity)
+        {
+            if (capacity <= _targetResults.Length)
+                return;
+
+            int next = Math.Max(64, _targetResults.Length);
+            while (next < capacity)
+                next = checked(next * 2);
+            Array.Resize(ref _targetResults, next);
+            Array.Resize(ref _targetPositionScratch, next);
+        }
+
+        private void RefreshFlowCellCache()
+        {
+            if (_flowCellCacheVersion == _flowFieldDataVersion)
+                return;
+
+            using (EntityTargetCacheMarker.Auto())
+            {
+                _walkableCells = _navigationGrid.GetWalkableKernel();
+                int width = _navigationGrid.Width;
+                int height = _navigationGrid.Height;
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int cellIndex = y * width + x;
+                        if (_walkableCells[cellIndex] == 0 || !_hasFlowField ||
+                            !_flowField.TryGet(
+                                x,
+                                y,
+                                out Vector2 direction,
+                                out int sourceIndex))
+                        {
+                            _flowCellData[cellIndex] = FlowTargetCellData.Invalid;
+                            continue;
+                        }
+
+                        if (_hasTopologyReferenceFlowField &&
+                            _topologyReferenceFlowField.TryGet(
+                                x,
+                                y,
+                                out Vector2 topologyDirection,
+                                out int topologySourceIndex) &&
+                            ShouldUseTopologyReferenceDirection(
+                                direction,
+                                topologyDirection))
+                        {
+                            direction = topologyDirection;
+                            sourceIndex = topologySourceIndex;
+                        }
+
+                        Vector2 worldDirection = _gridTransform.LocalToWorldVector(direction);
+                        if (worldDirection.sqrMagnitude > 0.000001f)
+                            worldDirection.Normalize();
+
+                        _flowCellData[cellIndex] = new FlowTargetCellData(
+                            FlowTargetCellData.Valid,
+                            sourceIndex,
+                            worldDirection,
+                            Vector2.zero);
+                    }
+                }
+
+                _flowCellCacheVersion = _flowFieldDataVersion;
+            }
+        }
+
+        private void PrepareRecoveryCache(
+            MonsterWorld world,
+            MonsterOccupancySnapshot occupancySnapshot)
+        {
+            using (EntityTargetRecoveryMarker.Auto())
+            {
+                int width = _navigationGrid.Width;
+                for (int activeIndex = 0;
+                     activeIndex < occupancySnapshot.ActiveCount;
+                     activeIndex++)
+                {
+                    int slot = occupancySnapshot.ActiveSlots[activeIndex];
+                    _targetPositionScratch[slot] = world.Motion[slot].Position;
+                    int cellIndex = occupancySnapshot.FineCellOfSlot[slot];
+                    if ((uint)cellIndex >= (uint)_flowCellData.Length ||
+                        _flowCellData[cellIndex].Flags != 0 ||
+                        _recoveryCacheVersions[cellIndex] == _flowFieldDataVersion)
+                        continue;
+
+                    int x = cellIndex % width;
+                    int y = cellIndex / width;
+                    if (TryResolveReachableFlowCell(
+                            new Vector2Int(x, y),
+                            out GridPoint recoveryCell,
+                            out int recoverySource))
+                    {
+                        _flowCellData[cellIndex] = new FlowTargetCellData(
+                            FlowTargetCellData.Recovery,
+                            recoverySource,
+                            Vector2.zero,
+                            _gridTransform.LocalCellCenterToWorld(
+                                recoveryCell.X,
+                                recoveryCell.Y));
+                    }
+
+                    _recoveryCacheVersions[cellIndex] = _flowFieldDataVersion;
+                }
+            }
         }
 
         private void CaptureCurrentSourceCells(MonsterPlayerTargetBuffer players,float groundY)
@@ -546,6 +699,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _nextCostRebuildTick =
                 tick + CostRebuildIntervalTicks;
+            _flowFieldDataVersion++;
         }
 
         private void AddPlayerFlowSources(Vector2Int playerCell, int sourceIndex)
@@ -570,96 +724,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!added && TryResolveWalkableCell(playerCell, out GridPoint fallback))
                 _flowSources.Add(new FlowFieldSource(fallback.X, fallback.Y, sourceIndex));
         }
-        private bool TryGetFlowTarget(
-            Vector2 position,
-            int cellIndex,
-            MonsterPlayerTargetBuffer players,
-                out Vector2 targetPosition,
-                out float targetDistanceSqr,
-                out Vector2 flowDirection,
-                out bool isRecovering,
-                out bool targetWalkable)
-        {
-            targetPosition = default;
-            targetDistanceSqr = float.MaxValue;
-            flowDirection = Vector2.zero;
-            isRecovering = false;
-            targetWalkable = false;
-
-            if (!_hasFlowField)
-                return false;
-
-            if (cellIndex < 0)
-                return false;
-
-            int cellWidth = _navigationGrid.Width;
-            int cellCount = checked(cellWidth * _navigationGrid.Height);
-            if (cellIndex >= cellCount)
-                return false;
-
-            Vector2Int cell = new Vector2Int(
-                cellIndex % cellWidth,
-                cellIndex / cellWidth);
-
-            //当前怪物已经处于非法格：不要读取这个格子的Flow，而是先找附近可达Flow Cell脱困。
-            if (!_navigationGrid.IsWalkable(cell.x, cell.y))
-            {
-                if (!TryResolveReachableFlowCell(cell, out GridPoint recoveryCell, out int recoverySource))
-                    return false;
-
-                if ((uint)recoverySource >= (uint)players.Count)
-                    return false;
-
-                targetPosition = players.Items[recoverySource].Position;
-                targetWalkable = players.IsCellWalkable(recoverySource);
-                targetDistanceSqr = (targetPosition - position).sqrMagnitude;
-
-                Vector2 recoveryTarget = CellToWorld(recoveryCell);
-                Vector2 recoveryOffset = recoveryTarget - position;
-
-                if (recoveryOffset.sqrMagnitude <= 0.000001f)
-                    return false;
-
-                flowDirection = recoveryOffset.normalized;
-                isRecovering = true;
-                return true;
-            }
-
-            if (!_flowField.TryGet(cell.x, cell.y, out Vector2 localDirection, out int sourceIndex))
-                return false;
-
-            if (_hasTopologyReferenceFlowField &&
-                _topologyReferenceFlowField.TryGet(
-                    cell.x,
-                    cell.y,
-                    out Vector2 topologyDirection,
-                    out int topologySourceIndex) &&
-                ShouldUseTopologyReferenceDirection(
-                    localDirection,
-                    topologyDirection))
-            {
-                localDirection = topologyDirection;
-                sourceIndex = topologySourceIndex;
-            }
-
-            if ((uint)sourceIndex >= (uint)players.Count)
-                return false;
-
-            targetPosition = players.Items[sourceIndex].Position;
-            targetWalkable = players.IsCellWalkable(sourceIndex);
-            targetDistanceSqr = (targetPosition - position).sqrMagnitude;
-
-            if (localDirection.sqrMagnitude > 0.000001f)
-            {
-                Vector3 worldDirection = _roomRoot.TransformVector(
-                    new Vector3(localDirection.x, 0f, localDirection.y));
-
-                flowDirection = new Vector2(worldDirection.x, worldDirection.z).normalized;
-            }
-
-            return true;
-        }
-
         private static bool ShouldUseTopologyReferenceDirection(
             Vector2 densityDirection,
             Vector2 topologyDirection)
@@ -784,85 +848,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return false;
         }
 
-        private Vector2 ConstrainMovement(
-            Vector2 position,
-            Vector2 navigationVelocity,
-            Vector2 desiredVelocity,
-            float deltaTime,
-            float groundY)
-        {
-            if (desiredVelocity.sqrMagnitude <= 0.000001f)
-                return Vector2.zero;
-
-            //Flow + Separation完整移动合法，直接使用
-            if (IsMovementWalkable(position, desiredVelocity, deltaTime, groundY))
-                return desiredVelocity;
-
-            //完整方向撞墙，尝试沿Room Grid两个轴滑动
-            Vector3 local = _roomRoot.InverseTransformVector(
-                new Vector3(desiredVelocity.x, 0f, desiredVelocity.y));
-
-            Vector2 slideX = LocalVelocityToWorld(new Vector3(local.x, 0f, 0f));
-            Vector2 slideZ = LocalVelocityToWorld(new Vector3(0f, 0f, local.z));
-
-            bool canX = slideX.sqrMagnitude > 0.000001f &&
-                        IsMovementWalkable(position, slideX, deltaTime, groundY);
-
-            bool canZ = slideZ.sqrMagnitude > 0.000001f &&
-                        IsMovementWalkable(position, slideZ, deltaTime, groundY);
-
-            if (canX && canZ)
-            {
-                float xScore = Vector2.Dot(slideX, navigationVelocity);
-                float zScore = Vector2.Dot(slideZ, navigationVelocity);
-
-                // 优先保留更符合Flow主方向的那个轴。
-                if (Mathf.Abs(xScore - zScore) > 0.000001f)
-                    return xScore > zScore ? slideX : slideZ;
-
-                return slideX.sqrMagnitude >= slideZ.sqrMagnitude ? slideX : slideZ;
-            }
-
-            if (canX)
-                return slideX;
-
-            if (canZ)
-                return slideZ;
-
-            //Separation导致所有候选都非法，最后退回纯Flow。
-            if (IsMovementWalkable(position, navigationVelocity, deltaTime, groundY))
-                return navigationVelocity;
-
-            return Vector2.zero;
-        }
-        private Vector2 LocalVelocityToWorld(Vector3 localVelocity)
-        {
-            Vector3 world = _roomRoot.TransformVector(localVelocity);
-            return new Vector2(world.x, world.z);
-        }
-
-        /// <summary>
-        /// 判断一次按此Force走会不会进墙
-        /// </summary>
-        private bool IsMovementWalkable(
-            Vector2 position,
-            Vector2 velocity,
-            float deltaTime,
-            float groundY)
-        {
-            Vector2 nextPosition = position + velocity * deltaTime;
-
-            Vector3 worldPosition = new Vector3(
-                nextPosition.x,
-                groundY,
-                nextPosition.y);
-
-            return RoomSpatialUtility.WorldToCell(
-                       _roomRoot,
-                       worldPosition,
-                       out Vector2Int cell) &&
-                   _navigationGrid.IsWalkable(cell.x, cell.y);
-        }
         private static bool FindNearestPlayer(Vector2 position, MonsterPlayerTargetBuffer players,
             out Vector2 targetPosition, out float targetDistanceSqr)
         {
@@ -954,13 +939,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             return direction * config.MoveSpeed * world.GetSpeedMultiplier(slot, tick);
         }
-
-        private Vector2 CellToWorld(GridPoint cell)
-        {
-            Vector3 world = RoomSpatialUtility.CellToWorld(_roomRoot, cell.X, cell.Y);
-            return new Vector2(world.x, world.z);
-        }
-
 
         private Vector2 ApplySeparation(MonsterWorld world, int slot,
     in MonsterRuntimeConfig config, uint tick, Vector2 velocity)

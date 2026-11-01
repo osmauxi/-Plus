@@ -19,13 +19,21 @@
     <type fullname="LocalObjectPool" preserve="all" />
     <type fullname="ProjectGame.AOT.Voice.OpusNativeDecoder" preserve="all" />
     <type fullname="ProjectGame.AOT.Voice.OpusNativeEncoder" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterMetaData" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterMotionData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.DensityKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.FlowFieldCellDebugData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.FlowFieldSource" preserve="all" />
+    <type fullname="ProjectGame.Core.Navigation.FlowTargetCellData" preserve="all" />
+    <type fullname="ProjectGame.Core.Navigation.FlowTargetKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Navigation.MonsterTargetResult" preserve="all" />
+    <type fullname="ProjectGame.Core.Navigation.MovementConstraintKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.MultiSourceFlowField" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.NavigationGridKernelData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.NavigationTopologyKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Navigation.RoomGridTransformData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.SeparationKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Spatial.MonsterOccupancySnapshotKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Spatial.MonsterQuadTreeKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Spatial.MonsterQuadTreeNodeData" preserve="all" />
     <type fullname="SyncObjectPool" preserve="all" />
@@ -268,11 +276,8 @@
     <type fullname="UnityEngine.Mathf" preserve="all" />
     <type fullname="UnityEngine.Matrix4x4" preserve="all" />
     <type fullname="UnityEngine.Mesh" preserve="all" />
-    <type fullname="UnityEngine.MeshFilter" preserve="all" />
-    <type fullname="UnityEngine.MeshRenderer" preserve="all" />
     <type fullname="UnityEngine.MinAttribute" preserve="all" />
     <type fullname="UnityEngine.MonoBehaviour" preserve="all" />
-    <type fullname="UnityEngine.MotionVectorGenerationMode" preserve="all" />
     <type fullname="UnityEngine.Object" preserve="all" />
     <type fullname="UnityEngine.Plane" preserve="all" />
     <type fullname="UnityEngine.PlayerPrefs" preserve="all" />
@@ -289,7 +294,6 @@
     <type fullname="UnityEngine.RectTransform" preserve="all" />
     <type fullname="UnityEngine.Renderer" preserve="all" />
     <type fullname="UnityEngine.Rendering.LightProbeUsage" preserve="all" />
-    <type fullname="UnityEngine.Rendering.ReflectionProbeUsage" preserve="all" />
     <type fullname="UnityEngine.Rendering.RenderPipelineManager" preserve="all" />
     <type fullname="UnityEngine.Rendering.ScriptableRenderContext" preserve="all" />
     <type fullname="UnityEngine.Rendering.ShadowCastingMode" preserve="all" />
@@ -305,7 +309,6 @@
     <type fullname="UnityEngine.SerializeField" preserve="all" />
     <type fullname="UnityEngine.SerializeReference" preserve="all" />
     <type fullname="UnityEngine.Shader" preserve="all" />
-    <type fullname="UnityEngine.SkinnedMeshRenderer" preserve="all" />
     <type fullname="UnityEngine.Sprite" preserve="all" />
     <type fullname="UnityEngine.SpriteRenderer" preserve="all" />
     <type fullname="UnityEngine.SystemInfo" preserve="all" />

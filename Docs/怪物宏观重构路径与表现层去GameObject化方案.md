@@ -430,3 +430,22 @@ ECS/DOTS 对照后端
 - 用快照计数替代 GameObject 数量作为测试门禁。
 
 预期最大收益是对象数量、内存、Spawn/Despawn 峰值和表现层管理复杂度下降；稳定 5012 怪场景的纯 DrawCall 收益预计很小，因为当前已经使用 Instanced VAT。是否能显著降低 Host 帧耗时，必须以 `Monster.Presentation.Apply`、`Monster.VAT.Update`、Spawn/Despawn 和 Memory Profiler 的 A/B 结果为准。
+
+## 12. 去 GameObject 后的最新打包验证
+
+RunId：[`20261101-071326-a1a508c6`](../BenchmarkResults/runs/20261101-071326-a1a508c6/SUMMARY.md)。本轮三档怪物数量各 3 次、Host/Client 分别前台采样，18/18 有效；5012 Host/Client 的 Slot、View 和工作负载校验通过，且没有再出现 `MonsterVATRenderProfileCatalog` 未注册或 Replica SlotCount 错误。`Zombie_Standard` Catalog 键与运行时配置已统一。
+
+当前去 GameObject 路径的轻量性能量级如下：
+
+| 怪物数 | Host 平均帧时 (ms) | Client 平均帧时 (ms) | Host P95 (ms) | Client P95 (ms) |
+|---:|---:|---:|---:|---:|
+| 1024 | 2.855 | 3.237 | 5.124 | 4.141 |
+| 2048 | 3.566 | 4.178 | 8.575 | 5.178 |
+| 5012 | 6.945 | 7.153 | 18.026 | 9.183 |
+
+5012 Host 的 `EntityTick` 平均单次约 5.964 ms；四叉树 `Build` 约 0.464～0.479 ms/次，`Query` 约 0.00077～0.00080 ms/次，平均候选约 0.75 个。该结果说明无 GameObject 表现路径已经可以稳定完成当前三档压测，并为后续 Burst/Job 后端提供可复现的 Managed SoA + Instanced VAT 基线。
+
+需要保留两个边界：
+
+1. 本轮 Catalog 指纹与前两批次不同，因此 5012 Host 相对旧批次的约 2% 波动只能作趋势观察，不能当作严格 A/B 收益；严格比较必须固定提交、Catalog 指纹和采样配置。
+2. 5012 Host 结束进程时仍有 `TMP_SubMeshUI` 和 `NetworkPrefabRegistry.ReleaseAll` 的 teardown `NullReferenceException`。它们不影响 18/18 性能样本有效性，但应作为独立清理问题关闭后再进行最终发布前测。

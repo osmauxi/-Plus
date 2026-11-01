@@ -281,15 +281,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     public sealed class MonsterViewCatalog
     {
         private readonly Dictionary<ushort, MonsterViewConfig> _items = new Dictionary<ushort, MonsterViewConfig>();
-        private readonly string[] _localPoolIds;
-
-        public IReadOnlyList<string> LocalPoolIds => _localPoolIds;
 
         public MonsterViewCatalog(IEnumerable<MonsterViewConfig> items, MonsterRuntimeCatalog runtimeCatalog)
         {
             if (items == null) throw new ArgumentNullException(nameof(items));
             if (runtimeCatalog == null) throw new ArgumentNullException(nameof(runtimeCatalog));
-            var poolIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (MonsterViewConfig item in items)
             {
                 if (item == null) 
@@ -297,10 +293,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 //外键检查，这也是单独一个表
                 runtimeCatalog.Get(item.ConfigIndex);
                 _items.Add(item.ConfigIndex, item);
-                poolIds.Add(item.LocalPoolId);
             }
-            _localPoolIds = new string[poolIds.Count];
-            poolIds.CopyTo(_localPoolIds);
         }
 
         public MonsterViewConfig Get(ushort configIndex) => _items.TryGetValue(configIndex, out var item)

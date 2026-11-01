@@ -419,7 +419,7 @@ namespace ProjectGame.HotFix.Benchmarking
                 : replica != null && replica.HasFrame &&
                   replica.SlotCount == _options.MonsterCount &&
                   replica.ActiveCount == _options.MonsterCount &&
-                  view != null && view.ActiveViewCount == _options.MonsterCount;
+                  view != null && view.ActiveRenderCount == _options.MonsterCount;
             bool flowValid = _options.Role != BenchmarkProcessRole.Host || sourceRebuilds > 0;
             bool spatialValid = _options.Role != BenchmarkProcessRole.Host ||
                                 _spatialDiagnostics.QueryCount > 0 && _shotFiredCount > 0;
@@ -506,8 +506,8 @@ namespace ProjectGame.HotFix.Benchmarking
                 authorityAliveMonsterCount = monsters?.AliveMonsterCount ?? 0,
                 replicaSlotCount = replica?.SlotCount ?? 0,
                 replicaActiveCount = replica?.ActiveCount ?? 0,
-                activeViewCount = view?.ActiveViewCount ?? 0,
-                viewSlotCount = view?.ViewSlotCount ?? 0,
+                activeViewCount = view?.ActiveRenderCount ?? 0,
+                viewSlotCount = view?.RenderSlotCount ?? 0,
                 sourceRebuildCount = sourceRebuilds,
                 topologyRebuildCount = (authority?.TopologyRebuildCount ?? 0) - _topologyRebuilds,
                 costRebuildCount = (authority?.CostRebuildCount ?? 0) - _costRebuilds,

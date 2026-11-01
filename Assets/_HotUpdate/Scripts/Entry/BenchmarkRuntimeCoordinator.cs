@@ -236,8 +236,8 @@ namespace ProjectGame.HotFix.Benchmarking
 
             MonsterViewRuntimeService view = FindObjectOfType<MonsterViewRuntimeService>();
             return view != null &&
-                   view.ViewSlotCount == options.MonsterCount &&
-                   view.ActiveViewCount == options.MonsterCount;
+                   view.RenderSlotCount == options.MonsterCount &&
+                   view.ActiveRenderCount == options.MonsterCount;
         }
 
         private static async UniTask WaitUntilAsync(

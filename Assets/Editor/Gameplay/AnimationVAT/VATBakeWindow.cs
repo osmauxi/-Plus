@@ -1,11 +1,17 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using ProjectGame.HotFix.Gameplay.Monsters;
 
 public class VATBakeWindow : EditorWindow
 {
     private GameObject _prefab;
     [SerializeField] private AnimationClip[] _clips = System.Array.Empty<AnimationClip>();
+    [SerializeField] private Material _vatMaterial;
+    [SerializeField, Min(0f)] private float _animationCrossFadeDuration = 0.12f;
+    [SerializeField, Min(0f)] private float _movementThreshold = 0.05f;
+    [SerializeField, Min(0.01f)] private float _hitFlashDuration = 0.08f;
+    [SerializeField] private Color _hitFlashColor = Color.white;
     private float _frameRate = 30f;
 
     [MenuItem("Tools/Monster VAT/Baker")]
@@ -18,6 +24,11 @@ public class VATBakeWindow : EditorWindow
     {
         _prefab = (GameObject)EditorGUILayout.ObjectField("Prefab", _prefab, typeof(GameObject), false);
         _frameRate = EditorGUILayout.FloatField("Frame Rate", _frameRate);
+        _vatMaterial = (Material)EditorGUILayout.ObjectField("VAT Material", _vatMaterial, typeof(Material), false);
+        _animationCrossFadeDuration = EditorGUILayout.FloatField("Cross Fade Duration", _animationCrossFadeDuration);
+        _movementThreshold = EditorGUILayout.FloatField("Movement Threshold", _movementThreshold);
+        _hitFlashDuration = EditorGUILayout.FloatField("Hit Flash Duration", _hitFlashDuration);
+        _hitFlashColor = EditorGUILayout.ColorField("Hit Flash Color", _hitFlashColor);
         SerializedObject serializedWindow = new SerializedObject(this);
         serializedWindow.Update();
         EditorGUILayout.PropertyField(serializedWindow.FindProperty("_clips"), true);
@@ -32,6 +43,20 @@ public class VATBakeWindow : EditorWindow
         if (_prefab == null)
         {
             Debug.LogError("没有Prefab");
+            return;
+        }
+
+        if (_vatMaterial == null)
+        {
+            string profilePath = $"Assets/VAT/{_prefab.name}_RenderProfile.asset";
+            MonsterVATRenderProfileAsset existingProfile =
+                AssetDatabase.LoadAssetAtPath<MonsterVATRenderProfileAsset>(profilePath);
+            _vatMaterial = existingProfile != null ? existingProfile.Material : null;
+        }
+
+        if (_vatMaterial == null)
+        {
+            Debug.LogError("请指定 VAT Material，或先确保该 Prefab 已存在 RenderProfile。", _prefab);
             return;
         }
 
@@ -118,9 +143,24 @@ public class VATBakeWindow : EditorWindow
         Texture2D texture = BuildPositionTexture(allFrames, vertexCount);
         Texture2D normalTexture = BuildNormalTexture(allNormalFrames, vertexCount);
 
-        SaveAsset(texture, normalTexture, vatMesh, clipData.ToArray(), allFrames.Count);
+        MonsterVATAsset savedAsset =
+            SaveAsset(texture, normalTexture, vatMesh, clipData.ToArray(), allFrames.Count);
 
-        Debug.Log($"VAT Bake完成 Vertex:{vertexCount} Frames:{allFrames.Count}");
+        if (savedAsset != null)
+        {
+            MonsterVATRenderProfileBaker.Bake(
+                instance,
+                _prefab.name,
+                savedAsset,
+                _vatMaterial,
+                _animationCrossFadeDuration,
+                _movementThreshold,
+                _hitFlashDuration,
+                _hitFlashColor);
+        }
+
+        if (savedAsset != null)
+            Debug.Log($"VAT Bake完成 Vertex:{vertexCount} Frames:{allFrames.Count}");
 
         DestroyImmediate(instance);
     }
@@ -150,7 +190,12 @@ public class VATBakeWindow : EditorWindow
     }
 
 
-    private void SaveAsset(Texture2D positionTexture, Texture2D normalTexture, Mesh mesh, VATClipData[] clips, int frameCount)
+    private MonsterVATAsset SaveAsset(
+        Texture2D positionTexture,
+        Texture2D normalTexture,
+        Mesh mesh,
+        VATClipData[] clips,
+        int frameCount)
     {
         string folder = "Assets/VAT";
 
@@ -173,7 +218,7 @@ public class VATBakeWindow : EditorWindow
         if (savedPositionTexture == null || savedNormalTexture == null || savedMesh == null)
         {
             Debug.LogError("VAT资源保存失败，请检查Console中的资源类型错误。");
-            return;
+            return null;
         }
 
         MonsterVATAsset asset = CreateInstance<MonsterVATAsset>();
@@ -191,13 +236,14 @@ public class VATBakeWindow : EditorWindow
         if (savedAsset == null)
         {
             Debug.LogError("VAT主资源保存失败，请检查Console中的资源类型错误。");
-            return;
+            return null;
         }
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
         Debug.Log($"VAT资源保存完成：{assetPath}，顶点数：{savedMesh.vertexCount}，帧数：{frameCount}");
+        return savedAsset;
     }
     /// <summary>
     /// 辅助方法，用于保存或更新资源，如果资源已存在，则更新其内容，否则创建新资源。

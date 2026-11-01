@@ -6,42 +6,9 @@ using UnityEngine.Rendering;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
-    public readonly struct MonsterVATRenderProfile
-    {
-        public readonly MonsterVATAsset Asset;
-        public readonly Material Material;
-        public readonly Material SourceMaterial;
-        public readonly Vector3 RootScale;
-        public readonly Matrix4x4 RendererLocalToRoot;
-        public readonly float CrossFadeDuration;
-        public readonly float MovementThreshold;
-        public readonly float HitFlashDuration;
-        public readonly Color HitFlashColor;
-        public readonly ShadowCastingMode ShadowCastingMode;
-        public readonly bool ReceiveShadows;
-        public readonly int Layer;
-
-        public MonsterVATRenderProfile(MonsterVATAsset asset, Material material, Material sourceMaterial,
-            Vector3 rootScale, Matrix4x4 rendererLocalToRoot,
-            float crossFadeDuration, float movementThreshold, float hitFlashDuration, Color hitFlashColor,
-            ShadowCastingMode shadowCastingMode, bool receiveShadows, int layer)
-        {
-            Asset = asset;
-            Material = material;
-            SourceMaterial = sourceMaterial;
-            RootScale = rootScale;
-            RendererLocalToRoot = rendererLocalToRoot;
-            CrossFadeDuration = crossFadeDuration;
-            MovementThreshold = movementThreshold;
-            HitFlashDuration = hitFlashDuration;
-            HitFlashColor = hitFlashColor;
-            ShadowCastingMode = shadowCastingMode;
-            ReceiveShadows = receiveShadows;
-            Layer = layer;
-        }
-    }
-
-    /// <summary>房间级 VAT 状态与批量绘制；所有实例按稳定 Monster Slot 索引。</summary>
+    /// <summary>
+    /// 房间级 VAT 状态与批量绘制；所有实例按稳定 Monster Slot 索引。
+    /// </summary>
     public sealed class MonsterVATRenderWorld : IDisposable
     {
         private const int DrawBatchCapacity = 256;
@@ -66,6 +33,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly List<RenderGroup> _groups = new List<RenderGroup>();
         private InstanceState[] _states = Array.Empty<InstanceState>();
         private int _slotCount;
+
+        public int SlotCount => _slotCount;
+        public int ActiveCount { get; private set; }
 
         public MonsterVATRenderWorld(float groundY)
         {
@@ -95,6 +65,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             };
             group.Slots.Add(slot);
             _slotCount++;
+            ActiveCount++;
         }
 
         public void SetPose(int slot, Vector2 position, float yaw, float deltaTime)
@@ -136,7 +107,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void Despawn(int slot)
         {
+            if (!_states[slot].Active)
+                return;
             _states[slot].Active = false;
+            ActiveCount--;
+        }
+
+        public void Clear()
+        {
+            _slotCount = 0;
+            ActiveCount = 0;
+            for (int i = 0; i < _groups.Count; i++)
+                _groups[i].Dispose();
+            _groups.Clear();
+            Array.Clear(_states, 0, _states.Length);
         }
 
         public void Update(float deltaTime, float unscaledDeltaTime)
@@ -164,17 +148,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void Dispose()
         {
-            _slotCount = 0;
-            _groups.Clear();
-            Array.Clear(_states, 0, _states.Length);
+            Clear();
         }
-
+        /// <summary>
+        /// 尝试获取或创建一个渲染组，如果已经存在相同的VAT资源和材质，则返回其索引
+        /// 否则创建一个新的渲染组并返回其索引
+        /// </summary>
         private int GetOrCreateGroup(in MonsterVATRenderProfile profile)
         {
             for (int i = 0; i < _groups.Count; i++)
             {
                 RenderGroup group = _groups[i];
-                if (group.Asset == profile.Asset && group.Material == profile.Material)
+                if (group.Matches(profile))
                     return i;
             }
 
@@ -270,9 +255,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
             BeginTransition(ref state, state.DesiredLocomotionClip, true, group.CrossFadeDuration);
         }
-
+        /// <summary>
+        /// 动画过渡开始，设置源动画片段和目标动画片段，并初始化过渡时间
+        /// </summary>
         private static void BeginTransition(ref InstanceState state, int clip, bool loop, float duration)
         {
+            //先将可能的源动画片段设置为当前目标动画片段，然后将目标动画片段设置为新的动画片段
             state.SourceClip = state.TargetClip;
             state.SourceTime = state.TargetTime;
             state.SourceLoop = state.TargetLoop;
@@ -284,7 +272,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (state.TransitionDuration <= 0f)
                 CompleteTransition(ref state);
         }
-
+        /// <summary>
+        /// 过度完成，将源动画片段设置为目标动画片段，并重置过渡时间
+        /// </summary>
+        /// <param name="state"></param>
         private static void CompleteTransition(ref InstanceState state)
         {
             state.SourceClip = state.TargetClip;
@@ -295,8 +286,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private static VATFrameState EvaluateFrameState(in InstanceState state, RenderGroup group)
         {
+            //SourceClip的当前帧
             float currentFrame = GetFrame(group.Clips[state.SourceClip], state.SourceTime, state.SourceLoop);
+            //TargetClip的当前帧
             float nextFrame = GetFrame(group.Clips[state.TargetClip], state.TargetTime, state.TargetLoop);
+            //计算过渡混合值，范围在0到1之间
             float blend = state.TransitionDuration > 0f
                 ? Mathf.Clamp01(state.TransitionElapsed / state.TransitionDuration)
                 : 0f;
@@ -322,47 +316,70 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 capacity = checked(capacity * 2);
             Array.Resize(ref _states, capacity);
         }
-
+        /// <summary>
+        /// 描述一个slot怪物实例的状态，包括位置、朝向、动画状态等信息
+        /// </summary>
         private struct InstanceState
         {
             public bool Active;
+            //判断是否有上一次的Pose数据，用于计算移动状态
             public bool HasPreviousPose;
+            //当前动画片段是否循环播放
             public bool SourceLoop;
+            //目标动画片段是否循环播放，用于在动画过渡时判断是否需要循环播放目标动画片段
             public bool TargetLoop;
             public bool AttackPlaying;
+            //表示Slot使用哪一个RenderGroup，RenderGroup中包含了怪物的VAT资源和材质等信息
             public int GroupIndex;
+            //当前动画片段的索引
             public int SourceClip;
             public int TargetClip;
+            //表示当前怪物实例希望播放的动画片段索引，通常是Idle或Walk动画片段
             public int DesiredLocomotionClip;
+
             public Vector2 Position;
             public Vector2 PreviousPosition;
             public float Yaw;
+            //SourceLoop已经播放的时间
             public float SourceTime;
             public float TargetTime;
+            //动画过渡已经过的时间
             public float TransitionElapsed;
+            //动画过渡的总时间
             public float TransitionDuration;
             public float HitFlashRemaining;
         }
-
+        /// <summary>
+        /// 一批使用同一套材质和VAT资源的怪物实例的渲染组
+        /// </summary>
         private sealed class RenderGroup
         {
+            // Asset 是项目资源；Material 是当前 RenderGroup 独占的运行时材质实例。
             public readonly MonsterVATAsset Asset;
             public readonly Material Material;
+            private readonly Material _materialAsset;
             public readonly VATClipData[] Clips;
+            //动画信息
             public readonly int IdleClip;
             public readonly int WalkClip;
             public readonly int AttackClip;
+
             public readonly float CrossFadeDuration;
             public readonly float MovementThreshold;
             public readonly float HitFlashDuration;
             public readonly Vector3 RootScale;
             public readonly Matrix4x4 RendererLocalToRoot;
+            public readonly Material SourceMaterial;
+            public readonly Color HitFlashColor;
+
             public readonly List<int> Slots = new List<int>();
             public readonly Matrix4x4[] Matrices = new Matrix4x4[DrawBatchCapacity];
             public readonly float[] CurrentFrames = new float[DrawBatchCapacity];
             public readonly float[] NextFrames = new float[DrawBatchCapacity];
             public readonly float[] Blends = new float[DrawBatchCapacity];
             public readonly float[] HitFlashAmounts = new float[DrawBatchCapacity];
+            //材质属性块，用于在批量绘制时传递每个实例的动画状态和闪烁状态
+            //Material是一组怪物的共享资源，而MaterialPropertyBlock代表每个怪物的独立参数状态
             public readonly MaterialPropertyBlock Properties = new MaterialPropertyBlock();
             public readonly ShadowCastingMode ShadowCastingMode;
             public readonly bool ReceiveShadows;
@@ -371,7 +388,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             public RenderGroup(in MonsterVATRenderProfile profile)
             {
                 Asset = profile.Asset;
-                Material = profile.Material;
+                _materialAsset = profile.Material;
+                Material = new Material(profile.Material)
+                {
+                    name = $"{profile.Material.name} (Monster VAT Runtime)"
+                };
                 Clips = Asset.Clips;
                 IdleClip = FindClip(Clips, "idle");
                 WalkClip = FindClip(Clips, "walk");
@@ -380,6 +401,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 MovementThreshold = profile.MovementThreshold;
                 HitFlashDuration = profile.HitFlashDuration;
                 RootScale = profile.RootScale;
+                SourceMaterial = profile.SourceMaterial;
+                HitFlashColor = profile.HitFlashColor;
                 RendererLocalToRoot = profile.RendererLocalToRoot;
                 ConfigureMaterial(profile);
                 ShadowCastingMode = profile.ShadowCastingMode;
@@ -420,6 +443,30 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                         && clips[i].Name.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
                         return i;
                 throw new InvalidOperationException($"VAT Asset 缺少 {token} 动画片段。");
+            }
+
+            public void Dispose()
+            {
+                if (Application.isPlaying)
+                    UnityEngine.Object.Destroy(Material);
+                else
+                    UnityEngine.Object.DestroyImmediate(Material);
+            }
+
+            public bool Matches(in MonsterVATRenderProfile profile)
+            {
+                return Asset == profile.Asset
+                    && _materialAsset == profile.Material
+                    && SourceMaterial == profile.SourceMaterial
+                    && CrossFadeDuration == Mathf.Max(0f, profile.CrossFadeDuration)
+                    && MovementThreshold == profile.MovementThreshold
+                    && HitFlashDuration == profile.HitFlashDuration
+                    && HitFlashColor == profile.HitFlashColor
+                    && RootScale == profile.RootScale
+                    && RendererLocalToRoot.Equals(profile.RendererLocalToRoot)
+                    && ShadowCastingMode == profile.ShadowCastingMode
+                    && ReceiveShadows == profile.ReceiveShadows
+                    && Layer == profile.Layer;
             }
         }
     }

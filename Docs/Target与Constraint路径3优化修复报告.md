@@ -1,8 +1,8 @@
 # Target 与 Constraint 路径 3 优化修复报告
 
-> 状态：代码修复已完成，运行时复测待补。
+> 状态：代码修复、AOT/HotFix 生成物重建和 Player 复测已完成；当前批次可作为功能正确性与轻量性能基线，但跨批次严格回归仍受 Catalog 指纹差异限制。
 > 
-> 本文记录最新归一化 AOT 量化中的问题判断、路径 3 的实现、Marker 口径以及修复后的待验证指标。修复后量化结果不在本文件中预填，避免把预期值误当成实测值。
+> 本文记录最新归一化 AOT 量化中的问题判断、路径 3 的实现、Marker 口径以及修复后的实测结果。当前结果来自 `20261101-071326-a1a508c6`，所有结果均标注采样口径和可比性边界。
 
 ## 1. 本次分析使用的量化结果
 
@@ -153,25 +153,48 @@ Target.Cache -> Target.Recovery -> Target batch -> 活跃怪物循环
 
 本轮不预估 FPS 百分比。原因是 Target/Constraint 仍然位于 5012 Host 的 EntityTick 中，最终收益取决于：非法 Cell 比例、FlowField 重建频率、分离速度撞墙比例、Profiler Marker 开销以及脚本后端是否实际使用 AOT 生成物。
 
-## 6. 修复后量化计划（待补）
+## 6. 修复后量化结果
 
-必须使用与 `20261029-151522-d3b8f494` 相同的压测配置和采样口径，至少补充 5012 Host/Client 各 3 次有效样本。
+本轮 RunId 为 `20261101-071326-a1a508c6`，Windows Development Player，1024×768、Performant、VSync 0，Seed 12345，三档怪物数量各 3 次重复，预热 5 秒、实际采样 30 秒，Host/Client 分别前台采样。18/18 个角色样本有效，5012 Host/Client 的 Slot、View 和工作负载校验均通过；本轮 Catalog 指纹为 `271e3c5aa7d3ab5904f93b77ac542dfd`。
 
-待填结果：
+最新批次的角色前台聚合值：
 
-| 指标 | 修复前记录 | 修复后实测 | 变化 |
+| 怪物数 | 角色 | 平均帧时 (ms) | P95 (ms) | P99 (ms) | Main Thread 平均 (ms) | GPU 平均 (ms) | GC Alloc 平均 (B/帧) |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 1024 | Host | 2.855 | 5.124 | 6.840 | 2.847 | 0.578 | 1,865 |
+| 1024 | Client | 3.237 | 4.141 | 4.659 | 3.229 | 0.770 | 1,365 |
+| 2048 | Host | 3.566 | 8.575 | 9.965 | 3.557 | 0.960 | 1,925 |
+| 2048 | Client | 4.178 | 5.178 | 5.879 | 4.168 | 1.287 | 1,157 |
+| 5012 | Host | 6.945 | 18.026 | 19.748 | 6.932 | 2.410 | 2,053 |
+| 5012 | Client | 7.153 | 9.183 | 9.951 | 7.141 | 2.674 | 1,485 |
+
+5012 Host 的路径 3 Marker（3 次重复的代表区间）：
+
+| Marker | 平均单次 (ms) | 平均每帧 (ms) | P95 单帧 (ms) |
 |---|---:|---:|---:|
-| `EntityTick` 平均/P95 | 3.269 ms/frame（平均量级） | 待补 | 待补 |
-| `EntityTick.Target` 平均/P95 | 0.982 ms/frame（平均量级） | 待补 | 待补 |
-| `Target.Cache` 调用次数/平均耗时 | 新增前无 | 待补 | 待补 |
-| `Target.Recovery` 调用次数/平均耗时 | 新增前无 | 待补 | 待补 |
-| `EntityTick.Constraint` 平均/P95 | 0.867 ms/frame（平均量级） | 待补 | 待补 |
-| `Constraint.Kernel` 平均/P95 | 新增前无 | 待补 | 待补 |
-| Host Main Thread 平均/P95 | 9.40～9.75 / 23.79～24.08 ms | 待补 | 待补 |
-| GC Alloc | 约 1.9 KB/frame | 待补 | 待补 |
-| QuadTree Build / Query | 约 0.454 / 0.0008 ms | 待补 | 待确认未回归 |
+| `EntityTick` | 5.865～6.104 | 1.169～1.381 | 5.895～6.238 |
+| `EntityTick.Target` | 0.041～0.042 | 0.008～0.009 | 0.040～0.042 |
+| `Target.Cache` | 0.775～0.807 | 0.012～0.015 | 仅在缓存重建帧出现 |
+| `Target.Recovery` | 0.467～0.480 | 0.093～0.109 | 0.471～0.492 |
+| `EntityTick.Constraint` | 约 0.77～0.81（含子阶段） | 约 0.15～0.18 | 约 0.77～0.81 |
+| `Constraint.Kernel` | 约 0.47～0.49 | 约 0.09～0.11 | 约 0.47～0.49 |
 
-同时必须做以下 parity 检查：
+`Target.Cache` 的调用次数约 70～72 次/30 秒，符合“按 Flow 数据版本重建”的设计；不能将 `EntityTick` 与子 Marker 直接相加，因为子 Marker 嵌套在总 Marker 内。
+
+四叉树同期量化：`Monster.SpatialIndex.Build` 约 0.464～0.479 ms/次，`Monster.SpatialIndex.Query` 约 0.00077～0.00080 ms/次；平均候选数约 0.75、平均访问节点约 18、候选占活跃怪物约 0.015%。这足以作为当前实现的轻量绝对基线，但尚未与同 Catalog 的旧全 Slot 实现做严格 A/B。
+
+与 `20261031-035525-43747a99` 的 5012 Host 对照如下。两轮采样模式相同，但 Catalog 指纹不同，因此只用于趋势观察：
+
+| 指标 | 20261031 观察值 | 20261101 实测 | 变化（观察性） |
+|---|---:|---:|---:|
+| `EntityTick` 平均单次 | 5.586 ms | 约 5.964 ms | +6.8% |
+| Host 平均帧时 | 6.808 ms | 6.945 ms | +2.0% |
+| Host P95 / P99 | 17.632 / 19.719 ms | 18.026 / 19.748 ms | +2.2% / +0.1% |
+| Host Main Thread 平均 | 约 6.80 ms | 6.932 ms | 仅作观察 |
+| GC Alloc 平均 | 旧批次口径不同 | 2,053 B/帧 | 不作严格比较 |
+| QuadTree Build / Query | 约 0.454 / 0.0008 ms | 约 0.464 / 0.0008 ms | 基本稳定 |
+
+本轮已完成以下 parity 检查：
 
 1. Target 的 HasTarget、TargetWalkable、TargetDistanceSqr、FlowDirection 与旧实现一致；
 2. 非法 Cell 的恢复 Cell、恢复 Source 和脱困方向一致；
@@ -181,9 +204,11 @@ Target.Cache -> Target.Recovery -> Target batch -> 活跃怪物循环
 
 ## 7. 当前验证状态
 
-- 已完成：代码实现、Marker 接入、总 Marker 口径修正、文档记录；
-- 已完成：`git diff --check` 无空白错误；
-- 尚未完成：Unity Editor/Player 编译、AOT/HotFix 生成物重建、运行时 parity、修复后 5012 量化；
-- 因此当前不能宣称 Target/Constraint 已经取得实测加速，只能确认优化路径已经落到可量化的独立内核和缓存边界。
+- 已完成：代码实现、Marker 接入、总 Marker 口径修正、AOT/HotFix 生成物重建和 Windows Player 打包；
+- 已完成：三档怪物数量、Host/Client 双端前台采样，18/18 有效，目标、约束、Slot/View 数量和工作负载校验通过；
+- 已完成：`MonsterVATRenderProfileCatalog` 的 `Zombie_Standard` 键与运行时配置一致，最新批次没有再出现 Catalog 未注册或 Replica SlotCount 错误；
+- 当前可确认：路径 3 已落到可量化的独立内核和缓存边界，`Target.Cache` 没有按怪物数量高频重复执行，`Constraint.Kernel` 保持在约 0.1 ms/帧量级；
+- 当前不能确认：相对旧实现的严格加速百分比。原因是最新 Catalog 指纹与 `20261031` 及更早批次不一致，基线兼容性检查仍应标记为“不兼容：Catalog 指纹”；
+- 已知非采样故障：5012 Host 结束进程时仍会出现 `TMP_SubMeshUI` 与 `NetworkPrefabRegistry.ReleaseAll` 的 `NullReferenceException`，该模式在前两次批次也存在，发生于 teardown，不计入性能样本，但应作为独立清理问题跟踪。
 
-下一步固定为：先完成生成物和运行时 parity，再执行同口径 5012 压测，把第 6 节表格中的“待补”替换为实测数据。
+下一步若要形成严格回归基线，应固定构建提交、Catalog 指纹和采样配置后重跑至少 3 次；在此之前，本轮数据用于验证功能正确性、Marker 是否可解释以及当前四叉树/EntityTick 的绝对量级。

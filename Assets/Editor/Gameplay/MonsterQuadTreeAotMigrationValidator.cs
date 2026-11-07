@@ -44,6 +44,7 @@ namespace ProjectGame.Editor.Gameplay
                 ValidateScenario(root.transform, "分裂阈值 17", CreateRepeatedPositions(17), null);
                 ValidateScenario(root.transform, "同位置与最大深度", CreateRepeatedPositions(96), null);
                 ValidateIncrementalOperations(root.transform);
+                ValidateOutOfBoundsExcluded();
                 Debug.Log("四叉树 AOT 一致性验证通过：Build、Query、节点结构、候选顺序和增量操作均一致。");
             }
             finally
@@ -119,6 +120,23 @@ namespace ProjectGame.Editor.Gameplay
             kernel.Relocate(4, positions[4]);
             CompareQuery("增量 Relocate", world, reference, kernel, query, capacity);
             CompareNodes("增量操作", reference, kernel);
+        }
+
+        private static void ValidateOutOfBoundsExcluded()
+        {
+            Vector2[] positions = { Vector2.zero, new(50.01f, 0f) };
+            byte[] activeMask = { 1, 1 };
+            var kernel = new MonsterQuadTreeKernel(Vector2.zero, RoomHalfSize, positions.Length);
+            kernel.Build(positions, activeMask, positions.Length);
+
+            int[] results = new int[positions.Length];
+            int count = kernel.QuerySweptCircle(
+                new Vector2(-60f, 0f),
+                new Vector2(60f, 0f),
+                1f,
+                results);
+            if (count != 1 || results[0] != 0)
+                throw new InvalidOperationException("四叉树根范围外怪物不应进入弹丸候选。");
         }
 
         private static void CompareQuery(

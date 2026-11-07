@@ -175,7 +175,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!_isBuilt)
                 return;
 
-            EnsureInputCapacity(world.SlotCount);
             Vector2 position = world.Motion[slot].Position;
             _spatialPositions[slot] = position;
             _spatialActiveMask[slot] = 1;
@@ -200,7 +199,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _spatialPositions[slot] = position;
             _kernel.Relocate(slot, position);
         }
-
+        /// <summary>
+        /// 子弹使用的查询接口，查询从 start 到 end 的圆形扫掠区域内的所有怪物索引
+        /// 结果存储在results数组中，返回结果数量
+        /// </summary>
         public int QuerySweptCircle(
             MonsterWorld world,
             Vector2 start,
@@ -208,6 +210,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float radius,
             int[] results)
         {
+            //没有活着的怪物时，直接返回0
             if (world.AliveCount == 0)
             {
                 LastQueryStart = start;
@@ -273,7 +276,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             using (BuildMarker.Auto())
             {
-                EnsureInputCapacity(world.SlotCount);
                 for (int slot = 0; slot < world.SlotCount; slot++)
                 {
                     _spatialPositions[slot] = world.Motion[slot].Position;
@@ -288,7 +290,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
         }
 
-        private void EnsureInputCapacity(int count)
+        public void EnsureCapacity(int count)
         {
             if (_spatialPositions.Length >= count)
                 return;
@@ -297,6 +299,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int capacity = Math.Max(count, previousCapacity == 0 ? 64 : previousCapacity * 2);
             Array.Resize(ref _spatialPositions, capacity);
             Array.Resize(ref _spatialActiveMask, capacity);
+            _kernel.EnsureCapacity(capacity);
             _kernel.SetPositionBuffer(_spatialPositions);
         }
 

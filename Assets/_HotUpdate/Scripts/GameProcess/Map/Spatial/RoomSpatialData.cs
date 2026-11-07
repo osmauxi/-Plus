@@ -1,11 +1,10 @@
 using System;
 using UnityEngine;
-using ProjectGame.HotFix.Gameplay.Navigation;
 
 namespace ProjectGame.HotFix.Gameplay.Map
 {
     /// <summary>
-    /// Cell²ÉÑùÊ±µ¥¸ö¸ñ×Ó¿ÉÄÜµÄ×´Ì¬
+    /// Cellé‡‡æ ·æ—¶å•ä¸ªæ ¼å­å¯èƒ½çš„çŠ¶æ€
     /// </summary>
     public enum RoomSpatialCell : byte 
     {
@@ -15,21 +14,21 @@ namespace ProjectGame.HotFix.Gameplay.Map
     }
 
     /// <summary>
-    /// Cell²ÉÑùºóµÄÊı¾İ´æ·Å
+    /// Cellé‡‡æ ·åçš„æ•°æ®å­˜æ”¾
     /// </summary>
-    public sealed class RoomSpatialData : ScriptableObject, IAStarGrid
+    public sealed class RoomSpatialData : ScriptableObject
     {
         /// <summary>
-        /// µ±Ç°Ä¬ÈÏµØÍ¼´óĞ¡ÎªPlane 7*7*7£¬¶ÔÓ¦µØÃæ70*70
+        /// å½“å‰é»˜è®¤åœ°å›¾å¤§å°ä¸ºPlane 7*7*7ï¼Œå¯¹åº”åœ°é¢70*70
         /// </summary>
         public const int GridSize = 70;
         /// <summary>
-        /// ½«µØÍ¼ÇĞ·ÖÎª70*70 4900¸ö¸ñ×Ó£¬Ã¿¸öÎª1*1£¬·Ç³£Ö±¹Û
+        /// å°†åœ°å›¾åˆ‡åˆ†ä¸º70*70 4900ä¸ªæ ¼å­ï¼Œæ¯ä¸ªä¸º1*1ï¼Œéå¸¸ç›´è§‚
         /// </summary>
         public const int CellSize = 1;
         public const float HalfSize = GridSize * CellSize * 0.5f;
         /// <summary>
-        /// CellÓ³ÉäÌìÈ»Îª¶şÎ¬Êı×é£¬µ«UnityÔ­ÉúĞòÁĞ»¯²»Ö§³Ö¶şÎ¬Êı×é£¬ËùÒÔÖ»ÄÜ°ÑËûÅÄÆ½ÁË
+        /// Cellæ˜ å°„å¤©ç„¶ä¸ºäºŒç»´æ•°ç»„ï¼Œä½†UnityåŸç”Ÿåºåˆ—åŒ–ä¸æ”¯æŒäºŒç»´æ•°ç»„ï¼Œæ‰€ä»¥åªèƒ½æŠŠä»–æ‹å¹³äº†
         /// </summary>
         [SerializeField]private RoomSpatialCell[] _cells = new RoomSpatialCell[GridSize * GridSize];
 
@@ -55,7 +54,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
         public void EditorSetCells(RoomSpatialCell[] cells)
         {
             if (cells == null || cells.Length != GridSize * GridSize)
-                throw new System.ArgumentException($"RoomSpatialData ±ØĞë°üº¬ {GridSize * GridSize} ¸ö Cell¡£");
+                throw new System.ArgumentException($"RoomSpatialData å¿…é¡»åŒ…å« {GridSize * GridSize} ä¸ª Cellã€‚");
 
             _cells = cells;
         }

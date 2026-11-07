@@ -112,9 +112,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _viewWorld.Update(Time.deltaTime, Time.unscaledDeltaTime);
         }
 
-        private void HandleBeginContextRendering(
-            ScriptableRenderContext context,
-            List<Camera> cameras) => _viewWorld.Render();
+        private void HandleBeginContextRendering(ScriptableRenderContext context,List<Camera> cameras)
+            => _viewWorld.Render();
 
         private void DisposeViewWorld()
         {

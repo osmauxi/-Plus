@@ -44,6 +44,6 @@ Effect 使用 `Assets/DesignData/Excels/EffectConfig.xlsx`，与其他 Excel 一
 ## 其他边界
 
 - `WeaponSystem` 只更新传入状态；预测端和服务端共用规则。
-- `ShotBuilder` 创建弹丸，`ProjectileSimulation` 处理移动、碰撞与生命周期。同一弹丸不会因目标的复合 Collider 对同一实体重复命中。
+- `ShotBuilder` 在权威入口把瞄准方向固定到 XZ 平面，`ProjectileSimulation` 处理移动、碰撞与生命周期；反弹后同样重新压平速度。怪物窄相因此直接使用二维单位方向和二维路径距离，不再计算射击俯仰补偿。同一弹丸不会因目标的复合 Collider 对同一实体重复命中。
 - `WeaponRuntimeService` 从 `ConfigManager` 构建局内冻结目录，并只在服务端推进权威弹丸。
 - 玩家武器只识别怪物逻辑实体，不依赖表现层对象或组件来判断目标；不会把其他玩家当作伤害目标。特殊 Effect 由服务器结算后随 Weapon 表现帧广播，客户端只负责播放，不重复推导玩法结果。

@@ -68,22 +68,11 @@ namespace ProjectGame.Core.Navigation
             FlowTargetCellData[] cells,
             Vector2[] playerPositions,
             byte[] playerWalkable,
-            int playerCount,
             MonsterTargetResult[] results)
         {
-            if (activeSlots == null || monsterPositions == null || fineCellOfSlot == null ||
-                cells == null || playerPositions == null || playerWalkable == null || results == null)
-                return;
-
-            int count = Mathf.Min(activeCount, activeSlots.Length);
-            for (int activeIndex = 0; activeIndex < count; activeIndex++)
+            for (int activeIndex = 0; activeIndex < activeCount; activeIndex++)
             {
                 int slot = activeSlots[activeIndex];
-                if ((uint)slot >= (uint)monsterPositions.Length ||
-                    (uint)slot >= (uint)fineCellOfSlot.Length ||
-                    (uint)slot >= (uint)results.Length)
-                    continue;
-
                 int cellIndex = fineCellOfSlot[slot];
                 if ((uint)cellIndex >= (uint)cells.Length)
                 {
@@ -92,15 +81,13 @@ namespace ProjectGame.Core.Navigation
                 }
 
                 FlowTargetCellData cell = cells[cellIndex];
-                int sourceIndex = cell.SourceIndex;
-                if ((uint)sourceIndex >= (uint)playerCount ||
-                    (uint)sourceIndex >= (uint)playerPositions.Length ||
-                    (uint)sourceIndex >= (uint)playerWalkable.Length)
+                if ((cell.Flags & (FlowTargetCellData.Valid | FlowTargetCellData.Recovery)) == 0)
                 {
                     results[slot] = MonsterTargetResult.None;
                     continue;
                 }
 
+                int sourceIndex = cell.SourceIndex;
                 Vector2 targetPosition = playerPositions[sourceIndex];
                 byte flags = 0;
                 if ((cell.Flags & FlowTargetCellData.Recovery) != 0)
@@ -120,12 +107,6 @@ namespace ProjectGame.Core.Navigation
                         targetPosition,
                         (targetPosition - monsterPositions[slot]).sqrMagnitude,
                         recoveryOffset.normalized);
-                    continue;
-                }
-
-                if ((cell.Flags & FlowTargetCellData.Valid) == 0)
-                {
-                    results[slot] = MonsterTargetResult.None;
                     continue;
                 }
 

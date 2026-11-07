@@ -104,12 +104,13 @@ public class VATBakeWindow : EditorWindow
         {
             DebugClipBindings(clip, animationRoot);
             clipValidationFrames.Add(DebugClipSampling(clip, animationRoot, renderer));
-
+            //取动画帧率
             int frameCount = Mathf.CeilToInt(clip.length * _frameRate);
             int startFrame = currentFrame;
 
             for (int frame = 0; frame < frameCount; frame++)
             {
+                //每帧处理多少s，让模型摆到对应的动画姿势，然后读取并存储顶点信息
                 float time = frame / _frameRate;
 
                 clip.SampleAnimation(animationRoot, time);
@@ -274,7 +275,9 @@ public class VATBakeWindow : EditorWindow
         return existingAsset;
     }
 
-
+    /// <summary>
+    /// 创建一个供VAT写入的uv2Mesh，这里只配置好了顶点索引，内部没有实际顶点值
+    /// </summary>
     private Mesh CreateVATMesh(Mesh source)
     {
         //创建一个新的Mesh，并将原始Mesh的顶点信息复制到新Mesh中，同时为每个顶点生成UV2坐标

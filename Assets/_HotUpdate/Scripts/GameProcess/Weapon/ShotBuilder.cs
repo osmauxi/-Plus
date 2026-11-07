@@ -32,6 +32,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             ushort effectSetId,
             ICollection<ProjectileSpawn> spawnOutput = null)
         {
+            aimDirection.y = 0f;
             if (!IsFinite(origin) || !IsFinite(aimDirection) || aimDirection.sqrMagnitude <= Mathf.Epsilon)
                 throw new ArgumentException("枪口和瞄准方向必须是有限值，且瞄准方向不能为零。");
 

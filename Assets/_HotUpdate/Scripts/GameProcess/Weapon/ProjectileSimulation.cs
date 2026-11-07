@@ -69,6 +69,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             if (deltaTime <= 0f) 
                 return;
+
+            MonsterRoomRuntime room = _monsters.AuthorityRoom;
+            if (room != null)
+                EnsureMonsterCandidateCapacity(room.World.SlotCount);
+
             for (int i = _world.Count - 1; i >= 0; i--)
             {
                 var projectile = _world.Get(i);
@@ -76,11 +81,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     _world.Set(i, projectile);
                 else
                 {
+                    //子弹死了，把快照找出来，发事件给表现层，然后删掉
                     if (_shots.TryGet(projectile.ShotId, out ShotContext shot) &&
                         _stats.TryGet(shot.StatSnapshotId, out WeaponStatSnapshot stats))
-                        _effects.DispatchDestroyed(ref projectile,
-                            new ProjectileDestroyedEffectContext(shot, stats));
-                    _world.RemoveAtSwapBack(i);
+                        _effects.DispatchDestroyed(ref projectile,new ProjectileDestroyedEffectContext(shot, stats));
+                        _world.RemoveAtSwapBack(i);
+                    //哈希表回收，对象回池
                     if (_hitEntities.Remove(projectile.ProjectileId, out HashSet<ulong> hitEntities))
                     {
                         hitEntities.Clear();
@@ -91,13 +97,15 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 }
             }
         }
-
+        /// <summary>
+        /// 单颗子弹的模拟逻辑，返回bool代表子弹是否还活着
+        /// </summary>
         private bool Simulate(ref ProjectileState projectile, float deltaTime)
         {
             //取出上下文和快照
             if (!_shots.TryGet(projectile.ShotId, out var shot) || !_stats.TryGet(shot.StatSnapshotId, out var stats)) 
                 return false;
-            //先算当前Tick最多运动世界
+            //先算当前Tick最多运动时间
             float travelTime = Mathf.Min(deltaTime, projectile.RemainingLifeTime);
             projectile.RemainingLifeTime -= deltaTime;
             if (travelTime <= 0) 
@@ -144,7 +152,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             return projectile.RemainingLifeTime > 0f;
         }
         /// <summary>
-        /// 已经得到 Contact 以后，如何处理这次碰撞
+        /// 已经得到Contact以后，如何处理这次碰撞
         /// 返回bool代表碰撞处理完成后，当前子弹能否继续存活进行下一次模拟
         /// </summary>
         private bool ResolveContact(
@@ -158,20 +166,20 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             //先推进到碰撞位置，碰撞是球体，hit.Point是不准确的
             projectile.Position += direction * hit.Distance;
+            //更新子弹运动的剩余距离
             remaining = Mathf.Max(0, remaining - hit.Distance);
             bool isMonsterContact = hit.Kind == ContactKind.Monster;
             ulong targetEntityId = 0;
             bool hasTarget = false;
+            float damage = stats.Damage * projectile.DamageMultiplier;
 
             if (isMonsterContact)
             {
-                hasTarget = _monsters.IsMonsterAlive(hit.MonsterSlot);
-                if (hasTarget)
-                    targetEntityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)hit.MonsterSlot;
+                targetEntityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)hit.MonsterSlot;
+                hasTarget = _monsters.DamageMonster(hit.MonsterSlot, damage);
             }
 
             ProjectileHitResolution resolution = ProjectileHitResolution.Destroy;
-            float damage = stats.Damage * projectile.DamageMultiplier;
             float projectileSize = stats.ProjectileSize * projectile.SizeMultiplier;
             bool isCritical = (projectile.Flags & ProjectileFlags.Critical) != 0;
             float vfxWeight = ProjectileImpactVfxWeight.Calculate(damage, projectileSize, isCritical);
@@ -180,8 +188,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             {
                 if (hasTarget)
                 {
-                    _monsters.DamageMonster(hit.MonsterSlot, damage);
-
+                    //记录攻击过的怪物，防止穿透弹体重复命中
                     RememberHit(projectile.ProjectileId, targetEntityId);
                     projectile.HitCount++;
                     _effects.DispatchHit(ref projectile,
@@ -200,6 +207,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 if (projectile.BounceRemaining > 0)
                 {
                     var reflected = Vector3.Reflect(direction, hit.Normal);
+                    reflected.y = 0f;
                     if (reflected.sqrMagnitude > Mathf.Epsilon)
                     {
                         projectile.BounceRemaining--;
@@ -260,7 +268,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
 
         /// <summary>
-        /// 无Collider条件下的怪物碰撞检测，使用怪物的圆形受击半径进行判定
+        /// 获取怪物候选之后，进行窄相检测，判断是否真的碰撞到怪物
         /// </summary>
         private bool TryFindMonsterContact(
             in ProjectileState projectile,
@@ -277,33 +285,31 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 return false;
 
             Vector2 start = new Vector2(projectile.Position.x, projectile.Position.z);
-            Vector2 end = start + new Vector2(direction.x, direction.z) * maxDistance;
             Vector2 planarDirection = new Vector2(direction.x, direction.z);
-            float planarMagnitude = planarDirection.magnitude;
-            if (planarMagnitude > 0.0001f) planarDirection /= planarMagnitude;
+            Vector2 end = start + planarDirection * maxDistance;
             //将子弹碰撞半径与怪物的圆形受击半径相加，得到一个组合半径，用于判断子弹与怪物的碰撞
             float monsterHitRadius = room.MonsterHitRadius;
             float combinedRadius = projectileRadius + monsterHitRadius;
+            //后面会大量使用半径的平方，提前算好
             float combinedRadiusSq = combinedRadius * combinedRadius;
             float nearest = float.PositiveInfinity;
             bool found = false;
 
-            EnsureMonsterCandidateCapacity(room.World.SlotCount);
             int candidateCount = room.QueryMonsterCandidates(
                 start, initialOverlap ? start : end, combinedRadius, _monsterCandidates);
 
             using (MonsterNarrowPhaseMarker.Auto())
             {
+                //遍历所有候选怪物，进行窄相检测
                 for (int i = 0; i < candidateCount; i++)
                 {
                     int slot = _monsterCandidates[i];
-                    if (!room.World.Meta[slot].IsActive)
-                        continue;
-
+                    //是子弹的拥有者，怪物不是被再次命中
                     ulong entityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)slot;
                     if (entityId == shot.OwnerEntityId || HasHit(projectile.ProjectileId, entityId))
                         continue;
-
+                    //center为怪物的圆心，toCenter为子弹起点指向怪物圆心的向量
+                    //pathDistance为子弹到达碰撞点的距离
                     Vector2 center = room.World.Motion[slot].Position;
                     Vector2 toCenter = center - start;
                     float pathDistance;
@@ -316,41 +322,40 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     }
                     else
                     {
+                        //出生在怪物圆心内，直接判定碰撞
                         if (toCenter.sqrMagnitude <= combinedRadiusSq)
                             pathDistance = 0f;
                         else
                         {
-                            if (planarMagnitude <= 0.0001f)
-                                continue;
+                            //点乘，将怪物相对于子弹起点的位置投影到子弹的运动方向上，得到子弹到达碰撞点的距离
+                            //这时我们知道斜边(起点到怪物圆心的距离)和一条直角边(子弹到达碰撞点的距离)
+                            //可以用勾股定理求出另一条直角边(子弹到达碰撞点的距离)，这里就能使用半径来判定是否碰撞
                             float projection = Vector2.Dot(toCenter, planarDirection);
-                            float discriminant = projection * projection -
-                                                   (toCenter.sqrMagnitude - combinedRadiusSq);
+                            //discriminant求得值为垂直边勾股定理和垂直边平方小于等于组合判定半径平方两个公式的组合代换
+                            //大于0说明有交点，小于0说明没有交点
+                            float discriminant = projection * projection - (toCenter.sqrMagnitude - combinedRadiusSq);
                             if (projection < 0f || discriminant < 0f)
                                 continue;
-
+                            //求出交点的水平距离
                             float horizontalDistance = projection - Mathf.Sqrt(discriminant);
                             if (horizontalDistance < 0f)
                                 continue;
-                            pathDistance = horizontalDistance / planarMagnitude;
+                            pathDistance = horizontalDistance;
                             if (pathDistance > maxDistance)
                                 continue;
                         }
                     }
-
+                    //只找最近的怪物
                     if (pathDistance >= nearest)
                         continue;
-
+                    //求出碰撞点的世界坐标，计算碰撞点到怪物圆心的法线向量
                     Vector3 projectileAtHit = projectile.Position + direction * pathDistance;
-                    Vector2 normal2 = new Vector2(
-                        projectileAtHit.x - center.x,
-                        projectileAtHit.z - center.y);
+                    Vector2 normal2 = new Vector2(projectileAtHit.x - center.x,projectileAtHit.z - center.y);
                     if (normal2.sqrMagnitude > 0.0001f)
                         normal2.Normalize();
-                    else if (planarMagnitude > 0.0001f)
-                        normal2 = -planarDirection;
                     else
-                        normal2 = Vector2.right;
-
+                        normal2 = -planarDirection;
+                    //组合碰撞信息
                     contact = new Contact
                     {
                         Kind = ContactKind.Monster,
@@ -370,7 +375,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
             return found;
         }
-
+        /// <summary>
+        /// 确保候选结果数组容量足够
+        /// </summary>
         private void EnsureMonsterCandidateCapacity(int slotCount)
         {
             if (_monsterCandidates.Length >= slotCount)
@@ -378,7 +385,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             int capacity = Math.Max(slotCount, _monsterCandidates.Length == 0 ? 64 : _monsterCandidates.Length * 2);
             Array.Resize(ref _monsterCandidates, capacity);
         }
-
+        /// <summary>
+        /// 处理子弹的碰撞检测，返回是否有碰撞发生，并输出碰撞信息
+        /// 这里同时包括世界碰撞和怪物碰撞，取最近的碰撞点
+        /// </summary>
         private bool TryCast(in ProjectileState projectile, in ShotContext shot, float radius,
             Vector3 direction, float distance, out Contact contact)
         {
@@ -394,12 +404,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                             QueryTriggerInteraction.Collide);
             contact = default;
             float nearest = float.PositiveInfinity;
-            //拿能跑距离内的所有碰撞体
+            //拿最近的碰撞体
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = _castBuffer[i];
 
-                if (hit.collider == null || hit.distance >= nearest)
+                if (hit.distance >= nearest)
                     continue;
 
                 nearest = hit.distance;
@@ -413,7 +423,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     Distance = hit.distance,
                 };
             }
-
+            //再处理一次怪物碰撞，但始终返回最近的碰撞点，可能是墙壁，也可能是怪物
             if (TryFindMonsterContact(projectile, shot, radius, direction, distance, false, out Contact monsterContact) &&
                                      (contact.Kind == ContactKind.None || monsterContact.Distance < contact.Distance))
                 contact = monsterContact;
@@ -430,13 +440,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             Vector3 direction,
             out Contact contact)
         {
+            //原地判定一次碰撞
             int count = Physics.OverlapSphereNonAlloc(
                 projectile.Position,
                 radius,
                 _overlapBuffer,
                 _config.WorldMask.value,
                 QueryTriggerInteraction.Collide);
-
+            //取最近的碰撞点
             for (int i = 0; i < count; i++)
             {
                 Collider collider = _overlapBuffer[i];
@@ -457,9 +468,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
                 return true;
             }
-
-            return TryFindMonsterContact(
-                projectile, shot, radius, direction, 0f, true, out contact);
+            //没找到墙壁碰撞，尝试找怪物碰撞
+            return TryFindMonsterContact(projectile, shot, radius, direction, 0f, true, out contact);
         }
     }
 

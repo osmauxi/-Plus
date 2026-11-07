@@ -37,9 +37,9 @@ namespace ProjectGame.Core.Spatial
         public const int SplitThreshold = 16;
         //常量，标记slot未链接到链表
         private const int Unlinked = -1;
-        //常量，标记slot链接到溢出链表，不属于任何叶节点
-        //用于处理超出四叉树范围的怪物，或者在叶节点中超过阈值的怪物
-        private const int OverflowLeaf = -2;
+
+        // 旧实现将根范围外的怪物挂到独立 overflow 链表，并在每次查询末尾无条件追加。
+        // 当前房间 Grid 与四叉树覆盖范围一致，越界怪物不参与弹丸交互，因此不再维护该链表。
 
         private struct Node
         {
@@ -66,14 +66,17 @@ namespace ProjectGame.Core.Spatial
         private int[] _leafBySlot;
         //当前树实际创建的节点数，不代表数组容量
         private int _nodeCount;
-        //溢出链表头，存储所有不属于任何叶节点的slot索引
-        private int _overflowHead = Unlinked;
-
         public int NodeCount => _nodeCount;
         public int NodeCapacity => _nodes.Length;
         public Vector2 RootCenter => _rootCenter;
         public float RootSize => _rootHalfSize * 2f;
+        /// <summary>
+        /// 本轮查询收集到多少个怪物候选
+        /// </summary>
         public int LastQueryCandidateCount { get; private set; }
+        /// <summary>
+        /// 本次查询访问了多少个四叉树节点
+        /// </summary>
         public int LastQueryVisitedNodeCount { get; private set; }
 
         public MonsterQuadTreeKernel(
@@ -99,7 +102,6 @@ namespace ProjectGame.Core.Spatial
         public void Clear()
         {
             _nodeCount = 0;
-            _overflowHead = Unlinked;
             LastQueryCandidateCount = 0;
             LastQueryVisitedNodeCount = 0;
         }
@@ -108,12 +110,10 @@ namespace ProjectGame.Core.Spatial
         {
             //重置旧索引
             _positions = positions;
-            EnsureSlotCapacity(slotCount);
             FillUnlinked(_nextSlot, 0);
             FillUnlinked(_previousSlot, 0);
             FillUnlinked(_leafBySlot, 0);
             _nodeCount = 0;
-            _overflowHead = Unlinked;
             //重建基础树
             int root = CreateNode(_rootCenter, _rootHalfSize, 0, 0);
             BuildBaseTree(root);
@@ -127,7 +127,6 @@ namespace ProjectGame.Core.Spatial
 
         public void Add(int slot, Vector2 position)
         {
-            EnsureSlotCapacity(slot + 1);
             _positions[slot] = position;
             Insert(slot, position, 0);
         }
@@ -156,18 +155,21 @@ namespace ProjectGame.Core.Spatial
         {
             int resultCount = 0;
             int visitedNodeCount = 0;
+            //使用栈来遍历四叉树，避免递归调用
             int stackCount = 1;
             _queryStack[0] = 0;
 
             while (stackCount > 0)
             {
+                //弹出栈顶节点索引，访问该节点
                 int nodeIndex = _queryStack[--stackCount];
                 ref Node node = ref _nodes[nodeIndex];
                 visitedNodeCount++;
-
+                //判定当前节点是否与扫掠圆相交，如果不相交则跳过该节点及其子节点
                 if (!SegmentIntersectsExpandedNode(start, end, radius, node))
                     continue;
-
+                //FirstChild大于0说明他有叶子，将子节点索引压入栈中，
+                //在下几轮循环中访问子节点并剔除不相交的叶节点
                 if (node.FirstChild >= 0)
                 {
                     _queryStack[stackCount++] = node.FirstChild;
@@ -177,13 +179,10 @@ namespace ProjectGame.Core.Spatial
                     continue;
                 }
 
+                //叶节点，遍历该叶节点的slot链表，将所有slot索引加入结果数组
                 for (int slot = node.HeadSlot; slot >= 0; slot = _nextSlot[slot])
                     results[resultCount++] = slot;
             }
-
-            for (int slot = _overflowHead; slot >= 0; slot = _nextSlot[slot])
-                results[resultCount++] = slot;
-
             LastQueryCandidateCount = resultCount;
             LastQueryVisitedNodeCount = visitedNodeCount;
             return resultCount;
@@ -243,10 +242,7 @@ namespace ProjectGame.Core.Spatial
         {
             //判断是否越界
             if (!Contains(_nodes[0], position))
-            {
-                LinkAtHead(slot, OverflowLeaf);
                 return;
-            }
             //一直往下找，直到找到Slot位置对应的叶节点
             while (_nodes[nodeIndex].FirstChild >= 0)
                 nodeIndex = SelectChild(nodeIndex, position);
@@ -321,7 +317,7 @@ namespace ProjectGame.Core.Spatial
         private void LinkAtHead(int slot, int leaf)
         {
             //这里维护的是slot链表
-            int head = leaf == OverflowLeaf ? _overflowHead : _nodes[leaf].HeadSlot;
+            int head = _nodes[leaf].HeadSlot;
             //slot变成头部，他前面没有slot，后面是原来的头部slot
             _previousSlot[slot] = Unlinked;
             _nextSlot[slot] = head;
@@ -329,16 +325,11 @@ namespace ProjectGame.Core.Spatial
             if (head >= 0)
                 _previousSlot[head] = slot;
 
-            if (leaf == OverflowLeaf)
-                _overflowHead = slot;
-            else
-            {
-                //叶节点的头部slot变成新插入的slot
-                //这里更新的是这个叶节点的链表头部索引，方便后续遍历这个叶节点的所有slot
-                _nodes[leaf].HeadSlot = slot;
-                //增加叶节点的怪物slot计数
-                _nodes[leaf].Count++;
-            }
+            //叶节点的头部slot变成新插入的slot
+            //这里更新的是这个叶节点的链表头部索引，方便后续遍历这个叶节点的所有slot
+            _nodes[leaf].HeadSlot = slot;
+            //增加叶节点的怪物slot计数
+            _nodes[leaf].Count++;
             //记录slot属于哪个叶节点
             _leafBySlot[slot] = leaf;
         }
@@ -349,22 +340,19 @@ namespace ProjectGame.Core.Spatial
             int next = _nextSlot[slot];
             if (previous >= 0)
                 _nextSlot[previous] = next;
-            else if (leaf == OverflowLeaf)
-                _overflowHead = next;
             else
                 _nodes[leaf].HeadSlot = next;
 
             if (next >= 0)
                 _previousSlot[next] = previous;
 
-            if (leaf >= 0)
-                _nodes[leaf].Count--;
+            _nodes[leaf].Count--;
             _nextSlot[slot] = Unlinked;
             _previousSlot[slot] = Unlinked;
             _leafBySlot[slot] = Unlinked;
         }
 
-        private void EnsureSlotCapacity(int count)
+        public void EnsureCapacity(int count)
         {
             if (_leafBySlot.Length >= count)
                 return;
@@ -385,15 +373,22 @@ namespace ProjectGame.Core.Spatial
             point.y >= node.Center.y - node.HalfSize &&
             point.y <= node.Center.y + node.HalfSize;
 
+        /// <summary>
+        /// 判定方法，返回线段是否与节点的包围盒相交，
+        /// 包围盒是节点的正方形区域加上半径扩展
+        /// </summary>
         private static bool SegmentIntersectsExpandedNode(
             Vector2 start,
             Vector2 end,
             float radius,
             in Node node)
         {
+            //叶子节点本身矩形半长加上判定半径，这个扩张矩形范围就是判定的范围
             float halfSize = node.HalfSize + radius;
+            //计算扩张矩形的最小点和最大点坐标，两个对角点确定一个矩形区域
             Vector2 min = node.Center - new Vector2(halfSize, halfSize);
             Vector2 max = node.Center + new Vector2(halfSize, halfSize);
+            //delta取起点到终点的位移
             Vector2 delta = end - start;
             float enter = 0f;
             float exit = 1f;
@@ -402,7 +397,10 @@ namespace ProjectGame.Core.Spatial
                 return false;
             return ClipAxis(start.y, delta.y, min.y, max.y, ref enter, ref exit);
         }
-
+        /// <summary>
+        /// 线段与矩形相交的具体算法
+        /// 在线段的某一个坐标轴上，计算线段处于矩形范围内的参数区间，并与之前的有效区间求交
+        /// </summary>
         private static bool ClipAxis(
             float origin,
             float delta,
@@ -411,21 +409,26 @@ namespace ProjectGame.Core.Spatial
             ref float enter,
             ref float exit)
         {
+            //当前轴上基本没有位移，说明线段在这个轴上是平行的，直接判断起点是否在矩形范围内
+            //判定逻辑是先判定x轴，再判定y轴，如果x轴不在范围内就直接返回false，不会再判定y轴
             if (Mathf.Abs(delta) < 0.000001f)
                 return origin >= min && origin <= max;
-
+            //我们使用0-1参数化的t，线段的起点是0，终点是1，delta是终点相对于起点的位移
+            //near与far是线段在当前轴上与矩形的交点参数，near是进入矩形的t，far是离开矩形的t
             float inverse = 1f / delta;
             float near = (min - origin) * inverse;
             float far = (max - origin) * inverse;
+            //可能存在子弹反向移动的情况，这里就要交换一次值
             if (near > far)
             {
                 float swap = near;
                 near = far;
                 far = swap;
             }
-
+            //最终范围需要同时满足x轴和y轴的范围，所以我们取交集
             enter = Mathf.Max(enter, near);
             exit = Mathf.Min(exit, far);
+            //enter <= exit说明0-1的t中存在一段区间在矩形范围内
             return enter <= exit;
         }
 

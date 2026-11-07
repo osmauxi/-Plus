@@ -35,9 +35,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void Build(MonsterOccupancySnapshot snapshot)
         {
-            if (snapshot == null)
-                throw new System.ArgumentNullException(nameof(snapshot));
-
             using (KernelMarker.Auto())
             {
                 _kernel.BuildFromBuckets(
@@ -49,6 +46,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     snapshot.SlotCount);
             }
         }
+
+        public void EnsureCapacity(int count) => _kernel.EnsureCapacity(count);
 
         public Vector2 Get(int slot) => _kernel.Get(slot);
 

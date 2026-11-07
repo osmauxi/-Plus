@@ -40,7 +40,7 @@ namespace ProjectGame.Core.Navigation
             _localToWorldOffsetX = localToWorld.m03;
             _localToWorldOffsetZ = localToWorld.m23;
             _halfSize = halfSize;
-            _inverseCellSize = 1f / Mathf.Max(cellSize, 0.000001f);
+            _inverseCellSize = 1f / cellSize;
         }
 
         public Vector2 WorldToLocalPosition(Vector2 worldPosition) =>
@@ -152,7 +152,7 @@ namespace ProjectGame.Core.Navigation
             Vector2 local = transform.WorldToLocalPosition(position + velocity * deltaTime);
             if (!transform.TryGetCell(local, width, height, out int cellIndex))
                 return false;
-            return (uint)cellIndex < (uint)walkable.Length && walkable[cellIndex] != 0;
+            return walkable[cellIndex] != 0;
         }
     }
 }

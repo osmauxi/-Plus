@@ -64,8 +64,6 @@ namespace ProjectGame.Core.Navigation
             int[] nextSlot,
             int slotCount)
         {
-            EnsureCapacity(slotCount);
-
             Array.Clear(_separation, 0, slotCount);
             CalculatePairs(
                 positions,
@@ -207,7 +205,7 @@ namespace ProjectGame.Core.Navigation
             separationB.y -= correctionY;
         }
 
-        private void EnsureCapacity(int count)
+        public void EnsureCapacity(int count)
         {
             if (_separation.Length >= count)
                 return;

@@ -8,9 +8,9 @@ namespace ProjectGame.Core.Navigation
         private readonly int _maxDensityCost;
         private readonly float _smoothFactor;
 
-        private int[] _influence = Array.Empty<int>();
-        private float[] _smoothedCost = Array.Empty<float>();
-        private ushort[] _outputCost = Array.Empty<ushort>();
+        private readonly int[] _influence;
+        private readonly float[] _smoothedCost;
+        private readonly ushort[] _outputCost;
 
         private readonly sbyte[] _kernelX;
         private readonly sbyte[] _kernelY;
@@ -19,6 +19,7 @@ namespace ProjectGame.Core.Navigation
         public ushort[] OutputCost => _outputCost;
 
         public DensityKernel(
+            int cellCount,
             int radius,
             int costPerInfluence,
             int maxDensityCost,
@@ -27,6 +28,9 @@ namespace ProjectGame.Core.Navigation
             _costPerInfluence = costPerInfluence;
             _maxDensityCost = maxDensityCost;
             _smoothFactor = smoothFactor;
+            _influence = new int[cellCount];
+            _smoothedCost = new float[cellCount];
+            _outputCost = new ushort[cellCount];
 
             int size = radius * 2 + 1;
             int kernelCount = size * size;
@@ -53,10 +57,9 @@ namespace ProjectGame.Core.Navigation
             }
         }
 
-        public void Prepare(int count)
+        public void Prepare()
         {
-            EnsureCapacity(count);
-            Array.Clear(_influence, 0, count);
+            Array.Clear(_influence, 0, _influence.Length);
         }
 
         public void Build(
@@ -122,16 +125,6 @@ namespace ProjectGame.Core.Navigation
                 _smoothedCost[i] = current;
                 _outputCost[i] = (ushort)(current + 0.5f);
             }
-        }
-
-        private void EnsureCapacity(int count)
-        {
-            if (_influence.Length == count)
-                return;
-
-            _influence = new int[count];
-            _smoothedCost = new float[count];
-            _outputCost = new ushort[count];
         }
     }
 }

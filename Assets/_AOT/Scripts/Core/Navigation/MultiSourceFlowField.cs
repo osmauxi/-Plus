@@ -20,10 +20,7 @@ namespace ProjectGame.Core.Navigation
         };
 
         private readonly int[] _neighborOffsets = new int[8];
-        private int _neighborOffsetWidth = -1;
 
-        private static readonly ProfilerMarker EnsureCapacityMarker =
-            new("Monster.FlowField.Build.EnsureCapacity");
         private static readonly ProfilerMarker ResetBuffersMarker =
             new("Monster.FlowField.Build.ResetBuffers");
         private static readonly ProfilerMarker AddSourcesMarker =
@@ -48,33 +45,35 @@ namespace ProjectGame.Core.Navigation
         /// <summary>
         /// 每个对应Cell到最近可达玩家的最低路径成本
         /// </summary>
-        private int[] _costs = Array.Empty<int>();
+        private readonly int[] _costs;
         /// <summary>
         /// Monster使用的流式场，存Grid的方向
         /// </summary>
-        private Vector2[] _directions = Array.Empty<Vector2>();
+        private readonly Vector2[] _directions;
         /// <summary>
         /// 这个Cell最终属于哪个玩家
         /// </summary>
-        private int[] _sourceIndices = Array.Empty<int>();
+        private readonly int[] _sourceIndices;
 
         private readonly IntCostMinHeap _open = new();
 
-        private int _width;
-        private int _height;
+        private readonly int _width;
+        private readonly int _height;
+
+        public MultiSourceFlowField(int width, int height)
+        {
+            _width = width;
+            _height = height;
+            int count = checked(width * height);
+            _costs = new int[count];
+            _directions = new Vector2[count];
+            _sourceIndices = new int[count];
+            BuildNeighborOffsets(width);
+        }
 
         public bool Build(NavigationGridKernelData grid, IReadOnlyList<FlowFieldSource> sources)
         {
-            if (sources == null) throw new ArgumentNullException(nameof(sources));
-
-            _width = grid.Width;
-            _height = grid.Height;
-
-            EnsureNeighborOffsets(_width);
-
-            int count = checked(_width * _height);
-            using (EnsureCapacityMarker.Auto())
-                EnsureCapacity(count);
+            int count = _costs.Length;
 
             using (ResetBuffersMarker.Auto())
             {
@@ -122,14 +121,6 @@ namespace ProjectGame.Core.Navigation
             direction = _directions[index];
             sourceIndex = _sourceIndices[index];
             return true;
-        }
-
-        public int GetCost(int x, int y)
-        {
-            if ((uint)x >= (uint)_width || (uint)y >= (uint)_height)
-                return int.MaxValue;
-
-            return _costs[ToIndex(x, y)];
         }
 
         public bool TryGetDebugCell(int x, int y, out FlowFieldCellDebugData cell)
@@ -183,11 +174,8 @@ namespace ProjectGame.Core.Navigation
             return added;
         }
 
-        private void EnsureNeighborOffsets(int width)
+        private void BuildNeighborOffsets(int width)
         {
-            if (_neighborOffsetWidth == width)
-                return;
-
             _neighborOffsets[0] = -width - 1;
             _neighborOffsets[1] = -width;
             _neighborOffsets[2] = -width + 1;
@@ -196,8 +184,6 @@ namespace ProjectGame.Core.Navigation
             _neighborOffsets[5] = width - 1;
             _neighborOffsets[6] = width;
             _neighborOffsets[7] = width + 1;
-
-            _neighborOffsetWidth = width;
         }
 
         private void BuildIntegrationField(NavigationGridKernelData grid)
@@ -243,16 +229,6 @@ namespace ProjectGame.Core.Navigation
                     _open.Push(next, newCost);
                 }
             }
-        }
-
-        private void EnsureCapacity(int count)
-        {
-            if (_costs.Length >= count)
-                return;
-
-            _costs = new int[count];
-            _directions = new Vector2[count];
-            _sourceIndices = new int[count];
         }
 
         private int ToIndex(int x, int y) => y * _width + x;

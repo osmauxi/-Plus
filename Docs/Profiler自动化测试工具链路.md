@@ -928,6 +928,9 @@ Player 与 Addressables 构建一次；每个档位、每次重复依次执行 H
 20. [x] `20261024-035109-16b5cb39` 完成三档各 1 次双前台轮：12/12 角色结果有效；6 个被测角色前台占比均为 100%；双端采样开始/结束偏差均小于 50ms；无 `_plus` 进程遗留。
 21. [ ] 正常非 Benchmark 的单人、手动创建房间、手动加入房间流程仍需人工 UI 回归；Benchmark 已覆盖同一 Bootstrap、Lobby 连接、两人 Ready 与场景切换主链路。
 22. [x] `20261025-064407-c376a952` 完成三档各 3 次完整 Profiler 双前台轮：18 个测量角色全部有效，前台占比最低 99.98%，36/36 份 metrics 与 18/18 份 raw 完整落盘；详见该 Run 的 `FULL_PROFILER_REPORT.md`。
+23. [x] BenchmarkWindow 增加“单独测试怪物档位”入口，默认值为 10024，可使用现有 Player 单独执行一档、一次或多次重复，不影响默认 1024/2048/5012 三档流程。
+24. [x] `20261102-162632-abbe17b0` 完成 10024 怪单档双前台测试：Host/Client 均有效，权威存活、Replica 槽位和 View 槽位均为 10024/10024/10024；完整 Profiler 未开启，但轻量 metrics、frames、markers 和工作负载校验完整。
+25. [x] 10024 怪物生怪策略改为自动使用整个 StressArena SpawnRegion，并跨 SpawnBatch 保持最小出生间距；修复前 `20261102-161019-c8ec257b` 虽生成到 10024，但固定 150 米环带造成 JobTempAlloc/管线排队且未落盘有效 metrics，修复后 Area=WholeRoomSpawnRegion 并成功完成采样。
 
 ### 5.1 前台焦点对同机双端结果的影响
 

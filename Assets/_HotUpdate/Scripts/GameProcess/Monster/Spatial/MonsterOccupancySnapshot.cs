@@ -40,15 +40,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _kernel = new MonsterOccupancySnapshotKernel(
                 RoomSpatialData.HalfSize,
                 RoomSpatialData.CellSize,
-                Mathf.Max(1, fineWidth),
-                Mathf.Max(1, fineHeight),
+                fineWidth,
+                fineHeight,
                 min,
                 max,
-                Mathf.Max(0.0001f, separationRadius),
-                Math.Max(0, initialCapacity));
+                separationRadius,
+                initialCapacity);
         }
 
         public void Clear() => _kernel.Clear();
+
+        public void EnsureCapacity(int count) => _kernel.EnsureCapacity(count);
 
         public void Build(MonsterWorld world, float groundY)
         {

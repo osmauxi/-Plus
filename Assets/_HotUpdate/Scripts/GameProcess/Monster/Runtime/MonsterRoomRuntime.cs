@@ -86,13 +86,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             World = new MonsterWorld(initialCapacity);
             _spatialIndex = new MonsterSpatialIndex(roomRoot, RoomSpatialData.HalfSize, initialCapacity);
+            EnsureMonsterCapacity(World.Capacity);
             MonsterHitRadius = monsterHitRadius;
         }
 
         public void BeginRoom(int expectedTotalMonsterCount, float groundY)
         {
             World.Clear();
-            World.EnsureCapacity(expectedTotalMonsterCount);
+            EnsureMonsterCapacity(expectedTotalMonsterCount);
             _players.Clear();
             _groundY = groundY;
             _occupancySnapshot.Clear();
@@ -103,7 +104,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterSpawnBatch Spawn(IReadOnlyList<MonsterSpawnPlan> plans)
         {
             int startSlot = World.SlotCount;
-            World.EnsureCapacity(startSlot + plans.Count);
+            EnsureMonsterCapacity(startSlot + plans.Count);
 
             for (int i = 0; i < plans.Count; i++)
             {
@@ -226,6 +227,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _occupancySnapshot.Clear();
             _spatialIndex.Clear();
             _groundY = 0f;
+        }
+
+        private void EnsureMonsterCapacity(int count)
+        {
+            World.EnsureCapacity(count);
+            int capacity = World.Capacity;
+            _occupancySnapshot.EnsureCapacity(capacity);
+            _spatialIndex.EnsureCapacity(capacity);
+            _simulation.EnsureCapacity(capacity);
         }
     }
 }

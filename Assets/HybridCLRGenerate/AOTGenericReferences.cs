@@ -257,7 +257,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Action<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Action<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Action<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Action<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Action<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
@@ -362,7 +361,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.ArraySortHelper<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -411,7 +409,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.Comparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -738,7 +735,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.ICollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -818,7 +814,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.IComparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -867,7 +862,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.IEnumerable<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -946,7 +940,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.IEnumerator<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1032,7 +1025,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.IList<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1164,7 +1156,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.List.Enumerator<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1211,7 +1202,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.List<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1260,7 +1250,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.Generic.ObjectComparer<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1379,7 +1368,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Collections.ObjectModel.ReadOnlyCollection<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1428,7 +1416,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Comparison<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Comparison<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -1608,7 +1595,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterRuntimeConfig>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnConfig>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Monsters.MonsterSpawnPlan>
-	// System.Predicate<ProjectGame.HotFix.Gameplay.Navigation.GridPoint>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Spawning.SpawnPose>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollOption>
 	// System.Predicate<ProjectGame.HotFix.Gameplay.Weapon.Effects.EffectRollService.Candidate>
@@ -2303,7 +2289,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// ulong[] System.Array.Empty<ulong>()
 		// ushort[] System.Array.Empty<ushort>()
 		// System.Void System.Array.Fill<int>(int[],int)
-		// System.Void System.Array.Fill<int>(int[],int,int,int)
 		// int System.Array.IndexOf<object>(object[],object)
 		// int System.Array.IndexOfImpl<object>(object[],object,int,int)
 		// System.Void System.Array.Resize<ProjectGame.Core.Monsters.MonsterMetaData>(ProjectGame.Core.Monsters.MonsterMetaData[]&,int)

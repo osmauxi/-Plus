@@ -121,6 +121,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private readonly List<MonsterSpawnPlan> _spawnPlans = new();
         private readonly List<Vector3> _batchGroundPositions = new();
+        private readonly List<Vector3> _spawnedGroundPositions = new();
 
         private IDisposable _mapBuiltSubscription;
         private IDisposable _mapClearingSubscription;
@@ -132,6 +133,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private float _activeSpawnRadius;
         private ushort _resolvedMonsterConfigIndex;
         private bool _ownsMonsterRoom;
+        private bool _useGlobalSpawnSpacing;
 
         public bool IsRunning => _ownsMonsterRoom;
         public int TotalSpawned => _totalSpawned;
@@ -261,6 +263,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 }
 
                 _monsterRuntimeService.Spawn(_spawnPlans);
+                if (_useGlobalSpawnSpacing)
+                    _spawnedGroundPositions.AddRange(_batchGroundPositions);
                 _totalSpawned += batchCount;
 
                 if (_logEachBatch)
@@ -318,8 +322,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _resolvedMonsterConfigIndex = configIndex;
             _spawnPlans.Capacity = Math.Max(_spawnPlans.Capacity, _spawnBatchSize);
             _batchGroundPositions.Capacity = Math.Max(_batchGroundPositions.Capacity, _spawnBatchSize);
+            _spawnedGroundPositions.Capacity = Math.Max(
+                _spawnedGroundPositions.Capacity,
+                _maximumTotalSpawnCount);
             _totalSpawned = 0;
             _activeSpawnRadius = _spawnRadius;
+            _useGlobalSpawnSpacing = _maximumTotalSpawnCount >= 10024;
+            if (_useGlobalSpawnSpacing)
+            {
+                // 10024 怪不能继续挤在固定 150 米环带中；使用整个房间后，
+                // 生成密度和四叉树空间分布都与真实大规模压力更接近。
+                _spawnArea = MonsterStressSpawnArea.WholeRoomSpawnRegion;
+                _spawnedGroundPositions.Clear();
+            }
         }
 
         private bool TryBuildSpawnPlans(int count)
@@ -541,6 +556,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     return false;
             }
 
+            if (_useGlobalSpawnSpacing)
+            {
+                for (int i = 0; i < _spawnedGroundPositions.Count; i++)
+                {
+                    Vector3 existing = _spawnedGroundPositions[i];
+                    float x = candidate.x - existing.x;
+                    float z = candidate.z - existing.z;
+
+                    if (x * x + z * z < spacingSqr)
+                        return false;
+                }
+            }
+
             return true;
         }
 
@@ -598,8 +626,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _totalSpawned = 0;
             _activeSpawnRadius = 0f;
             _resolvedMonsterConfigIndex = 0;
+            _useGlobalSpawnSpacing = false;
             _spawnPlans.Clear();
             _batchGroundPositions.Clear();
+            _spawnedGroundPositions.Clear();
         }
 
         private void ValidateSettings()

@@ -1,7 +1,6 @@
 using ProjectGame.Core.Navigation;
 using ProjectGame.Core.Monsters;
 using ProjectGame.HotFix.Gameplay.Map;
-using ProjectGame.HotFix.Gameplay.Navigation;
 using System;
 using System.Collections.Generic;
 using Unity.Profiling;
@@ -40,6 +39,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.FlowField.Build");
         private static readonly ProfilerMarker TopologyReferenceBuildMarker =
             new("Monster.FlowField.Build.TopologyReference");
+        private static readonly ProfilerMarker TopologyReferenceGetKernelDataMarker =
+            new("Monster.FlowField.Build.TopologyReference.GetKernelData");
+        private static readonly ProfilerMarker TopologyReferenceSolveMarker =
+            new("Monster.FlowField.Build.TopologyReference.Solve");
         private static readonly ProfilerMarker AcceptSourcesMarker =
             new("Monster.FlowField.Rebuild.AcceptSources");
         private static readonly ProfilerMarker BuildSourcesMarker =
@@ -83,8 +86,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterNavigationDensitySystem _densitySystem;
         private readonly Transform _roomRoot;
 
-        private readonly MultiSourceFlowField _flowField = new();
-        private readonly MultiSourceFlowField _topologyReferenceFlowField = new();
+        private readonly MultiSourceFlowField _flowField;
+        private readonly MultiSourceFlowField _topologyReferenceFlowField;
         private readonly List<FlowFieldSource> _flowSources = new(MonsterPlayerTargetBuffer.MaximumCapacity);
         private readonly FlowTargetCellData[] _flowCellData;
         private readonly int[] _recoveryCacheVersions;
@@ -141,8 +144,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _separation = new MonsterSeparationSystem(roomRoot,RoomSpatialData.HalfSize,3f,4f);
 
-            _densitySystem = new MonsterNavigationDensitySystem();
             int cellCount = checked(_navigationGrid.Width * _navigationGrid.Height);
+            _densitySystem = new MonsterNavigationDensitySystem(cellCount);
+            _flowField = new MultiSourceFlowField(_navigationGrid.Width, _navigationGrid.Height);
+            _topologyReferenceFlowField = new MultiSourceFlowField(
+                _navigationGrid.Width,
+                _navigationGrid.Height);
             _flowCellData = new FlowTargetCellData[cellCount];
             _recoveryCacheVersions = new int[cellCount];
             Array.Fill(_recoveryCacheVersions, -1);
@@ -156,9 +163,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float groundY,
             MonsterOccupancySnapshot occupancySnapshot)
         {
-            if (occupancySnapshot == null)
-                throw new ArgumentNullException(nameof(occupancySnapshot));
-
             _pendingMeleeAttacks.Clear();
             EnsureGridTransform(groundY);
             players.UpdateNavigationCells(_roomRoot, _navigationGrid, groundY);
@@ -174,7 +178,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             using var entityTickScope = EntityTickMarker.Auto();
 
-            EnsureTargetCapacity(world.Capacity);
             RefreshFlowCellCache();
             PrepareRecoveryCache(world, occupancySnapshot);
             using (EntityTargetMarker.Auto())
@@ -186,7 +189,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     _flowCellData,
                     players.Positions,
                     players.CellWalkable,
-                    players.Count,
                     _targetResults);
 
             for (int activeIndex = 0;
@@ -439,7 +441,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _gridTransformGroundY = groundY;
         }
 
-        private void EnsureTargetCapacity(int capacity)
+        public void EnsureCapacity(int capacity)
         {
             if (capacity <= _targetResults.Length)
                 return;
@@ -449,6 +451,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 next = checked(next * 2);
             Array.Resize(ref _targetResults, next);
             Array.Resize(ref _targetPositionScratch, next);
+            _separation.EnsureCapacity(next);
         }
 
         private void RefreshFlowCellCache()
@@ -530,7 +533,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     int y = cellIndex / width;
                     if (TryResolveReachableFlowCell(
                             new Vector2Int(x, y),
-                            out GridPoint recoveryCell,
+                            out Vector2Int recoveryCell,
                             out int recoverySource))
                     {
                         _flowCellData[cellIndex] = new FlowTargetCellData(
@@ -538,8 +541,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                             recoverySource,
                             Vector2.zero,
                             _gridTransform.LocalCellCenterToWorld(
-                                recoveryCell.X,
-                                recoveryCell.Y));
+                                recoveryCell.x,
+                                recoveryCell.y));
                     }
 
                     _recoveryCacheVersions[cellIndex] = _flowFieldDataVersion;
@@ -680,10 +683,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 using (TopologyReferenceBuildMarker.Auto())
                 {
-                    NavigationGridKernelData kernelData =
-                        _navigationGrid.GetTopologyReferenceKernelData();
-                    _hasTopologyReferenceFlowField =
-                        _topologyReferenceFlowField.Build(kernelData, _flowSources);
+                    NavigationGridKernelData kernelData;
+                    using (TopologyReferenceGetKernelDataMarker.Auto())
+                        kernelData = _navigationGrid.GetTopologyReferenceKernelData();
+
+                    using (TopologyReferenceSolveMarker.Auto())
+                    {
+                        _hasTopologyReferenceFlowField =
+                            _topologyReferenceFlowField.Build(kernelData, _flowSources);
+                    }
                 }
             }
 
@@ -722,8 +730,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
 
             //极端情况下周围8格全被堵死，至少保留原来的兜底。
-            if (!added && TryResolveWalkableCell(playerCell, out GridPoint fallback))
-                _flowSources.Add(new FlowFieldSource(fallback.X, fallback.Y, sourceIndex));
+            if (!added && TryResolveWalkableCell(playerCell, out Vector2Int fallback))
+                _flowSources.Add(new FlowFieldSource(fallback.x, fallback.y, sourceIndex));
         }
         private static bool ShouldUseTopologyReferenceDirection(
             Vector2 densityDirection,
@@ -738,7 +746,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         private bool TryResolveReachableFlowCell(
             Vector2Int source,
-            out GridPoint result,
+            out Vector2Int result,
             out int sourceIndex)
         {
             for (int radius = 1; radius < RoomSpatialData.GridSize; radius++)
@@ -749,7 +757,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 int maxY = Mathf.Min(RoomSpatialData.GridSize - 1, source.y + radius);
 
                 int bestDistanceSqr = int.MaxValue;
-                GridPoint best = default;
+                Vector2Int best = default;
                 int bestSource = -1;
                 bool found = false;
 
@@ -774,7 +782,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                             continue;
 
                         bestDistanceSqr = distanceSqr;
-                        best = new GridPoint(x, y);
+                        best = new Vector2Int(x, y);
                         bestSource = candidateSource;
                         found = true;
                     }
@@ -796,11 +804,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// <summary>
         /// 在玩家在阻挡格时，尝试走到玩家周围最近的可达格
         /// </summary>
-        private bool TryResolveWalkableCell(Vector2Int source, out GridPoint result)
+        private bool TryResolveWalkableCell(Vector2Int source, out Vector2Int result)
         {
             if (_navigationGrid.IsWalkable(source.x, source.y))
             {
-                result = new GridPoint(source.x, source.y);
+                result = source;
                 return true;
             }
 
@@ -812,7 +820,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 int maxY = Mathf.Min(RoomSpatialData.GridSize - 1, source.y + radius);
 
                 int bestDistanceSqr = int.MaxValue;
-                GridPoint best = default;
+                Vector2Int best = default;
                 bool found = false;
 
                 for (int y = minY; y <= maxY; y++)
@@ -833,7 +841,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                             continue;
 
                         bestDistanceSqr = distanceSqr;
-                        best = new GridPoint(x, y);
+                        best = new Vector2Int(x, y);
                         found = true;
                     }
                 }
@@ -847,26 +855,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             result = default;
             return false;
-        }
-
-        private static bool FindNearestPlayer(Vector2 position, MonsterPlayerTargetBuffer players,
-            out Vector2 targetPosition, out float targetDistanceSqr)
-        {
-            MonsterPlayerTarget[] items = players.Items;
-            targetPosition = default;
-            targetDistanceSqr = float.MaxValue;
-            int nearest = -1;
-            for (int i = 0; i < players.Count; i++)
-            {
-                float distance = (items[i].Position - position).sqrMagnitude;
-                if (distance >= targetDistanceSqr)
-                    continue;
-                targetDistanceSqr = distance;
-                nearest = i;
-            }
-            if (nearest < 0) return false;
-            targetPosition = items[nearest].Position;
-            return true;
         }
 
         private void TickAttack(MonsterWorld world, int slot, in MonsterRuntimeConfig config,

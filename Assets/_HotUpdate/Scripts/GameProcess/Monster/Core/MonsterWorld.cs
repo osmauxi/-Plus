@@ -53,7 +53,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         public int Create(ushort configIndex, Vector2 position, float yaw, float maxHealth)
         {
-            EnsureCapacity(_slotCount + 1);
             //只沿序往尾部加slot,不会干涉死掉的，或者空的位置
             int slot = _slotCount++;
             _meta[slot] = new MonsterMetaData { ConfigIndex = configIndex, IsActive = true };

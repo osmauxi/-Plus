@@ -27,6 +27,7 @@ namespace ProjectGame.Editor.Benchmarking
         private float _captureSeconds = 30f;
         private float _stageTimeoutSeconds = 180f;
         private int _gamePort = LanEndpoint.DefaultGamePort;
+        private int _singleMonsterCount = 10024;
         private bool _captureProfiler;
 
         [MenuItem("Tools/性能基准/双端性能测试")]
@@ -98,6 +99,15 @@ namespace ProjectGame.Editor.Benchmarking
                             "选择已有 Player；仅当构建指纹与当前 Catalog 一致时才会启动测试。"),
                         GUILayout.Height(30f)))
                     RunExistingBuild();
+                _singleMonsterCount = EditorGUILayout.IntField(
+                    new GUIContent("单独测试怪物数", "只运行一个指定怪物档位；默认用于 10024 怪压力测试。"),
+                    _singleMonsterCount);
+                if (GUILayout.Button(
+                        new GUIContent(
+                            "使用现有构建单独测试",
+                            "选择已有 Player，只运行上面的单个怪物档位，不执行默认三档测试。"),
+                        GUILayout.Height(30f)))
+                    RunExistingBuildSingleCase();
                 if (GUILayout.Button(
                         new GUIContent(
                             "选择历史基线",
@@ -173,7 +183,30 @@ namespace ProjectGame.Editor.Benchmarking
             StartRun(executable);
         }
 
-        private void StartRun(string executable)
+        private void RunExistingBuildSingleCase()
+        {
+            if (_singleMonsterCount < 1 || _singleMonsterCount > 100000)
+            {
+                EditorUtility.DisplayDialog("无效怪物数量", "单独测试怪物数必须在 1 到 100000 之间。", "确定");
+                return;
+            }
+
+            string initial = EditorPrefs.GetString(LastExecutableKey, string.Empty);
+            string directory = string.IsNullOrEmpty(initial) ? string.Empty : Path.GetDirectoryName(initial);
+            string executable = EditorUtility.OpenFilePanel("选择性能基准 Player", directory, "exe");
+            if (string.IsNullOrEmpty(executable))
+                return;
+            if (!TryValidateBuildManifest(executable, out string validationError))
+            {
+                EditorUtility.DisplayDialog("性能基准构建无效", validationError, "确定");
+                return;
+            }
+
+            EditorPrefs.SetString(LastExecutableKey, executable);
+            StartRun(executable, new[] { _singleMonsterCount });
+        }
+
+        private void StartRun(string executable, int[] cases = null)
         {
             if (_gamePort < 1 || _gamePort > ushort.MaxValue - 2)
                 throw new ArgumentOutOfRangeException(nameof(_gamePort));
@@ -188,7 +221,8 @@ namespace ProjectGame.Editor.Benchmarking
                     StageTimeoutSeconds = _stageTimeoutSeconds,
                     BaseGamePort = (ushort)_gamePort,
                     CaptureProfiler = _captureProfiler,
-                });
+                },
+                cases);
         }
 
         private static void SelectBaseline()
@@ -322,7 +356,7 @@ namespace ProjectGame.Editor.Benchmarking
     [InitializeOnLoad]
     internal static class BenchmarkProcessOrchestrator
     {
-        private static readonly int[] Cases = BenchmarkLaunchOptions.DefaultMonsterCounts;
+        private static int[] Cases = BenchmarkLaunchOptions.DefaultMonsterCounts;
         private static readonly BenchmarkProcessRole[] FocusTargets =
         {
             BenchmarkProcessRole.Host,
@@ -404,7 +438,7 @@ namespace ProjectGame.Editor.Benchmarking
             };
         }
 
-        public static void Start(string executable, BenchmarkRunSettings settings)
+        public static void Start(string executable, BenchmarkRunSettings settings, int[] cases = null)
         {
             if (IsRunning)
                 throw new InvalidOperationException("已经有 Benchmark 正在运行。");
@@ -416,6 +450,9 @@ namespace ProjectGame.Editor.Benchmarking
 
             _executable = Path.GetFullPath(executable);
             _settings = settings;
+            Cases = cases == null || cases.Length == 0
+                ? BenchmarkLaunchOptions.DefaultMonsterCounts
+                : (int[])cases.Clone();
             _runId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
                      "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             _runDirectory = Path.Combine(BenchmarkPaths.ResultsRoot, "runs", _runId);

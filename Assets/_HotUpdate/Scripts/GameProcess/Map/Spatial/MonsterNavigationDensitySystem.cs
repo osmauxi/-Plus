@@ -1,4 +1,3 @@
-using System;
 using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using Unity.Profiling;
@@ -21,9 +20,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.Density.Kernel");
         private uint _nextUpdateTick;
 
-        public MonsterNavigationDensitySystem()
+        public MonsterNavigationDensitySystem(int cellCount)
         {
             _kernel = new DensityKernel(
+                cellCount,
                 DensityRadiusCells,
                 CostPerInfluence,
                 MaxDensityCost,
@@ -35,9 +35,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             RuntimeNavigationGrid grid,
             uint tick)
         {
-            if (snapshot == null)
-                throw new ArgumentNullException(nameof(snapshot));
-
             if (!MonsterMath.HasReached(tick, _nextUpdateTick))
                 return false;
 
@@ -45,13 +42,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             int width = grid.Width;
             int height = grid.Height;
-            int count = checked(width * height);
-
-            if (snapshot.FineWidth != width || snapshot.FineHeight != height)
-                throw new InvalidOperationException(
-                    $"Density 快照尺寸不一致：Snapshot={snapshot.FineWidth}x{snapshot.FineHeight}，Grid={width}x{height}。");
-
-            _kernel.Prepare(count);
+            _kernel.Prepare();
 
             byte[] walkable = grid.GetWalkableKernel();
 

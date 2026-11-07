@@ -26,6 +26,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.Network.SendPresentation.Transport");
         private static readonly ProfilerMarker ReceivePresentationMarker =
             new("Monster.Network.ReceivePresentation");
+        private static readonly ProfilerMarker SendRoomBeginMarker =
+            new("Monster.Network.SendRoomBegin");
+        private static readonly ProfilerMarker ReceiveRoomBeginMarker =
+            new("Monster.Network.ReceiveRoomBegin");
+        private static readonly ProfilerMarker SendSpawnMarker =
+            new("Monster.Network.SendSpawn");
+        private static readonly ProfilerMarker ReceiveSpawnMarker =
+            new("Monster.Network.ReceiveSpawn");
+        private static readonly ProfilerMarker SendRoomEndMarker =
+            new("Monster.Network.SendRoomEnd");
+        private static readonly ProfilerMarker ReceiveRoomEndMarker =
+            new("Monster.Network.ReceiveRoomEnd");
 
         //注册四种消息类型
         internal const string SpawnMessageName = "PG.Monster.Spawn";
@@ -85,6 +97,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void SendSpawn(MonsterSpawnBatch batch)
         {
             EnsureServer();
+            using var marker = SendSpawnMarker.Auto();
             //获取字节数后生成数组，写入，发出，结构基本相同
             int length = MonsterNetworkCodec.GetSpawnByteCount(batch);
             ValidatePayloadLength(length);
@@ -110,6 +123,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void SendRoomBegin(in MonsterRoomBeginData data)
         {
             EnsureServer();
+            using var marker = SendRoomBeginMarker.Auto();
             int length = MonsterNetworkCodec.GetRoomBeginByteCount();
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             //因为using变量不让用ref传，所以这里退而使用try finally保证释放
@@ -127,6 +141,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void SendRoomEnd()
         {
             EnsureServer();
+            using var marker = SendRoomEndMarker.Auto();
             //有可能存在NGO不接受0容量发包的情况，这里进行规避
             using FastBufferWriter writer = new(1, Allocator.Temp, 1);
             _transport.SendToRemoteClients(RoomEndMessageName, writer, NetworkDeliveryClass.ReliableEvent);
@@ -171,6 +186,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
             try
             {
+                using var marker = ReceiveSpawnMarker.Auto();
                 ValidatePayloadLength(reader.Length - reader.Position);
                 _receiver.ReceiveSpawnBatch(MonsterNetworkCodec.ReadSpawn(ref reader));
             }
@@ -185,6 +201,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!CanReceive(senderClientId)) return;
             try
             {
+                using var marker = ReceiveRoomBeginMarker.Auto();
                 ValidatePayloadLength(reader.Length - reader.Position);
                 _receiver.ReceiveRoomBegin(MonsterNetworkCodec.ReadRoomBegin(ref reader));
             }
@@ -203,6 +220,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!CanReceive(senderClientId)) return;
             try
             {
+                using var marker = ReceiveRoomEndMarker.Auto();
                 if (reader.Length != reader.Position)
                     throw new InvalidOperationException("Monster RoomEnd Payload 必须为空。");
                 _receiver.ReceiveRoomEnd();

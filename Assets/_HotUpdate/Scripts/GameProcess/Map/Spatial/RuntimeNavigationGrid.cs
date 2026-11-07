@@ -1,5 +1,4 @@
 using ProjectGame.Core.Navigation;
-using ProjectGame.HotFix.Gameplay.Navigation;
 using System;
 using Unity.Profiling;
 using UnityEngine;
@@ -33,7 +32,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
     /// RoomSpatialData之上的运行时导航层，实现动态避障的关键
     /// 静态地图保持只读，动态阻挡与动态Cost全部维护在这里
     /// </summary>
-    public sealed class RuntimeNavigationGrid : INavigationGrid
+    public sealed class RuntimeNavigationGrid
     {
         private readonly RoomSpatialData _staticData;
 
@@ -49,6 +48,8 @@ namespace ProjectGame.HotFix.Gameplay.Map
             new("Monster.NavigationGrid.Topology.BuildConnections");
         private static readonly ProfilerMarker RefreshCostMarker =
             new("Monster.NavigationGrid.Cost.Refresh");
+        private static readonly ProfilerMarker RefreshTopologyReferenceCostMarker =
+            new("Monster.NavigationGrid.Cost.RefreshTopologyReference");
 
         private readonly byte[] _staticWalkable;
         private readonly byte[] _walkableCache;
@@ -58,6 +59,7 @@ namespace ProjectGame.HotFix.Gameplay.Map
 
         private int _cachedTopologyVersion = -1;
         private int _cachedCostVersion = -1;
+        private int _cachedTopologyReferenceCostVersion = -1;
 
         //避障拓扑版本号，每次动态阻挡信息改变时+1
         public int TopologyVersion { get; private set; }
@@ -111,15 +113,6 @@ namespace ProjectGame.HotFix.Gameplay.Map
                    !_dynamicBlocked[index];
         }
 
-        public int GetAdditionalCost(int x, int y)
-        {
-            if (!IsValid(x, y))
-                return int.MaxValue;
-
-            int index = ToIndex(x, y);
-            return _additionalCost[index] + _densityCost[index];
-        }
-
         public NavigationGridKernelData GetKernelData()
         {
             RefreshTopologyCache();
@@ -139,8 +132,15 @@ namespace ProjectGame.HotFix.Gameplay.Map
         {
             RefreshTopologyCache();
 
-            for (int i = 0; i < _topologyReferenceCost.Length; i++)
-                _topologyReferenceCost[i] = _additionalCost[i];
+            if (_cachedTopologyReferenceCostVersion != TopologyReferenceCostVersion)
+            {
+                using var refreshScope = RefreshTopologyReferenceCostMarker.Auto();
+
+                for (int i = 0; i < _topologyReferenceCost.Length; i++)
+                    _topologyReferenceCost[i] = _additionalCost[i];
+
+                _cachedTopologyReferenceCostVersion = TopologyReferenceCostVersion;
+            }
 
             return new NavigationGridKernelData(
                 Width,
@@ -215,9 +215,6 @@ namespace ProjectGame.HotFix.Gameplay.Map
 
         public bool ReplaceDensityCost(ushort[] source)
         {
-            if (source == null || source.Length != _densityCost.Length)
-                throw new ArgumentException("DensityCost尺寸与NavigationGrid不一致。", nameof(source));
-
             bool changed = false;
 
             for (int i = 0; i < source.Length; i++)
@@ -277,67 +274,6 @@ namespace ProjectGame.HotFix.Gameplay.Map
             _additionalCost[index] = next;
             CostVersion++;
             TopologyReferenceCostVersion++;
-        }
-
-        public void ClearDynamicBlocked()
-        {
-            if (!ContainsBlockedCell())
-                return;
-
-            Array.Clear(_dynamicBlocked, 0, _dynamicBlocked.Length);
-            TopologyVersion++;
-        }
-
-        public void ClearAdditionalCost()
-        {
-            if (!ContainsNonZero(_additionalCost))
-                return;
-
-            Array.Clear(_additionalCost, 0, _additionalCost.Length);
-            CostVersion++;
-            TopologyReferenceCostVersion++;
-        }
-
-        public void ClearRuntime()
-        {
-            bool topologyChanged = ContainsBlockedCell();
-            bool additionalCostChanged = ContainsNonZero(_additionalCost);
-            bool costChanged = additionalCostChanged || ContainsNonZero(_densityCost);
-
-            if (!topologyChanged && !costChanged)
-                return;
-
-            Array.Clear(_dynamicBlocked, 0, _dynamicBlocked.Length);
-            Array.Clear(_additionalCost, 0, _additionalCost.Length);
-            Array.Clear(_densityCost, 0, _densityCost.Length);
-            if (topologyChanged)
-                TopologyVersion++;
-            if (costChanged)
-                CostVersion++;
-            if (additionalCostChanged)
-                TopologyReferenceCostVersion++;
-        }
-
-        private bool ContainsBlockedCell()
-        {
-            for (int i = 0; i < _dynamicBlocked.Length; i++)
-            {
-                if (_dynamicBlocked[i])
-                    return true;
-            }
-
-            return false;
-        }
-
-        private static bool ContainsNonZero(ushort[] values)
-        {
-            for (int i = 0; i < values.Length; i++)
-            {
-                if (values[i] != 0)
-                    return true;
-            }
-
-            return false;
         }
 
         private int ToIndex(int x, int y) => y * Width + x;

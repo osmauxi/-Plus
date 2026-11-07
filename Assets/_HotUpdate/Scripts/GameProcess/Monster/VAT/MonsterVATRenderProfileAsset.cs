@@ -5,7 +5,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 {
     /// <summary>
     /// 保持Prefab和renderer的静态表现配置，切掉原来的运行时获取，方便在运行时直接使用配置数据
-    /// 目的为彻底干掉怪物GameObject
     /// </summary>
     [CreateAssetMenu(menuName = "Monster/VAT Render Profile")]
     public sealed class MonsterVATRenderProfileAsset : ScriptableObject

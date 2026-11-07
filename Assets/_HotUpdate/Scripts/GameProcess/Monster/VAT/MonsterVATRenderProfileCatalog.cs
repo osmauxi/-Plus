@@ -11,6 +11,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterVATRenderProfileAsset Profile;
     }
 
+    /// <summary>
+    /// 维护一个本地池ID到MonsterVATRenderProfileAsset的映射表，用于在运行时快速查找对应的渲染配置
+    /// </summary>
     [CreateAssetMenu(menuName = "Monster/VAT Render Profile Catalog")]
     public sealed class MonsterVATRenderProfileCatalog : ScriptableObject
     {

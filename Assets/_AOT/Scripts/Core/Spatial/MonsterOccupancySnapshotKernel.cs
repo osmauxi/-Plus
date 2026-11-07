@@ -85,7 +85,6 @@ namespace ProjectGame.Core.Spatial
             Matrix4x4 roomWorldToLocal)
         {
             SlotCount = slotCount;
-            EnsureCapacity(slotCount);
             ActiveCount = 0;
             ActiveBucketCount = 0;
             Array.Clear(_fineCellCounts, 0, _fineCellCounts.Length);
@@ -142,7 +141,7 @@ namespace ProjectGame.Core.Spatial
             return y * _bucketWidth + x;
         }
 
-        private void EnsureCapacity(int count)
+        public void EnsureCapacity(int count)
         {
             if (_positions.Length >= count)
                 return;

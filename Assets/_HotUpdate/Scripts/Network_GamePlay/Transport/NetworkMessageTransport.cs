@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
+using Unity.Profiling;
 
 namespace ProjectGame.HotFix.Gameplay.Network
 {
@@ -15,6 +16,10 @@ namespace ProjectGame.HotFix.Gameplay.Network
     {
         private readonly NetworkManager _networkManager;
         private readonly NetworkTransportStats _stats;
+        private static readonly ProfilerMarker SendNamedMessageMarker =
+            new("Monster.Network.SendNamedMessage");
+        private static readonly ProfilerMarker RecordSentMarker =
+            new("Monster.Network.RecordSent");
         private readonly Dictionary<string, NetworkMessageHandler> _handlers = new(StringComparer.Ordinal);
         private readonly List<ulong> _connectedClientIds = new();
         private readonly List<ulong> _remoteClientIds = new();
@@ -164,15 +169,15 @@ namespace ProjectGame.HotFix.Gameplay.Network
             ValidateMessageName(messageName);
             if (!_networkManager.IsServer) 
                 return;
-            if (clientIds == null) 
-                throw new ArgumentNullException(nameof(clientIds));
             if (clientIds.Count == 0) 
                 return;
 
-            _networkManager.CustomMessagingManager.SendNamedMessage(messageName, clientIds, writer, ResolveDelivery(delivery));
+            using (SendNamedMessageMarker.Auto())
+                _networkManager.CustomMessagingManager.SendNamedMessage(messageName, clientIds, writer, ResolveDelivery(delivery));
 
-            for (int i = 0; i < clientIds.Count; i++) 
-                _stats.RecordSent(messageName, writer.Length);
+            using (RecordSentMarker.Auto())
+                for (int i = 0; i < clientIds.Count; i++)
+                    _stats.RecordSent(messageName, writer.Length);
         }
 
         public void SendToRemoteClients(string messageName, FastBufferWriter writer, NetworkDeliveryClass delivery)
@@ -189,6 +194,9 @@ namespace ProjectGame.HotFix.Gameplay.Network
                 case NetworkDeliveryClass.DeltaSnapshot:
                 case NetworkDeliveryClass.UnreliableEvent:
                     return NetworkDelivery.UnreliableSequenced;
+
+                case NetworkDeliveryClass.UnreliableSnapshot:
+                    return NetworkDelivery.Unreliable;
 
                 case NetworkDeliveryClass.FullSnapshot:
                     return NetworkDelivery.ReliableFragmentedSequenced;

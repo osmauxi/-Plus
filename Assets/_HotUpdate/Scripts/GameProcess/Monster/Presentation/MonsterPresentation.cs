@@ -1,5 +1,6 @@
-using System;
 using ProjectGame.Core.Monsters;
+using System;
+using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
 
@@ -52,7 +53,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             yaw = packedYaw * (360f / 256f);
         }
     }
-    
+
     public readonly struct MonsterPackedState
     {
         //4字节x+z+yaw数据
@@ -100,20 +101,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Clear(_activeMask, 0, ActiveMaskCount);
         }
 
-        internal void BeginRead(uint serverTick, int slotCount)
-        {
-            EnsureCapacity(slotCount, 0);
-            ServerTick = serverTick;
-            SlotCount = slotCount;
-            ActiveCount = 0;
-        }
-
-        internal void SetActiveCount(int activeCount)
-        {
-            EnsureCapacity(SlotCount, activeCount);
-            ActiveCount = activeCount;
-        }
-
         internal void EnsureCapacity(int slotCapacity, int activeCapacity)
         {
             int maskCapacity = checked((slotCapacity + 7) / 8);
@@ -145,8 +132,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
     public static class MonsterPresentationPackingSystem
     {
-        private static readonly ProfilerMarker CaptureMarker =
-            new ProfilerMarker("Monster.Presentation.Capture");
+        private static readonly ProfilerMarker CaptureMarker = new ProfilerMarker("Monster.Presentation.Capture");
+        private static readonly ProfilerMarker GroupCaptureMarker = new ProfilerMarker("Monster.Presentation.GroupCapture");
 
         /// <summary>
         /// 服务器如何生成这一帧
@@ -169,7 +156,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             for (int slot = 0; slot < world.SlotCount; slot++)
             {
                 //过滤非active，注意这里mask话没有给值，全0
-                if (!meta[slot].IsActive) 
+                if (!meta[slot].IsActive)
                     continue;
                 //对应位取或，把Slot对应位标记为1，active且不影响其他位
                 mask[slot >> 3] |= (byte)(1 << (slot & 7));
@@ -179,6 +166,41 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     presentation[slot].HitSequence);
             }
         }
+
+        /// <summary>
+        /// 按指定版本的成员表顺序，采集该组在serverTick的完整表现状态。
+        /// 调用方在采集前完成成员变更，并传入更新后的成员表和版本。
+        /// </summary>
+        internal static void CaptureGroupInto(
+            MonsterWorld world,
+            MonsterPoseQuantizer quantizer,
+            uint groupId,
+            uint membershipRevision,
+            uint serverTick,
+            ReadOnlySpan<int> memberSlots,
+            MonsterGroupSnapshot destination)
+        {
+            using var captureScope = GroupCaptureMarker.Auto();
+
+            destination.BeginWrite(groupId, membershipRevision, serverTick, memberSlots.Length);
+
+            MonsterPackedState[] states = destination.MemberBuffer;
+            MonsterMotionData[] motion = world.Motion;
+            MonsterPresentationData[] presentation = world.Presentation;
+
+            for (int i = 0; i < memberSlots.Length; i++)
+            {
+                int slot = memberSlots[i];
+                ref readonly MonsterMotionData pose = ref motion[slot];
+                ref readonly MonsterPresentationData visual = ref presentation[slot];
+
+                states[i] = new MonsterPackedState(
+                    quantizer.Pack(pose.Position, pose.Yaw),
+                    visual.AttackSequence,
+                    visual.HitSequence);
+            }
+        }
+
     }
 
     public enum MonsterFrameApplyResult : byte
@@ -220,6 +242,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         private static readonly ProfilerMarker ApplyMarker =
             new ProfilerMarker("Monster.Presentation.Apply");
+        private static readonly ProfilerMarker GroupApplyMarker =
+            new ProfilerMarker("Monster.Replication.GroupApply");
 
         private ushort[] _config = Array.Empty<ushort>();
         private bool[] _active = Array.Empty<bool>();
@@ -227,9 +251,25 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private Vector2[] _currentPosition = Array.Empty<Vector2>();
         private float[] _previousYaw = Array.Empty<float>();
         private float[] _currentYaw = Array.Empty<float>();
+        private uint[] _latestGroupPoseTickBySlot = Array.Empty<uint>();
+        private float[] _groupPoseEndTimeBySlot = Array.Empty<float>();
+        private float[] _groupPoseUpdatesPerSecondBySlot = Array.Empty<float>();
         //攻击为离散数据不需要previous量做插值
         private byte[] _attackSequence = Array.Empty<byte>();
         private byte[] _hitSequence = Array.Empty<byte>();
+        /// <summary>
+        /// 群组映射字典，方便使用群组ID快速找到对应的成员组和版本号
+        /// </summary>
+        private readonly Dictionary<uint, GroupMembership> _groupMemberships = new();
+        private int[] _groupMemberSlots = Array.Empty<int>();
+
+        private struct GroupMembership
+        {
+            public int Offset;
+            public uint Revision;
+            public int Count;
+        }
+
         /// <summary>
         /// 这个房间最早允许接受多少Tick的包，防乱序的
         /// </summary>
@@ -238,10 +278,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private bool _hasFrame;
         private int _activeCount;
 
+
         public int SlotCount { get; private set; }
         public uint LatestTick => _latestTick;
-        public bool HasFrame => _hasFrame;
         public int ActiveCount => _activeCount;
+        public int GroupPoseReadyCount { get; private set; }
         /// <summary>
         /// 宣布新的房间开始，之前的网络状态作废，数组不清直接覆盖
         /// </summary>
@@ -252,17 +293,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _latestTick = 0;
             _hasFrame = false;
             _activeCount = 0;
+            GroupPoseReadyCount = 0;
             Array.Clear(_active, 0, _active.Length);
+            _groupMemberships.Clear();
         }
         /// <summary>
         /// 通过MonsterSpawnBatch与量化器解包数据，然后在Slot生成怪物
         /// </summary>
         public void ApplySpawnBatch(MonsterSpawnBatch batch, MonsterPoseQuantizer quantizer)
         {
-            if (batch == null) 
-                throw new ArgumentNullException(nameof(batch));
-            if (quantizer == null) 
-                throw new ArgumentNullException(nameof(quantizer));
             if (batch.StartSlot != SlotCount)
                 throw new InvalidOperationException($"Monster SpawnBatch 必须连续追加：Expected={SlotCount}, Actual={batch.StartSlot}。");
             EnsureCapacity(checked(batch.StartSlot + batch.Count));
@@ -278,21 +317,32 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 //初始previous = current
                 _previousPosition[slot] = _currentPosition[slot] = position;
                 _previousYaw[slot] = _currentYaw[slot] = yaw;
+                // 首份群组姿态允许与房间起始 Tick 相同。
+                _latestGroupPoseTickBySlot[slot] = unchecked(_minimumAcceptedTick - 1u);
+                _groupPoseEndTimeBySlot[slot] = 0f;
+                _groupPoseUpdatesPerSecondBySlot[slot] = 0f;
                 _attackSequence[slot] = 0;
                 _hitSequence[slot] = 0;
             }
             SlotCount += batch.Count;
+            _activeCount += batch.Count;
+        }
+
+        internal void Despawn(int slot)
+        {
+            if ((uint)slot >= (uint)SlotCount || !_active[slot])
+                return;
+
+            _active[slot] = false;
+            _activeCount--;
+            if (_groupPoseUpdatesPerSecondBySlot[slot] != 0f)
+                GroupPoseReadyCount--;
         }
         /// <summary>
         /// 收到一帧网络状态
         /// </summary>
         public MonsterFrameApplyResult Apply(MonsterPresentationFrame frame, MonsterPoseQuantizer quantizer)
         {
-            if (frame == null) 
-                throw new ArgumentNullException(nameof(frame));
-            if (quantizer == null) 
-                throw new ArgumentNullException(nameof(quantizer));
-
             using var applyScope = ApplyMarker.Auto();
             //一定比最低Tick新，不然视作此房间开始前的旧包
             if (MonsterMath.IsNewer(_minimumAcceptedTick, frame.ServerTick))
@@ -304,7 +354,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (frame.SlotCount > SlotCount)
                 return MonsterFrameApplyResult.MissingSpawnBatch;
             //包SlotCount比当前还少，视作客户端与实际情况出现不同步
-            if (frame.SlotCount != SlotCount) 
+            if (frame.SlotCount != SlotCount)
                 return MonsterFrameApplyResult.SlotCountMismatch;
 
             int stateIndex = 0;
@@ -314,38 +364,102 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 //遍历Slot，死的不管
                 bool active = frame.IsActive(slot);
                 _active[slot] = active;
-                if (!active) 
+                if (!active)
                     continue;
                 activeCount++;
-                //收到新包，解包后把当前信息丢给previous，更新current
-                MonsterPackedState packed = frame.ActiveStateBuffer[stateIndex++];
-                quantizer.Unpack(packed.PackedPose, out Vector2 position, out float yaw);
                 _previousPosition[slot] = _currentPosition[slot];
                 _previousYaw[slot] = _currentYaw[slot];
-                _currentPosition[slot] = position;
-                _currentYaw[slot] = yaw;
-                _attackSequence[slot] = packed.AttackSequence;
-                _hitSequence[slot] = packed.HitSequence;
+                ApplyPose(slot, frame.ActiveStateBuffer[stateIndex++], quantizer);
             }
             _latestTick = frame.ServerTick;
             _hasFrame = true;
             _activeCount = activeCount;
             return MonsterFrameApplyResult.Applied;
         }
-        /// <summary>
-        /// 输出View层用的插值后的包，因为当前逻辑简单只使用简单的平滑
-        /// </summary>
-        public bool TryGetState(int slot, float alpha, out MonsterReplicaState state)
+
+        internal void ApplyGroupSnapshot(
+            MonsterGroupSnapshot frame, MonsterPoseQuantizer quantizer, float arrivalTime, float duration)
         {
-            state = default;
-            if ((uint)slot >= (uint)SlotCount) 
-                return false;
-            alpha = Mathf.Clamp01(alpha);
-            state = new MonsterReplicaState(slot, _config[slot], _active[slot],
+            using var applyScope = GroupApplyMarker.Auto();
+            uint tick = frame.ServerTick;
+            if (MonsterMath.IsNewer(_minimumAcceptedTick, tick) ||
+                !_groupMemberships.TryGetValue(frame.GroupId, out GroupMembership membership) ||
+                membership.Revision != frame.MembershipRevision ||
+                membership.Count != frame.MemberCount)
+                return;
+
+            float endTime = arrivalTime + duration;
+            float updatesPerSecond = 1f / duration;
+            MonsterPackedState[] states = frame.MemberBuffer;
+            for (int i = 0; i < membership.Count; i++)
+            {
+                int slot = _groupMemberSlots[membership.Offset + i];
+                // Spawn 可能还没到。按 Slot 比 Tick，防止跨组后的旧姿态回退。
+                if ((uint)slot >= (uint)SlotCount || !_active[slot] ||
+                    !MonsterMath.IsNewer(tick, _latestGroupPoseTickBySlot[slot]))
+                    continue;
+
+                // 上一段还在播放时，从收包时刻的画面姿态接上新目标。
+                float alpha = GetGroupPoseAlpha(slot, arrivalTime);
+                _previousPosition[slot] = Vector2.LerpUnclamped(_previousPosition[slot], _currentPosition[slot], alpha);
+                _previousYaw[slot] = Mathf.LerpAngle(_previousYaw[slot], _currentYaw[slot], alpha);
+                ApplyPose(slot, states[i], quantizer);
+
+                if (_groupPoseUpdatesPerSecondBySlot[slot] == 0f)
+                    GroupPoseReadyCount++;
+                _latestGroupPoseTickBySlot[slot] = tick;
+                _groupPoseEndTimeBySlot[slot] = endTime;
+                _groupPoseUpdatesPerSecondBySlot[slot] = updatesPerSecond;
+            }
+        }
+
+        private void ApplyPose(int slot, MonsterPackedState packed, MonsterPoseQuantizer quantizer)
+        {
+            quantizer.Unpack(packed.PackedPose, out Vector2 position, out float yaw);
+            _currentPosition[slot] = position;
+            _currentYaw[slot] = yaw;
+            _attackSequence[slot] = packed.AttackSequence;
+            _hitSequence[slot] = packed.HitSequence;
+        }
+
+        private float GetGroupPoseAlpha(int slot, float now) =>
+            Mathf.Clamp01(1f + (now - _groupPoseEndTimeBySlot[slot]) * _groupPoseUpdatesPerSecondBySlot[slot]);
+
+        public MonsterReplicaState GetState(int slot, float now)
+        {
+            float alpha = GetGroupPoseAlpha(slot, now);
+            return new MonsterReplicaState(slot, _config[slot], _active[slot],
                 Vector2.LerpUnclamped(_previousPosition[slot], _currentPosition[slot], alpha),
                 Mathf.LerpAngle(_previousYaw[slot], _currentYaw[slot], alpha),
                 _attackSequence[slot], _hitSequence[slot]);
-            return true;
+        }
+
+        internal Span<int> BeginGroupMembershipWrite(uint groupId, int count, out int offset)
+        {
+            const int blockSize = MonsterNetworkGroupIndex.GroupCapacity;
+            if (!_groupMemberships.TryGetValue(groupId, out GroupMembership membership))
+            {
+                membership.Offset = _groupMemberships.Count * blockSize;
+                int required = membership.Offset + blockSize;
+                if (required > _groupMemberSlots.Length)
+                    Array.Resize(ref _groupMemberSlots, Math.Max(required, _groupMemberSlots.Length * 2));
+            }
+
+            //直接覆盖数组。读取中断时，这段数据不再代表上一版完整成员表。
+            membership.Count = 0;
+            _groupMemberships[groupId] = membership;
+            offset = membership.Offset;
+            return _groupMemberSlots.AsSpan(offset, count);
+        }
+
+        internal void CommitGroupMembership(uint groupId, int offset, int count, uint revision)
+        {
+            _groupMemberships[groupId] = new GroupMembership
+            {
+                Offset = offset,
+                Count = count,
+                Revision = revision,
+            };
         }
 
         private void EnsureCapacity(int count)
@@ -359,6 +473,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Resize(ref _currentPosition, capacity);
             Array.Resize(ref _previousYaw, capacity);
             Array.Resize(ref _currentYaw, capacity);
+            Array.Resize(ref _latestGroupPoseTickBySlot, capacity);
+            Array.Resize(ref _groupPoseEndTimeBySlot, capacity);
+            Array.Resize(ref _groupPoseUpdatesPerSecondBySlot, capacity);
             Array.Resize(ref _attackSequence, capacity);
             Array.Resize(ref _hitSequence, capacity);
         }

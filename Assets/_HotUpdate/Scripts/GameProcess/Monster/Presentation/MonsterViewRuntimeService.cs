@@ -20,8 +20,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private MonsterRuntimeService _runtime;
         private MonsterViewWorld _viewWorld;
         private MonsterVATRenderWorld _vatWorld;
-        private float _lastFrameTime;
-        private float _frameInterval;
 
         public bool IsInitialized { get; private set; }
         public int RenderSlotCount => _viewWorld?.SlotCount ?? 0;
@@ -72,10 +70,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _profileCatalog,
                 new MonsterPoseQuantizer(data.QuantizationOrigin, data.QuantizationSize),
                 _vatWorld);
-            _frameInterval =
-                GameNetworkRuntime.Gameplay.Clock.TickDeltaTime
-                * _runtime.PresentationIntervalTicks;
-            _lastFrameTime = Time.unscaledTime;
             RenderPipelineManager.beginContextRendering += HandleBeginContextRendering;
             enabled = true;
         }
@@ -85,7 +79,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void OnSpawnBatchReceived(MonsterSpawnBatch batch)
         {
             _viewWorld.ApplySpawnBatch(batch);
-            _viewWorld.ApplyReplica(_runtime.Replica, 1f);
+            _viewWorld.ApplyReplica(_runtime.Replica, Time.unscaledTime);
         }
 
         private void OnPresentationFrameApplied(
@@ -95,19 +89,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (result != MonsterFrameApplyResult.Applied)
                 return;
 
-            _lastFrameTime = Time.unscaledTime;
             if (GameNetworkRuntime.Gameplay.Transport.IsServer)
-                _viewWorld.ApplyReplica(_runtime.Replica, 1f);
+                _viewWorld.ApplyReplica(_runtime.Replica, Time.unscaledTime);
         }
 
         private void LateUpdate()
         {
             if (!GameNetworkRuntime.Gameplay.Transport.IsServer)
-            {
-                float alpha = Mathf.Clamp01(
-                    (Time.unscaledTime - _lastFrameTime) / _frameInterval);
-                _viewWorld.ApplyReplica(_runtime.Replica, alpha);
-            }
+                _viewWorld.ApplyReplica(_runtime.Replica, Time.unscaledTime);
 
             _viewWorld.Update(Time.deltaTime, Time.unscaledDeltaTime);
         }

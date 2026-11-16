@@ -311,9 +311,13 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<ulong,ushort,object,int>
 	// System.Action<ulong>
 	// System.Action<ushort>
+	// System.ArraySegment.Enumerator<UnityEngine.Vector2>
 	// System.ArraySegment.Enumerator<byte>
+	// System.ArraySegment.Enumerator<int>
 	// System.ArraySegment.Enumerator<ushort>
+	// System.ArraySegment<UnityEngine.Vector2>
 	// System.ArraySegment<byte>
+	// System.ArraySegment<int>
 	// System.ArraySegment<ushort>
 	// System.Buffers.ArrayMemoryPool.ArrayMemoryPoolBuffer<byte>
 	// System.Buffers.ArrayMemoryPool<byte>
@@ -338,7 +342,9 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Buffers.TlsOverPerCoreLockedStacksArrayPool.PerCoreLockedStacks<int>
 	// System.Buffers.TlsOverPerCoreLockedStacksArrayPool<byte>
 	// System.Buffers.TlsOverPerCoreLockedStacksArrayPool<int>
+	// System.ByReference<UnityEngine.Vector2>
 	// System.ByReference<byte>
+	// System.ByReference<int>
 	// System.ByReference<ushort>
 	// System.Collections.Concurrent.ConcurrentQueue.<Enumerate>d__28<object>
 	// System.Collections.Concurrent.ConcurrentQueue.Segment<object>
@@ -484,6 +490,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Dictionary.Enumerator<object,int>
 	// System.Collections.Generic.Dictionary.Enumerator<object,object>
 	// System.Collections.Generic.Dictionary.Enumerator<object,ushort>
+	// System.Collections.Generic.Dictionary.Enumerator<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.Dictionary.Enumerator<uint,object>
 	// System.Collections.Generic.Dictionary.Enumerator<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.Dictionary.Enumerator<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -516,6 +523,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<object,int>
 	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<object,object>
 	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<object,ushort>
+	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<uint,object>
 	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.Dictionary.KeyCollection.Enumerator<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -548,6 +556,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Dictionary.KeyCollection<object,int>
 	// System.Collections.Generic.Dictionary.KeyCollection<object,object>
 	// System.Collections.Generic.Dictionary.KeyCollection<object,ushort>
+	// System.Collections.Generic.Dictionary.KeyCollection<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.Dictionary.KeyCollection<uint,object>
 	// System.Collections.Generic.Dictionary.KeyCollection<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.Dictionary.KeyCollection<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -580,6 +589,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<object,int>
 	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<object,object>
 	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<object,ushort>
+	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<uint,object>
 	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.Dictionary.ValueCollection.Enumerator<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -612,6 +622,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Dictionary.ValueCollection<object,int>
 	// System.Collections.Generic.Dictionary.ValueCollection<object,object>
 	// System.Collections.Generic.Dictionary.ValueCollection<object,ushort>
+	// System.Collections.Generic.Dictionary.ValueCollection<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.Dictionary.ValueCollection<uint,object>
 	// System.Collections.Generic.Dictionary.ValueCollection<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.Dictionary.ValueCollection<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -644,6 +655,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.Dictionary<object,int>
 	// System.Collections.Generic.Dictionary<object,object>
 	// System.Collections.Generic.Dictionary<object,ushort>
+	// System.Collections.Generic.Dictionary<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.Dictionary<uint,object>
 	// System.Collections.Generic.Dictionary<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.Dictionary<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -659,6 +671,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Gameplay.Network.NetworkMessageStats>
 	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.EqualityComparer<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -771,6 +784,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<object,int>>
 	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<object,object>>
 	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<object,ushort>>
+	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>>
 	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<uint,object>>
 	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>>
 	// System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>>
@@ -898,6 +912,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,int>>
 	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,object>>
 	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<object,ushort>>
+	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>>
 	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<uint,object>>
 	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>>
 	// System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>>
@@ -976,6 +991,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<object,int>>
 	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<object,object>>
 	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<object,ushort>>
+	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>>
 	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<uint,object>>
 	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>>
 	// System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>>
@@ -1125,6 +1141,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.KeyValuePair<object,int>
 	// System.Collections.Generic.KeyValuePair<object,object>
 	// System.Collections.Generic.KeyValuePair<object,ushort>
+	// System.Collections.Generic.KeyValuePair<uint,ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.KeyValuePair<uint,object>
 	// System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.KeyValuePair<ulong,ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -1305,6 +1322,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Core.Network.LobbyPlayerState>
 	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Gameplay.Map.Generation.MapRoomDefinition>
 	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Gameplay.Map.View.MapRoomBuildDefinition>
+	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Gameplay.Monsters.MonsterReplica.GroupMembership>
 	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Gameplay.Network.NetworkMessageStats>
 	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSimulationState>
 	// System.Collections.Generic.ObjectEqualityComparer<ProjectGame.HotFix.Gameplay.Player.Sync.PlayerSyncTransport.EndpointEntry>
@@ -1627,9 +1645,13 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Predicate<ulong>
 	// System.Predicate<ushort>
 	// System.ReadOnlyMemory<byte>
+	// System.ReadOnlySpan.Enumerator<UnityEngine.Vector2>
 	// System.ReadOnlySpan.Enumerator<byte>
+	// System.ReadOnlySpan.Enumerator<int>
 	// System.ReadOnlySpan.Enumerator<ushort>
+	// System.ReadOnlySpan<UnityEngine.Vector2>
 	// System.ReadOnlySpan<byte>
+	// System.ReadOnlySpan<int>
 	// System.ReadOnlySpan<ushort>
 	// System.Runtime.CompilerServices.AsyncTaskMethodBuilder<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,UnityEngine.SceneManagement.Scene>>>>>>>>>
 	// System.Runtime.CompilerServices.AsyncTaskMethodBuilder<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,byte>>>>>>>>>
@@ -1808,9 +1830,13 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Runtime.CompilerServices.ValueTaskAwaiter<UnityEngine.SceneManagement.Scene>
 	// System.Runtime.CompilerServices.ValueTaskAwaiter<byte>
 	// System.Runtime.CompilerServices.ValueTaskAwaiter<object>
+	// System.Span.Enumerator<UnityEngine.Vector2>
 	// System.Span.Enumerator<byte>
+	// System.Span.Enumerator<int>
 	// System.Span.Enumerator<ushort>
+	// System.Span<UnityEngine.Vector2>
 	// System.Span<byte>
+	// System.Span<int>
 	// System.Span<ushort>
 	// System.Threading.Tasks.ContinuationTaskFromResultTask<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,UnityEngine.SceneManagement.Scene>>>>>>>>
 	// System.Threading.Tasks.ContinuationTaskFromResultTask<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,byte>>>>>>>>
@@ -2286,10 +2312,13 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// float[] System.Array.Empty<float>()
 		// int[] System.Array.Empty<int>()
 		// object[] System.Array.Empty<object>()
+		// uint[] System.Array.Empty<uint>()
 		// ulong[] System.Array.Empty<ulong>()
 		// ushort[] System.Array.Empty<ushort>()
 		// System.Void System.Array.Fill<int>(int[],int)
+		// int System.Array.IndexOf<int>(int[],int,int,int)
 		// int System.Array.IndexOf<object>(object[],object)
+		// int System.Array.IndexOfImpl<int>(int[],int,int,int)
 		// int System.Array.IndexOfImpl<object>(object[],object,int,int)
 		// System.Void System.Array.Resize<ProjectGame.Core.Monsters.MonsterMetaData>(ProjectGame.Core.Monsters.MonsterMetaData[]&,int)
 		// System.Void System.Array.Resize<ProjectGame.Core.Monsters.MonsterMotionData>(ProjectGame.Core.Monsters.MonsterMotionData[]&,int)
@@ -2305,6 +2334,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// System.Void System.Array.Resize<float>(float[]&,int)
 		// System.Void System.Array.Resize<int>(int[]&,int)
 		// System.Void System.Array.Resize<object>(object[]&,int)
+		// System.Void System.Array.Resize<uint>(uint[]&,int)
 		// System.Void System.Array.Resize<ushort>(ushort[]&,int)
 		// System.Void System.Array.Sort<ProjectGame.HotFix.Core.Network.LobbyPlayerState>(ProjectGame.HotFix.Core.Network.LobbyPlayerState[],System.Comparison<ProjectGame.HotFix.Core.Network.LobbyPlayerState>)
 		// System.Void System.Array.Sort<ProjectGame.HotFix.Core.Session.PlayerSessionData>(ProjectGame.HotFix.Core.Session.PlayerSessionData[],System.Comparison<ProjectGame.HotFix.Core.Session.PlayerSessionData>)
@@ -2340,6 +2370,8 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<System.Collections.Generic.KeyValuePair<ulong,object>>.Select<object>(System.Func<System.Collections.Generic.KeyValuePair<ulong,object>,object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<ulong>.Select<object>(System.Func<ulong,object>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.IOrderedEnumerable<object>.CreateOrderedEnumerable<int>(System.Func<object,int>,System.Collections.Generic.IComparer<int>,bool)
+		// System.Span<UnityEngine.Vector2> System.MemoryExtensions.AsSpan<UnityEngine.Vector2>(UnityEngine.Vector2[],int,int)
+		// System.Span<int> System.MemoryExtensions.AsSpan<int>(int[],int,int)
 		// object System.Reflection.CustomAttributeExtensions.GetCustomAttribute<object>(System.Reflection.MemberInfo)
 		// System.Void System.Runtime.CompilerServices.AsyncVoidMethodBuilder.AwaitUnsafeOnCompleted<Cysharp.Threading.Tasks.UniTask.Awaiter,object>(Cysharp.Threading.Tasks.UniTask.Awaiter&,object&)
 		// System.Void System.Runtime.CompilerServices.AsyncVoidMethodBuilder.AwaitUnsafeOnCompleted<System.Runtime.CompilerServices.TaskAwaiter<object>,object>(System.Runtime.CompilerServices.TaskAwaiter<object>&,object&)

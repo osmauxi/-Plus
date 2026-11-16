@@ -10,5 +10,6 @@ namespace ProjectGame.HotFix.Gameplay.Network
         DeltaSnapshot = 2,
         ReliableEvent = 3,
         UnreliableEvent = 4,
+        UnreliableSnapshot = 5,
     }
 }

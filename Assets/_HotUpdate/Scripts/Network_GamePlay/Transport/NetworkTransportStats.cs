@@ -67,13 +67,8 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (string.IsNullOrWhiteSpace(messageName))
                 throw new ArgumentException("消息名称不能为空。", nameof(messageName));
 
-            if (payloadBytes < 0)
-                throw new ArgumentOutOfRangeException(nameof(payloadBytes), payloadBytes, "Payload 字节数不能为负数。");
-
             _sentByMessage.TryGetValue(messageName, out NetworkMessageStats current);
-            _sentByMessage[messageName] = new NetworkMessageStats(
-                current.MessageCount + 1L,
-                current.PayloadBytes + payloadBytes);
+            _sentByMessage[messageName] = new NetworkMessageStats(current.MessageCount + 1L,current.PayloadBytes + payloadBytes);
 
             TotalMessageCount++;
             TotalPayloadBytes += payloadBytes;
@@ -83,8 +78,6 @@ namespace ProjectGame.HotFix.Gameplay.Network
         {
             if (string.IsNullOrWhiteSpace(messageName))
                 throw new ArgumentException("消息名称不能为空。", nameof(messageName));
-            if (payloadBytes < 0)
-                throw new ArgumentOutOfRangeException(nameof(payloadBytes), payloadBytes, "Payload 字节数不能为负数。");
 
             _receivedByMessage.TryGetValue(messageName, out NetworkMessageStats current);
             _receivedByMessage[messageName] = new NetworkMessageStats(

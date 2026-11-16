@@ -227,9 +227,10 @@ namespace ProjectGame.HotFix.UI.Gameplay.Minimap
             _view.BeginEnemyMarkerUpdate();
             MonsterReplica replica = _monsterRuntime.Replica;
             bool boss = _tacticalRoom.RoomType == RoomType.Boss;
+            float now = Time.unscaledTime;
             for (int slot = 0; slot < replica.SlotCount; slot++)
             {
-                replica.TryGetState(slot, 1f, out MonsterReplicaState monster);
+                MonsterReplicaState monster = replica.GetState(slot, now);
                 if (!monster.IsActive)
                     continue;
 

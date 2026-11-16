@@ -229,7 +229,7 @@ namespace ProjectGame.HotFix.Benchmarking
                        monsters.MonsterSlotCount == options.MonsterCount;
 
             MonsterReplica replica = monsters.Replica;
-            if (replica == null || !replica.HasFrame ||
+            if (replica.GroupPoseReadyCount != options.MonsterCount ||
                 replica.SlotCount != options.MonsterCount ||
                 replica.ActiveCount != options.MonsterCount)
                 return false;

@@ -1,5 +1,6 @@
 using ProjectGame.HotFix.Gameplay.Network;
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
 using Unity.Profiling;
@@ -11,21 +12,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         void ReceiveRoomBegin(MonsterRoomBeginData data);
         void ReceiveSpawnBatch(MonsterSpawnBatch batch);
-        void ReceivePresentationFrame(MonsterPresentationFrame frame);
+        void ReceiveDespawn(int slot);
         void ReceiveRoomEnd();
+        void ReceiveGroupMembership(ref FastBufferReader reader);
+        void ReceiveGroupSnapshot(MonsterGroupSnapshot frame, byte intervalTicks);
     }
 
     /// <summary>
-    /// Spawn可靠，Presentation高频不可靠
+    /// 生命周期、群组成员表和对应首帧可靠有序传输，周期姿态使用不可靠传输。
     /// </summary>
     public sealed class MonsterNetworkTransport
     {
-        private static readonly ProfilerMarker SendPresentationMarker =
-            new("Monster.Network.SendPresentation");
-        private static readonly ProfilerMarker SendTransportMarker =
-            new("Monster.Network.SendPresentation.Transport");
-        private static readonly ProfilerMarker ReceivePresentationMarker =
-            new("Monster.Network.ReceivePresentation");
+        private static readonly ProfilerMarker GroupTransportMarker =
+            new("Monster.Network.GroupTransport");
         private static readonly ProfilerMarker SendRoomBeginMarker =
             new("Monster.Network.SendRoomBegin");
         private static readonly ProfilerMarker ReceiveRoomBeginMarker =
@@ -39,17 +38,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private static readonly ProfilerMarker ReceiveRoomEndMarker =
             new("Monster.Network.ReceiveRoomEnd");
 
-        //注册四种消息类型
         internal const string SpawnMessageName = "PG.Monster.Spawn";
-        internal const string PresentationMessageName = "PG.Monster.Presentation";
+        internal const string DespawnMessageName = "PG.Monster.Despawn";
         internal const string RoomBeginMessageName = "PG.Monster.RoomBegin";
         internal const string RoomEndMessageName = "PG.Monster.RoomEnd";
+        internal const string GroupMembershipMessageName = "PG.Monster.GroupMembership";
+        internal const string GroupInitialSnapshotMessageName = "PG.Monster.GroupInitialSnapshot";
+        internal const string GroupSnapshotMessageName = "PG.Monster.GroupSnapshot";
 
         private const int MaxPayloadBytes = 2 * 1024 * 1024;
 
         private readonly NetworkMessageTransport _transport;
-        private MonsterPresentationFrame _receiveWriteFrame;
-        private MonsterPresentationFrame _receivePublishedFrame;
+        private readonly MonsterGroupSnapshot _receiveGroupSnapshot = new(MonsterNetworkGroupIndex.GroupCapacity);
 
         //收到数据丢给谁
         private IMonsterNetworkReceiver _receiver;
@@ -57,11 +57,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool IsInitialized { get; private set; }
 
-        public MonsterNetworkTransport(NetworkMessageTransport transport, int initialCapacity)
+        public MonsterNetworkTransport(NetworkMessageTransport transport)
         {
-            _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-            _receiveWriteFrame = new MonsterPresentationFrame(initialCapacity);
-            _receivePublishedFrame = new MonsterPresentationFrame(initialCapacity);
+            _transport = transport;
         }
 
         public void Initialize(IMonsterNetworkReceiver receiver)
@@ -77,15 +75,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 {
                     _transport.RegisterHandler(RoomBeginMessageName, OnRoomBeginReceived);
                     _transport.RegisterHandler(SpawnMessageName, OnSpawnReceived);
-                    _transport.RegisterHandler(PresentationMessageName, OnPresentationReceived);
+                    _transport.RegisterHandler(DespawnMessageName, OnDespawnReceived);
                     _transport.RegisterHandler(RoomEndMessageName, OnRoomEndReceived);
+                    _transport.RegisterHandler(GroupMembershipMessageName, OnGroupMembershipReceived);
+                    _transport.RegisterHandler(GroupInitialSnapshotMessageName, OnGroupSnapshotReceived);
+                    _transport.RegisterHandler(GroupSnapshotMessageName, OnGroupSnapshotReceived);
+
                 }
                 catch
                 {
                     _transport.UnregisterHandler(RoomBeginMessageName);
                     _transport.UnregisterHandler(SpawnMessageName);
-                    _transport.UnregisterHandler(PresentationMessageName);
+                    _transport.UnregisterHandler(DespawnMessageName);
                     _transport.UnregisterHandler(RoomEndMessageName);
+                    _transport.UnregisterHandler(GroupMembershipMessageName);
+                    _transport.UnregisterHandler(GroupInitialSnapshotMessageName);
+                    _transport.UnregisterHandler(GroupSnapshotMessageName);
                     throw;
                 }
                 _handlersRegistered = true;
@@ -113,11 +118,56 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 writer.Dispose();
             }
         }
-
-        internal void EnsurePresentationCapacity(int slotCapacity)
+        internal void SendGroupMembership(IReadOnlyList<ulong> clients, MonsterNetworkGroupIndex.Group group)
         {
-            _receiveWriteFrame.EnsureCapacity(slotCapacity, slotCapacity);
-            _receivePublishedFrame.EnsureCapacity(slotCapacity, slotCapacity);
+            using var groupTransportScope = GroupTransportMarker.Auto();
+            ReadOnlySpan<int> slots = group.MemberSlots;
+            int length = MonsterNetworkCodec.GetGroupMembershipByteCount(slots.Length);
+            FastBufferWriter writer = new(length, Allocator.Temp, length);
+            try
+            {
+                MonsterNetworkCodec.WriteGroupMembership(ref writer, group.Id, group.MembershipRevision, slots, length);
+                _transport.SendToClients(clients, GroupMembershipMessageName, writer,NetworkDeliveryClass.ReliableEvent);
+            }
+            finally
+            {
+                writer.Dispose();
+            }
+        }
+        internal void SendGroupSnapshotBatch(
+            IReadOnlyList<ulong> clients,
+            IReadOnlyList<MonsterGroupSnapshot> frames,
+            IReadOnlyList<byte> intervalTicks,
+            bool isInitialSnapshot)
+        {
+            using var groupTransportScope = GroupTransportMarker.Auto();
+            int length = MonsterNetworkCodec.GetGroupSnapshotBatchByteCount(frames);
+            FastBufferWriter writer = new(length, Allocator.Temp, length);
+            try
+            {
+                MonsterNetworkCodec.WriteGroupSnapshotBatch(ref writer, frames, intervalTicks, length);
+                string name = isInitialSnapshot ? GroupInitialSnapshotMessageName : GroupSnapshotMessageName;
+                NetworkDeliveryClass delivery = isInitialSnapshot ? NetworkDeliveryClass.ReliableEvent : NetworkDeliveryClass.UnreliableSnapshot;
+                _transport.SendToClients(clients, name, writer, delivery);
+            }
+            finally
+            {
+                writer.Dispose();
+            }
+        }
+
+        internal void SendDespawn(int slot)
+        {
+            FastBufferWriter writer = new(sizeof(uint), Allocator.Temp, sizeof(uint));
+            try
+            {
+                MonsterNetworkCodec.WriteDespawn(ref writer, slot);
+                _transport.SendToRemoteClients(DespawnMessageName, writer, NetworkDeliveryClass.ReliableEvent);
+            }
+            finally
+            {
+                writer.Dispose();
+            }
         }
 
         public void SendRoomBegin(in MonsterRoomBeginData data)
@@ -145,31 +195,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             //有可能存在NGO不接受0容量发包的情况，这里进行规避
             using FastBufferWriter writer = new(1, Allocator.Temp, 1);
             _transport.SendToRemoteClients(RoomEndMessageName, writer, NetworkDeliveryClass.ReliableEvent);
-        }
-        /// <summary>
-        /// Presentation每帧发完整状态，走不可靠传输
-        /// </summary>
-        public void SendPresentation(MonsterPresentationFrame frame)
-        {
-            EnsureServer();
-            using var sendScope = SendPresentationMarker.Auto();
-            int length = MonsterNetworkCodec.GetPresentationByteCount(frame);
-            ValidatePayloadLength(length);
-
-            FastBufferWriter writer = new(length, Allocator.Temp, length);
-            try 
-            {     
-                MonsterNetworkCodec.WritePresentation(ref writer, frame);
-                using (SendTransportMarker.Auto())
-                    _transport.SendToRemoteClients(
-                        PresentationMessageName,
-                        writer,
-                        NetworkDeliveryClass.FullSnapshot);
-            }
-            finally
-            {
-                writer.Dispose();
-            }
         }
         private static void ValidatePayloadLength(int length)
         {
@@ -230,30 +255,36 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 Debug.LogWarning($"[{nameof(MonsterNetworkTransport)}] RoomEnd 解析失败：{exception.Message}");
             }
         }
-
-        private void OnPresentationReceived(ulong senderClientId, FastBufferReader reader)
+        private void OnGroupMembershipReceived(ulong senderClientId, FastBufferReader reader)
         {
-            if (!CanReceive(senderClientId)) return;
-            try
+            if (!CanReceive(senderClientId))
+                return;
+
+            _receiver.ReceiveGroupMembership(ref reader);
+        }
+        private void OnGroupSnapshotReceived(ulong senderClientId, FastBufferReader reader)
+        {
+            if (!CanReceive(senderClientId))
+                return;
+
+            int count = MonsterNetworkCodec.ReadGroupSnapshotBatchHeader(ref reader);
+            for (int i = 0; i < count; i++)
             {
-                using var receiveScope = ReceivePresentationMarker.Auto();
-                ValidatePayloadLength(reader.Length - reader.Position);
-                MonsterNetworkCodec.ReadPresentationInto(ref reader, _receiveWriteFrame);
-                MonsterPresentationFrame received = _receiveWriteFrame;
-                _receiveWriteFrame = _receivePublishedFrame;
-                _receivePublishedFrame = received;
-                _receiver.ReceivePresentationFrame(_receivePublishedFrame);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[{nameof(MonsterNetworkTransport)}] Presentation 解析失败：{exception.Message}");
+                MonsterNetworkCodec.ReadGroupSnapshotInto(ref reader, _receiveGroupSnapshot, out byte intervalTicks);
+                // 由接收者在本次调用内消费，下一条群组快照会复用缓冲。
+                _receiver.ReceiveGroupSnapshot(_receiveGroupSnapshot, intervalTicks);
             }
         }
-        /// <summary>
-        /// 是Client，消息发送者为Server，Receiver存在
-        /// </summary>
+
+        private void OnDespawnReceived(ulong senderClientId, FastBufferReader reader)
+        {
+            if (!CanReceive(senderClientId))
+                return;
+
+            _receiver.ReceiveDespawn(MonsterNetworkCodec.ReadDespawn(ref reader));
+        }
         private bool CanReceive(ulong senderClientId) => _transport.IsClient &&
-            senderClientId == NetworkManager.ServerClientId && _receiver != null;
+            senderClientId == NetworkManager.ServerClientId;
 
         private void EnsureServer()
         {
@@ -268,9 +299,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (_handlersRegistered && _transport.IsInitialized)
             {
                 _transport.UnregisterHandler(SpawnMessageName);
-                _transport.UnregisterHandler(PresentationMessageName);
+                _transport.UnregisterHandler(DespawnMessageName);
                 _transport.UnregisterHandler(RoomBeginMessageName);
                 _transport.UnregisterHandler(RoomEndMessageName);
+                _transport.UnregisterHandler(GroupMembershipMessageName);
+                _transport.UnregisterHandler(GroupInitialSnapshotMessageName);
+                _transport.UnregisterHandler(GroupSnapshotMessageName);
             }
             _handlersRegistered = false;
             _receiver = null;

@@ -136,16 +136,21 @@ namespace ProjectGame.HotFix.Benchmarking
             "Monster.Separation.Kernel",
             "Monster.Presentation.Capture",
             "Monster.Presentation.Apply",
-            "Monster.Presentation.Serialize",
-            "Monster.Presentation.Decode",
+            "Monster.Presentation.GroupCapture",
+            "Monster.Presentation.GroupSerialize",
+            "Monster.Presentation.GroupDecode",
             "Monster.Replication.Publish",
             "Monster.Replication.Capture",
             "Monster.Replication.ApplyLocal",
-            "Monster.Replication.SendPresentation",
+            "Monster.Replication.PublishGroups",
+            "Monster.Replication.GroupApply",
             "Monster.Replication.ReceiveApply",
-            "Monster.Network.SendPresentation",
-            "Monster.Network.SendPresentation.Transport",
-            "Monster.Network.ReceivePresentation",
+            "Monster.Network.GroupBuild",
+            "Monster.Network.InterestRefresh",
+            "Monster.Network.GroupSchedule",
+            "Monster.Network.GroupTransport",
+            "Monster.Network.SendNamedMessage",
+            "Monster.Network.RecordSent",
             "Monster.Network.SendRoomBegin",
             "Monster.Network.ReceiveRoomBegin",
             "Monster.Network.SendSpawn",
@@ -426,7 +431,7 @@ namespace ProjectGame.HotFix.Benchmarking
             bool movementValid = movementCommands > 0 && movementDistance >= 2f;
             bool monsterValid = _options.Role == BenchmarkProcessRole.Host
                 ? monsters != null && monsters.AliveMonsterCount == _options.MonsterCount
-                : replica != null && replica.HasFrame &&
+                : replica != null && replica.GroupPoseReadyCount == _options.MonsterCount &&
                   replica.SlotCount == _options.MonsterCount &&
                   replica.ActiveCount == _options.MonsterCount &&
                   view != null && view.ActiveRenderCount == _options.MonsterCount;

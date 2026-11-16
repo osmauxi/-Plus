@@ -26,10 +26,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.Replication.Capture");
         private static readonly ProfilerMarker ApplyLocalMarker =
             new("Monster.Replication.ApplyLocal");
-        private static readonly ProfilerMarker SendPresentationMarker =
-            new("Monster.Replication.SendPresentation");
+        private static readonly ProfilerMarker PublishGroupsMarker =
+            new("Monster.Replication.PublishGroups");
+        private static readonly ProfilerMarker GroupScheduleMarker =
+            new("Monster.Network.GroupSchedule");
         private static readonly ProfilerMarker ReceiveApplyMarker =
             new("Monster.Replication.ReceiveApply");
+        private const int GroupPoseBudgetPerTick = 32 * 1024;
+        private const int GroupSnapshotBatchMaxBytes = 1024;
 
         public const ulong MonsterEntityIdBase = 1UL << 63;
         /// <summary>
@@ -37,7 +41,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         [SerializeField, Min(1)] private int _initialCapacity = 128;
         /// <summary>
-        /// 限制怪物presentation发送频率
+        /// Host 本地整房间表现采样间隔。
         /// </summary>
         [SerializeField, Min(1)] private int _presentationIntervalTicks = 2;
         [SerializeField, Min(0.01f)] private float _monsterHitRadius = 0.73f;
@@ -49,6 +53,46 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private MonsterPoseQuantizer _quantizer;
         private MonsterPresentationFrame _authorityWriteFrame;
         private MonsterPresentationFrame _authorityPublishedFrame;
+        private readonly List<MonsterNetworkGroupIndex.Group> _duePoseGroups = new();
+        private readonly GroupSnapshotSendBatch _initialSnapshotBatch = new();
+        private readonly GroupSnapshotSendBatch _periodicSnapshotBatch = new();
+
+        private sealed class GroupSnapshotSendBatch
+        {
+            private readonly List<MonsterGroupSnapshot> _snapshotPool = new();
+            internal readonly List<MonsterNetworkGroupIndex.Group> Groups = new();
+            internal readonly List<MonsterGroupSnapshot> Frames = new();
+            internal readonly List<byte> Intervals = new();
+            internal int PayloadBytes { get; private set; }
+            internal int Count => Frames.Count;
+
+            internal bool CanFit(int length) =>
+                GroupSnapshotBatchHeaderSize + PayloadBytes + length <= GroupSnapshotBatchMaxBytes;
+
+            internal MonsterGroupSnapshot Add(
+                MonsterNetworkGroupIndex.Group group, byte intervalTicks, int length)
+            {
+                int index = Frames.Count;
+                while (_snapshotPool.Count <= index)
+                    _snapshotPool.Add(new MonsterGroupSnapshot(MonsterNetworkGroupIndex.GroupCapacity));
+
+                Groups.Add(group);
+                Frames.Add(_snapshotPool[index]);
+                Intervals.Add(intervalTicks);
+                PayloadBytes += length;
+                return _snapshotPool[index];
+            }
+
+            internal void Clear()
+            {
+                Groups.Clear();
+                Frames.Clear();
+                Intervals.Clear();
+                PayloadBytes = 0;
+            }
+        }
+
+        private const int GroupSnapshotBatchHeaderSize = 2;
         //房间生命状态
         private bool _roomActive;
 
@@ -59,7 +103,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterRoomRuntime AuthorityRoom { get; private set; }
         public MonsterReplica Replica { get; private set; }
         public float RoomGroundY { get; private set; }
-        public int PresentationIntervalTicks => _presentationIntervalTicks;
         public int AliveMonsterCount => AuthorityRoom?.World.AliveCount ?? 0;
         public int MonsterSlotCount => AuthorityRoom?.World.SlotCount ?? 0;
         public float MonsterHitRadius => AuthorityRoom?.MonsterHitRadius ?? _monsterHitRadius;
@@ -88,7 +131,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 throw new InvalidOperationException("Monster 必须在 Gameplay 网络运行时后初始化。");
 
             Catalogs = MonsterConfigAssembler.FromConfigManager(ConfigManager.Instance, _network.Clock.TickRate);
-            _transport = new MonsterNetworkTransport(_network.Transport, _initialCapacity);
+            _transport = new MonsterNetworkTransport(_network.Transport);
             try
             {
                 _transport.Initialize(this);
@@ -192,8 +235,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public bool IsMonsterAlive(int slot) =>
             AuthorityRoom != null && AuthorityRoom.World.IsActive(slot);
 
-        public bool DamageMonster(int slot, float damage) =>
-            AuthorityRoom != null && AuthorityRoom.DamageMonster(slot, damage);
+        public bool DamageMonster(int slot, float damage)
+        {
+            if (AuthorityRoom == null || !AuthorityRoom.DamageMonster(slot, damage))
+                return false;
+
+            if (!AuthorityRoom.World.IsActive(slot))
+                _transport.SendDespawn(slot);
+            return true;
+        }
 
         public bool TryGetMonsterPosition(int slot, out Vector3 position)
         {
@@ -266,26 +316,131 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             AuthorityRoom.ResolveCombat();
         }
 
-        /// <summary>战斗结算完成后发布本 Tick 的最终怪物状态。</summary>
+        /// <summary>
+        /// 战斗结算完成后推进 Host 本地表现和远端群组调度。
+        /// </summary>
         private void PublishAuthorityState(uint tick)
         {
-            if (!_roomActive || AuthorityRoom == null)
+            if (!_roomActive)
                 return;
-            PlayerManager players = PlayerManager.Instance;
-            if (players == null || !players.IsInitialized)
-                return;
-            if (tick % (uint)_presentationIntervalTicks != 0) 
-                return;
+
             using var publishScope = PublishMarker.Auto();
-            using (CaptureMarker.Auto())
-                AuthorityRoom.CaptureFrame(tick, _authorityWriteFrame);
-            MonsterPresentationFrame publishedFrame = _authorityWriteFrame;
-            _authorityWriteFrame = _authorityPublishedFrame;
-            _authorityPublishedFrame = publishedFrame;
-            using (ApplyLocalMarker.Auto())
-                ApplyPresentationFrameLocal(_authorityPublishedFrame);
-            using (SendPresentationMarker.Auto())
-                _transport.SendPresentation(_authorityPublishedFrame);
+            if (tick % (uint)_presentationIntervalTicks == 0)
+            {
+                using (CaptureMarker.Auto())
+                    AuthorityRoom.CaptureFrame(tick, _authorityWriteFrame);
+                MonsterPresentationFrame publishedFrame = _authorityWriteFrame;
+                _authorityWriteFrame = _authorityPublishedFrame;
+                _authorityPublishedFrame = publishedFrame;
+                using (ApplyLocalMarker.Auto())
+                    ApplyPresentationFrameLocal(_authorityPublishedFrame);
+            }
+
+            if (_network.HasRemoteClients)
+                PublishRemoteGroups(tick, _network.RemoteClientIds);
+        }
+
+        /// <summary>
+        /// 全队共享群组发布计划。过期组优先，同一到期 Tick 优先发内层。
+        /// </summary>
+        private void PublishRemoteGroups(uint tick, IReadOnlyList<ulong> clients)
+        {
+            using var publishGroupsScope = PublishGroupsMarker.Auto();
+            IReadOnlyList<MonsterNetworkGroupIndex.Group> groups = AuthorityRoom.RefreshNetworkGroups(tick);
+            using (GroupScheduleMarker.Auto())
+            {
+                _duePoseGroups.Clear();
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    MonsterNetworkGroupIndex.Group group = groups[i];
+                    if (group.Count == 0)
+                    {
+                        if (group.PublishedMembershipRevision != 0 && group.PublishedMembershipRevision != group.MembershipRevision)
+                        {
+                            _transport.SendGroupMembership(clients, group);
+                            group.PublishedMembershipRevision = group.MembershipRevision;
+                        }
+
+                        continue;
+                    }
+
+                    if (MonsterMath.HasReached(tick, group.NextPoseTick))
+                        _duePoseGroups.Add(group);
+                }
+
+                _duePoseGroups.Sort(static (left, right) =>
+                {
+                    int dueOrder = unchecked((int)(left.NextPoseTick - right.NextPoseTick));
+                    if (dueOrder != 0)
+                        return dueOrder;
+                    int intervalOrder = left.IntervalTicks.CompareTo(right.IntervalTicks);
+                    return intervalOrder != 0 ? intervalOrder : left.Id.CompareTo(right.Id);
+                });
+            }
+
+            int remainingBytes = GroupPoseBudgetPerTick;
+            _initialSnapshotBatch.Clear();
+            _periodicSnapshotBatch.Clear();
+            foreach (MonsterNetworkGroupIndex.Group group in _duePoseGroups)
+            {
+                int length = MonsterNetworkCodec.GetGroupSnapshotByteCount(group.Count);
+                if (length > remainingBytes)
+                    break;
+
+                bool membershipChanged = group.PublishedMembershipRevision != group.MembershipRevision;
+                GroupSnapshotSendBatch batch = membershipChanged ? _initialSnapshotBatch : _periodicSnapshotBatch;
+                if (batch.Count != 0 && !batch.CanFit(length))
+                    FlushGroupSnapshotBatch(clients, batch, membershipChanged, tick);
+
+                MonsterGroupSnapshot frame = batch.Add(group, group.IntervalTicks, length);
+                AuthorityRoom.CaptureGroupFrame(group, tick, frame);
+                if (membershipChanged)
+                    _transport.SendGroupMembership(clients, group);
+
+                remainingBytes -= length;
+            }
+
+            FlushGroupSnapshotBatch(clients, _initialSnapshotBatch, true, tick);
+            FlushGroupSnapshotBatch(clients, _periodicSnapshotBatch, false, tick);
+        }
+
+        private void FlushGroupSnapshotBatch(
+            IReadOnlyList<ulong> clients,
+            GroupSnapshotSendBatch batch,
+            bool isInitialSnapshot,
+            uint tick)
+        {
+            if (batch.Count == 0)
+                return;
+
+            _transport.SendGroupSnapshotBatch(clients, batch.Frames, batch.Intervals, isInitialSnapshot);
+            for (int i = 0; i < batch.Count; i++)
+            {
+                MonsterNetworkGroupIndex.Group group = batch.Groups[i];
+                group.PublishedMembershipRevision = group.MembershipRevision;
+                group.NextPoseTick = unchecked(tick + group.IntervalTicks);
+            }
+
+            batch.Clear();
+        }
+        public void ReceiveGroupMembership(ref FastBufferReader reader)
+        {
+            if (!_roomActive || _networkManager.IsServer)
+                return;
+
+            int count = MonsterNetworkCodec.ReadGroupMembershipHeader(ref reader, out uint groupId, out uint revision);
+            Span<int> slots = Replica.BeginGroupMembershipWrite(groupId, count, out int offset);
+            MonsterNetworkCodec.ReadGroupMembershipSlots(ref reader, slots);
+            Replica.CommitGroupMembership(groupId, offset, count, revision);
+        }
+
+        public void ReceiveGroupSnapshot(MonsterGroupSnapshot frame, byte intervalTicks)
+        {
+            if (!_roomActive || _networkManager.IsServer)
+                return;
+
+            float duration = intervalTicks * _network.Clock.TickDeltaTime;
+            Replica.ApplyGroupSnapshot(frame, _quantizer, Time.unscaledTime, duration);
         }
 
         public void ReceiveRoomBegin(MonsterRoomBeginData data)
@@ -297,16 +452,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void ReceiveSpawnBatch(MonsterSpawnBatch batch)
         {
-            if (!_roomActive || _networkManager.IsServer || _quantizer == null) 
+            if (!_roomActive || _networkManager.IsServer)
                 return;
             ApplySpawnBatchLocal(batch);
         }
 
-        public void ReceivePresentationFrame(MonsterPresentationFrame frame)
+        public void ReceiveDespawn(int slot)
         {
-            if (!_roomActive || _networkManager.IsServer || _quantizer == null) 
+            if (!_roomActive || _networkManager.IsServer)
                 return;
-            ApplyPresentationFrameLocal(frame);
+
+            Replica.Despawn(slot);
         }
 
         public void ReceiveRoomEnd()
@@ -318,8 +474,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void ApplySpawnBatchLocal(MonsterSpawnBatch batch)
         {
-            if (!_networkManager.IsServer)
-                _transport.EnsurePresentationCapacity(checked(batch.StartSlot + batch.Count));
             Replica.ApplySpawnBatch(batch, _quantizer);
             SpawnBatchReceived?.Invoke(batch);
         }
@@ -344,6 +498,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!_roomActive && AuthorityRoom == null && _quantizer == null) 
                 return;
             DisposeAuthorityRoom();
+            _duePoseGroups.Clear();
             Replica.BeginRoom(0);
             _quantizer = null;
             RoomGroundY = 0f;
@@ -373,6 +528,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _transport = null;
             _authorityWriteFrame = null;
             _authorityPublishedFrame = null;
+            _initialSnapshotBatch.Clear();
+            _periodicSnapshotBatch.Clear();
             Replica = null;
             Catalogs = null;
             _network = null;

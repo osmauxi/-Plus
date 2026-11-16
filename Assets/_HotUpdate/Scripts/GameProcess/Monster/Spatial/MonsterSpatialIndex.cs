@@ -106,6 +106,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public int NodeCount => _kernel.NodeCount;
         public Vector2 RootCenter => _kernel.RootCenter;
         public float RootSize => _kernel.RootSize;
+        internal float BaseRegionHalfSize => _kernel.BaseRegionHalfSize;
         public Vector2 LastQueryStart { get; private set; }
         public Vector2 LastQueryEnd { get; private set; }
         public float LastQueryRadius { get; private set; }
@@ -269,7 +270,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// <summary>
         /// 查询前确保索引已构建，且是最新的
         /// </summary>
-        private void EnsureBuilt(MonsterWorld world)
+        internal void EnsureBuilt(MonsterWorld world)
         {
             if (_isBuilt)
                 return;
@@ -289,6 +290,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     _diagnosticBuildCount++;
             }
         }
+
+        internal uint GetBaseRegionCode(Vector2 position) => _kernel.GetBaseRegionCode(position);
+
+        internal Vector2 GetBaseRegionCenter(uint regionCode) => _kernel.GetBaseRegionCenter(regionCode);
 
         public void EnsureCapacity(int count)
         {

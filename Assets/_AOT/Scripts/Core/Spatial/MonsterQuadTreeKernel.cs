@@ -70,6 +70,7 @@ namespace ProjectGame.Core.Spatial
         public int NodeCapacity => _nodes.Length;
         public Vector2 RootCenter => _rootCenter;
         public float RootSize => _rootHalfSize * 2f;
+        public float BaseRegionHalfSize => _rootHalfSize / (1 << BaseDepth);
         /// <summary>
         /// 本轮查询收集到多少个怪物候选
         /// </summary>
@@ -188,6 +189,39 @@ namespace ProjectGame.Core.Spatial
             return resultCount;
         }
 
+        /// <summary>
+        /// 用固定基础层的象限规则计算区域码，房间位置由调用方保证。
+        /// </summary>
+        public uint GetBaseRegionCode(Vector2 position)
+        {
+            uint regionCode = 0;
+            Vector2 center = _rootCenter;
+            float halfSize = _rootHalfSize;
+            for (int depth = 0; depth < BaseDepth; depth++)
+            {
+                int quadrant = GetQuadrant(center, position);
+                regionCode = (regionCode << 2) | (uint)quadrant;
+                halfSize *= 0.5f;
+                center = GetChildCenter(center, halfSize, quadrant);
+            }
+
+            return regionCode;
+        }
+
+        public Vector2 GetBaseRegionCenter(uint regionCode)
+        {
+            Vector2 center = _rootCenter;
+            float halfSize = _rootHalfSize;
+            for (int shift = (BaseDepth - 1) * 2; shift >= 0; shift -= 2)
+            {
+                halfSize *= 0.5f;
+                int quadrant = (int)((regionCode >> shift) & 3u);
+                center = GetChildCenter(center, halfSize, quadrant);
+            }
+
+            return center;
+        }
+
         public bool TryGetNode(int nodeIndex, out MonsterQuadTreeNodeData data)
         {
             if ((uint)nodeIndex >= (uint)_nodeCount)
@@ -288,13 +322,13 @@ namespace ProjectGame.Core.Spatial
             //左移两位留出两位空间给象限掩码，左下=00，右下=01，左上=10，右上=11
             uint childMorton = node.MortonCode << 2;
             //算最新叶子节点的中心位置
-            CreateNode(node.Center + new Vector2(-childHalfSize, -childHalfSize), childHalfSize,
+            CreateNode(GetChildCenter(node.Center, childHalfSize, 0), childHalfSize,
                 childDepth, childMorton);
-            CreateNode(node.Center + new Vector2(childHalfSize, -childHalfSize), childHalfSize,
+            CreateNode(GetChildCenter(node.Center, childHalfSize, 1), childHalfSize,
                 childDepth, childMorton | 1u);
-            CreateNode(node.Center + new Vector2(-childHalfSize, childHalfSize), childHalfSize,
+            CreateNode(GetChildCenter(node.Center, childHalfSize, 2), childHalfSize,
                 childDepth, childMorton | 2u);
-            CreateNode(node.Center + new Vector2(childHalfSize, childHalfSize), childHalfSize,
+            CreateNode(GetChildCenter(node.Center, childHalfSize, 3), childHalfSize,
                 childDepth, childMorton | 3u);
             node.FirstChild = firstChild;
             return firstChild;
@@ -307,10 +341,15 @@ namespace ProjectGame.Core.Spatial
             ref Node node = ref _nodes[nodeIndex];
             //算象限索引，左下=0，右下=1，左上=2，右上=3，子叶在_nodes数组中是连续的，
             //所以可以直接用FirstChild+象限索引得到子节点索引
-            int quadrant = (position.x >= node.Center.x ? 1 : 0) |
-                           (position.y >= node.Center.y ? 2 : 0);
-            return node.FirstChild + quadrant;
+            return node.FirstChild + GetQuadrant(node.Center, position);
         }
+
+        private static int GetQuadrant(Vector2 center, Vector2 position) =>
+            (position.x >= center.x ? 1 : 0) | (position.y >= center.y ? 2 : 0);
+
+        private static Vector2 GetChildCenter(Vector2 center, float childHalfSize, int quadrant) =>
+            center + new Vector2((quadrant & 1) == 0 ? -childHalfSize : childHalfSize,
+                (quadrant & 2) == 0 ? -childHalfSize : childHalfSize);
         /// <summary>
         /// 将slot插入到链表头部
         /// </summary>

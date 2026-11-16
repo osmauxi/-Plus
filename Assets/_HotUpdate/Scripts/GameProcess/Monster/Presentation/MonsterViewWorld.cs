@@ -25,17 +25,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterPoseQuantizer quantizer,
             MonsterVATRenderWorld vatWorld)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-            _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
-            _quantizer = quantizer ?? throw new ArgumentNullException(nameof(quantizer));
-            _vatWorld = vatWorld ?? throw new ArgumentNullException(nameof(vatWorld));
+            _catalog = catalog;
+            _profiles = profiles;
+            _quantizer = quantizer;
+            _vatWorld = vatWorld;
         }
 
         public void ApplySpawnBatch(MonsterSpawnBatch batch)
         {
             EnsureUsable();
-            if (batch == null)
-                throw new ArgumentNullException(nameof(batch));
             if (batch.StartSlot != SlotCount)
                 throw new InvalidOperationException(
                     $"Monster Render SpawnBatch 必须连续追加：Expected={SlotCount}, Actual={batch.StartSlot}。");
@@ -56,19 +54,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
         }
 
-        public void ApplyReplica(MonsterReplica replica, float interpolationAlpha)
+        internal void ApplyReplica(MonsterReplica replica, float now)
         {
-            EnsureUsable();
-            if (replica == null)
-                throw new ArgumentNullException(nameof(replica));
-            if (replica.SlotCount != SlotCount)
-                throw new InvalidOperationException(
-                    $"Monster Render/Replica SlotCount 不一致：Render={SlotCount}, Replica={replica.SlotCount}。");
-
             for (int slot = 0; slot < SlotCount; slot++)
             {
-                if (!replica.TryGetState(slot, interpolationAlpha, out MonsterReplicaState state))
-                    throw new InvalidOperationException($"Monster Replica 缺少 Slot={slot}。");
+                MonsterReplicaState state = replica.GetState(slot, now);
                 ApplyState(
                     slot,
                     state.IsActive,

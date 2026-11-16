@@ -1,8 +1,9 @@
-using ProjectGame.Core.Navigation;
 using ProjectGame.Core.Monsters;
+using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using ProjectGame.HotFix.Gameplay.Player;
+using System;
 using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
@@ -43,6 +44,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterOccupancySnapshot _occupancySnapshot;
         private readonly MonsterMeleePhysicsResolver _melee = new();
         private readonly MonsterSpatialIndex _spatialIndex;
+        private readonly MonsterNetworkGroupIndex _networkGroups = new();
         private readonly Transform _roomRoot;
 
         private readonly MonsterPlayerTargetBuffer _players = new();
@@ -98,6 +100,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _groundY = groundY;
             _occupancySnapshot.Clear();
             _spatialIndex.Clear();
+            _networkGroups.Clear();
             _simulation.ResetDiagnostics();
         }
 
@@ -220,12 +223,27 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void CaptureFrame(uint serverTick, MonsterPresentationFrame destination) =>
             MonsterPresentationPackingSystem.CaptureInto(World, serverTick, _quantizer, destination);
 
+        internal IReadOnlyList<MonsterNetworkGroupIndex.Group> RefreshNetworkGroups(uint tick)
+        {
+            _networkGroups.Refresh(World, _spatialIndex, _players.Positions.AsSpan(0, _players.Count), tick);
+            return _networkGroups.Groups;
+        }
+
+        internal void CaptureGroupFrame(
+            MonsterNetworkGroupIndex.Group group,
+            uint serverTick,
+            MonsterGroupSnapshot destination) =>
+            MonsterPresentationPackingSystem.CaptureGroupInto(
+                World, _quantizer, group.Id, group.MembershipRevision,
+                serverTick, group.MemberSlots, destination);
+
         public void EndRoom()
         {
             World.Clear();
             _players.Clear();
             _occupancySnapshot.Clear();
             _spatialIndex.Clear();
+            _networkGroups.Clear();
             _groundY = 0f;
         }
 
@@ -237,5 +255,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _spatialIndex.EnsureCapacity(capacity);
             _simulation.EnsureCapacity(capacity);
         }
+
+
     }
 }

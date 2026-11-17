@@ -149,7 +149,7 @@ namespace ProjectGame.HotFix.Benchmarking
             "Monster.Network.InterestRefresh",
             "Monster.Network.GroupSchedule",
             "Monster.Network.GroupTransport",
-            "Monster.Network.SendNamedMessage",
+            "Monster.Network.SendUnnamedMessage",
             "Monster.Network.RecordSent",
             "Monster.Network.SendRoomBegin",
             "Monster.Network.ReceiveRoomBegin",

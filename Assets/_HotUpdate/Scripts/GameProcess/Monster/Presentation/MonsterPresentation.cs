@@ -56,15 +56,23 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
     public readonly struct MonsterPackedState
     {
-        //4字节x+z+yaw数据
+        //4字节x+z+yaw数据，事件序列各占4bit，共1字节；事件序列按16取模。
         public readonly uint PackedPose;
-        public readonly byte AttackSequence;
-        public readonly byte HitSequence;
+        public readonly byte PackedEvents;
+
+        public byte AttackSequence => (byte)(PackedEvents >> 4);
+        public byte HitSequence => (byte)(PackedEvents & 0x0F);
+
         public MonsterPackedState(uint packedPose, byte attackSequence, byte hitSequence)
         {
             PackedPose = packedPose;
-            AttackSequence = attackSequence;
-            HitSequence = hitSequence;
+            PackedEvents = (byte)(((attackSequence & 0x0F) << 4) | (hitSequence & 0x0F));
+        }
+
+        public MonsterPackedState(uint packedPose, byte packedEvents)
+        {
+            PackedPose = packedPose;
+            PackedEvents = packedEvents;
         }
     }
 
@@ -145,7 +153,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (quantizer == null) throw new ArgumentNullException(nameof(quantizer));
 
             using var captureScope = CaptureMarker.Auto();
-            //slot用1bit表示Active；每只存活怪物包含4字节姿态和2字节离散表现序列。
+            //slot用1bit表示Active；每只存活怪物包含4字节姿态和1字节离散表现序列。
             destination.BeginWrite(serverTick, world.SlotCount, world.AliveCount);
             byte[] mask = destination.ActiveMaskBuffer;
             MonsterPackedState[] states = destination.ActiveStateBuffer;

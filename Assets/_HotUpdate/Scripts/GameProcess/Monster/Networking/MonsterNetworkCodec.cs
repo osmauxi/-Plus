@@ -22,7 +22,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const int RoomBeginSize = 24;
         private const int GroupSnapshotHeaderSize = 15;
         private const int GroupSnapshotBatchHeaderSize = 2;
-        private const int GroupMemberStateSize = 6;
+        private const int GroupMemberStateSize = 5;
         private const int GroupMembershipHeaderSize = 10;
 
         public static int GetRoomBeginByteCount() => RoomBeginSize;
@@ -72,7 +72,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return length;
         }
 
-        /// <summary>按成员表的顺序写入一组的完整状态，满组为 783 字节。</summary>
+        /// <summary>按成员表的顺序写入一组的完整状态，满组为 655 字节。</summary>
         internal static void WriteGroupSnapshot(
             ref FastBufferWriter writer, MonsterGroupSnapshot frame, byte intervalTicks, int length)
         {
@@ -111,8 +111,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 MonsterPackedState state = states[i];
                 WriteUInt32(ref writer, state.PackedPose);
-                writer.WriteByte(state.AttackSequence);
-                writer.WriteByte(state.HitSequence);
+                writer.WriteByte(state.PackedEvents);
             }
         }
 
@@ -193,9 +192,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             for (int i = 0; i < memberCount; i++)
             {
                 uint packedPose = ReadUInt32(ref reader);
-                reader.ReadByte(out byte attackSequence);
-                reader.ReadByte(out byte hitSequence);
-                states[i] = new MonsterPackedState(packedPose, attackSequence, hitSequence);
+                reader.ReadByte(out byte packedEvents);
+                states[i] = new MonsterPackedState(packedPose, packedEvents);
             }
         }
 

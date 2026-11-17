@@ -9,7 +9,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
     public delegate void NetworkMessageHandler(ulong senderClientId, FastBufferReader reader);
 
     /// <summary>
-    /// Gameplay 通用 Named Message 传输层。
+    /// Gameplay 通用消息传输层。
     /// 只负责注册、路由、发送、Delivery 映射和 Payload 统计，不理解任何业务消息格式。
     /// </summary>
     public sealed class NetworkMessageTransport
@@ -18,9 +18,12 @@ namespace ProjectGame.HotFix.Gameplay.Network
         private readonly NetworkTransportStats _stats;
         private static readonly ProfilerMarker SendNamedMessageMarker =
             new("Monster.Network.SendNamedMessage");
+        private static readonly ProfilerMarker SendUnnamedMessageMarker =
+            new("Monster.Network.SendUnnamedMessage");
         private static readonly ProfilerMarker RecordSentMarker =
             new("Monster.Network.RecordSent");
         private readonly Dictionary<string, NetworkMessageHandler> _handlers = new(StringComparer.Ordinal);
+        private NetworkMessageHandler _unnamedHandler;
         private readonly List<ulong> _connectedClientIds = new();
         private readonly List<ulong> _remoteClientIds = new();
 
@@ -81,9 +84,12 @@ namespace ProjectGame.HotFix.Gameplay.Network
             {
                 foreach (string messageName in _handlers.Keys)
                     messaging.UnregisterNamedMessageHandler(messageName);
+                if (_unnamedHandler != null)
+                    messaging.OnUnnamedMessage -= DispatchUnnamed;
             }
 
             _handlers.Clear();
+            _unnamedHandler = null;
             _connectedClientIds.Clear();
             _remoteClientIds.Clear();
             _stats.Reset();
@@ -127,6 +133,28 @@ namespace ProjectGame.HotFix.Gameplay.Network
             CustomMessagingManager messaging = _networkManager.CustomMessagingManager;
             if (messaging != null)
                 messaging.UnregisterNamedMessageHandler(messageName);
+        }
+
+        public void RegisterUnnamedHandler(NetworkMessageHandler handler)
+        {
+            EnsureInitialized();
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
+            if (_unnamedHandler != null)
+                throw new InvalidOperationException("Gameplay Unnamed Message 处理器已经注册。");
+
+            _unnamedHandler = handler;
+            _networkManager.CustomMessagingManager.OnUnnamedMessage += DispatchUnnamed;
+        }
+
+        public void UnregisterUnnamedHandler()
+        {
+            EnsureInitialized();
+            if (_unnamedHandler == null)
+                return;
+
+            _networkManager.CustomMessagingManager.OnUnnamedMessage -= DispatchUnnamed;
+            _unnamedHandler = null;
         }
 
         public void SendToServer(string messageName,FastBufferWriter writer,NetworkDeliveryClass delivery)
@@ -180,9 +208,36 @@ namespace ProjectGame.HotFix.Gameplay.Network
                     _stats.RecordSent(messageName, writer.Length);
         }
 
+        public void SendUnnamedToClients(
+            IReadOnlyList<ulong> clientIds,
+            string statsName,
+            FastBufferWriter writer,
+            NetworkDeliveryClass delivery)
+        {
+            EnsureInitialized();
+            ValidateMessageName(statsName);
+            if (!_networkManager.IsServer || clientIds.Count == 0)
+                return;
+
+            using (SendUnnamedMessageMarker.Auto())
+                _networkManager.CustomMessagingManager.SendUnnamedMessage(
+                    clientIds,
+                    writer,
+                    ResolveDelivery(delivery));
+
+            using (RecordSentMarker.Auto())
+                for (int i = 0; i < clientIds.Count; i++)
+                    _stats.RecordSent(statsName, writer.Length);
+        }
+
         public void SendToRemoteClients(string messageName, FastBufferWriter writer, NetworkDeliveryClass delivery)
         {
             SendToClients(_remoteClientIds, messageName, writer, delivery);
+        }
+
+        public void SendUnnamedToRemoteClients(string statsName, FastBufferWriter writer, NetworkDeliveryClass delivery)
+        {
+            SendUnnamedToClients(_remoteClientIds, statsName, writer, delivery);
         }
 
         public static NetworkDelivery ResolveDelivery(NetworkDeliveryClass delivery)
@@ -216,6 +271,13 @@ namespace ProjectGame.HotFix.Gameplay.Network
             _stats.RecordReceived(messageName, reader.Length);
             if (_handlers.TryGetValue(messageName, out NetworkMessageHandler handler))
                 handler(senderClientId, reader);
+        }
+
+        private void DispatchUnnamed(ulong senderClientId, FastBufferReader reader)
+        {
+            const string unnamedMessageName = "PG.Unnamed";
+            _stats.RecordReceived(unnamedMessageName, reader.Length);
+            _unnamedHandler?.Invoke(senderClientId, reader);
         }
 
         private void EnsureInitialized()

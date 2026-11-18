@@ -1,57 +1,10 @@
 using System;
 using System.Collections.Generic;
+using ProjectGame.Core.Monsters;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
-    /// <summary>
-    /// 攻击状态机三阶段，准备，攻击前摇和攻击后摇
-    /// </summary>
-    public enum MonsterAttackPhase : byte
-    {
-        Ready,
-        Windup,
-        Recovery,
-    }
-    #region 网络同步数据
-    /// <summary>只存在于服务器 MonsterWorld，不进入网络快照。</summary>
-    public struct MonsterHealthData
-    {
-        public float CurrentHealth;
-    }
-
-    /// <summary>服务器内部的减速与停顿状态，不参与网络同步。</summary>
-    public struct MonsterStatusData
-    {
-        public float SpeedMultiplier;
-        public uint SlowEndTick;
-        public uint StunEndTick;
-    }
-
-    public struct MonsterAttackData
-    {
-        /// <summary>
-        /// 当前处在的攻击状态
-        /// </summary>
-        public MonsterAttackPhase Phase;
-        /// <summary>
-        /// 此状态多少Tick后结束
-        /// </summary>
-        public uint PhaseEndTick;
-    }
-
-    public struct MonsterPresentationData
-    {
-        /// <summary>
-        /// 使用检测序列号变化的方式进行攻击行为判定
-        /// </summary>
-        public byte AttackSequence;
-        /// <summary>
-        /// 使用序列号变化驱动一次受击表现；只属于表现同步，不参与伤害判定。
-        /// </summary>
-        public byte HitSequence;
-    }
-
     public readonly struct MonsterRoomBeginData
     {
         /// <summary>
@@ -77,7 +30,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MinimumAcceptedTick = minimumAcceptedTick;
         }
     }
-    #endregion
     public readonly struct MonsterPlayerTarget
     {
         public readonly Vector2 Position;
@@ -139,6 +91,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     public sealed class MonsterRuntimeCatalog
     {
         private readonly MonsterRuntimeConfig[] _items;
+        private readonly MonsterSimulationConfig[] _simulationItems;
         private readonly Dictionary<int, ushort> _indices = new Dictionary<int, ushort>();
 
         public int Count => _items.Length;
@@ -146,9 +99,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterRuntimeCatalog(MonsterRuntimeConfig[] items)
         {
             _items = items;
+            _simulationItems = new MonsterSimulationConfig[items.Length];
             for (int i = 0; i < _items.Length; i++)
             {
                 _indices.Add(_items[i].ConfigId, checked((ushort)i));
+                MonsterRuntimeConfig config = _items[i];
+                _simulationItems[i] = new MonsterSimulationConfig(
+                    config.MoveSpeed,
+                    config.AttackRangeSqr,
+                    config.WindupTicks,
+                    config.RecoveryTicks,
+                    config.AttackDamage,
+                    config.AttackProfileIndex);
             }
         }
 
@@ -160,6 +122,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             return ref _items[index];
         }
+
+        internal MonsterSimulationConfig[] SimulationItems => _simulationItems;
 
         public bool TryGetIndex(int configId, out ushort index) => _indices.TryGetValue(configId, out index);
     }

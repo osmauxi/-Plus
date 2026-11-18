@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectGame.Core.Monsters;
 using ProjectGame.HotFix.Config;
 using UnityEngine;
 

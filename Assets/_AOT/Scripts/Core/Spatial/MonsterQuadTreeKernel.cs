@@ -192,11 +192,14 @@ namespace ProjectGame.Core.Spatial
         /// <summary>
         /// 用固定基础层的象限规则计算区域码，房间位置由调用方保证。
         /// </summary>
-        public uint GetBaseRegionCode(Vector2 position)
+        public uint GetBaseRegionCode(Vector2 position) =>
+            ComputeBaseRegionCode(position, _rootCenter, _rootHalfSize);
+
+        public static uint ComputeBaseRegionCode(Vector2 position, Vector2 rootCenter, float rootHalfSize)
         {
             uint regionCode = 0;
-            Vector2 center = _rootCenter;
-            float halfSize = _rootHalfSize;
+            Vector2 center = rootCenter;
+            float halfSize = rootHalfSize;
             for (int depth = 0; depth < BaseDepth; depth++)
             {
                 int quadrant = GetQuadrant(center, position);
@@ -208,10 +211,13 @@ namespace ProjectGame.Core.Spatial
             return regionCode;
         }
 
-        public Vector2 GetBaseRegionCenter(uint regionCode)
+        public Vector2 GetBaseRegionCenter(uint regionCode) =>
+            ComputeBaseRegionCenter(regionCode, _rootCenter, _rootHalfSize);
+
+        public static Vector2 ComputeBaseRegionCenter(uint regionCode, Vector2 rootCenter, float rootHalfSize)
         {
-            Vector2 center = _rootCenter;
-            float halfSize = _rootHalfSize;
+            Vector2 center = rootCenter;
+            float halfSize = rootHalfSize;
             for (int shift = (BaseDepth - 1) * 2; shift >= 0; shift -= 2)
             {
                 halfSize *= 0.5f;

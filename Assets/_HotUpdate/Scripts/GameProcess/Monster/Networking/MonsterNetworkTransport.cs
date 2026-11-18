@@ -1,4 +1,5 @@
 using ProjectGame.HotFix.Gameplay.Network;
+using ProjectGame.Core.Spatial;
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -36,6 +37,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private static readonly ProfilerMarker GroupTransportMarker =
             new("Monster.Network.GroupTransport");
+        private static readonly ProfilerMarker GroupMembershipWriteMarker =
+            new("Monster.Network.GroupMembership.Write");
+        private static readonly ProfilerMarker GroupSnapshotWriteMarker =
+            new("Monster.Network.GroupSnapshot.Write");
+        private static readonly ProfilerMarker GroupSnapshotSendMarker =
+            new("Monster.Network.GroupSnapshot.Send");
         private static readonly ProfilerMarker SendRoomBeginMarker =
             new("Monster.Network.SendRoomBegin");
         private static readonly ProfilerMarker ReceiveRoomBeginMarker =
@@ -60,7 +67,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const int MaxPayloadBytes = 2 * 1024 * 1024;
 
         private readonly NetworkMessageTransport _transport;
-        private readonly MonsterGroupSnapshot _receiveGroupSnapshot = new(MonsterNetworkGroupIndex.GroupCapacity);
+        private readonly MonsterGroupSnapshot _receiveGroupSnapshot = new(MonsterNetworkGroupKernel.GroupCapacity);
 
         //收到数据丢给谁
         private IMonsterNetworkReceiver _receiver;
@@ -109,6 +116,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try 
             { 
+                if (!writer.TryBeginWrite(length))
+                    throw new OverflowException("Monster Spawn Writer 容量不足。");
                 writer.WriteByte((byte)MonsterNetworkMessageKind.Spawn);
                 MonsterNetworkCodec.WriteSpawn(ref writer, batch);
                 _transport.SendUnnamedToRemoteClients(SpawnMessageName, writer, NetworkDeliveryClass.FullSnapshot);
@@ -118,17 +127,26 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 writer.Dispose();
             }
         }
-        internal void SendGroupMembership(IReadOnlyList<ulong> clients, MonsterNetworkGroupIndex.Group group)
+        internal void SendGroupMembership(
+            IReadOnlyList<ulong> clients,
+            uint groupId,
+            uint membershipRevision,
+            ReadOnlySpan<int> memberSlots)
         {
             using var groupTransportScope = GroupTransportMarker.Auto();
-            ReadOnlySpan<int> slots = group.MemberSlots;
-            int payloadLength = MonsterNetworkCodec.GetGroupMembershipByteCount(slots.Length);
+            int payloadLength = MonsterNetworkCodec.GetGroupMembershipByteCount(memberSlots.Length);
             int length = 1 + payloadLength;
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try
             {
-                writer.WriteByte((byte)MonsterNetworkMessageKind.GroupMembership);
-                MonsterNetworkCodec.WriteGroupMembership(ref writer, group.Id, group.MembershipRevision, slots, payloadLength);
+                if (!writer.TryBeginWrite(length))
+                    throw new OverflowException("Monster GroupMembership Writer 容量不足。");
+                using (GroupMembershipWriteMarker.Auto())
+                {
+                    writer.WriteByte((byte)MonsterNetworkMessageKind.GroupMembership);
+                    MonsterNetworkCodec.WriteGroupMembership(
+                        ref writer, groupId, membershipRevision, memberSlots, payloadLength);
+                }
                 _transport.SendUnnamedToClients(clients, GroupMembershipMessageName, writer,NetworkDeliveryClass.ReliableEvent);
             }
             finally
@@ -148,13 +166,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try
             {
-                writer.WriteByte((byte)(isInitialSnapshot
-                    ? MonsterNetworkMessageKind.GroupInitialSnapshot
-                    : MonsterNetworkMessageKind.GroupSnapshot));
-                MonsterNetworkCodec.WriteGroupSnapshotBatch(ref writer, frames, intervalTicks, payloadLength);
+                if (!writer.TryBeginWrite(length))
+                    throw new OverflowException("Monster GroupSnapshot Writer 容量不足。");
+                using (GroupSnapshotWriteMarker.Auto())
+                {
+                    writer.WriteByte((byte)(isInitialSnapshot
+                        ? MonsterNetworkMessageKind.GroupInitialSnapshot
+                        : MonsterNetworkMessageKind.GroupSnapshot));
+                    MonsterNetworkCodec.WriteGroupSnapshotBatch(ref writer, frames, intervalTicks, payloadLength);
+                }
                 string name = isInitialSnapshot ? GroupInitialSnapshotMessageName : GroupSnapshotMessageName;
                 NetworkDeliveryClass delivery = isInitialSnapshot ? NetworkDeliveryClass.ReliableEvent : NetworkDeliveryClass.UnreliableSnapshot;
-                _transport.SendUnnamedToClients(clients, name, writer, delivery);
+                using (GroupSnapshotSendMarker.Auto())
+                    _transport.SendUnnamedToClients(clients, name, writer, delivery);
             }
             finally
             {
@@ -167,6 +191,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             FastBufferWriter writer = new(1 + sizeof(uint), Allocator.Temp, 1 + sizeof(uint));
             try
             {
+                if (!writer.TryBeginWrite(1 + sizeof(uint)))
+                    throw new OverflowException("Monster Despawn Writer 容量不足。");
                 writer.WriteByte((byte)MonsterNetworkMessageKind.Despawn);
                 MonsterNetworkCodec.WriteDespawn(ref writer, slot);
                 _transport.SendUnnamedToRemoteClients(DespawnMessageName, writer, NetworkDeliveryClass.ReliableEvent);
@@ -186,6 +212,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             //因为using变量不让用ref传，所以这里退而使用try finally保证释放
             try
             {
+                if (!writer.TryBeginWrite(length))
+                    throw new OverflowException("Monster RoomBegin Writer 容量不足。");
                 writer.WriteByte((byte)MonsterNetworkMessageKind.RoomBegin);
                 MonsterNetworkCodec.WriteRoomBegin(ref writer, data);
                 _transport.SendUnnamedToRemoteClients(RoomBeginMessageName, writer, NetworkDeliveryClass.ReliableEvent);
@@ -202,6 +230,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             using var marker = SendRoomEndMarker.Auto();
             //有可能存在NGO不接受0容量发包的情况，这里进行规避
             using FastBufferWriter writer = new(1, Allocator.Temp, 1);
+            if (!writer.TryBeginWrite(1))
+                throw new OverflowException("Monster RoomEnd Writer 容量不足。");
             writer.WriteByte((byte)MonsterNetworkMessageKind.RoomEnd);
             _transport.SendUnnamedToRemoteClients(RoomEndMessageName, writer, NetworkDeliveryClass.ReliableEvent);
         }

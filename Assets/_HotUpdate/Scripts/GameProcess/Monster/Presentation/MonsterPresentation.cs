@@ -1,4 +1,5 @@
 using ProjectGame.Core.Monsters;
+using ProjectGame.Core.Spatial;
 using System;
 using System.Collections.Generic;
 using Unity.Profiling;
@@ -11,69 +12,29 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterPoseQuantizer
     {
-        //12bit为4096个值 0-4095，压缩的结果
-        private const int PositionMax = 4095;
-        private readonly Vector2 _origin;
-        private readonly Vector2 _size;
+        private readonly MonsterQuantizationData _data;
 
         public MonsterPoseQuantizer(Vector2 origin, Vector2 size)
         {
             if (!MonsterMath.IsFinite(origin) || !MonsterMath.IsPositiveFinite(size.x) ||
                 !MonsterMath.IsPositiveFinite(size.y))
                 throw new ArgumentOutOfRangeException(nameof(size));
-            _origin = origin;
-            _size = size;
+            _data = new MonsterQuantizationData(origin, size);
         }
 
         public uint Pack(Vector2 position, float yaw)
         {
             if (!MonsterMath.IsFinite(position) || !MonsterMath.IsFinite(yaw))
                 throw new ArgumentOutOfRangeException(nameof(position));
-            //量化精度取决于房间大小,一个量化单位为size/4095
-            int x = Mathf.RoundToInt(Mathf.Clamp01((position.x - _origin.x) / _size.x) * PositionMax);
-            int z = Mathf.RoundToInt(Mathf.Clamp01((position.y - _origin.y) / _size.y) * PositionMax);
-            //取yaw为0-360度
-            float normalizedYaw = Mathf.Repeat(yaw, 360f);
-            //量化取了256档，也就是把360份等效换成256份，逻辑为原始yaw / 360 * 256,cpu有常量折叠机制
-            //写（256f / 360f）会先被算好成常量，如果直接放进变量yaw的计算会多一个除法，计算会变慢
-            //& 0xFF保留最低8bit，对应256份
-            int packedYaw = Mathf.RoundToInt(normalizedYaw * (256f / 360f)) & 0xFF;
-            //使用左移，将X,Z,Yaw压到一个uint中，0-11为X,12-23为Z,24-31为Yaw，共32bit四个字节完成
-            return (uint)(x | (z << 12) | (packedYaw << 24));
+            return MonsterPresentationPackKernel.PackPose(position, yaw, _data);
         }
         //反过来就是解包
         public void Unpack(uint packed, out Vector2 position, out float yaw)
         {
-            int x = (int)(packed & 0xFFF);
-            int z = (int)((packed >> 12) & 0xFFF);
-            int packedYaw = (int)(packed >> 24);
-            position = new Vector2(
-                _origin.x + x * (_size.x / PositionMax),
-                _origin.y + z * (_size.y / PositionMax));
-            yaw = packedYaw * (360f / 256f);
-        }
-    }
-
-    public readonly struct MonsterPackedState
-    {
-        //4字节x+z+yaw数据，事件序列各占4bit，共1字节；事件序列按16取模。
-        public readonly uint PackedPose;
-        public readonly byte PackedEvents;
-
-        public byte AttackSequence => (byte)(PackedEvents >> 4);
-        public byte HitSequence => (byte)(PackedEvents & 0x0F);
-
-        public MonsterPackedState(uint packedPose, byte attackSequence, byte hitSequence)
-        {
-            PackedPose = packedPose;
-            PackedEvents = (byte)(((attackSequence & 0x0F) << 4) | (hitSequence & 0x0F));
+            MonsterPresentationPackKernel.UnpackPose(packed, _data, out position, out yaw);
         }
 
-        public MonsterPackedState(uint packedPose, byte packedEvents)
-        {
-            PackedPose = packedPose;
-            PackedEvents = packedEvents;
-        }
+        internal MonsterQuantizationData Data => _data;
     }
 
     /// <summary>
@@ -141,37 +102,40 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     public static class MonsterPresentationPackingSystem
     {
         private static readonly ProfilerMarker CaptureMarker = new ProfilerMarker("Monster.Presentation.Capture");
+        private static readonly ProfilerMarker CaptureBeginWriteMarker = new ProfilerMarker("Monster.Presentation.Capture.BeginWrite");
+        private static readonly ProfilerMarker CaptureCopyLoopMarker = new ProfilerMarker("Monster.Presentation.Capture.CopyLoop");
         private static readonly ProfilerMarker GroupCaptureMarker = new ProfilerMarker("Monster.Presentation.GroupCapture");
+        private static readonly ProfilerMarker GroupCaptureBeginWriteMarker = new ProfilerMarker("Monster.Presentation.GroupCapture.BeginWrite");
+        private static readonly ProfilerMarker GroupCaptureCopyLoopMarker = new ProfilerMarker("Monster.Presentation.GroupCapture.CopyLoop");
 
         /// <summary>
         /// 服务器如何生成这一帧
         /// </summary>
-        public static void CaptureInto(MonsterWorld world, uint serverTick,
-            MonsterPoseQuantizer quantizer, MonsterPresentationFrame destination)
+        public static void CaptureInto(
+            MonsterWorld world,
+            uint serverTick,
+            int[] activeSlots,
+            int activeCount,
+            MonsterPackedState[] packedStateBySlot,
+            MonsterPresentationFrame destination)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
-            if (quantizer == null) throw new ArgumentNullException(nameof(quantizer));
 
             using var captureScope = CaptureMarker.Auto();
             //slot用1bit表示Active；每只存活怪物包含4字节姿态和1字节离散表现序列。
-            destination.BeginWrite(serverTick, world.SlotCount, world.AliveCount);
+            using (CaptureBeginWriteMarker.Auto())
+                destination.BeginWrite(serverTick, world.SlotCount, activeCount);
             byte[] mask = destination.ActiveMaskBuffer;
             MonsterPackedState[] states = destination.ActiveStateBuffer;
-            MonsterMetaData[] meta = world.Meta;
-            MonsterMotionData[] motion = world.Motion;
-            MonsterPresentationData[] presentation = world.Presentation;
-            int stateIndex = 0;
-            for (int slot = 0; slot < world.SlotCount; slot++)
+            using (CaptureCopyLoopMarker.Auto())
             {
-                //过滤非active，注意这里mask话没有给值，全0
-                if (!meta[slot].IsActive)
-                    continue;
-                //对应位取或，把Slot对应位标记为1，active且不影响其他位
-                mask[slot >> 3] |= (byte)(1 << (slot & 7));
-                states[stateIndex++] = new MonsterPackedState(
-                    quantizer.Pack(motion[slot].Position, motion[slot].Yaw),
-                    presentation[slot].AttackSequence,
-                    presentation[slot].HitSequence);
+                for (int i = 0; i < activeCount; i++)
+                {
+                    int slot = activeSlots[i];
+                    //对应位取或，把Slot对应位标记为1，active且不影响其他位
+                    mask[slot >> 3] |= (byte)(1 << (slot & 7));
+                    states[i] = packedStateBySlot[slot];
+                }
             }
         }
 
@@ -180,32 +144,24 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// 调用方在采集前完成成员变更，并传入更新后的成员表和版本。
         /// </summary>
         internal static void CaptureGroupInto(
-            MonsterWorld world,
-            MonsterPoseQuantizer quantizer,
             uint groupId,
             uint membershipRevision,
             uint serverTick,
             ReadOnlySpan<int> memberSlots,
+            MonsterPackedState[] packedStateBySlot,
             MonsterGroupSnapshot destination)
         {
             using var captureScope = GroupCaptureMarker.Auto();
 
-            destination.BeginWrite(groupId, membershipRevision, serverTick, memberSlots.Length);
+            using (GroupCaptureBeginWriteMarker.Auto())
+                destination.BeginWrite(groupId, membershipRevision, serverTick, memberSlots.Length);
 
             MonsterPackedState[] states = destination.MemberBuffer;
-            MonsterMotionData[] motion = world.Motion;
-            MonsterPresentationData[] presentation = world.Presentation;
 
-            for (int i = 0; i < memberSlots.Length; i++)
+            using (GroupCaptureCopyLoopMarker.Auto())
             {
-                int slot = memberSlots[i];
-                ref readonly MonsterMotionData pose = ref motion[slot];
-                ref readonly MonsterPresentationData visual = ref presentation[slot];
-
-                states[i] = new MonsterPackedState(
-                    quantizer.Pack(pose.Position, pose.Yaw),
-                    visual.AttackSequence,
-                    visual.HitSequence);
+                for (int i = 0; i < memberSlots.Length; i++)
+                    states[i] = packedStateBySlot[memberSlots[i]];
             }
         }
 
@@ -250,8 +206,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         private static readonly ProfilerMarker ApplyMarker =
             new ProfilerMarker("Monster.Presentation.Apply");
+        private static readonly ProfilerMarker ApplyFrameLoopMarker =
+            new ProfilerMarker("Monster.Presentation.Apply.FrameLoop");
         private static readonly ProfilerMarker GroupApplyMarker =
             new ProfilerMarker("Monster.Replication.GroupApply");
+        private static readonly ProfilerMarker GroupApplyLoopMarker =
+            new ProfilerMarker("Monster.Replication.GroupApply.Loop");
 
         private ushort[] _config = Array.Empty<ushort>();
         private bool[] _active = Array.Empty<bool>();
@@ -367,17 +327,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             int stateIndex = 0;
             int activeCount = 0;
-            for (int slot = 0; slot < SlotCount; slot++)
+            using (ApplyFrameLoopMarker.Auto())
             {
-                //遍历Slot，死的不管
-                bool active = frame.IsActive(slot);
-                _active[slot] = active;
-                if (!active)
-                    continue;
-                activeCount++;
-                _previousPosition[slot] = _currentPosition[slot];
-                _previousYaw[slot] = _currentYaw[slot];
-                ApplyPose(slot, frame.ActiveStateBuffer[stateIndex++], quantizer);
+                for (int slot = 0; slot < SlotCount; slot++)
+                {
+                    //遍历Slot，死的不管
+                    bool active = frame.IsActive(slot);
+                    _active[slot] = active;
+                    if (!active)
+                        continue;
+                    activeCount++;
+                    _previousPosition[slot] = _currentPosition[slot];
+                    _previousYaw[slot] = _currentYaw[slot];
+                    ApplyPose(slot, frame.ActiveStateBuffer[stateIndex++], quantizer);
+                }
             }
             _latestTick = frame.ServerTick;
             _hasFrame = true;
@@ -399,25 +362,28 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float endTime = arrivalTime + duration;
             float updatesPerSecond = 1f / duration;
             MonsterPackedState[] states = frame.MemberBuffer;
-            for (int i = 0; i < membership.Count; i++)
+            using (GroupApplyLoopMarker.Auto())
             {
-                int slot = _groupMemberSlots[membership.Offset + i];
-                // Spawn 可能还没到。按 Slot 比 Tick，防止跨组后的旧姿态回退。
-                if ((uint)slot >= (uint)SlotCount || !_active[slot] ||
-                    !MonsterMath.IsNewer(tick, _latestGroupPoseTickBySlot[slot]))
-                    continue;
+                for (int i = 0; i < membership.Count; i++)
+                {
+                    int slot = _groupMemberSlots[membership.Offset + i];
+                    // Spawn 可能还没到。按 Slot 比 Tick，防止跨组后的旧姿态回退。
+                    if ((uint)slot >= (uint)SlotCount || !_active[slot] ||
+                        !MonsterMath.IsNewer(tick, _latestGroupPoseTickBySlot[slot]))
+                        continue;
 
-                // 上一段还在播放时，从收包时刻的画面姿态接上新目标。
-                float alpha = GetGroupPoseAlpha(slot, arrivalTime);
-                _previousPosition[slot] = Vector2.LerpUnclamped(_previousPosition[slot], _currentPosition[slot], alpha);
-                _previousYaw[slot] = Mathf.LerpAngle(_previousYaw[slot], _currentYaw[slot], alpha);
-                ApplyPose(slot, states[i], quantizer);
+                    // 上一段还在播放时，从收包时刻的画面姿态接上新目标。
+                    float alpha = GetGroupPoseAlpha(slot, arrivalTime);
+                    _previousPosition[slot] = Vector2.LerpUnclamped(_previousPosition[slot], _currentPosition[slot], alpha);
+                    _previousYaw[slot] = Mathf.LerpAngle(_previousYaw[slot], _currentYaw[slot], alpha);
+                    ApplyPose(slot, states[i], quantizer);
 
-                if (_groupPoseUpdatesPerSecondBySlot[slot] == 0f)
-                    GroupPoseReadyCount++;
-                _latestGroupPoseTickBySlot[slot] = tick;
-                _groupPoseEndTimeBySlot[slot] = endTime;
-                _groupPoseUpdatesPerSecondBySlot[slot] = updatesPerSecond;
+                    if (_groupPoseUpdatesPerSecondBySlot[slot] == 0f)
+                        GroupPoseReadyCount++;
+                    _latestGroupPoseTickBySlot[slot] = tick;
+                    _groupPoseEndTimeBySlot[slot] = endTime;
+                    _groupPoseUpdatesPerSecondBySlot[slot] = updatesPerSecond;
+                }
             }
         }
 
@@ -444,7 +410,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         internal Span<int> BeginGroupMembershipWrite(uint groupId, int count, out int offset)
         {
-            const int blockSize = MonsterNetworkGroupIndex.GroupCapacity;
+            const int blockSize = MonsterNetworkGroupKernel.GroupCapacity;
             if (!_groupMemberships.TryGetValue(groupId, out GroupMembership membership))
             {
                 membership.Offset = _groupMemberships.Count * blockSize;

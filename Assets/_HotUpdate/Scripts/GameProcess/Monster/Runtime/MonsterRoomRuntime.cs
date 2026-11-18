@@ -1,5 +1,6 @@
 using ProjectGame.Core.Monsters;
 using ProjectGame.Core.Navigation;
+using ProjectGame.Core.Spatial;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Navigation;
 using ProjectGame.HotFix.Gameplay.Player;
@@ -44,8 +45,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterOccupancySnapshot _occupancySnapshot;
         private readonly MonsterMeleePhysicsResolver _melee = new();
         private readonly MonsterSpatialIndex _spatialIndex;
-        private readonly MonsterNetworkGroupIndex _networkGroups = new();
+        private readonly MonsterNetworkGroupKernel _networkGroups = new();
         private readonly Transform _roomRoot;
+        private MonsterPackedState[] _packedStateBySlot = Array.Empty<MonsterPackedState>();
 
         private readonly MonsterPlayerTargetBuffer _players = new();
         private float _groundY;
@@ -53,6 +55,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterWorld World { get; }
         public RuntimeNavigationGrid NavigationGrid => _navigationGrid;
         public MonsterSpatialIndex SpatialIndex => _spatialIndex;
+        internal MonsterNetworkGroupKernel NetworkGroups => _networkGroups;
         public Transform RoomRoot => _roomRoot;
         public float GroundY => _groundY;
         public float MonsterHitRadius { get; }
@@ -101,6 +104,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _occupancySnapshot.Clear();
             _spatialIndex.Clear();
             _networkGroups.Clear();
+            _networkGroups.EnsureCapacity(expectedTotalMonsterCount);
             _simulation.ResetDiagnostics();
         }
 
@@ -144,7 +148,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         public void ResolveCombat()
         {
-            _simulation.ExecutePendingMeleeAttacks(_melee);
+            _simulation.ExecutePendingMeleeAttacks(World, _groundY, _melee);
+        }
+
+        internal void PackPresentationStates()
+        {
+            MonsterPresentationPackKernel.PackActive(
+                World.ActiveSlots,
+                World.AliveCount,
+                World.Motion,
+                World.Presentation,
+                _quantizer.Data,
+                _packedStateBySlot);
         }
 
         /// <summary>
@@ -221,21 +236,38 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public void CaptureFrame(uint serverTick, MonsterPresentationFrame destination) =>
-            MonsterPresentationPackingSystem.CaptureInto(World, serverTick, _quantizer, destination);
+            MonsterPresentationPackingSystem.CaptureInto(
+                World,
+                serverTick,
+                World.ActiveSlots,
+                World.AliveCount,
+                _packedStateBySlot,
+                destination);
 
-        internal IReadOnlyList<MonsterNetworkGroupIndex.Group> RefreshNetworkGroups(uint tick)
+        internal void RefreshNetworkGroups(uint tick)
         {
-            _networkGroups.Refresh(World, _spatialIndex, _players.Positions.AsSpan(0, _players.Count), tick);
-            return _networkGroups.Groups;
+            _networkGroups.Refresh(
+                World.Meta,
+                World.Motion,
+                World.SlotCount,
+                _players.Positions,
+                _players.Count,
+                _spatialIndex.RootCenter,
+                _spatialIndex.RootSize * 0.5f,
+                tick);
         }
 
         internal void CaptureGroupFrame(
-            MonsterNetworkGroupIndex.Group group,
+            int groupIndex,
             uint serverTick,
             MonsterGroupSnapshot destination) =>
             MonsterPresentationPackingSystem.CaptureGroupInto(
-                World, _quantizer, group.Id, group.MembershipRevision,
-                serverTick, group.MemberSlots, destination);
+                _networkGroups.GetGroupId(groupIndex),
+                _networkGroups.GetMembershipRevision(groupIndex),
+                serverTick,
+                _networkGroups.GetMemberSlots(groupIndex),
+                _packedStateBySlot,
+                destination);
 
         public void EndRoom()
         {
@@ -251,9 +283,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             World.EnsureCapacity(count);
             int capacity = World.Capacity;
+            if (_packedStateBySlot.Length < capacity)
+                Array.Resize(ref _packedStateBySlot, capacity);
             _occupancySnapshot.EnsureCapacity(capacity);
             _spatialIndex.EnsureCapacity(capacity);
             _simulation.EnsureCapacity(capacity);
+            _networkGroups.EnsureCapacity(capacity);
         }
 
 

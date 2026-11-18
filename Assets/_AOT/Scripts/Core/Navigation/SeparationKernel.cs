@@ -75,6 +75,8 @@ namespace ProjectGame.Core.Navigation
 
         public Vector2 Get(int slot) => _separation[slot];
 
+        public Vector2[] Values => _separation;
+
         private void BuildNeighborLookup()
         {
             Array.Fill(_neighborBucketIndices, -1);

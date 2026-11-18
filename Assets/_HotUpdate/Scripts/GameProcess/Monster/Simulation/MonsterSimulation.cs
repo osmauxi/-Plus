@@ -15,7 +15,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         private readonly MonsterRuntimeCatalog _configs;
         private readonly MonsterAttackCatalog _attackProfiles;
-        private readonly List<MonsterMeleeAttackRequest> _pendingMeleeAttacks = new(64);
+        private MonsterAttackRequestData[] _pendingMeleeAttacks = new MonsterAttackRequestData[64];
+        private int _pendingMeleeAttackCount;
 
         private int _lastTopologyVersion = -1;
         private int _lastCostVersion = -1;
@@ -57,26 +58,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.Simulation.FlowFieldUpdate");
         private static readonly ProfilerMarker SeparationBuildMarker =
             new("Monster.Simulation.SeparationBuild");
-        private static readonly ProfilerMarker EntityTickMarker =
-            new("Monster.Simulation.EntityTick");
-        // EntityTick 总 Marker 已存在；这些子 Marker 只拆分主要阶段，
-        // 不继续细化到单个数学表达式，避免量化时被 Marker 自身污染。
-        private static readonly ProfilerMarker EntityTargetMarker =
-            new("Monster.Simulation.EntityTick.Target");
         private static readonly ProfilerMarker EntityTargetCacheMarker =
             new("Monster.Simulation.EntityTick.Target.Cache");
         private static readonly ProfilerMarker EntityTargetRecoveryMarker =
             new("Monster.Simulation.EntityTick.Target.Recovery");
-        private static readonly ProfilerMarker EntityAttackMarker =
-            new("Monster.Simulation.EntityTick.Attack");
-        private static readonly ProfilerMarker EntityNavigationMarker =
-            new("Monster.Simulation.EntityTick.Navigation");
-        private static readonly ProfilerMarker EntitySeparationMarker =
-            new("Monster.Simulation.EntityTick.Separation");
-        private static readonly ProfilerMarker EntityConstraintMarker =
-            new("Monster.Simulation.EntityTick.Constraint");
-        private static readonly ProfilerMarker EntityConstraintKernelMarker =
-            new("Monster.Simulation.EntityTick.Constraint.Kernel");
 
         private uint _nextSourceRebuildTick;
         private uint _nextCostRebuildTick;
@@ -115,7 +100,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private bool _hasTopologyReferenceFlowField;
 
         public bool HasFlowField => _hasFlowField;
-        public int PendingMeleeAttackCount => _pendingMeleeAttacks.Count;
+        public int PendingMeleeAttackCount => _pendingMeleeAttackCount;
         public int TopologyRebuildCount { get; private set; }
         public int SourceRebuildCount { get; private set; }
         public int CostRebuildCount { get; private set; }
@@ -163,7 +148,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float groundY,
             MonsterOccupancySnapshot occupancySnapshot)
         {
-            _pendingMeleeAttacks.Clear();
+            _pendingMeleeAttackCount = 0;
+            EnsureCapacity(world.Capacity);
             EnsureGridTransform(groundY);
             players.UpdateNavigationCells(_roomRoot, _navigationGrid, groundY);
 
@@ -176,89 +162,32 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             using (SeparationBuildMarker.Auto())
                 _separation.Build(occupancySnapshot);
 
-            using var entityTickScope = EntityTickMarker.Auto();
-
             RefreshFlowCellCache();
             PrepareRecoveryCache(world, occupancySnapshot);
-            using (EntityTargetMarker.Auto())
-                FlowTargetKernel.ResolveBatch(
-                    occupancySnapshot.ActiveSlots,
-                    occupancySnapshot.ActiveCount,
-                    _targetPositionScratch,
-                    occupancySnapshot.FineCellOfSlot,
-                    _flowCellData,
-                    players.Positions,
-                    players.CellWalkable,
-                    _targetResults);
 
-            for (int activeIndex = 0;
-                 activeIndex < occupancySnapshot.ActiveCount;
-                 activeIndex++)
-            {
-                int slot = occupancySnapshot.ActiveSlots[activeIndex];
-                Vector2 position = world.Motion[slot].Position;
-                MonsterTargetResult target = _targetResults[slot];
-                bool hasTarget = (target.Flags & MonsterTargetResult.HasTarget) != 0;
-                bool isRecovering = (target.Flags & MonsterTargetResult.Recovering) != 0;
-                bool targetWalkable = (target.Flags & MonsterTargetResult.TargetWalkable) != 0;
-                Vector2 targetPosition = target.TargetPosition;
-                float targetDistanceSqr = target.TargetDistanceSqr;
-                Vector2 flowDirection = target.FlowDirection;
-
-                ref readonly MonsterRuntimeConfig config = ref _configs.Get(world.Meta[slot].ConfigIndex);
-
-                if (world.IsStunned(slot, tick))
-                {
-                    world.Motion[slot].Velocity = Vector2.zero;
-                    continue;
-                }
-
-                //已经被挤进非法格时，优先脱困，不攻击、不参与Separation。
-                if (isRecovering)
-                {
-                    Vector2 recoveryVelocity = flowDirection * config.MoveSpeed * world.GetSpeedMultiplier(slot, tick);
-                    Integrate(world, slot, recoveryVelocity, deltaTime);
-                    continue;
-                }
-
-                using (EntityAttackMarker.Auto())
-                    TickAttack(world, slot, config, tick, groundY, hasTarget, targetDistanceSqr);
-
-                Vector2 navigationVelocity;
-                using (EntityNavigationMarker.Auto())
-                {
-                    navigationVelocity = CalculateVelocity(
-                        world, slot, config, tick,
-                        hasTarget,
-                        targetPosition,
-                        flowDirection,
-                        targetWalkable);
-                }
-
-                Vector2 velocity = navigationVelocity;
-
-                if (world.Attack[slot].Phase == MonsterAttackPhase.Ready)
-                {
-                    using (EntitySeparationMarker.Auto())
-                        velocity = ApplySeparation(world, slot, config, tick, velocity);
-                }
-                //进行一次SepartionForce的安全性检查，保证其不会把怪物推进墙中
-                using (EntityConstraintMarker.Auto())
-                {
-                    using (EntityConstraintKernelMarker.Auto())
-                        velocity = MovementConstraintKernel.Constrain(
-                            _gridTransform,
-                            _walkableCells,
-                            _navigationGrid.Width,
-                            _navigationGrid.Height,
-                            world.Motion[slot].Position,
-                            navigationVelocity,
-                            velocity,
-                            deltaTime);
-                }
-
-                Integrate(world, slot, velocity, deltaTime);
-            }
+            _pendingMeleeAttackCount = MonsterSimulationKernel.Tick(
+                world.Meta,
+                world.Motion,
+                world.Status,
+                world.Attack,
+                world.Presentation,
+                _configs.SimulationItems,
+                occupancySnapshot.ActiveSlots,
+                occupancySnapshot.ActiveCount,
+                occupancySnapshot.FineCellOfSlot,
+                _flowCellData,
+                players.Positions,
+                players.CellWalkable,
+                _targetPositionScratch,
+                _targetResults,
+                _separation.Values,
+                _gridTransform,
+                _walkableCells,
+                _navigationGrid.Width,
+                _navigationGrid.Height,
+                tick,
+                deltaTime,
+                _pendingMeleeAttacks);
         }
 
         public bool TryGetFlowFieldDebugCell(int x, int y, out FlowFieldCellDebugData cell)
@@ -306,18 +235,29 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public Vector2 GetRawSeparation(int slot) => _separation.Get(slot);
 
-        public void ExecutePendingMeleeAttacks(MonsterMeleePhysicsResolver resolver)
+        public void ExecutePendingMeleeAttacks(
+            MonsterWorld world,
+            float groundY,
+            MonsterMeleePhysicsResolver resolver)
         {
             if (resolver == null)
                 throw new ArgumentNullException(nameof(resolver));
 
-            for (int i = 0; i < _pendingMeleeAttacks.Count; i++)
+            for (int i = 0; i < _pendingMeleeAttackCount; i++)
             {
-                MonsterMeleeAttackRequest request = _pendingMeleeAttacks[i];
-                resolver.Execute(request.Origin, request.Direction, request.Profile, request.Damage);
+                MonsterAttackRequestData request = _pendingMeleeAttacks[i];
+                MonsterMotionData motion = world.Motion[request.Slot];
+                Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
+                Vector3 root = new Vector3(motion.Position.x, groundY, motion.Position.y);
+                ref readonly MonsterAttackProfile profile = ref _attackProfiles.Get(request.AttackProfileIndex);
+                resolver.Execute(
+                    root + rotation * profile.OriginOffset,
+                    rotation * Vector3.forward,
+                    profile,
+                    request.Damage);
             }
 
-            _pendingMeleeAttacks.Clear();
+            _pendingMeleeAttackCount = 0;
         }
 
         /// <summary>
@@ -451,6 +391,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 next = checked(next * 2);
             Array.Resize(ref _targetResults, next);
             Array.Resize(ref _targetPositionScratch, next);
+            Array.Resize(ref _pendingMeleeAttacks, next);
             _separation.EnsureCapacity(next);
         }
 
@@ -857,98 +798,5 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return false;
         }
 
-        private void TickAttack(MonsterWorld world, int slot, in MonsterRuntimeConfig config,
-            uint tick, float groundY, bool hasTarget, float targetDistanceSqr)
-        {
-            ref MonsterAttackData attack = ref world.Attack[slot];
-            if (attack.Phase == MonsterAttackPhase.Ready)
-            {
-                if (!hasTarget || targetDistanceSqr > config.AttackRangeSqr)
-                    return;
-                attack.Phase = MonsterAttackPhase.Windup;
-                attack.PhaseEndTick = tick + config.WindupTicks;
-                world.Presentation[slot].AttackSequence++;
-                return;
-            }
-
-            if (!MonsterMath.HasReached(tick, attack.PhaseEndTick))
-                return;
-
-            if (attack.Phase == MonsterAttackPhase.Windup)
-            {
-                MonsterMotionData motion = world.Motion[slot];
-                Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
-                Vector3 root = new Vector3(motion.Position.x, groundY, motion.Position.y);
-                ref readonly MonsterAttackProfile profile = ref _attackProfiles.Get(config.AttackProfileIndex);
-                _pendingMeleeAttacks.Add(new MonsterMeleeAttackRequest(
-                    root + rotation * profile.OriginOffset,
-                    rotation * Vector3.forward,
-                    profile,
-                    config.AttackDamage));
-                attack.Phase = MonsterAttackPhase.Recovery;
-                attack.PhaseEndTick = tick + config.RecoveryTicks;
-            }
-            else
-            {
-                attack.Phase = MonsterAttackPhase.Ready;
-                attack.PhaseEndTick = 0;
-            }
-        }
-
-        private Vector2 CalculateVelocity(
-                MonsterWorld world,
-                int slot,
-                in MonsterRuntimeConfig config,
-                uint tick,
-                bool hasTarget,
-                Vector2 targetPosition,
-                Vector2 flowDirection,
-                bool targetWalkable)
-        {
-            if (world.Attack[slot].Phase != MonsterAttackPhase.Ready || !hasTarget)
-                return Vector2.zero;
-
-            Vector2 position = world.Motion[slot].Position;
-            Vector2 direction = flowDirection;
-
-            if (direction.sqrMagnitude <= 0.000001f)
-            {
-                Vector2 offset = targetPosition - position;
-
-                // 已经进入攻击范围，不再继续往玩家中心挤。
-                if (offset.sqrMagnitude <= config.AttackRangeSqr)
-                    return Vector2.zero;
-
-                // 玩家卡进障碍时也不要继续钻墙。
-                if (!targetWalkable)
-                    return Vector2.zero;
-
-                direction = offset.normalized;
-            }
-
-            return direction * config.MoveSpeed * world.GetSpeedMultiplier(slot, tick);
-        }
-
-        private Vector2 ApplySeparation(MonsterWorld world, int slot,
-    in MonsterRuntimeConfig config, uint tick, Vector2 velocity)
-        {
-            velocity += _separation.Get(slot);
-
-            float maxSpeed = config.MoveSpeed * world.GetSpeedMultiplier(slot, tick);
-            float maxSpeedSqr = maxSpeed * maxSpeed;
-
-            if (velocity.sqrMagnitude > maxSpeedSqr)
-                velocity = velocity.normalized * maxSpeed;
-
-            return velocity;
-        }
-
-        private static void Integrate(MonsterWorld world, int slot, Vector2 velocity, float deltaTime)
-        {
-            world.Motion[slot].Velocity = velocity;
-            world.Motion[slot].Position += velocity * deltaTime;
-            if (velocity.sqrMagnitude > 0.000001f)
-                world.Motion[slot].Yaw = Mathf.Atan2(velocity.x, velocity.y) * Mathf.Rad2Deg;
-        }
     }
 }

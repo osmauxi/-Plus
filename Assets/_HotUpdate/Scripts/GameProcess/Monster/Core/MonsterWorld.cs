@@ -18,6 +18,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private MonsterStatusData[] _status;
         private MonsterAttackData[] _attack;
         private MonsterPresentationData[] _presentation;
+        private int[] _activeSlots;
+        private int[] _activeIndexBySlot;
         private int _slotCount;
         private int _aliveCount;
         /// <summary>
@@ -35,8 +37,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         //暴露内部数组到Monster模块
         internal MonsterMetaData[] Meta => _meta;
         internal MonsterMotionData[] Motion => _motion;
+        internal MonsterStatusData[] Status => _status;
         internal MonsterAttackData[] Attack => _attack;
         internal MonsterPresentationData[] Presentation => _presentation;
+        internal int[] ActiveSlots => _activeSlots;
 
         public MonsterWorld(int initialCapacity = DefaultCapacity)
         {
@@ -47,6 +51,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _status = new MonsterStatusData[capacity];
             _attack = new MonsterAttackData[capacity];
             _presentation = new MonsterPresentationData[capacity];
+            _activeSlots = new int[capacity];
+            _activeIndexBySlot = new int[capacity];
+            Array.Fill(_activeIndexBySlot, -1);
         }
         /// <summary>
         /// 创建一只怪
@@ -61,6 +68,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _status[slot] = new MonsterStatusData { SpeedMultiplier = 1f };
             _attack[slot] = new MonsterAttackData { Phase = MonsterAttackPhase.Ready };
             _presentation[slot] = default;
+            _activeSlots[_aliveCount] = slot;
+            _activeIndexBySlot[slot] = _aliveCount;
             _aliveCount++;
             return slot;
         }
@@ -72,6 +81,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return false;
             //只管IsActive，剩下的房间结束自己会清
             _meta[slot].IsActive = false;
+            int activeIndex = _activeIndexBySlot[slot];
+            for (int i = activeIndex + 1; i < _aliveCount; i++)
+            {
+                int shiftedSlot = _activeSlots[i];
+                _activeSlots[i - 1] = shiftedSlot;
+                _activeIndexBySlot[shiftedSlot] = i - 1;
+            }
+            _activeIndexBySlot[slot] = -1;
             _aliveCount--;
             return true;
         }
@@ -173,6 +190,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Resize(ref _status, next);
             Array.Resize(ref _attack, next);
             Array.Resize(ref _presentation, next);
+            int previous = _activeIndexBySlot.Length;
+            Array.Resize(ref _activeSlots, next);
+            Array.Resize(ref _activeIndexBySlot, next);
+            Array.Fill(_activeIndexBySlot, -1, previous, next - previous);
         }
 
         public void Clear()

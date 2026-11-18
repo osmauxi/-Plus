@@ -153,7 +153,9 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (_unnamedHandler == null)
                 return;
 
-            _networkManager.CustomMessagingManager.OnUnnamedMessage -= DispatchUnnamed;
+            CustomMessagingManager messaging = _networkManager.CustomMessagingManager;
+            if (messaging != null)
+                messaging.OnUnnamedMessage -= DispatchUnnamed;
             _unnamedHandler = null;
         }
 

@@ -128,7 +128,9 @@ namespace ProjectGame.HotFix.Network.Runtime
                 if (retainSessionSeeds && _seeds.ContainsKey(state.Entry.Id)) continue;
                 if (_seeds.TryGetValue(state.Entry.Id, out PersistentSeedHandler seed))
                 {
-                    _networkManager.PrefabHandler.RemoveHandler(state.Prefab);
+                    NetworkPrefabHandler prefabHandler = _networkManager.PrefabHandler;
+                    if (prefabHandler != null)
+                        prefabHandler.RemoveHandler(state.Prefab);
                     if (seed.Instance != null) UnityEngine.Object.Destroy(seed.Instance.gameObject);
                     _seeds.Remove(state.Entry.Id);
                 }

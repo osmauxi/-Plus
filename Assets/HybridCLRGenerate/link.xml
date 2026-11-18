@@ -19,20 +19,30 @@
     <type fullname="LocalObjectPool" preserve="all" />
     <type fullname="ProjectGame.AOT.Voice.OpusNativeDecoder" preserve="all" />
     <type fullname="ProjectGame.AOT.Voice.OpusNativeEncoder" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterAttackData" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterAttackPhase" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterAttackRequestData" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterHealthData" preserve="all" />
     <type fullname="ProjectGame.Core.Monsters.MonsterMetaData" preserve="all" />
     <type fullname="ProjectGame.Core.Monsters.MonsterMotionData" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterPackedState" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterPresentationData" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterPresentationPackKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterQuantizationData" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterSimulationConfig" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterSimulationKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Monsters.MonsterStatusData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.DensityKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.FlowFieldCellDebugData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.FlowFieldSource" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.FlowTargetCellData" preserve="all" />
-    <type fullname="ProjectGame.Core.Navigation.FlowTargetKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.MonsterTargetResult" preserve="all" />
-    <type fullname="ProjectGame.Core.Navigation.MovementConstraintKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.MultiSourceFlowField" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.NavigationGridKernelData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.NavigationTopologyKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.RoomGridTransformData" preserve="all" />
     <type fullname="ProjectGame.Core.Navigation.SeparationKernel" preserve="all" />
+    <type fullname="ProjectGame.Core.Spatial.MonsterNetworkGroupKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Spatial.MonsterOccupancySnapshotKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Spatial.MonsterQuadTreeKernel" preserve="all" />
     <type fullname="ProjectGame.Core.Spatial.MonsterQuadTreeNodeData" preserve="all" />
@@ -154,6 +164,7 @@
     <type fullname="Unity.Netcode.ClientRpcSendParams" preserve="all" />
     <type fullname="Unity.Netcode.CustomMessagingManager" preserve="all" />
     <type fullname="Unity.Netcode.CustomMessagingManager/HandleNamedMessageDelegate" preserve="all" />
+    <type fullname="Unity.Netcode.CustomMessagingManager/UnnamedMessageDelegate" preserve="all" />
     <type fullname="Unity.Netcode.FastBufferReader" preserve="all" />
     <type fullname="Unity.Netcode.FastBufferWriter" preserve="all" />
     <type fullname="Unity.Netcode.FastBufferWriter/ForEnums" preserve="all" />

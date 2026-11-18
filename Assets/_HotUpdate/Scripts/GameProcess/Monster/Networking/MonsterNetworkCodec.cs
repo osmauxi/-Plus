@@ -1,4 +1,6 @@
 using System;
+using ProjectGame.Core.Monsters;
+using ProjectGame.Core.Spatial;
 using System.Collections.Generic;
 using Unity.Netcode;
 using Unity.Profiling;
@@ -117,6 +119,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         internal static int ReadGroupSnapshotBatchHeader(ref FastBufferReader reader)
         {
+            if (!reader.TryBeginRead(GroupSnapshotBatchHeaderSize))
+                throw new ArgumentException("Monster GroupSnapshot 批次头不完整。");
             return ReadUInt16(ref reader);
         }
         internal static int GetGroupMembershipByteCount(int count) => GroupMembershipHeaderSize + count * sizeof(uint);
@@ -152,7 +156,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             groupId = ReadUInt32(ref reader);
             membershipRevision = ReadUInt32(ref reader);
             int count = ReadUInt16(ref reader);
-            if (count > MonsterNetworkGroupIndex.GroupCapacity || !reader.TryBeginRead(count * sizeof(uint)))
+            if (count > MonsterNetworkGroupKernel.GroupCapacity || !reader.TryBeginRead(count * sizeof(uint)))
                 throw new ArgumentException("Monster GroupMembership 成员表超出缓冲范围。");
 
             return count;
@@ -177,12 +181,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int memberCount = ReadUInt16(ref reader);
             reader.ReadByte(out intervalTicks);
 
-            if (intervalTicks != MonsterNetworkGroupIndex.InnerInterval &&
-                intervalTicks != MonsterNetworkGroupIndex.MiddleInterval &&
-                intervalTicks != MonsterNetworkGroupIndex.OuterInterval)
+            if (intervalTicks != MonsterNetworkGroupKernel.InnerInterval &&
+                intervalTicks != MonsterNetworkGroupKernel.MiddleInterval &&
+                intervalTicks != MonsterNetworkGroupKernel.OuterInterval)
                 throw new ArgumentException("Monster GroupSnapshot 发送间隔非法。");
 
-            if (memberCount == 0 || memberCount > MonsterNetworkGroupIndex.GroupCapacity ||
+            if (memberCount == 0 || memberCount > MonsterNetworkGroupKernel.GroupCapacity ||
                 !reader.TryBeginRead(memberCount * GroupMemberStateSize))
                 throw new ArgumentException("Monster GroupSnapshot 成员数量或包体长度非法。");
 

@@ -51,6 +51,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public Vector2 Get(int slot) => _kernel.Get(slot);
 
+        internal Vector2[] Values => _kernel.Values;
+
         private static void CalculateWorldBounds(
             Transform roomRoot,
             float halfSize,

@@ -196,7 +196,19 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             if (action.ShotSequence != _lastShotSequence)
             {
                 if (TickMath.IsNewer(action.ShotSequence, _lastShotSequence))
-                    CameraEffects.Play(CameraEffectId.RifleFire);
+                {
+                    Vector2 aimDirection = _localPlayerSyncController.AimDirection;
+                    if (aimDirection.sqrMagnitude > 0.000001f)
+                    {
+                        CameraEffects.Play(
+                            CameraEffectId.RifleFire,
+                            new Vector3(aimDirection.x, 0f, aimDirection.y));
+                    }
+                    else
+                    {
+                        CameraEffects.Play(CameraEffectId.RifleFire);
+                    }
+                }
 
                 _lastShotSequence = action.ShotSequence;
             }

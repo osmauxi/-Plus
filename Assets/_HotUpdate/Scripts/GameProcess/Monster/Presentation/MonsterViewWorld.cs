@@ -1,4 +1,5 @@
 using System;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Monsters
@@ -8,12 +9,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// </summary>
     public sealed class MonsterViewWorld : IDisposable
     {
+        private static readonly ProfilerMarker ApplyReplicaMarker =
+            new("Monster.View.ApplyReplica");
+        private static readonly ProfilerMarker ApplyReplicaLoopMarker =
+            new("Monster.View.ApplyReplica.Loop");
+
         private readonly MonsterViewCatalog _catalog;
         private readonly MonsterVATRenderProfileCatalog _profiles;
         private readonly MonsterPoseQuantizer _quantizer;
         private readonly MonsterVATRenderWorld _vatWorld;
         private byte[] _attackSequence = Array.Empty<byte>();
         private byte[] _hitSequence = Array.Empty<byte>();
+        private uint _lastReplicaRevision;
         private bool _disposed;
 
         public int SlotCount => _vatWorld.SlotCount;
@@ -54,19 +61,49 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
         }
 
-        internal void ApplyReplica(MonsterReplica replica, float now)
+        internal void SyncReplica(MonsterReplica replica, float now)
         {
-            for (int slot = 0; slot < SlotCount; slot++)
+            using var applyScope = ApplyReplicaMarker.Auto();
+            using (ApplyReplicaLoopMarker.Auto())
             {
-                MonsterReplicaState state = replica.GetState(slot, now);
-                ApplyState(
-                    slot,
-                    state.IsActive,
-                    state.Position,
-                    state.Yaw,
-                    state.AttackSequence,
-                    state.HitSequence);
+                for (int slot = 0; slot < SlotCount; slot++)
+                {
+                    replica.GetViewState(
+                        slot,
+                        now,
+                        out bool active,
+                        out Vector2 pose,
+                        out float yaw,
+                        out Vector2 targetPose,
+                        out float targetYaw,
+                        out float poseEndTime,
+                        out float updatesPerSecond,
+                        out byte attackSequence,
+                        out byte hitSequence);
+                    if (!active)
+                    {
+                        _vatWorld.Despawn(slot);
+                        continue;
+                    }
+
+                    _vatWorld.SetTargetPose(
+                        slot,
+                        pose,
+                        yaw,
+                        targetPose,
+                        targetYaw,
+                        poseEndTime,
+                        updatesPerSecond,
+                        Time.deltaTime);
+                    if (attackSequence != _attackSequence[slot])
+                        _vatWorld.PlayAttack(slot);
+                    if (hitSequence != _hitSequence[slot])
+                        _vatWorld.PlayHit(slot);
+                    _attackSequence[slot] = attackSequence;
+                    _hitSequence[slot] = hitSequence;
+                }
             }
+            _lastReplicaRevision = replica.ViewRevision;
         }
 
         public void Clear()
@@ -77,39 +114,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Clear(_hitSequence, 0, _hitSequence.Length);
         }
 
-        public void Update(float deltaTime, float unscaledDeltaTime)
+        public void Update(
+            MonsterReplica replica,
+            float deltaTime,
+            float unscaledDeltaTime,
+            float now)
         {
             EnsureUsable();
-            _vatWorld.Update(deltaTime, unscaledDeltaTime);
+            if (_lastReplicaRevision != replica.ViewRevision)
+                SyncReplica(replica, now);
+            _vatWorld.Update(deltaTime, unscaledDeltaTime, now);
         }
 
         public void Render()
         {
             EnsureUsable();
             _vatWorld.Render();
-        }
-
-        private void ApplyState(
-            int slot,
-            bool isActive,
-            Vector2 position,
-            float yaw,
-            byte attackSequence,
-            byte hitSequence)
-        {
-            if (!isActive)
-            {
-                _vatWorld.Despawn(slot);
-                return;
-            }
-
-            _vatWorld.SetPose(slot, position, yaw, Time.deltaTime);
-            if (attackSequence != _attackSequence[slot])
-                _vatWorld.PlayAttack(slot);
-            if (hitSequence != _hitSequence[slot])
-                _vatWorld.PlayHit(slot);
-            _attackSequence[slot] = attackSequence;
-            _hitSequence[slot] = hitSequence;
         }
 
         private void EnsureCapacity(int count)

@@ -210,6 +210,19 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             _controlState.CombatMode = PlayerCombatMode.Ready;
         }
 
+        public void RefillWeaponForBenchmark()
+        {
+            Weapon.WeaponStatSnapshot stats = _stateMachine.WeaponStats.Value;
+            _actionState.Weapon.CurrentAmmo = stats.MagSize;
+            _actionState.Weapon.ReserveAmmo = ushort.MaxValue;
+            _actionState.Weapon.FireCooldownTicks = 0;
+            _actionState.Weapon.ReloadTicksRemaining = 0;
+            _actionState.Weapon.Flags &= ~Weapon.WeaponRuntimeFlags.Reloading;
+            _actionState.ReloadTicksRemaining = 0;
+            _actionState.FireCooldownTicks = 0;
+            _controlState.CombatMode = PlayerCombatMode.Ready;
+        }
+
         /// <summary>把角色实体移动到指定位置和旋转，并清空全部运动惯性 </summary>
         public void Warp(Vector3 worldPosition, Quaternion worldRotation)
         {

@@ -6,9 +6,11 @@ using ProjectGame.HotFix.Config;
 using ProjectGame.HotFix.Gameplay.Monsters;
 using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Player;
+using ProjectGame.HotFix.Gameplay.Player.Sync;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using ProjectGame.HotFix.Gameplay.Weapon.Effects;
 using ProjectGame.HotFix.Gameplay.Weapon.Effects.Special;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon
@@ -70,6 +72,17 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
     public sealed class WeaponRuntimeService : MonoBehaviour, IGameRuntimeService, IWeaponEventSource,
         IWeaponSpecialEffectCommandSink
     {
+        private const ushort BenchmarkStressStatsId = ushort.MaxValue - 1;
+        private const ushort BenchmarkStressEffectSetId = ushort.MaxValue;
+        private static readonly ProfilerMarker EffectDispatchMarker =
+            new("Weapon.Projectile.EffectDispatch");
+        private static readonly ProfilerMarker LightningMarker =
+            new("Weapon.Effect.Lightning");
+        private static readonly ProfilerMarker StormCloudMarker =
+            new("Weapon.Effect.StormCloud");
+        private static readonly ProfilerMarker DamageAreaMarker =
+            new("Weapon.Effect.DamageArea");
+
         [SerializeField] private LayerMask _worldMask;
         public static WeaponRuntimeService Instance { get; private set; }
         public bool IsInitialized { get; private set; }
@@ -78,6 +91,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public EffectRollService EffectRolls { get; private set; }
         public int ActiveProjectileCount => _world.Count;
         public int ActiveShotCount => _shots.Count;
+        public int DebugProjectileCount => _world.Count;
         //给外部事件的接口，通过Simulation内部委托触发，作为一层内部与外部的解耦
         //不让外部直接依赖Simulation
         public event Action<ShotContext> ShotFired;
@@ -85,6 +99,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public event Action<ProjectileImpact> ProjectileImpact;
         public event Action<ProjectileState> ProjectileRemoved;
         public event Action<WeaponSpecialVfxEvent> SpecialEffectVfx;
+
+        public void GetDebugProjectile(int index, out ProjectileState projectile, out float radius)
+        {
+            projectile = default;
+            _world.Read(index, ref projectile);
+            radius = _simulation.GetDebugRadius(index);
+        }
 
         private readonly WeaponStatSnapshotRepository _stats = new();
         private readonly EffectSetRepository _effectSets = new();
@@ -185,7 +206,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance ??
                 throw new InvalidOperationException("Weapon 必须在 MonsterRuntimeService 后初始化。");
             _builder = new ShotBuilder(_shots, _world, _specialEffects);
-            _simulation = new ProjectileSimulation(_world, _shots, _stats,
+            _simulation = new ProjectileSimulation(_world, _shots,
                 new ProjectileSimulationConfig { WorldMask = _worldMask },
                 monsters,
                 _specialEffects);
@@ -273,6 +294,62 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             EffectSet set = loadout.AcquisitionCount == 0 ? EffectSet.Empty : loadout.CreateSnapshot(1);
             return _effectCalculator.Calculate(definition.Stats, set, definition.Stats.Id,
                 _network.Clock.TickDeltaTime);
+        }
+
+        /// <summary>
+        /// 只供 Benchmark 使用的高压武器：低伤害、多弹丸、高穿透/反弹，并固定挂载两个特殊 Effect。
+        /// 快照仍走正式 WeaponSystem，所以测试测到的是真实射击与子弹链路。
+        /// </summary>
+        public void ConfigureBenchmarkStressWeapon(PlayerWeaponController controller)
+        {
+            if (!IsInitialized)
+                throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
+            if (controller == null || controller.Definition == null || !controller.IsSpawned)
+                throw new InvalidOperationException("Benchmark 压力武器要求玩家已经完成武器绑定并 Spawn。");
+
+            WeaponStatSnapshot baseStats = controller.Definition.Stats;
+            WeaponStatSnapshot stats = baseStats;
+            stats.Id = BenchmarkStressStatsId;
+            stats.Damage = 0.001f;
+            stats.FireRate = 5f;
+            stats.ReloadTime = 0f;
+            stats.FireIntervalTicks = WeaponSystem.ToTicks(1f / stats.FireRate,
+                _network.Clock.TickDeltaTime);
+            stats.ReloadTicks = 0;
+            stats.MagSize = ushort.MaxValue;
+            stats.CritChance = 0f;
+            stats.CritMultiplier = 1f;
+            stats.ProjectileSpeed = 32f;
+            stats.ProjectileCount = 8;
+            stats.SpreadAngle = 8f;
+            stats.BounceCount = 8;
+            stats.PierceCount = 8;
+            stats.ProjectileSize = 0.22f;
+            stats.ProjectileLifeTime = 2f;
+
+            EffectCatalog.GetEffect(MultiSplitEffectSystem.Id);
+            EffectCatalog.GetEffect(ShockwaveEffectSystem.Id);
+            var effects = new EffectSet(
+                BenchmarkStressEffectSetId,
+                (1UL << (MultiSplitEffectSystem.Id & 63)) |
+                (1UL << (ShockwaveEffectSystem.Id & 63)),
+                new[]
+                {
+                    new EffectSnapshot(MultiSplitEffectSystem.Id, 1),
+                    new EffectSnapshot(ShockwaveEffectSystem.Id, 1),
+                },
+                new[] { MultiSplitEffectSystem.Id, ShockwaveEffectSystem.Id });
+
+            _stats.Register(stats);
+            _effectSets.Register(effects);
+
+            PlayerSyncController sync = controller.GetComponent<PlayerSyncController>();
+            ushort version = unchecked((ushort)(controller.CurrentWeaponState.SnapshotVersion + 1));
+            if (version == 0)
+                version = 1;
+            sync.ConfigureWeaponRuntime(stats, effects.Id, version);
+            sync.RefillWeaponForBenchmark();
+            _specialEffects.DispatchOwnerState(controller.NetworkObjectId, effects, stats);
         }
 
         // 只允许 PlayerWeaponController 在服务端权威 Tick 确认新序号后调用。
@@ -408,9 +485,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     Generation = checked((byte)(command.Parent.Generation + 1)),
                     Flags = command.Parent.Flags & ProjectileFlags.Critical,
                 };
-                _specialEffects.DispatchSpawn(ref projectile,
-                    new ProjectileSpawnEffectContext(shot, stats));
-                _world.Add(projectile);
+                using (EffectDispatchMarker.Auto())
+                    _specialEffects.DispatchSpawn(ref projectile,
+                        new ProjectileSpawnEffectContext(shot, stats));
+                _world.Add(projectile, stats, shot.OwnerEntityId);
                 _simulation.MarkTargetAsHit(projectile.ProjectileId, command.Context.TargetEntityId);
                 ProjectileSpawned?.Invoke(new ProjectileSpawn(
                     shot,
@@ -573,6 +651,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             Vector3 origin, float damage, byte jumpCount, byte branchCount,
             float searchRadius, bool applyInitialDamage, float executeThreshold)
         {
+            using var lightningScope = LightningMarker.Auto();
             if (applyInitialDamage)
             {
                 bool hasInitialPosition =
@@ -592,13 +671,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             {
                 LightningNode node = _lightningNodes[nodeIndex];
                 if (node.Depth >= jumpCount) continue;
+                // 同一节点的分支查询范围和位置相同。分支只改变已访问集合，死亡目标会在 TryGetMonsterPosition 时被过滤。
+                int candidateCount = QueryMonsterCircleCandidates(
+                    monsters, node.Position, searchRadius);
                 for (int branch = 0; branch < branchCount; branch++)
                 {
                     int nearestSlot = -1;
                     float nearestDistance = radiusSqr;
                     Vector3 nearestPosition = default;
-                    int candidateCount = QueryMonsterCircleCandidates(
-                        monsters, node.Position, searchRadius);
                     for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
                     {
                         int slot = _monsterQueryBuffer[candidateIndex];
@@ -623,6 +703,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         private void TickStormClouds(float deltaTime)
         {
+            using var stormCloudScope = StormCloudMarker.Auto();
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
             if (monsters == null || !monsters.IsRoomActive) return;
             foreach (KeyValuePair<ulong, StormCloudState> pair in _stormClouds)
@@ -649,6 +730,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         private void TickDamageAreas(float deltaTime)
         {
+            using var damageAreaScope = DamageAreaMarker.Auto();
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
             if (monsters == null || !monsters.IsRoomActive)
             {

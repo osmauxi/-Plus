@@ -251,6 +251,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public uint LatestTick => _latestTick;
         public int ActiveCount => _activeCount;
         public int GroupPoseReadyCount { get; private set; }
+        internal uint ViewRevision { get; private set; }
         /// <summary>
         /// 宣布新的房间开始，之前的网络状态作废，数组不清直接覆盖
         /// </summary>
@@ -262,6 +263,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _hasFrame = false;
             _activeCount = 0;
             GroupPoseReadyCount = 0;
+            ViewRevision = 0;
             Array.Clear(_active, 0, _active.Length);
             _groupMemberships.Clear();
         }
@@ -294,6 +296,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
             SlotCount += batch.Count;
             _activeCount += batch.Count;
+            ViewRevision++;
         }
 
         internal void Despawn(int slot)
@@ -305,6 +308,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _activeCount--;
             if (_groupPoseUpdatesPerSecondBySlot[slot] != 0f)
                 GroupPoseReadyCount--;
+            ViewRevision++;
         }
         /// <summary>
         /// 收到一帧网络状态
@@ -345,10 +349,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _latestTick = frame.ServerTick;
             _hasFrame = true;
             _activeCount = activeCount;
+            ViewRevision++;
             return MonsterFrameApplyResult.Applied;
         }
 
-        internal void ApplyGroupSnapshot(
+        internal bool ApplyGroupSnapshot(
             MonsterGroupSnapshot frame, MonsterPoseQuantizer quantizer, float arrivalTime, float duration)
         {
             using var applyScope = GroupApplyMarker.Auto();
@@ -357,7 +362,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 !_groupMemberships.TryGetValue(frame.GroupId, out GroupMembership membership) ||
                 membership.Revision != frame.MembershipRevision ||
                 membership.Count != frame.MemberCount)
-                return;
+                return false;
 
             float endTime = arrivalTime + duration;
             float updatesPerSecond = 1f / duration;
@@ -385,6 +390,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     _groupPoseUpdatesPerSecondBySlot[slot] = updatesPerSecond;
                 }
             }
+
+            ViewRevision++;
+            return true;
         }
 
         private void ApplyPose(int slot, MonsterPackedState packed, MonsterPoseQuantizer quantizer)
@@ -406,6 +414,32 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 Vector2.LerpUnclamped(_previousPosition[slot], _currentPosition[slot], alpha),
                 Mathf.LerpAngle(_previousYaw[slot], _currentYaw[slot], alpha),
                 _attackSequence[slot], _hitSequence[slot]);
+        }
+
+        internal void GetViewState(
+            int slot,
+            float now,
+            out bool active,
+            out Vector2 pose,
+            out float yaw,
+            out Vector2 targetPose,
+            out float targetYaw,
+            out float poseEndTime,
+            out float updatesPerSecond,
+            out byte attackSequence,
+            out byte hitSequence)
+        {
+            active = _active[slot];
+            attackSequence = _attackSequence[slot];
+            hitSequence = _hitSequence[slot];
+            poseEndTime = _groupPoseEndTimeBySlot[slot];
+            updatesPerSecond = _groupPoseUpdatesPerSecondBySlot[slot];
+            targetPose = _currentPosition[slot];
+            targetYaw = _currentYaw[slot];
+
+            float alpha = GetGroupPoseAlpha(slot, now);
+            pose = Vector2.LerpUnclamped(_previousPosition[slot], targetPose, alpha);
+            yaw = Mathf.LerpAngle(_previousYaw[slot], targetYaw, alpha);
         }
 
         internal Span<int> BeginGroupMembershipWrite(uint groupId, int count, out int offset)

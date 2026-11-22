@@ -18,18 +18,18 @@ namespace ProjectGame.Core.Monsters
     public readonly struct MonsterPackedState
     {
         public readonly uint PackedPose;
-        public readonly byte PackedEvents;
+        public readonly ushort PackedEvents;
 
-        public byte AttackSequence => (byte)(PackedEvents >> 4);
-        public byte HitSequence => (byte)(PackedEvents & 0x0F);
+        public byte AttackSequence => (byte)(PackedEvents >> 8);
+        public byte HitSequence => (byte)PackedEvents;
 
         public MonsterPackedState(uint packedPose, byte attackSequence, byte hitSequence)
         {
             PackedPose = packedPose;
-            PackedEvents = (byte)(((attackSequence & 0x0F) << 4) | (hitSequence & 0x0F));
+            PackedEvents = (ushort)((attackSequence << 8) | hitSequence);
         }
 
-        public MonsterPackedState(uint packedPose, byte packedEvents)
+        public MonsterPackedState(uint packedPose, ushort packedEvents)
         {
             PackedPose = packedPose;
             PackedEvents = packedEvents;

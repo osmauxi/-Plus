@@ -29,6 +29,8 @@ namespace ProjectGame.Editor.Benchmarking
         private int _gamePort = LanEndpoint.DefaultGamePort;
         private int _singleMonsterCount = 10024;
         private bool _captureProfiler;
+        private bool _weaponStress = true;
+        private BenchmarkMonsterSpawnArea _monsterSpawnArea = BenchmarkMonsterSpawnArea.Automatic;
 
         [MenuItem("Tools/性能基准/双端性能测试")]
         public static void Open()
@@ -82,6 +84,16 @@ namespace ProjectGame.Editor.Benchmarking
                         "保存完整 Profiler 原始数据",
                         "仅在每轮被测前台角色的正式采样窗口内生成 profiler.raw；会产生额外开销，不能与普通轻量基线混用。"),
                     _captureProfiler);
+                _weaponStress = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "启用子弹压力武器",
+                        "使用低伤害、多弹丸、高穿透/反弹并带 MultiSplit + Shockwave 的 Benchmark 专用武器。"),
+                    _weaponStress);
+                _monsterSpawnArea = (BenchmarkMonsterSpawnArea)EditorGUILayout.EnumPopup(
+                    new GUIContent(
+                        "怪物生成范围",
+                        "Automatic 在 10024 怪时使用整图，其余档位沿用 Inspector 配置；也可以强制整图测试 8000 怪。"),
+                    _monsterSpawnArea);
 
                 GUILayout.Space(8f);
                 EditorGUILayout.HelpBox(
@@ -221,6 +233,8 @@ namespace ProjectGame.Editor.Benchmarking
                     StageTimeoutSeconds = _stageTimeoutSeconds,
                     BaseGamePort = (ushort)_gamePort,
                     CaptureProfiler = _captureProfiler,
+                    WeaponStress = _weaponStress,
+                    MonsterSpawnArea = _monsterSpawnArea,
                 },
                 cases);
         }
@@ -344,6 +358,8 @@ namespace ProjectGame.Editor.Benchmarking
         public float StageTimeoutSeconds;
         public ushort BaseGamePort;
         public bool CaptureProfiler;
+        public bool WeaponStress;
+        public BenchmarkMonsterSpawnArea MonsterSpawnArea;
     }
 
     internal static class BenchmarkPaths
@@ -582,6 +598,8 @@ namespace ProjectGame.Editor.Benchmarking
                 "-benchmark-host=127.0.0.1",
                 $"-benchmark-port={port}",
                 $"-benchmark-profiler={(_settings.CaptureProfiler ? 1 : 0)}",
+                $"-benchmark-weapon-stress={(_settings.WeaponStress ? 1 : 0)}",
+                $"-benchmark-spawn-area={FormatSpawnArea(_settings.MonsterSpawnArea)}",
                 $"-benchmark-result-root={Quote(BenchmarkPaths.ResultsRoot)}",
                 $"-benchmark-content-root={Quote(BenchmarkPaths.ContentRoot)}",
                 $"-logFile {Quote(logPath)}",
@@ -805,7 +823,7 @@ namespace ProjectGame.Editor.Benchmarking
                 File.ReadAllText(buildManifestPath));
             var metadata = new BenchmarkRunMetadata
             {
-                schemaVersion = 4,
+                schemaVersion = 5,
                 runId = _runId,
                 createdUtc = DateTime.UtcNow.ToString("O"),
                 unityVersion = Application.unityVersion,
@@ -823,6 +841,7 @@ namespace ProjectGame.Editor.Benchmarking
                 warmupSeconds = _settings.WarmupSeconds,
                 captureSeconds = _settings.CaptureSeconds,
                 monsterCounts = string.Join(",", Cases),
+                spawnArea = _settings.MonsterSpawnArea.ToString(),
                 executableSha256 = buildManifest.executableSha256,
                 contentCatalogHash = buildManifest.contentCatalogHash,
                 buildCreatedUtc = buildManifest.createdUtc,
@@ -868,6 +887,14 @@ namespace ProjectGame.Editor.Benchmarking
 
         private static string Quote(string value) => '"' + value.Replace("\"", "\\\"") + '"';
         private static string Format(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+        private static string FormatSpawnArea(BenchmarkMonsterSpawnArea area) => area switch
+        {
+            BenchmarkMonsterSpawnArea.Automatic => "automatic",
+            BenchmarkMonsterSpawnArea.Ring => "ring",
+            BenchmarkMonsterSpawnArea.Disc => "disc",
+            BenchmarkMonsterSpawnArea.WholeRoom => "whole-room",
+            _ => throw new ArgumentOutOfRangeException(nameof(area), area, "无效的怪物生成范围"),
+        };
     }
 
     [Serializable]
@@ -891,6 +918,7 @@ namespace ProjectGame.Editor.Benchmarking
         public float warmupSeconds;
         public float captureSeconds;
         public string monsterCounts;
+        public string spawnArea;
         public string executableSha256;
         public string contentCatalogHash;
         public string buildCreatedUtc;
@@ -1056,7 +1084,7 @@ namespace ProjectGame.Editor.Benchmarking
             summary.AppendLine($"- Player SHA-256：`{metadata?.executableSha256 ?? "不可用"}`");
             summary.AppendLine($"- Catalog 指纹：`{metadata?.contentCatalogHash ?? "不可用"}`");
             summary.AppendLine($"- 固定环境：{metadata?.resolution ?? "不可用"}，质量档 `{metadata?.quality ?? "不可用"}`，VSync `{metadata?.vSync.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`，目标帧率 `{metadata?.targetFrameRate.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`");
-            summary.AppendLine($"- 压测配置：怪物 {string.Join(" / ", cases)}，每档 {settings?.RepeatCount ?? 0} 次，Seed `{metadata?.seed.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`，预热 {settings?.WarmupSeconds ?? 0:F1}s，计划采样 {settings?.CaptureSeconds ?? 0:F1}s");
+            summary.AppendLine($"- 压测配置：怪物 {string.Join(" / ", cases)}，每档 {settings?.RepeatCount ?? 0} 次，Seed `{metadata?.seed.ToString(CultureInfo.InvariantCulture) ?? "不可用"}`，预热 {settings?.WarmupSeconds ?? 0:F1}s，计划采样 {settings?.CaptureSeconds ?? 0:F1}s，生成范围 `{metadata?.spawnArea ?? "不可用"}`");
             summary.AppendLine($"- 采样模式：`{metadata?.samplingMode ?? "不可用"}`；完整 Profiler：`{FormatBool(metadata?.captureProfiler == true)}`；缓存：`{metadata?.cacheMode ?? "不可用"}`；路线：`{metadata?.routeVersion ?? "不可用"}`");
             summary.AppendLine($"- “帧时”统计口径：{metadata?.frameTimeDefinition ?? "不可用"}；Main Thread 与 GPU Frame Time 是独立维度，不能相加为总帧耗时。");
             double captureMilliseconds = (settings?.CaptureSeconds ?? 0f) * 1000d;
@@ -1705,6 +1733,7 @@ namespace ProjectGame.Editor.Benchmarking
             if (current.seed != baseline.seed) mismatches.Add("随机种子");
             if (current.captureSeconds != baseline.captureSeconds) mismatches.Add("采样时长");
             if (current.monsterCounts != baseline.monsterCounts) mismatches.Add("怪物档位");
+            if (current.spawnArea != baseline.spawnArea) mismatches.Add("生怪范围");
             if (current.executableSha256 != baseline.executableSha256) mismatches.Add("Player 构建指纹");
             if (current.contentCatalogHash != baseline.contentCatalogHash) mismatches.Add("Catalog 指纹");
             if (current.samplingMode != baseline.samplingMode) mismatches.Add("采样模式");

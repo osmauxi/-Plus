@@ -4,6 +4,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Runtime;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -15,6 +16,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     [DisallowMultipleComponent]
     public sealed class MonsterViewRuntimeService : MonoBehaviour, IGameRuntimeService
     {
+        private static readonly ProfilerMarker ApplyAuthorityMarker =
+            new("Monster.View.ApplyAuthority");
+        private static readonly ProfilerMarker ApplyClientMarker =
+            new("Monster.View.ApplyClient");
+
         [SerializeField] private MonsterVATRenderProfileCatalog _profileCatalog;
 
         private MonsterRuntimeService _runtime;
@@ -79,7 +85,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void OnSpawnBatchReceived(MonsterSpawnBatch batch)
         {
             _viewWorld.ApplySpawnBatch(batch);
-            _viewWorld.ApplyReplica(_runtime.Replica, Time.unscaledTime);
+            _viewWorld.SyncReplica(_runtime.Replica, Time.unscaledTime);
         }
 
         private void OnPresentationFrameApplied(
@@ -90,15 +96,32 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
 
             if (GameNetworkRuntime.Gameplay.Transport.IsServer)
-                _viewWorld.ApplyReplica(_runtime.Replica, Time.unscaledTime);
+            {
+                using var applyScope = ApplyAuthorityMarker.Auto();
+                _viewWorld.SyncReplica(_runtime.Replica, Time.unscaledTime);
+            }
         }
 
         private void LateUpdate()
         {
-            if (!GameNetworkRuntime.Gameplay.Transport.IsServer)
-                _viewWorld.ApplyReplica(_runtime.Replica, Time.unscaledTime);
+            if (GameNetworkRuntime.Gameplay.Transport.IsServer)
+            {
+                _viewWorld.Update(
+                    _runtime.Replica,
+                    Time.deltaTime,
+                    Time.unscaledDeltaTime,
+                    Time.unscaledTime);
+                return;
+            }
 
-            _viewWorld.Update(Time.deltaTime, Time.unscaledDeltaTime);
+            using (ApplyClientMarker.Auto())
+            {
+                _viewWorld.Update(
+                    _runtime.Replica,
+                    Time.deltaTime,
+                    Time.unscaledDeltaTime,
+                    Time.unscaledTime);
+            }
         }
 
         private void HandleBeginContextRendering(ScriptableRenderContext context,List<Camera> cameras)

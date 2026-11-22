@@ -33,7 +33,7 @@ namespace ProjectGame.HotFix.Gameplay.Runtime
         [SerializeField, Range(0.05f, 1f)] private float _playerSpawnAreaScale = 0.2f;
         [SerializeField, Min(0f)] private float _playerSpawnMinimumSpacing = 2f;
         [SerializeField, Min(1)] private int _playerSpawnAttemptsPerPoint = 64;
-        [SerializeField, Min(0f)] private float _playerGroundOffset = 0.1f;
+        [SerializeField, Min(0f)] private float _playerGroundOffset = 0f;
 
         private NetworkManager _networkManager;
         private GameStateController _gameStateController;

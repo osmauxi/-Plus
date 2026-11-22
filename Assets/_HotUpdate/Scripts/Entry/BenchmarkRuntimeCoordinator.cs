@@ -8,6 +8,7 @@ using ProjectGame.HotFix.Gameplay.Monsters;
 using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using ProjectGame.HotFix.Gameplay.State;
+using ProjectGame.HotFix.Gameplay.Weapon;
 using ProjectGame.HotFix.Netcode;
 using ProjectGame.HotFix.SceneFlow;
 using ProjectGame.HotFix.UI.Lobby;
@@ -41,7 +42,8 @@ namespace ProjectGame.HotFix.Benchmarking
             {
                 MonsterNavigationStressTestManager.ConfigureBenchmark(
                     options.MonsterCount,
-                    options.RandomSeed);
+                    options.RandomSeed,
+                    options.MonsterSpawnArea);
 
                 await WaitUntilAsync(
                     () => LobbyUIManager.Instance != null &&
@@ -127,6 +129,17 @@ namespace ProjectGame.HotFix.Benchmarking
                 PlayerRuntime localPlayer = PlayerManager.Instance?.LocalPlayer;
                 if (localPlayer == null)
                     throw new InvalidOperationException("找不到本地 PlayerRuntime。");
+
+                if (options.WeaponStress)
+                {
+                    PlayerWeaponController weapon = localPlayer.GetComponent<PlayerWeaponController>();
+                    WeaponRuntimeService.Instance.ConfigureBenchmarkStressWeapon(weapon);
+                    BenchmarkFileProtocol.WriteStatus(
+                        options,
+                        "weapon-stress-configured",
+                        "已启用 Benchmark 子弹压力武器：8 发/枪，高穿透、高反弹、MultiSplit + Shockwave");
+                }
+
                 BenchmarkMovementDriver movement =
                     localPlayer.GetComponent<BenchmarkMovementDriver>() ??
                     localPlayer.gameObject.AddComponent<BenchmarkMovementDriver>();

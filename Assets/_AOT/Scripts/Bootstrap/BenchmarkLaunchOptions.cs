@@ -14,6 +14,14 @@ namespace ProjectGame.Bootstrap
         Client = 2,
     }
 
+    public enum BenchmarkMonsterSpawnArea : byte
+    {
+        Automatic = 0,
+        Ring = 1,
+        Disc = 2,
+        WholeRoom = 3,
+    }
+
     public static class BenchmarkProcessFocus
     {
 #if UNITY_STANDALONE_WIN
@@ -164,7 +172,10 @@ namespace ProjectGame.Bootstrap
         public float WarmupSeconds { get; private set; } = 5f;
         public float CaptureSeconds { get; private set; } = 30f;
         public float StageTimeoutSeconds { get; private set; } = 120f;
+        public BenchmarkMonsterSpawnArea MonsterSpawnArea { get; private set; } =
+            BenchmarkMonsterSpawnArea.Automatic;
         public bool CaptureProfiler { get; private set; }
+        public bool WeaponStress { get; private set; }
         public string HostAddress { get; private set; } = "127.0.0.1";
         public ushort GamePort { get; private set; } = LanEndpoint.DefaultGamePort;
         public string ResultRoot { get; private set; } = string.Empty;
@@ -274,7 +285,9 @@ namespace ProjectGame.Bootstrap
             options.WarmupSeconds = ReadFloat(values, "benchmark-warmup", options.WarmupSeconds, 0f, 3600f);
             options.CaptureSeconds = ReadFloat(values, "benchmark-duration", options.CaptureSeconds, 1f, 3600f);
             options.StageTimeoutSeconds = ReadFloat(values, "benchmark-timeout", options.StageTimeoutSeconds, 10f, 3600f);
+            options.MonsterSpawnArea = ReadSpawnArea(values);
             options.CaptureProfiler = ReadInt(values, "benchmark-profiler", 0, 0, 1) == 1;
+            options.WeaponStress = ReadInt(values, "benchmark-weapon-stress", 0, 0, 1) == 1;
             options.HostAddress = Read(values, "benchmark-host", options.HostAddress).Trim();
             options.GamePort = checked((ushort)ReadInt(
                 values,
@@ -295,6 +308,22 @@ namespace ProjectGame.Bootstrap
 
             Directory.CreateDirectory(options.RoleResultDirectory);
             return options;
+        }
+
+        private static BenchmarkMonsterSpawnArea ReadSpawnArea(
+            IReadOnlyDictionary<string, string> values)
+        {
+            string raw = Read(values, "benchmark-spawn-area", "automatic")
+                .Trim()
+                .ToLowerInvariant();
+            return raw switch
+            {
+                "automatic" => BenchmarkMonsterSpawnArea.Automatic,
+                "ring" => BenchmarkMonsterSpawnArea.Ring,
+                "disc" => BenchmarkMonsterSpawnArea.Disc,
+                "whole-room" => BenchmarkMonsterSpawnArea.WholeRoom,
+                _ => throw new ArgumentException($"无效 benchmark spawn area：{raw}"),
+            };
         }
 
         private static string Require(IReadOnlyDictionary<string, string> values, string key)

@@ -245,6 +245,19 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             ResetSnapshotBaseline();
         }
 
+        public void RefillWeaponForBenchmark()
+        {
+            if (!_initialized)
+                throw new InvalidOperationException("玩家模拟尚未初始化。");
+            _simulation.RefillWeaponForBenchmark();
+            uint tick = _simulationClock.CurrentTick;
+            PlayerSimulationState state = _simulation.CaptureState(tick);
+            _serverAuthority?.Reset(state);
+            _prediction?.Reset(tick);
+            _remoteInterpolation?.Reset();
+            ResetSnapshotBaseline();
+        }
+
         /// <summary>当前体力相对最大体力的 0~1 比例 </summary>
         public float NormalizedStamina => _simulation?.NormalizedStamina ?? 0f;
 

@@ -79,4 +79,18 @@ namespace ProjectGame.HotFix.Gameplay.Events
             WorldCamera = worldCamera;
         }
     }
+
+    /// <summary>
+    /// 用于把屏幕指针转换为 Gameplay Aim 射线的稳定参考相机。
+    /// 它不参与渲染，也不包含 Aim LookAhead 构图，避免输入射线与镜头构图互相反馈。
+    /// </summary>
+    public readonly struct GameplayAimReferenceCameraChangedEvent : ILocalEvent
+    {
+        public readonly Camera AimReferenceCamera;
+
+        public GameplayAimReferenceCameraChangedEvent(Camera aimReferenceCamera)
+        {
+            AimReferenceCamera = aimReferenceCamera;
+        }
+    }
 }

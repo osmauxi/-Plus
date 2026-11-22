@@ -54,6 +54,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             ushort snapshotVersion)
             => _locomotion.ConfigureWeaponRuntime(stats, effectSetId, snapshotVersion);
 
+        public void RefillWeaponForBenchmark()
+            => _locomotion.RefillWeaponForBenchmark();
+
         /// <summary>当前体力相对最大体力的 0~1 比例 </summary>
         public float NormalizedStamina => _locomotion.NormalizedStamina;
 

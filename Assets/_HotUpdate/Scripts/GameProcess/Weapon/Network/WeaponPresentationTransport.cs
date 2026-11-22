@@ -4,6 +4,7 @@ using ProjectGame.HotFix.Gameplay.Network;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using Unity.Profiling;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 {
@@ -23,10 +24,17 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
     /// </summary>
     public sealed class WeaponPresentationTransport
     {
-        private const string FrameMessageName = "PG.Weapon.Presentation.Frame";
+        private const byte UnnamedChannel = 0x80;
+        private const string FrameStatsName = "PG.Weapon.Presentation.Frame";
         private const int WriterInitialCapacity = 1024;
         private const int WriterMaxCapacity = 64 * 1024;
         private const int MaxEventsPerFrame = 4096;
+        private const int MaxEventsPerMessage = 128;
+
+        private static readonly ProfilerMarker SendChunkMarker =
+            new("Weapon.Network.Presentation.SendChunk");
+        private static readonly ProfilerMarker SendUnnamedMessageMarker =
+            new("Weapon.Network.Presentation.SendUnnamedMessage");
 
         private readonly NetworkMessageTransport _transport;
         private IWeaponPresentationReceiver _receiver;
@@ -49,7 +57,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
             if (_transport.IsClient)
             {
-                _transport.RegisterHandler(FrameMessageName, OnFrameReceived);
+                _transport.RegisterUnnamedHandler(UnnamedChannel, OnFrameReceived);
                 _registeredHandler = true;
             }
 
@@ -62,7 +70,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 return;
 
             if (_registeredHandler && _transport.IsInitialized)
-                _transport.UnregisterHandler(FrameMessageName);
+                _transport.UnregisterUnnamedHandler(UnnamedChannel);
 
             _registeredHandler = false;
             _receiver = null;
@@ -88,35 +96,106 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             ValidateCount(removed?.Count ?? 0, nameof(removed));
             ValidateCount(specialEffects?.Count ?? 0, nameof(specialEffects));
 
-            using FastBufferWriter writer = new(
-                WriterInitialCapacity, Allocator.Temp, WriterMaxCapacity);
+            int shotIndex = 0;
+            int spawnIndex = 0;
+            int impactIndex = 0;
+            int removedIndex = 0;
+            int specialEffectIndex = 0;
+            int shotTotal = shots?.Count ?? 0;
+            int spawnTotal = spawns?.Count ?? 0;
+            int impactTotal = impacts?.Count ?? 0;
+            int removedTotal = removed?.Count ?? 0;
+            int specialEffectTotal = specialEffects?.Count ?? 0;
 
-            writer.WriteValueSafe(serverTick);
-            WriteCount(writer, shots?.Count ?? 0);
-            WriteCount(writer, spawns?.Count ?? 0);
-            WriteCount(writer, impacts?.Count ?? 0);
-            WriteCount(writer, removed?.Count ?? 0);
-            WriteCount(writer, specialEffects?.Count ?? 0);
+            while (shotIndex < shotTotal || spawnIndex < spawnTotal ||
+                   impactIndex < impactTotal || removedIndex < removedTotal ||
+                   specialEffectIndex < specialEffectTotal)
+            {
+                int remaining = MaxEventsPerMessage;
+                int shotCount = Math.Min(shotTotal - shotIndex, remaining);
+                remaining -= shotCount;
+                int spawnCount = Math.Min(spawnTotal - spawnIndex, remaining);
+                remaining -= spawnCount;
+                int impactCount = Math.Min(impactTotal - impactIndex, remaining);
+                remaining -= impactCount;
+                int removedCount = Math.Min(removedTotal - removedIndex, remaining);
+                remaining -= removedCount;
+                int specialEffectCount = Math.Min(specialEffectTotal - specialEffectIndex, remaining);
 
-            if (shots != null)
-                for (int i = 0; i < shots.Count; i++) WriteShot(writer, shots[i]);
-            if (spawns != null)
-                for (int i = 0; i < spawns.Count; i++) WriteSpawn(writer, spawns[i]);
-            if (impacts != null)
-                for (int i = 0; i < impacts.Count; i++) WriteImpact(writer, impacts[i]);
-            if (removed != null)
-                for (int i = 0; i < removed.Count; i++) WriteProjectile(writer, removed[i]);
-            if (specialEffects != null)
-                for (int i = 0; i < specialEffects.Count; i++)
-                    WriteSpecialEffectVfx(writer, specialEffects[i]);
+                SendFrameChunk(
+                    targetClientId,
+                    serverTick,
+                    shots,
+                    shotIndex,
+                    shotCount,
+                    spawns,
+                    spawnIndex,
+                    spawnCount,
+                    impacts,
+                    impactIndex,
+                    impactCount,
+                    removed,
+                    removedIndex,
+                    removedCount,
+                    specialEffects,
+                    specialEffectIndex,
+                    specialEffectCount);
 
-            _transport.SendToClient(
-                targetClientId,
-                FrameMessageName,
-                writer,
-                specialEffects != null && specialEffects.Count > 0
-                    ? NetworkDeliveryClass.ReliableEvent
-                    : NetworkDeliveryClass.UnreliableEvent);
+                shotIndex += shotCount;
+                spawnIndex += spawnCount;
+                impactIndex += impactCount;
+                removedIndex += removedCount;
+                specialEffectIndex += specialEffectCount;
+            }
+        }
+
+        private void SendFrameChunk(
+            ulong targetClientId,
+            uint serverTick,
+            IReadOnlyList<ShotContext> shots,
+            int shotIndex,
+            int shotCount,
+            IReadOnlyList<ProjectileSpawn> spawns,
+            int spawnIndex,
+            int spawnCount,
+            IReadOnlyList<ProjectileImpact> impacts,
+            int impactIndex,
+            int impactCount,
+            IReadOnlyList<ProjectileState> removed,
+            int removedIndex,
+            int removedCount,
+            IReadOnlyList<WeaponSpecialVfxEvent> specialEffects,
+            int specialEffectIndex,
+            int specialEffectCount)
+        {
+            using (SendChunkMarker.Auto())
+            using (FastBufferWriter writer = new(
+                WriterInitialCapacity, Allocator.Temp, WriterMaxCapacity))
+            {
+                writer.TryBeginWrite(1);
+                writer.WriteByte(UnnamedChannel);
+                writer.WriteValueSafe(serverTick);
+                WriteCount(writer, shotCount);
+                WriteCount(writer, spawnCount);
+                WriteCount(writer, impactCount);
+                WriteCount(writer, removedCount);
+                WriteCount(writer, specialEffectCount);
+
+                for (int i = 0; i < shotCount; i++) WriteShot(writer, shots[shotIndex + i]);
+                for (int i = 0; i < spawnCount; i++) WriteSpawn(writer, spawns[spawnIndex + i]);
+                for (int i = 0; i < impactCount; i++) WriteImpact(writer, impacts[impactIndex + i]);
+                for (int i = 0; i < removedCount; i++)
+                    WriteProjectile(writer, removed[removedIndex + i]);
+                for (int i = 0; i < specialEffectCount; i++)
+                    WriteSpecialEffectVfx(writer, specialEffects[specialEffectIndex + i]);
+
+                using (SendUnnamedMessageMarker.Auto())
+                    _transport.SendUnnamedToClient(
+                        targetClientId,
+                        FrameStatsName,
+                        writer,
+                        NetworkDeliveryClass.ReliableFragmentedEvent);
+            }
         }
 
         private void OnFrameReceived(ulong senderClientId, FastBufferReader reader)

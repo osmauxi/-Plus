@@ -6,6 +6,7 @@ using ProjectGame.HotFix.Gameplay.Network;
 using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Pooling;
 using ProjectGame.HotFix.Gameplay.Runtime;
+using Unity.Profiling;
 using UnityEngine;
 using RuntimeLocalObjectPool = ProjectGame.HotFix.Gameplay.Pooling.LocalObjectPool;
 
@@ -19,9 +20,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
     public sealed class WeaponPresentationService : MonoBehaviour,
         IGameRuntimeService, IWeaponPresentationReceiver
     {
+        private static readonly ProfilerMarker ImpactVfxMarker =
+            new("Weapon.Presentation.ImpactVfx");
+
         [SerializeField] private string _projectilePoolId = "Bullet";
         [SerializeField] private string _worldImpactVfxPoolId = "VFX_OnHit";
         [SerializeField] private string _targetImpactVfxPoolId = "HitBlood";
+        [SerializeField, Min(1)] private int _maximumWorldImpactVfx = 64;
+        [SerializeField, Min(1)] private int _maximumTargetImpactVfx = 256;
         [SerializeField, Min(0.1f)] private float _tombstoneLifetime = 1f;
         [SerializeField, Range(0, 8)] private int _maximumFastForwardTicks = 4;
 
@@ -73,6 +79,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 _objectPool.PreparePoolAsync(_projectilePoolId, cancellationToken),
                 _vfxPool.PreparePoolAsync(_worldImpactVfxPoolId, cancellationToken),
                 _vfxPool.PreparePoolAsync(_targetImpactVfxPoolId, cancellationToken));
+
+            _vfxPool.EnsurePoolCapacity(_worldImpactVfxPoolId, _maximumWorldImpactVfx);
+            _vfxPool.EnsurePoolCapacity(_targetImpactVfxPoolId, _maximumTargetImpactVfx);
 
             _transport = new WeaponPresentationTransport(_network.Transport);
             _transport.Initialize(this);
@@ -247,15 +256,24 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 _tombstones[key] = Time.unscaledTime + _tombstoneLifetime;
             }
 
-            string poolId = impact.HasTarget ? _targetImpactVfxPoolId : _worldImpactVfxPoolId;
-            Quaternion rotation = impact.Normal.sqrMagnitude > 0.000001f
-                ? Quaternion.LookRotation(impact.Normal.normalized, Vector3.up)
-                : Quaternion.identity;
-            _vfxPool.Play(
-                poolId,
-                impact.Point,
-                rotation,
-                impact.HasTarget ? impact.VfxWeight : impact.Projectile.SizeMultiplier);
+            using (ImpactVfxMarker.Auto())
+            {
+                string poolId = impact.HasTarget ? _targetImpactVfxPoolId : _worldImpactVfxPoolId;
+                int maximumActiveVfx = impact.HasTarget
+                    ? _maximumTargetImpactVfx
+                    : _maximumWorldImpactVfx;
+                if (_vfxPool.GetPoolPlayingCount(poolId) >= maximumActiveVfx)
+                    return;
+
+                Quaternion rotation = impact.Normal.sqrMagnitude > 0.000001f
+                    ? Quaternion.LookRotation(impact.Normal.normalized, Vector3.up)
+                    : Quaternion.identity;
+                _vfxPool.Play(
+                    poolId,
+                    impact.Point,
+                    rotation,
+                    impact.HasTarget ? impact.VfxWeight : impact.Projectile.SizeMultiplier);
+            }
         }
 
         public void ReceiveProjectileRemoved(in ProjectileState projectile)

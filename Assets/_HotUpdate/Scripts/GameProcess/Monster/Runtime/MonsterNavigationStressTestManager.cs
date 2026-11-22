@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using ProjectGame.Bootstrap;
 using ProjectGame.HotFix.Core.Events;
 using ProjectGame.HotFix.Gameplay.Map.Generation;
 using ProjectGame.HotFix.Gameplay.Map.View;
@@ -35,6 +36,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private static bool _hasBenchmarkOverride;
         private static int _benchmarkMonsterCount;
         private static int _benchmarkSeed;
+        private static BenchmarkMonsterSpawnArea _benchmarkSpawnArea =
+            BenchmarkMonsterSpawnArea.Automatic;
 
         [Header("运行依赖")]
         [Tooltip("用于从压测布局的 StartRoomId 获取已经实例化的 RoomView。")]
@@ -99,6 +102,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         [Tooltip("同一批次内两个出生点的最小世界距离。设为 0 可故意制造高密度重叠压力。")]
         [SerializeField, Min(0f)] private float _minimumSpawnSpacing = 0.5f;
 
+        [Tooltip("压测出生点与所有已生成玩家的最小世界距离，避免开局直接把玩家包围。")]
+        [SerializeField, Min(0f)] private float _minimumPlayerSpawnDistance = 18f;
+
         [Tooltip("每只怪物寻找合法 Ground 点时的最大随机尝试次数。")]
         [SerializeField, Min(1)] private int _spawnAttemptsPerMonster = 48;
 
@@ -134,11 +140,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private ushort _resolvedMonsterConfigIndex;
         private bool _ownsMonsterRoom;
         private bool _useGlobalSpawnSpacing;
+        private MonsterStressSpawnArea _configuredSpawnArea;
 
         public bool IsRunning => _ownsMonsterRoom;
         public int TotalSpawned => _totalSpawned;
 
-        public static void ConfigureBenchmark(int monsterCount, int randomSeed)
+        private void Awake()
+        {
+            _configuredSpawnArea = _spawnArea;
+        }
+
+        public static void ConfigureBenchmark(
+            int monsterCount,
+            int randomSeed,
+            BenchmarkMonsterSpawnArea spawnArea)
         {
             if (monsterCount < 1)
                 throw new ArgumentOutOfRangeException(nameof(monsterCount));
@@ -146,6 +161,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _hasBenchmarkOverride = true;
             _benchmarkMonsterCount = monsterCount;
             _benchmarkSeed = randomSeed;
+            _benchmarkSpawnArea = spawnArea;
         }
 
         private void OnEnable()
@@ -199,6 +215,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _maintainTargetAliveCount = false;
             _spawnBatchSize = Math.Min(512, _benchmarkMonsterCount);
             _seedOffset = _benchmarkSeed;
+            _spawnArea = _benchmarkSpawnArea switch
+            {
+                BenchmarkMonsterSpawnArea.Automatic => _configuredSpawnArea,
+                BenchmarkMonsterSpawnArea.Ring => MonsterStressSpawnArea.Ring,
+                BenchmarkMonsterSpawnArea.Disc => MonsterStressSpawnArea.Disc,
+                BenchmarkMonsterSpawnArea.WholeRoom => MonsterStressSpawnArea.WholeRoomSpawnRegion,
+                _ => throw new ArgumentOutOfRangeException(nameof(_benchmarkSpawnArea), _benchmarkSpawnArea, "无效的 Benchmark 生怪范围"),
+            };
         }
 
         private void HandleMapClearing(MapRuntimeClearingEvent mapEvent)
@@ -327,7 +351,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _maximumTotalSpawnCount);
             _totalSpawned = 0;
             _activeSpawnRadius = _spawnRadius;
-            _useGlobalSpawnSpacing = _maximumTotalSpawnCount >= 10024;
+            if (_benchmarkSpawnArea == BenchmarkMonsterSpawnArea.Automatic &&
+                _maximumTotalSpawnCount >= 10024)
+                _spawnArea = MonsterStressSpawnArea.WholeRoomSpawnRegion;
+
+            _useGlobalSpawnSpacing = _spawnArea == MonsterStressSpawnArea.WholeRoomSpawnRegion;
             if (_useGlobalSpawnSpacing)
             {
                 // 10024 怪不能继续挤在固定 150 米环带中；使用整个房间后，
@@ -361,6 +389,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                         if (!TryRaycastGround(region, candidate.x, candidate.z, out Vector3 ground) ||
                             Mathf.Abs(ground.y - groundY) > _groundHeightTolerance ||
+                            !HasPlayerClearance(ground) ||
                             !HasMinimumSpacing(ground, spacingSqr))
                         {
                             continue;
@@ -572,6 +601,25 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return true;
         }
 
+        private bool HasPlayerClearance(Vector3 candidate)
+        {
+            float clearanceSqr = _minimumPlayerSpawnDistance * _minimumPlayerSpawnDistance;
+            if (clearanceSqr <= 0f)
+                return true;
+
+            IReadOnlyList<PlayerRuntime> players = PlayerManager.Instance.RuntimePlayers;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerRuntime player = players[i];
+                Vector3 delta = candidate - player.transform.position;
+                delta.y = 0f;
+                if (delta.sqrMagnitude < clearanceSqr)
+                    return false;
+            }
+
+            return true;
+        }
+
         private ushort ResolveMonsterConfigIndex()
         {
             MonsterCatalogBundle catalogs = _monsterRuntimeService.Catalogs;
@@ -646,6 +694,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 !IsPositiveFinite(_spawnRadius) ||
                 !IsNonNegativeFinite(_ringThickness) ||
                 !IsNonNegativeFinite(_minimumSpawnSpacing) ||
+                !IsNonNegativeFinite(_minimumPlayerSpawnDistance) ||
                 !IsNonNegativeFinite(_groundHeightTolerance) ||
                 !IsNonNegativeFinite(_raycastPadding))
             {

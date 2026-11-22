@@ -106,6 +106,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return true;
         }
 
+        /// <summary>
+        /// 压测模式只记录命中表现，不改变生命值和存活状态。
+        /// </summary>
+        public bool RecordHit(int slot)
+        {
+            if (!IsActive(slot))
+                return false;
+
+            _presentation[slot].HitSequence++;
+            return true;
+        }
+
         public bool TryGetPosition(int slot, out Vector2 position)
         {
             if (!IsActive(slot))

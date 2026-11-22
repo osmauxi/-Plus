@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ProjectGame.HotFix.Gameplay.Player;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
@@ -10,6 +11,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
     [DisallowMultipleComponent]
     public sealed class WeaponSpecialEffectVfxPlayer : MonoBehaviour
     {
+        private static readonly ProfilerMarker PlayMarker =
+            new("Weapon.Presentation.SpecialVfx.Play");
+        private static readonly ProfilerMarker UpdateMarker =
+            new("Weapon.Presentation.SpecialVfx.Update");
+
         private sealed class TimedRing
         {
             public GameObject Root;
@@ -56,40 +62,46 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         public void Play(in WeaponSpecialVfxEvent effect)
         {
-            EnsureMaterials();
-            switch (effect.Type)
+            using (PlayMarker.Auto())
             {
-                case WeaponSpecialVfxType.Execution:
-                    PlayExecution(effect.Position, effect.Radius, effect.Duration);
-                    break;
-                case WeaponSpecialVfxType.Shockwave:
-                    PlayShockwave(effect.Position, effect.Radius, effect.Duration);
-                    break;
-                case WeaponSpecialVfxType.RadiationArea:
-                    UpsertRadiationArea(effect);
-                    break;
-                case WeaponSpecialVfxType.KineticBoost:
-                    PlayKineticBoost(effect.Position, effect.Radius);
-                    break;
-                case WeaponSpecialVfxType.StormCloudStart:
-                    StartStormCloud(effect.OwnerEntityId, effect.Radius);
-                    break;
-                case WeaponSpecialVfxType.StormCloudStop:
-                    StopStormCloud(effect.OwnerEntityId);
-                    break;
-                case WeaponSpecialVfxType.LightningArc:
-                    PlayLightningArc(effect);
-                    break;
+                EnsureMaterials();
+                switch (effect.Type)
+                {
+                    case WeaponSpecialVfxType.Execution:
+                        PlayExecution(effect.Position, effect.Radius, effect.Duration);
+                        break;
+                    case WeaponSpecialVfxType.Shockwave:
+                        PlayShockwave(effect.Position, effect.Radius, effect.Duration);
+                        break;
+                    case WeaponSpecialVfxType.RadiationArea:
+                        UpsertRadiationArea(effect);
+                        break;
+                    case WeaponSpecialVfxType.KineticBoost:
+                        PlayKineticBoost(effect.Position, effect.Radius);
+                        break;
+                    case WeaponSpecialVfxType.StormCloudStart:
+                        StartStormCloud(effect.OwnerEntityId, effect.Radius);
+                        break;
+                    case WeaponSpecialVfxType.StormCloudStop:
+                        StopStormCloud(effect.OwnerEntityId);
+                        break;
+                    case WeaponSpecialVfxType.LightningArc:
+                        PlayLightningArc(effect);
+                        break;
+                }
             }
         }
 
         private void Update()
         {
-            float now = Time.unscaledTime;
-            UpdateRings(now);
-            UpdateTimedObjects(now);
-            UpdateAreas(now);
-            UpdateClouds();
+            using (UpdateMarker.Auto())
+            {
+                float now = Time.unscaledTime;
+                UpdateRings(now);
+                UpdateTimedObjects(now);
+                UpdateAreas(now);
+                UpdateClouds();
+            }
         }
 
         private void PlayExecution(Vector3 position, float radius, float duration)

@@ -34,6 +34,8 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
         [Header("场景引用")]
         [Tooltip("输出最终画面的世界相机，必须带有 CinemachineBrain 为空时会尝试使用 Main Camera ")]
         [SerializeField] private Camera _worldCamera;
+        [Tooltip("不参与渲染的 Aim 射线参考相机，运行时自动创建")]
+        [SerializeField] private Camera _aimReferenceCamera;
         [Tooltip("本控制器驱动的 Cinemachine 虚拟相机 为空时会在子节点中查找 ")]
         [SerializeField] private CinemachineVirtualCamera _virtualCamera;
         [Tooltip("承载 Follow 位置与 Yaw 的代理节点；为空时运行时自动创建 ")]
@@ -291,8 +293,7 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
 
             IsInitialized = true;
 
-            // 输入驱动器只观察最终世界相机，不需要认识本控制器或 Cinemachine 
-            LocalEvents.Publish(new GameplayWorldCameraChangedEvent(_worldCamera));
+            PublishCameraBindings();
             LocalEvents.Publish<GameplayCameraServiceReadyEvent>();
 
             Debug.Log($"[{nameof(PlayerCameraController)}] 初始化完成 ", this);
@@ -304,6 +305,10 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
         {
             if (!IsInitialized)
                 return;
+
+            // Aim 射线使用不带最终构图偏移的稳定基础姿态。
+            // 在本帧玩家输入采样前更新，避免渲染镜头反过来改变 Aim 结果。
+            UpdateAimReferenceCamera();
 
             Keyboard keyboard = Keyboard.current;
 
@@ -448,8 +453,8 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             ResolveActiveRequest(eventData.Snap);
 
             // 新实例的 Input Driver 可能晚于 Camera Service 初始化才 Awake；目标绑定时重发一次
-            // 世界相机，使对象池创建顺序不影响观察者接线 
-            LocalEvents.Publish(new GameplayWorldCameraChangedEvent(_worldCamera));
+            // 相机绑定，使对象池创建顺序不影响观察者接线。
+            PublishCameraBindings();
         }
 
         private void HandleTargetReleased(GameplayCameraTargetReleasedEvent eventData)
@@ -676,6 +681,67 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
 
             if (_lookAtPivot == null)
                 _lookAtPivot = CreatePivot("LookAtPivot");
+
+            ResolveAimReferenceCamera();
+        }
+
+        private void ResolveAimReferenceCamera()
+        {
+            if (_aimReferenceCamera != null)
+                return;
+
+            GameObject referenceObject = new("AimReferenceCamera");
+            referenceObject.transform.SetParent(transform, false);
+
+            _aimReferenceCamera = referenceObject.AddComponent<Camera>();
+            _aimReferenceCamera.CopyFrom(_worldCamera);
+            _aimReferenceCamera.enabled = false;
+            _aimReferenceCamera.cullingMask = 0;
+            _aimReferenceCamera.tag = "Untagged";
+        }
+
+        private void PublishCameraBindings(bool clear = false)
+        {
+            LocalEvents.Publish(
+                new GameplayWorldCameraChangedEvent(clear ? null : _worldCamera));
+            LocalEvents.Publish(
+                new GameplayAimReferenceCameraChangedEvent(
+                    clear ? null : _aimReferenceCamera));
+        }
+
+        private void UpdateAimReferenceCamera()
+        {
+            if (_aimReferenceCamera == null)
+                return;
+
+            _aimReferenceCamera.CopyFrom(_worldCamera);
+            _aimReferenceCamera.enabled = false;
+            _aimReferenceCamera.cullingMask = 0;
+
+            if (!HasTarget)
+            {
+                _aimReferenceCamera.transform.SetPositionAndRotation(
+                    _worldCamera.transform.position,
+                    _worldCamera.transform.rotation);
+                return;
+            }
+
+            Vector3 followPosition = ResolveFollowPosition(_activeRequest);
+            Vector3 lookAtPosition = ResolveLookAtPosition(_activeRequest);
+            Quaternion yawRotation = Quaternion.Euler(0f, _motion.CurrentYaw, 0f);
+            float height = _motion.CurrentViewHeight;
+            float distance = height * _distanceToHeightRatio;
+
+            Vector3 cameraPosition = followPosition +
+                yawRotation * new Vector3(0f, height, -distance);
+            Vector3 lookDirection = lookAtPosition - cameraPosition;
+
+            if (lookDirection.sqrMagnitude <= 0.000001f)
+                lookDirection = yawRotation * Vector3.forward;
+
+            _aimReferenceCamera.transform.SetPositionAndRotation(
+                cameraPosition,
+                Quaternion.LookRotation(lookDirection, Vector3.up));
         }
 
         private void ResolveCinemachinePipeline()
@@ -851,10 +917,7 @@ namespace ProjectGame.HotFix.Gameplay.CameraSystem
             }
 
             if (IsInitialized)
-            {
-                LocalEvents.Publish(
-                    new GameplayWorldCameraChangedEvent(null));
-            }
+                PublishCameraBindings(clear: true);
 
             IsInitialized = false;
 

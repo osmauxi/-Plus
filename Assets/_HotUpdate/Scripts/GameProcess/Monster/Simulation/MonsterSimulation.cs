@@ -22,11 +22,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private int _lastCostVersion = -1;
         private int _lastTopologyReferenceCostVersion = -1;
         //Source变化触发重建的最小间隔
-        private const uint SourceRebuildIntervalTicks = 12;
+        private const uint SourceRebuildIntervalTicks = 6;
         //Source变化允许的最大过期时间，超过这个时间就强制重建FlowField
-        private const uint SourceMaxStaleTicks = 24;
+        private const uint SourceMaxStaleTicks = 12;
         //Source允许最大的距离变化，超过这个距离就强制重建FlowField
-        private const int SourceRebuildDistanceCells = 2;
+        private const int SourceRebuildDistanceCells = 1;
         //Cost变化触发重建的最小间隔
         private const uint CostRebuildIntervalTicks = 30;
 

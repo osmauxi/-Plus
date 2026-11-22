@@ -931,6 +931,7 @@ Player 与 Addressables 构建一次；每个档位、每次重复依次执行 H
 23. [x] BenchmarkWindow 增加“单独测试怪物档位”入口，默认值为 10024，可使用现有 Player 单独执行一档、一次或多次重复，不影响默认 1024/2048/5012 三档流程。
 24. [x] `20261102-162632-abbe17b0` 完成 10024 怪单档双前台测试：Host/Client 均有效，权威存活、Replica 槽位和 View 槽位均为 10024/10024/10024；完整 Profiler 未开启，但轻量 metrics、frames、markers 和工作负载校验完整。
 25. [x] 10024 怪物生怪策略改为自动使用整个 StressArena SpawnRegion，并跨 SpawnBatch 保持最小出生间距；修复前 `20261102-161019-c8ec257b` 虽生成到 10024，但固定 150 米环带造成 JobTempAlloc/管线排队且未落盘有效 metrics，修复后 Area=WholeRoomSpawnRegion 并成功完成采样。
+26. [x] BenchmarkWindow 增加怪物生成范围枚举 `Automatic / Ring / Disc / WholeRoom`，默认保持 Automatic。显式选择 WholeRoom 后，8000 等中间档位也会使用整图随机生成，并在 `run-metadata.json` 与汇总中记录生成范围，防止和环形分布基线混用。对比 8000 怪时，将“单独测试怪物数”填为 `8000`，生成范围选择 `WholeRoom`，再使用“构建并运行双端基准测试”生成包含新 AOT 启动参数的 Player。
 
 ### 5.1 前台焦点对同机双端结果的影响
 

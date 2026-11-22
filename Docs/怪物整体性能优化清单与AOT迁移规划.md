@@ -758,3 +758,94 @@ Monster.Presentation.GroupCapture.CopyLoop
 迁移前 `GroupCapture` 约 1.1～1.25 ms/帧，本轮实际成员复制约 0.05～0.08 ms/帧；`PublishGroups` 从约 2.4～2.6 ms/帧降到约 0.57～0.80 ms/帧。网络发送仍约 570～585 KiB/s、1246～1261 条消息/s，说明只减少了重复量化和状态读取，没有改变网络内容。
 
 三轮 Host 都保持 10024 存活、Client Replica/View 完整，Tick/渲染帧比例稳定，没有重新出现 Tick backlog。下一阶段进入 Client Apply 或单独验证 `SendUnnamedMessage` 固定 GC，二者不再与 Host Pack 混合修改。
+
+### 11.11 View Apply Marker 复测结果
+
+为了拆开 `Monster.Replication.ApplyLocal` 的内部成本，本轮只增加 View 层 Marker，没有改变逻辑：
+
+```text
+Monster.View.ApplyAuthority
+└─ Monster.View.ApplyReplica
+   └─ Monster.View.ApplyReplica.Loop
+```
+
+10024 怪三次轻量压测 `20261121-035257-1059b50c` 的结果：
+
+| 角色 | Marker | 重复 1 | 重复 2 | 重复 3 |
+|---|---|---:|---:|---:|
+| Host | `ApplyAuthority` | 1.301 ms/帧 | 1.495 ms/帧 | 1.461 ms/帧 |
+| Host | `ApplyReplica.Loop` | 1.300 ms/帧 | 1.494 ms/帧 | 1.460 ms/帧 |
+| Client | `ApplyClient` | 5.061 ms/帧 | 5.015 ms/帧 | 5.057 ms/帧 |
+| Client | `ApplyReplica.Loop` | 5.060 ms/帧 | 5.013 ms/帧 | 5.055 ms/帧 |
+
+Client 每个渲染帧都执行一次 10024 Slot 的 View Apply，约 5 ms/帧，是当前表现层最明确的热点。Host 每次完整帧回调约 1.3～1.5 ms/帧，属于第二个直接收益点。下一轮应优先维护 Replica 的活跃 Slot 列表，并将 `GetState + ApplyState` 改为 AOT 批量读取，保持 VAT 插值和攻击/受击事件语义不变。
+
+### 11.12 View Apply 微优化复测结论
+
+对 `MonsterVATRenderWorld.SetPose` 的移动判定尝试用平方距离替代 `Vector2.Distance + 除法`，重新压测后没有得到可重复收益：Client `ApplyReplica.Loop` 从上一轮约 5.01～5.06 ms/帧变为约 5.27～5.44 ms/帧，Host 结果也只表现为波动。该改动已回退，不作为后续方案。
+
+下一阶段改为结构性优化：网络包到达时更新 VAT 实例的上一姿态、目标姿态和插值时间，`MonsterVATRenderWorld.Update` 统一推进插值；Client `LateUpdate` 不再每帧遍历 Replica 并重新计算所有 Slot 的插值结果。攻击、受击事件仍在网络状态应用时触发，VAT Update 只推进姿态和动画时间。
+
+### 11.13 VAT Update Marker 结果
+
+补齐 `Monster.VAT.Update` 和 `Monster.VAT.Update.Loop` 后，10024 怪三次测试 `20261121-045450-6c738c8b` 得到：
+
+| 角色 | Marker | 重复 1 | 重复 2 | 重复 3 |
+|---|---|---:|---:|---:|
+| Client | `Monster.View.ApplyReplica.Loop` | 5.068 ms/帧 | 5.052 ms/帧 | 5.018 ms/帧 |
+| Client | `Monster.VAT.Update.Loop` | 1.344 ms/帧 | 1.334 ms/帧 | 1.328 ms/帧 |
+| Host | `Monster.View.ApplyAuthority` | 1.526 ms/帧 | 1.624 ms/帧 | 1.303 ms/帧 |
+| Host | `Monster.VAT.Update.Loop` | 1.471 ms/帧 | 1.808 ms/帧 | 1.390 ms/帧 |
+
+这确认 Client 的主要表现层成本在 Replica 插值和 VAT 写入循环，VAT 动画 Update 本身约 1.33～1.34 ms/帧。下一步合并两次 Client O(N) 遍历时，优先保留 VAT Update 的动画推进，把 Replica 的姿态插值和事件目标更新并入同一循环；目标是消除约 5 ms/帧的独立 `ApplyReplica` 扫描，而不是试图消除必要的实例状态推进。
+
+### 11.14 Replica/VAT Update 结构合并结果
+
+本轮将 Replica 状态同步改为 Revision 驱动，并把姿态插值放入 VAT Update：
+
+- 网络状态到达时，Replica 增加 `ViewRevision`；
+- View 层只在 Revision 变化时读取 Replica 目标状态；
+- VAT 实例保存姿态起点、目标姿态、插值结束时间和更新频率；
+- `MonsterVATRenderWorld.Update` 在同一遍实例循环中推进姿态插值和动画状态；
+- Client `LateUpdate` 不再每帧调用完整 `Replica.GetState`。
+
+10024 怪压测 `20261121-052120-c7f61ca3` 三次有效结果：
+
+| 角色 | Marker | 重复 1 | 重复 2 | 重复 3 |
+|---|---|---:|---:|---:|
+| Client | `View.ApplyReplica.Loop` | 2.413 ms/帧 | 2.375 ms/帧 | 2.410 ms/帧 |
+| Client | `VAT.Update.Loop` | 3.831 ms/帧 | 3.889 ms/帧 | 3.864 ms/帧 |
+| Host | `View.ApplyAuthority` | 1.285 ms/帧 | 1.037 ms/帧 | 1.137 ms/帧 |
+| Host | `VAT.Update.Loop` | 1.475 ms/帧 | 1.462 ms/帧 | 1.480 ms/帧 |
+
+迁移前 Client 每帧 `ApplyReplica` 约 5.01～5.06 ms，VAT Update 约 1.33～1.34 ms；现在 ApplyReplica 只在 Revision 变化时执行，VAT Update 承担插值和动画推进。两部分合计从约 6.35～6.40 ms/帧降到约 6.25～6.28 ms/帧，收益有限但完成了遍历职责合并。
+
+当前新的直接热点是：一次群组快照到达后，Revision 变化会让 View 层再次扫描全部 10024 个 Slot，即使只有少量群组成员发生了新状态。下一阶段应维护 DirtySlots/DirtyGroups，只把受本次完整帧或群组快照影响的 Slot 写入 VAT 目标状态。
+
+### 11.15 受击闪白修复
+
+受击链路原本已经从 `MonsterWorld.Damage` 递增 `HitSequence`，经过 `MonsterPresentationPackKernel`、群组 Codec、`MonsterReplica` 和 `MonsterViewWorld.PlayHit`，最终写入 VAT 实例的 `_HitFlashAmount`。
+
+问题有两个。网络状态只用 4 位保存 HitSequence，高频命中在 16 次后可能回到相同值，客户端不会再次触发闪白。另一个问题是每次批次提交都会清空 `MaterialPropertyBlock`，但没有重新写入 `_HitFlashColor`，闪白颜色只依赖材质默认状态。
+
+修复内容如下：
+
+- `MonsterPackedState.PackedEvents` 改为 16 位，AttackSequence 和 HitSequence 各占完整 8 位；
+- `MonsterNetworkCodec` 的群组成员状态从 5 字节调整为 6 字节；
+- VAT 批次提交时显式写入 `HitFlashColor`；
+- `HitFlashDuration` 继续由 `MonsterVATRenderProfile` 控制，当前 Zombie Profile 为 0.08 秒。
+
+修改后已完成编译检查、AOT/热更 DLL 同步和 Player 打包。运行时仍需在实际受击场景确认高频命中和普通单次命中都能显示闪白。
+
+### 11.16 压测表现链路修复
+
+后续压测中发现，表现链路还存在三个会直接改变观感的问题：
+
+- `BenchmarkMovementDriver.SuppressMonsterDamage` 原本让 `MonsterRoomRuntime.DamageMonster` 直接返回存活状态，`MonsterWorld.Damage` 从未执行，因此 `HitSequence` 不会递增。压测现在通过 `MonsterWorld.RecordHit` 只记录受击表现事件，不扣血、不死亡，闪白链路与正常战斗保持一致。
+- `WeaponPresentationService` 的 `HitBlood` 播放上限原为 64。高射速测试武器在 10024 怪场景中已经稳定达到这个上限，新的命中事件会被上限分支丢弃。目标命中特效预热和播放上限提高到 256，避免高压测试把血液反馈全部吞掉。
+- 10024 怪切换到整个房间随机出生时，候选点原本可以贴着玩家生成。压测出生点现在与所有已生成玩家保持 18 米距离，保留整房间空间分布，同时避免开局直接把玩家包围。
+
+寻路刷新间隔从 12 Tick / 24 Tick 过期窗口调整为 6 Tick / 12 Tick，并把触发距离从 2 格降为 1 格。怪物移动内核同时把当前玩家位置以 25% 权重混入流场方向，让玩家仍在同一导航格内转向时也能及时修正方向。流场仍负责绕开障碍，当前目标位置只负责消除目标移动带来的滞后。
+
+本轮已完成 Unity 脚本编译、HybridCLR Generate/All 和热更 DLL/AOT 补充元数据同步。10024 怪运行时画面、命中特效和多玩家目标归属需要用下一次 Player 压测确认，不能只依据编译结果判定表现已达标。
+

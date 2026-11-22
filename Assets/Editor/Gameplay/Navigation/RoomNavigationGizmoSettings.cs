@@ -35,6 +35,7 @@ internal sealed class RoomNavigationGizmoSettings : ScriptableSingleton<RoomNavi
     [SerializeField] private bool _drawFinalVelocity;
     [SerializeField] private bool _drawMonsterSpatialCounts;
     [SerializeField] private bool _drawMonsterHitRadius;
+    [SerializeField] private bool _drawProjectileProjections = true;
     [SerializeField] private bool _drawLastMonsterSpatialQuery = true;
     [SerializeField] private bool _drawCostNumbers;
     [SerializeField] private bool _includeZeroCostNumbers;
@@ -61,6 +62,7 @@ internal sealed class RoomNavigationGizmoSettings : ScriptableSingleton<RoomNavi
     public bool DrawFinalVelocity { get => _drawFinalVelocity; set => _drawFinalVelocity = value; }
     public bool DrawMonsterSpatialCounts { get => _drawMonsterSpatialCounts; set => _drawMonsterSpatialCounts = value; }
     public bool DrawMonsterHitRadius { get => _drawMonsterHitRadius; set => _drawMonsterHitRadius = value; }
+    public bool DrawProjectileProjections { get => _drawProjectileProjections; set => _drawProjectileProjections = value; }
     public bool DrawLastMonsterSpatialQuery { get => _drawLastMonsterSpatialQuery; set => _drawLastMonsterSpatialQuery = value; }
     public bool DrawCostNumbers { get => _drawCostNumbers; set => _drawCostNumbers = value; }
     public bool IncludeZeroCostNumbers { get => _includeZeroCostNumbers; set => _includeZeroCostNumbers = value; }
@@ -177,6 +179,8 @@ internal sealed class RoomNavigationGizmoWindow : EditorWindow
                     "叶节点怪物数量", settings.DrawMonsterSpatialCounts);
                 settings.DrawMonsterHitRadius = EditorGUILayout.Toggle(
                     "受击半径", settings.DrawMonsterHitRadius);
+                settings.DrawProjectileProjections = EditorGUILayout.Toggle(
+                    "子弹地面投影", settings.DrawProjectileProjections);
                 settings.DrawLastMonsterSpatialQuery = EditorGUILayout.Toggle(
                     "最近一次弹丸查询", settings.DrawLastMonsterSpatialQuery);
                 EditorGUILayout.HelpBox(

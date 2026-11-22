@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon
@@ -9,6 +10,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
     /// </summary>
     public sealed class ShotBuilder
     {
+        private static readonly ProfilerMarker EffectDispatchMarker =
+            new("Weapon.Projectile.EffectDispatch");
+
         private readonly ShotRepository _shots;
         private readonly ProjectileWorld _projectiles;
         private readonly IProjectileEffectDispatcher _effects;
@@ -79,8 +83,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     BounceRemaining = stats.BounceCount,
                     Flags = isCritical ? ProjectileFlags.Critical : ProjectileFlags.None,
                 };
-                _effects.DispatchSpawn(ref projectile, new ProjectileSpawnEffectContext(shot, stats));
-                _projectiles.Add(projectile);
+                using (EffectDispatchMarker.Auto())
+                    _effects.DispatchSpawn(ref projectile,
+                        new ProjectileSpawnEffectContext(shot, stats));
+                _projectiles.Add(projectile, stats, shot.OwnerEntityId);
                 spawnOutput?.Add(new ProjectileSpawn(
                     shot, projectile, stats.ProjectileSize * projectile.SizeMultiplier));
             }

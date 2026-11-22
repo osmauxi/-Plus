@@ -24,7 +24,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const int RoomBeginSize = 24;
         private const int GroupSnapshotHeaderSize = 15;
         private const int GroupSnapshotBatchHeaderSize = 2;
-        private const int GroupMemberStateSize = 5;
+        private const int GroupMemberStateSize = 6;
         private const int GroupMembershipHeaderSize = 10;
 
         public static int GetRoomBeginByteCount() => RoomBeginSize;
@@ -113,7 +113,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 MonsterPackedState state = states[i];
                 WriteUInt32(ref writer, state.PackedPose);
-                writer.WriteByte(state.PackedEvents);
+                WriteUInt16(ref writer, state.PackedEvents);
             }
         }
 
@@ -196,7 +196,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             for (int i = 0; i < memberCount; i++)
             {
                 uint packedPose = ReadUInt32(ref reader);
-                reader.ReadByte(out byte packedEvents);
+                ushort packedEvents = ReadUInt16(ref reader);
                 states[i] = new MonsterPackedState(packedPose, packedEvents);
             }
         }

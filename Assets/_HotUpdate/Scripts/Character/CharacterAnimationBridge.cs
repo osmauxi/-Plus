@@ -174,6 +174,12 @@ namespace ProjectGame.HotFix.Character
             _weaponAimAllowed = allowed;
         }
 
+        public void SetWeaponAimResponse(float angularSpeed, float poseBlendSpeed)
+        {
+            _weaponAimAngularSpeed = Mathf.Max(0f, angularSpeed);
+            _weaponAimPoseBlendSpeed = Mathf.Max(0f, poseBlendSpeed);
+        }
+
         /// <summary>
         /// Lobby 与 Gameplay 共用双手武器 IK 
         /// Animator Controller 对应 Layer 需要开启 IK Pass 
@@ -348,6 +354,7 @@ namespace ProjectGame.HotFix.Character
                 _leftHandIkWeight * _leftHandPositionWeight,
                 _leftHandIkWeight * _leftHandRotationWeight,
                 _leftHandMaxRotationCorrection);
+
         }
 
         /// <summary>

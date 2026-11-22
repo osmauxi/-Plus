@@ -14,6 +14,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private const int DrawBatchCapacity = 256;
 
         private static readonly ProfilerMarker UpdateMarker = new ProfilerMarker("Monster.VAT.Update");
+        private static readonly ProfilerMarker UpdateLoopMarker = new ProfilerMarker("Monster.VAT.Update.Loop");
         private static readonly ProfilerMarker UploadMarker = new ProfilerMarker("Monster.VAT.Upload");
         private static readonly ProfilerMarker DrawMarker = new ProfilerMarker("Monster.VAT.Draw");
         private static readonly int MainTextureHash = Shader.PropertyToID("_MainTex");
@@ -58,7 +59,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 GroupIndex = groupIndex,
                 Position = position,
                 PreviousPosition = position,
+                PoseStartPosition = position,
+                PoseTargetPosition = position,
                 Yaw = yaw,
+                PoseStartYaw = yaw,
+                PoseTargetYaw = yaw,
                 SourceClip = group.IdleClip,
                 TargetClip = group.IdleClip,
                 DesiredLocomotionClip = group.IdleClip,
@@ -74,6 +79,38 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             ref InstanceState state = ref _states[slot];
             RenderGroup group = _groups[state.GroupIndex];
+            ApplyPose(ref state, group, position, yaw, deltaTime);
+        }
+
+        public void SetTargetPose(
+            int slot,
+            Vector2 pose,
+            float yaw,
+            Vector2 targetPose,
+            float targetYaw,
+            float poseEndTime,
+            float updatesPerSecond,
+            float deltaTime)
+        {
+            ref InstanceState state = ref _states[slot];
+            RenderGroup group = _groups[state.GroupIndex];
+            ApplyPose(ref state, group, pose, yaw, deltaTime);
+            state.PoseStartPosition = pose;
+            state.PoseTargetPosition = targetPose;
+            state.PoseStartYaw = yaw;
+            state.PoseTargetYaw = targetYaw;
+            state.PoseEndTime = poseEndTime;
+            state.PoseUpdatesPerSecond = updatesPerSecond;
+            state.HasPoseTarget = updatesPerSecond > 0f;
+        }
+
+        private static void ApplyPose(
+            ref InstanceState state,
+            RenderGroup group,
+            Vector2 position,
+            float yaw,
+            float deltaTime)
+        {
             bool moving = state.HasPreviousPose
                 && Vector2.Distance(state.PreviousPosition, position) / Mathf.Max(deltaTime, 0.0001f)
                 > group.MovementThreshold;
@@ -127,15 +164,32 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Clear(_states, 0, _states.Length);
         }
 
-        public void Update(float deltaTime, float unscaledDeltaTime)
+        public void Update(float deltaTime, float unscaledDeltaTime, float now)
         {
             using (UpdateMarker.Auto())
+            using (UpdateLoopMarker.Auto())
             {
                 for (int slot = 0; slot < _slotCount; slot++)
                 {
                     ref InstanceState state = ref _states[slot];
                     if (!state.Active)
                         continue;
+                    if (state.HasPoseTarget)
+                    {
+                        float alpha = Mathf.Clamp01(
+                            1f + (now - state.PoseEndTime) * state.PoseUpdatesPerSecond);
+                        Vector2 pose = Vector2.LerpUnclamped(
+                            state.PoseStartPosition,
+                            state.PoseTargetPosition,
+                            alpha);
+                        float yaw = Mathf.LerpAngle(
+                            state.PoseStartYaw,
+                            state.PoseTargetYaw,
+                            alpha);
+                        ApplyPose(ref state, _groups[state.GroupIndex], pose, yaw, deltaTime);
+                        if (alpha >= 1f)
+                            state.HasPoseTarget = false;
+                    }
                     Tick(ref state, _groups[state.GroupIndex], deltaTime, unscaledDeltaTime);
                 }
             }
@@ -218,6 +272,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 properties.SetFloatArray(NextFrameHash, group.NextFrames);
                 properties.SetFloatArray(BlendHash, group.Blends);
                 properties.SetFloatArray(HitFlashAmountHash, group.HitFlashAmounts);
+                properties.SetColor(HitFlashColorHash, group.HitFlashColor);
             }
             //执行批量绘制，将同一组的怪物实例一次性绘制到屏幕上
             Graphics.DrawMeshInstanced(
@@ -354,7 +409,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             public Vector2 Position;
             public Vector2 PreviousPosition;
+            public Vector2 PoseStartPosition;
+            public Vector2 PoseTargetPosition;
             public float Yaw;
+            public float PoseStartYaw;
+            public float PoseTargetYaw;
+            public float PoseEndTime;
+            public float PoseUpdatesPerSecond;
+            public bool HasPoseTarget;
             //SourceLoop已经播放的时间
             public float SourceTime;
             public float TargetTime;

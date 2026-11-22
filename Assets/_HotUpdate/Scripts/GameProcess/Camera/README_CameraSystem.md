@@ -11,6 +11,7 @@ Main Camera
 GameRoot
 ├─ PlayerCameraRig
 │  ├─ PlayerCameraController
+│  ├─ AimReferenceCamera（运行时创建，不参与渲染）
 │  ├─ FollowPivot
 │  ├─ LookAtPivot
 │  └─ PlayerVirtualCamera
@@ -49,6 +50,7 @@ InputManager
 ├─ RotateStep / Zoom ───────────────> CameraMotionModel
 └─ PointerPosition + AimHeld
    └─ LocalPlayerLocomotionDriver
+      ├─ AimReferenceCamera.ScreenPointToRay(pointer)
       └─ CameraEffects.UpdateAimTarget(worldPosition)
          └─ CameraAimTargetUpdatedEvent
 
@@ -63,6 +65,8 @@ PlayerCameraController.LateUpdate
 ├─ CameraMotionModel.Tick
 └─ 应用 Pivot、Transposer FollowOffset 与 VirtualCamera FOV
 ```
+
+瞄准射线和最终渲染镜头使用两条职责不同的姿态。`AimReferenceCamera` 只复制世界相机的投影参数，并根据原始 Follow/LookAt 目标计算基础位置和朝向，不包含 Aim、Movement 或 Acceleration 构图偏移。这样镜头可以把玩家移向更舒服的画面位置，指针射线仍然保持稳定，不会因为玩家当前偏离画面中心而形成镜头偏移与射线相互反馈的跳变。
 
 执行顺序中，`PlayerPresentationDriver` 为 `-300`，`PlayerCameraController` 为 `-200`。摄像机读取统一的 Render Pose，不另建第二条插值时间线。
 
@@ -106,6 +110,8 @@ PlayerCameraController.LateUpdate
 - FollowPivot 与 LookAtPivot 使用相同构图偏移，因此是整套构图平移，不改变原有俯视角。
 
 瞄准世界点由 `LocalPlayerLocomotionDriver` 的屏幕射线与角色水平面求交得到。射线无有效交点或交点过近时，使用角色前方 10 米作为稳定回退点。
+
+这项改动只替换 Aim 射线的相机来源。正式玩家移动规则、Aim/Fire 独立状态、输入命令、预测回滚和服务器权威链路都保持原有入口和数据格式。
 
 ## 效果预设与事件接线
 

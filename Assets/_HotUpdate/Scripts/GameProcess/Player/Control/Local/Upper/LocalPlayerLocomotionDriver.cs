@@ -29,12 +29,17 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         [InspectorName("世界相机")]
         [SerializeField] private Camera _worldCamera;
 
+        [Tooltip("用于瞄准射线的稳定参考相机，由 PlayerCameraController 注入；未指定时回退到世界相机")]
+        [InspectorName("瞄准参考相机")]
+        [SerializeField] private Camera _aimReferenceCamera;
+
         // 接收最新输入意图，并在网络固定 Tick 中分配 Tick、预测和发送 
         private PlayerSyncController _syncController;
         // 防止角色外观、武器和 Animator 仍在异步装载时提前开放 Gameplay 输入 
         private PlayerRuntimeInitializer _runtimeInitializer;
         // 世界相机由 Camera System 通过本地事件发布；订阅跨对象池 Spawn 生命周期保留 
         private IDisposable _worldCameraSubscription;
+        private IDisposable _aimReferenceCameraSubscription;
 
         // 只有本 NetworkObject 的 Owner 才允许读取本机 InputManager 
         private bool _canDrive;
@@ -49,6 +54,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             _runtimeInitializer = GetComponent<PlayerRuntimeInitializer>();
             _worldCameraSubscription =
                 LocalEvents.Subscribe<GameplayWorldCameraChangedEvent>(HandleWorldCameraChanged);
+            _aimReferenceCameraSubscription =
+                LocalEvents.Subscribe<GameplayAimReferenceCameraChangedEvent>(
+                    HandleAimReferenceCameraChanged);
         }
 
         /// <summary>网络生成后确定 Owner 身份，并为本次会话重建 Reload 边沿序号 </summary>
@@ -61,6 +69,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
 
             if (_canDrive && _worldCamera == null)
                 _worldCamera = Camera.main;
+
+            if (_canDrive && _aimReferenceCamera == null)
+                _aimReferenceCamera = _worldCamera;
         }
 
         /// <summary>网络销毁时停止采集输入并清理会话级边沿序号，防止对象池复用携带旧请求 </summary>
@@ -115,6 +126,11 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             _worldCamera = worldCamera;
         }
 
+        public void BindAimReferenceCamera(Camera aimReferenceCamera)
+        {
+            _aimReferenceCamera = aimReferenceCamera;
+        }
+
         /// <summary>
         /// Camera System 的观察者通知入口 玩家输入层只接收最终世界相机，
         /// 不查询 PlayerCameraController、Cinemachine 或场景单例 
@@ -124,10 +140,18 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             BindCamera(eventData.WorldCamera);
         }
 
+        private void HandleAimReferenceCameraChanged(
+            GameplayAimReferenceCameraChangedEvent eventData)
+        {
+            BindAimReferenceCamera(eventData.AimReferenceCamera);
+        }
+
         private void OnDestroy()
         {
             _worldCameraSubscription?.Dispose();
             _worldCameraSubscription = null;
+            _aimReferenceCameraSubscription?.Dispose();
+            _aimReferenceCameraSubscription = null;
         }
 
         /// <summary>
@@ -185,7 +209,11 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             Vector2 pointerPosition,
             out Vector3 aimWorldPosition)
         {
-            Ray ray = _worldCamera.ScreenPointToRay(pointerPosition);
+            Camera aimCamera = _aimReferenceCamera != null
+                ? _aimReferenceCamera
+                : _worldCamera;
+
+            Ray ray = aimCamera.ScreenPointToRay(pointerPosition);
             Vector3 fallbackDirection = Flatten(transform.forward).normalized;
 
             // 游戏完全位于同一水平面，所以直接用玩家当前 Y 建 AimPlane 

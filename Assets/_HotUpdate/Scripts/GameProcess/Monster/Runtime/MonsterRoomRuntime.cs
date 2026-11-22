@@ -186,7 +186,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public bool DamageMonster(int slot, float damage)
         {
             if (ProjectGame.HotFix.Gameplay.Benchmarking.BenchmarkMovementDriver.SuppressMonsterDamage)
-                return World.Meta[slot].IsActive;
+                return World.RecordHit(slot);
 
             bool damaged = World.Damage(slot, damage);
             if (damaged && !World.IsActive(slot))

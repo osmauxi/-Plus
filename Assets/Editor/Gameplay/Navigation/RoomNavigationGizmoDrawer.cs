@@ -2,6 +2,7 @@ using ProjectGame.Core.Navigation;
 using ProjectGame.HotFix.Gameplay.Map;
 using ProjectGame.HotFix.Gameplay.Map.View;
 using ProjectGame.HotFix.Gameplay.Monsters;
+using ProjectGame.HotFix.Gameplay.Weapon;
 using UnityEditor;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ internal static class RoomNavigationGizmoDrawer
     private static readonly Color FlowProgressCorrectionColor = new(1f, 0.15f, 0.05f, 0.95f);
     private static readonly Color SpatialQueryColor = new(1f, 0.25f, 0.9f, 0.95f);
     private static readonly Color HitRadiusColor = new(1f, 0.55f, 0.1f, 0.7f);
+    private static readonly Color ProjectileProjectionColor = new(0.1f, 1f, 0.9f, 0.9f);
     private static readonly Vector3[] SpatialLeafPoints = new Vector3[5];
 
     private static GUIStyle _labelStyle;
@@ -431,6 +433,21 @@ internal static class RoomNavigationGizmoDrawer
                     new Vector3(position.x, worldY + 0.025f, position.y),
                     Vector3.up,
                     runtime.MonsterHitRadius);
+            }
+        }
+
+        if (settings.DrawProjectileProjections && WeaponRuntimeService.Instance != null)
+        {
+            WeaponRuntimeService weapon = WeaponRuntimeService.Instance;
+            Handles.color = ProjectileProjectionColor;
+            float projectileY = runtime.GroundY + settings.HeightOffset + 0.055f;
+            for (int i = 0; i < weapon.DebugProjectileCount; i++)
+            {
+                weapon.GetDebugProjectile(i, out ProjectileState projectile, out float radius);
+                Handles.DrawWireDisc(
+                    new Vector3(projectile.Position.x, projectileY, projectile.Position.z),
+                    Vector3.up,
+                    radius);
             }
         }
 

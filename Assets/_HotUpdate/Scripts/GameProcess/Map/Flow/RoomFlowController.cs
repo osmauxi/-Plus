@@ -35,7 +35,7 @@ namespace ProjectGame.HotFix.Gameplay.Map.Flow
         [SerializeField, Min(0.5f)] private float _gatherWarpRadius = 4f;
         [SerializeField, Min(0f)] private float _gatherWarpMinimumSpacing = 1.5f;
         [SerializeField, Min(1)] private int _gatherSpawnAttemptsPerPoint = 48;
-        [SerializeField, Min(0f)] private float _playerGroundOffset = 0.1f;
+        [SerializeField, Min(0f)] private float _playerGroundOffset = 0f;
 
         [Header("Encounter")]
         [SerializeField, Min(0)] private int _baseCombatBudget = 100;

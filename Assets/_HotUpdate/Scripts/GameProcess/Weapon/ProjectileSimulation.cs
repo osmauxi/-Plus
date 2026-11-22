@@ -13,7 +13,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
     {
         private readonly ProjectileWorld _world;
         private readonly ShotRepository _shots;
-        private readonly WeaponStatSnapshotRepository _stats;
         private readonly ProjectileSimulationConfig _config;
         private readonly MonsterRuntimeService _monsters;
         private readonly IProjectileEffectDispatcher _effects;
@@ -32,6 +31,20 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         private static readonly ProfilerMarker MonsterNarrowPhaseMarker =
             new("Weapon.Projectile.MonsterNarrowPhase");
+        private static readonly ProfilerMarker TickMarker =
+            new("Weapon.Projectile.Tick");
+        private static readonly ProfilerMarker ActiveLoopMarker =
+            new("Weapon.Projectile.ActiveLoop");
+        private static readonly ProfilerMarker MonsterQueryMarker =
+            new("Weapon.Projectile.MonsterQuery");
+        private static readonly ProfilerMarker ResolveContactMarker =
+            new("Weapon.Projectile.ResolveContact");
+        private static readonly ProfilerMarker EffectDispatchMarker =
+            new("Weapon.Projectile.EffectDispatch");
+        private static readonly ProfilerMarker RemoveMarker =
+            new("Weapon.Projectile.Remove");
+        private static readonly ProfilerMarker HitSetMarker =
+            new("Weapon.Projectile.HitSet");
 
         private enum ContactKind : byte
         {
@@ -50,13 +63,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         }
 
         public ProjectileSimulation(ProjectileWorld world, ShotRepository shots,
-            WeaponStatSnapshotRepository stats, ProjectileSimulationConfig config,
+            ProjectileSimulationConfig config,
             MonsterRuntimeService monsters,
             IProjectileEffectDispatcher effects = null)
         {
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _shots = shots ?? throw new ArgumentNullException(nameof(shots));
-            _stats = stats ?? throw new ArgumentNullException(nameof(stats));
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _monsters = monsters ?? throw new ArgumentNullException(nameof(monsters));
             _effects = effects ?? NoneProjectileEffectDispatcher.Instance;
@@ -70,65 +82,111 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             if (deltaTime <= 0f) 
                 return;
 
-            MonsterRoomRuntime room = _monsters.AuthorityRoom;
-            if (room != null)
-                EnsureMonsterCandidateCapacity(room.World.SlotCount);
-
-            for (int i = _world.Count - 1; i >= 0; i--)
+            using (TickMarker.Auto())
             {
-                var projectile = _world.Get(i);
-                if (Simulate(ref projectile, deltaTime)) 
-                    _world.Set(i, projectile);
-                else
+                MonsterRoomRuntime room = _monsters.AuthorityRoom;
+                if (room != null)
+                    EnsureMonsterCandidateCapacity(room.World.SlotCount);
+
+                using (ActiveLoopMarker.Auto())
                 {
-                    //子弹死了，把快照找出来，发事件给表现层，然后删掉
-                    if (_shots.TryGet(projectile.ShotId, out ShotContext shot) &&
-                        _stats.TryGet(shot.StatSnapshotId, out WeaponStatSnapshot stats))
-                        _effects.DispatchDestroyed(ref projectile,new ProjectileDestroyedEffectContext(shot, stats));
-                        _world.RemoveAtSwapBack(i);
-                    //哈希表回收，对象回池
-                    if (_hitEntities.Remove(projectile.ProjectileId, out HashSet<ulong> hitEntities))
+                    for (int i = _world.Count - 1; i >= 0; i--)
                     {
-                        hitEntities.Clear();
-                        _hitEntityPool.Push(hitEntities);
+                        if (Simulate(i, deltaTime))
+                            continue;
+
+                        ProjectileState projectile = default;
+                        _world.Read(i, ref projectile);
+                        using (RemoveMarker.Auto())
+                        {
+                            //子弹死了，把快照找出来，发事件给表现层，然后删掉
+                            if (_shots.TryGet(projectile.ShotId, out ShotContext shot))
+                            {
+                                WeaponStatSnapshot stats = _world.StatSnapshots[i];
+                                using (EffectDispatchMarker.Auto())
+                                    _effects.DispatchDestroyed(ref projectile,
+                                        new ProjectileDestroyedEffectContext(shot, stats));
+                            }
+
+                            _world.RemoveAtSwapBack(i);
+                            //哈希表回收，对象回池
+                            if (_hitEntities.Remove(projectile.ProjectileId,
+                                    out HashSet<ulong> hitEntities))
+                            {
+                                hitEntities.Clear();
+                                _hitEntityPool.Push(hitEntities);
+                            }
+
+                            _shots.ReleaseProjectile(projectile.ShotId);
+                            Removed?.Invoke(projectile);
+                        }
                     }
-                    _shots.ReleaseProjectile(projectile.ShotId);
-                    Removed?.Invoke(projectile);
                 }
             }
         }
         /// <summary>
         /// 单颗子弹的模拟逻辑，返回bool代表子弹是否还活着
         /// </summary>
-        private bool Simulate(ref ProjectileState projectile, float deltaTime)
+        private bool Simulate(int index, float deltaTime)
         {
-            //取出上下文和快照
-            if (!_shots.TryGet(projectile.ShotId, out var shot) || !_stats.TryGet(shot.StatSnapshotId, out var stats)) 
-                return false;
+            uint[] projectileIds = _world.ProjectileIds;
+            ulong[] shotIds = _world.ShotIds;
+            WeaponStatSnapshot[] statSnapshots = _world.StatSnapshots;
+            ulong[] ownerEntityIds = _world.OwnerEntityIds;
+            Vector3[] positions = _world.Positions;
+            Vector3[] velocities = _world.Velocities;
+            float[] remainingLifeTimes = _world.RemainingLifeTimes;
+            float[] sizeMultipliers = _world.SizeMultipliers;
+            ProjectileFlags[] flagsByIndex = _world.Flags;
+
+            ulong shotId = shotIds[index];
+            ulong ownerEntityId = ownerEntityIds[index];
+            WeaponStatSnapshot stats = statSnapshots[index];
+
+            float remainingLifeTime = remainingLifeTimes[index];
+            Vector3 position = positions[index];
+            Vector3 velocity = velocities[index];
+            float sizeMultiplier = sizeMultipliers[index];
+            ProjectileFlags flags = flagsByIndex[index];
             //先算当前Tick最多运动时间
-            float travelTime = Mathf.Min(deltaTime, projectile.RemainingLifeTime);
-            projectile.RemainingLifeTime -= deltaTime;
+            float travelTime = Mathf.Min(deltaTime, remainingLifeTime);
+            remainingLifeTime -= deltaTime;
+            remainingLifeTimes[index] = remainingLifeTime;
             if (travelTime <= 0) 
                 return false;
             //用速度求出当前Tick的位移
-            float remaining = projectile.Velocity.magnitude * travelTime;
+            float remaining = velocity.magnitude * travelTime;
             //碰撞检测半径，这里碰撞检测类似拿一个碰撞球沿路径扫过去
-            float radius = Mathf.Max(_config.MinimumRadius, stats.ProjectileSize * projectile.SizeMultiplier * 0.5f);
+            float radius = Mathf.Max(_config.MinimumRadius, stats.ProjectileSize * sizeMultiplier * 0.5f);
             int collisionCount = 0;
 
-            Vector3 direction = projectile.Velocity.normalized;
+            Vector3 direction = velocity.normalized;
+            bool hasState = false;
+            ShotContext shot = default;
+            ProjectileState projectile = default;
             //仅出生后的第一次模拟执行一次Overlap检测
-            if ((projectile.Flags & ProjectileFlags.SpawnChecked) == 0)
+            if ((flags & ProjectileFlags.SpawnChecked) == 0)
             {
-                projectile.Flags |= ProjectileFlags.SpawnChecked;
+                flags |= ProjectileFlags.SpawnChecked;
+                flagsByIndex[index] = flags;
 
-                if (TryInitialOverlap(projectile, shot, radius, direction, out var initialHit))
+                if (TryInitialOverlap(position, projectileIds[index], ownerEntityId,
+                        radius, direction, out var initialHit))
                 {
                     if (collisionCount++ >= Mathf.Max(1, _config.MaxCollisionsPerTick))
                         return false;
 
-                    if (!ResolveContact(ref projectile, shot, stats, radius, direction, ref remaining, initialHit))
+                    if (!_shots.TryGet(shotId, out shot))
                         return false;
+
+                    _world.Read(index, ref projectile);
+                    hasState = true;
+                    projectile.RemainingLifeTime = remainingLifeTime;
+                    if (!ResolveContact(ref projectile, shot, stats, radius, direction, ref remaining, initialHit))
+                    {
+                        _world.Write(index, projectile);
+                        return false;
+                    }
                 }
             }
             //Mathf.Epsilon为比0大的极限最小浮点值，防浮点误差
@@ -138,24 +196,77 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 if(collisionCount++ >= Mathf.Max(1, _config.MaxCollisionsPerTick))
                     return false;
                 //每次循环重新取方向，考虑弹射的情况
-                direction = projectile.Velocity.normalized;
+                if (hasState)
+                    direction = projectile.Velocity.normalized;
+                else
+                    direction = velocity.normalized;
                 //碰撞检测没找到，直接加位置结束
-                if(!TryCast(projectile, shot, radius, direction, remaining, out var hit))
+                Vector3 castPosition = hasState ? projectile.Position : position;
+                uint projectileId = hasState ? projectile.ProjectileId : projectileIds[index];
+                if(!TryCast(castPosition, projectileId, ownerEntityId, radius,
+                        direction, remaining, out var hit))
                 {
-                    projectile.Position += direction * remaining;
+                    if (hasState)
+                        projectile.Position += direction * remaining;
+                    else
+                        positions[index] = castPosition + direction * remaining;
                     break;
                 }
 
+                if (!hasState)
+                {
+                    if (!_shots.TryGet(shotId, out shot))
+                        return false;
+                    _world.Read(index, ref projectile);
+                    hasState = true;
+                    projectile.RemainingLifeTime = remainingLifeTime;
+                }
+
                 if(!ResolveContact(ref projectile, shot, stats, radius, direction, ref remaining, hit))
+                {
+                    _world.Write(index, projectile);
                     return false;
+                }
             }
-            return projectile.RemainingLifeTime > 0f;
+
+            if (hasState)
+            {
+                projectile.RemainingLifeTime = remainingLifeTime;
+                _world.Write(index, projectile);
+            }
+
+            return remainingLifeTime > 0f;
+        }
+
+        public float GetDebugRadius(int index)
+        {
+            ProjectileState projectile = default;
+            _world.Read(index, ref projectile);
+            WeaponStatSnapshot stats = _world.StatSnapshots[index];
+            return Mathf.Max(_config.MinimumRadius,
+                stats.ProjectileSize * projectile.SizeMultiplier * 0.5f);
         }
         /// <summary>
         /// 已经得到Contact以后，如何处理这次碰撞
         /// 返回bool代表碰撞处理完成后，当前子弹能否继续存活进行下一次模拟
         /// </summary>
         private bool ResolveContact(
+              ref ProjectileState projectile,
+              in ShotContext shot,
+              in WeaponStatSnapshot stats,
+              float radius,
+              Vector3 direction,
+              ref float remaining,
+              in Contact hit)
+        {
+            using (ResolveContactMarker.Auto())
+            {
+                return ResolveContactCore(ref projectile, shot, stats, radius, direction,
+                    ref remaining, hit);
+            }
+        }
+
+        private bool ResolveContactCore(
               ref ProjectileState projectile,
               in ShotContext shot,
               in WeaponStatSnapshot stats,
@@ -191,8 +302,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     //记录攻击过的怪物，防止穿透弹体重复命中
                     RememberHit(projectile.ProjectileId, targetEntityId);
                     projectile.HitCount++;
-                    _effects.DispatchHit(ref projectile,
-                        new ProjectileHitContext(shot, stats, targetEntityId, hit.Point, hit.Normal));
+                    using (EffectDispatchMarker.Auto())
+                        _effects.DispatchHit(ref projectile,
+                            new ProjectileHitContext(shot, stats, targetEntityId, hit.Point, hit.Normal));
 
                     if (projectile.PierceRemaining > 0)
                     {
@@ -213,7 +325,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                         projectile.BounceRemaining--;
                         //反弹改变方向不改变速度
                         projectile.Velocity = reflected.normalized * projectile.Velocity.magnitude;
-                        _effects.DispatchBounce(ref projectile, shot, stats, hit.Point, hit.Normal);
+                        using (EffectDispatchMarker.Auto())
+                            _effects.DispatchBounce(ref projectile, shot, stats, hit.Point, hit.Normal);
                         //将当前位置推出表面，防止出现下一轮检测到同一面
                         projectile.Position = hit.Point + hit.Normal * (radius + _config.SurfaceOffset);
                         resolution = ProjectileHitResolution.Continue;
@@ -251,12 +364,15 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         private void RememberHit(uint projectileId, ulong entityId)
         {
-            if (!_hitEntities.TryGetValue(projectileId, out HashSet<ulong> entities))
+            using (HitSetMarker.Auto())
             {
-                entities = _hitEntityPool.Count > 0 ? _hitEntityPool.Pop() : new HashSet<ulong>();
-                _hitEntities.Add(projectileId, entities);
+                if (!_hitEntities.TryGetValue(projectileId, out HashSet<ulong> entities))
+                {
+                    entities = _hitEntityPool.Count > 0 ? _hitEntityPool.Pop() : new HashSet<ulong>();
+                    _hitEntities.Add(projectileId, entities);
+                }
+                entities.Add(entityId);
             }
-            entities.Add(entityId);
         }
 
         /// <summary>
@@ -271,8 +387,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// 获取怪物候选之后，进行窄相检测，判断是否真的碰撞到怪物
         /// </summary>
         private bool TryFindMonsterContact(
-            in ProjectileState projectile,
-            in ShotContext shot,
+            Vector3 position,
+            uint projectileId,
+            ulong ownerEntityId,
             float projectileRadius,
             Vector3 direction,
             float maxDistance,
@@ -284,7 +401,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             if (room == null)
                 return false;
 
-            Vector2 start = new Vector2(projectile.Position.x, projectile.Position.z);
+            Vector2 start = new Vector2(position.x, position.z);
             Vector2 planarDirection = new Vector2(direction.x, direction.z);
             Vector2 end = start + planarDirection * maxDistance;
             //将子弹碰撞半径与怪物的圆形受击半径相加，得到一个组合半径，用于判断子弹与怪物的碰撞
@@ -295,8 +412,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             float nearest = float.PositiveInfinity;
             bool found = false;
 
-            int candidateCount = room.QueryMonsterCandidates(
-                start, initialOverlap ? start : end, combinedRadius, _monsterCandidates);
+            int candidateCount;
+            using (MonsterQueryMarker.Auto())
+                candidateCount = room.QueryMonsterCandidates(
+                    start, initialOverlap ? start : end, combinedRadius, _monsterCandidates);
 
             using (MonsterNarrowPhaseMarker.Auto())
             {
@@ -306,7 +425,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     int slot = _monsterCandidates[i];
                     //是子弹的拥有者，怪物不是被再次命中
                     ulong entityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)slot;
-                    if (entityId == shot.OwnerEntityId || HasHit(projectile.ProjectileId, entityId))
+                    if (entityId == ownerEntityId || HasHit(projectileId, entityId))
                         continue;
                     //center为怪物的圆心，toCenter为子弹起点指向怪物圆心的向量
                     //pathDistance为子弹到达碰撞点的距离
@@ -349,7 +468,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     if (pathDistance >= nearest)
                         continue;
                     //求出碰撞点的世界坐标，计算碰撞点到怪物圆心的法线向量
-                    Vector3 projectileAtHit = projectile.Position + direction * pathDistance;
+                    Vector3 projectileAtHit = position + direction * pathDistance;
                     Vector2 normal2 = new Vector2(projectileAtHit.x - center.x,projectileAtHit.z - center.y);
                     if (normal2.sqrMagnitude > 0.0001f)
                         normal2.Normalize();
@@ -389,13 +508,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// 处理子弹的碰撞检测，返回是否有碰撞发生，并输出碰撞信息
         /// 这里同时包括世界碰撞和怪物碰撞，取最近的碰撞点
         /// </summary>
-        private bool TryCast(in ProjectileState projectile, in ShotContext shot, float radius,
+        private bool TryCast(Vector3 position, uint projectileId, ulong ownerEntityId, float radius,
             Vector3 direction, float distance, out Contact contact)
         {
             int mask = _config.WorldMask.value;
             //碰撞信息会存进缓存的_castBuffer中，无额外GC
             int count = Physics.SphereCastNonAlloc(
-                            projectile.Position,
+                            position,
                             radius,
                             direction,
                             _castBuffer,
@@ -424,7 +543,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 };
             }
             //再处理一次怪物碰撞，但始终返回最近的碰撞点，可能是墙壁，也可能是怪物
-            if (TryFindMonsterContact(projectile, shot, radius, direction, distance, false, out Contact monsterContact) &&
+            if (TryFindMonsterContact(position, projectileId, ownerEntityId, radius, direction,
+                    distance, false, out Contact monsterContact) &&
                                      (contact.Kind == ContactKind.None || monsterContact.Distance < contact.Distance))
                 contact = monsterContact;
 
@@ -434,15 +554,16 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// 在子弹生成时进行判定，针对子弹生成在碰撞体内部的情况
         /// </summary>
         private bool TryInitialOverlap(
-            in ProjectileState projectile,
-            in ShotContext shot,
+            Vector3 position,
+            uint projectileId,
+            ulong ownerEntityId,
             float radius,
             Vector3 direction,
             out Contact contact)
         {
             //原地判定一次碰撞
             int count = Physics.OverlapSphereNonAlloc(
-                projectile.Position,
+                position,
                 radius,
                 _overlapBuffer,
                 _config.WorldMask.value,
@@ -454,8 +575,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 if (collider == null)
                     continue;
 
-                Vector3 point = collider.ClosestPoint(projectile.Position);
-                Vector3 normal = projectile.Position - point;
+                Vector3 point = collider.ClosestPoint(position);
+                Vector3 normal = position - point;
 
                 contact = new Contact
                 {
@@ -469,7 +590,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 return true;
             }
             //没找到墙壁碰撞，尝试找怪物碰撞
-            return TryFindMonsterContact(projectile, shot, radius, direction, 0f, true, out contact);
+            return TryFindMonsterContact(position, projectileId, ownerEntityId, radius, direction,
+                0f, true, out contact);
         }
     }
 

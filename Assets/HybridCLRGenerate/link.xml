@@ -4,6 +4,7 @@
     <type fullname="ProjectGame.Bootstrap.BenchmarkCaptureCommand" preserve="all" />
     <type fullname="ProjectGame.Bootstrap.BenchmarkFileProtocol" preserve="all" />
     <type fullname="ProjectGame.Bootstrap.BenchmarkLaunchOptions" preserve="all" />
+    <type fullname="ProjectGame.Bootstrap.BenchmarkMonsterSpawnArea" preserve="all" />
     <type fullname="ProjectGame.Bootstrap.BenchmarkProcessFocus" preserve="all" />
     <type fullname="ProjectGame.Bootstrap.BenchmarkProcessRole" preserve="all" />
     <type fullname="ProjectGame.Bootstrap.HotUpdateReleaseManifest" preserve="all" />
@@ -233,6 +234,7 @@
   <assembly fullname="UnityEngine.AudioModule">
     <type fullname="UnityEngine.Audio.AudioMixer" preserve="all" />
     <type fullname="UnityEngine.AudioClip" preserve="all" />
+    <type fullname="UnityEngine.AudioListener" preserve="all" />
     <type fullname="UnityEngine.AudioRolloffMode" preserve="all" />
     <type fullname="UnityEngine.AudioSettings" preserve="all" />
     <type fullname="UnityEngine.AudioSource" preserve="all" />
@@ -252,6 +254,7 @@
     <type fullname="UnityEngine.AsyncOperation" preserve="all" />
     <type fullname="UnityEngine.Behaviour" preserve="all" />
     <type fullname="UnityEngine.Camera" preserve="all" />
+    <type fullname="UnityEngine.CameraClearFlags" preserve="all" />
     <type fullname="UnityEngine.Color" preserve="all" />
     <type fullname="UnityEngine.Component" preserve="all" />
     <type fullname="UnityEngine.ContextMenu" preserve="all" />
@@ -281,6 +284,7 @@
     <type fullname="UnityEngine.LayerMask" preserve="all" />
     <type fullname="UnityEngine.Light" preserve="all" />
     <type fullname="UnityEngine.LightProbeProxyVolume" preserve="all" />
+    <type fullname="UnityEngine.LightType" preserve="all" />
     <type fullname="UnityEngine.LineRenderer" preserve="all" />
     <type fullname="UnityEngine.Material" preserve="all" />
     <type fullname="UnityEngine.MaterialPropertyBlock" preserve="all" />
@@ -294,6 +298,7 @@
     <type fullname="UnityEngine.PlayerPrefs" preserve="all" />
     <type fullname="UnityEngine.Pool.IObjectPool`1" preserve="all" />
     <type fullname="UnityEngine.Pool.ObjectPool`1" preserve="all" />
+    <type fullname="UnityEngine.PrimitiveType" preserve="all" />
     <type fullname="UnityEngine.Profiling.Profiler" preserve="all" />
     <type fullname="UnityEngine.QualitySettings" preserve="all" />
     <type fullname="UnityEngine.Quaternion" preserve="all" />
@@ -339,6 +344,13 @@
     <type fullname="UnityEngine.WaitForSeconds" preserve="all" />
     <type fullname="UnityEngine.WaitForSecondsRealtime" preserve="all" />
     <type fullname="UnityEngine.WaitUntil" preserve="all" />
+  </assembly>
+  <assembly fullname="UnityEngine.IMGUIModule">
+    <type fullname="UnityEngine.GUI" preserve="all" />
+    <type fullname="UnityEngine.GUILayout" preserve="all" />
+    <type fullname="UnityEngine.GUILayoutOption" preserve="all" />
+    <type fullname="UnityEngine.GUISkin" preserve="all" />
+    <type fullname="UnityEngine.GUIStyle" preserve="all" />
   </assembly>
   <assembly fullname="UnityEngine.InputLegacyModule">
     <type fullname="UnityEngine.Input" preserve="all" />

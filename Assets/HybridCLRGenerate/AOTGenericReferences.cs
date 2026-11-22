@@ -236,6 +236,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.CameraEffectPlayRequestedEvent>
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.CameraEffectSetRequestedEvent>
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.GameStateChangedEvent>
+	// System.Action<ProjectGame.HotFix.Gameplay.Events.GameplayAimReferenceCameraChangedEvent>
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.GameplayCameraTargetReleasedEvent>
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.GameplayCameraTargetRequestedEvent>
 	// System.Action<ProjectGame.HotFix.Gameplay.Events.GameplayWorldCameraChangedEvent>
@@ -2308,12 +2309,15 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// System.Void System.Array.Resize<ProjectGame.Core.Monsters.MonsterStatusData>(ProjectGame.Core.Monsters.MonsterStatusData[]&,int)
 		// System.Void System.Array.Resize<ProjectGame.Core.Navigation.MonsterTargetResult>(ProjectGame.Core.Navigation.MonsterTargetResult[]&,int)
 		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Monsters.MonsterVATRenderWorld.InstanceState>(ProjectGame.HotFix.Gameplay.Monsters.MonsterVATRenderWorld.InstanceState[]&,int)
+		// System.Void System.Array.Resize<ProjectGame.HotFix.Gameplay.Weapon.WeaponStatSnapshot>(ProjectGame.HotFix.Gameplay.Weapon.WeaponStatSnapshot[]&,int)
 		// System.Void System.Array.Resize<UnityEngine.Vector2>(UnityEngine.Vector2[]&,int)
+		// System.Void System.Array.Resize<UnityEngine.Vector3>(UnityEngine.Vector3[]&,int)
 		// System.Void System.Array.Resize<byte>(byte[]&,int)
 		// System.Void System.Array.Resize<float>(float[]&,int)
 		// System.Void System.Array.Resize<int>(int[]&,int)
 		// System.Void System.Array.Resize<object>(object[]&,int)
 		// System.Void System.Array.Resize<uint>(uint[]&,int)
+		// System.Void System.Array.Resize<ulong>(ulong[]&,int)
 		// System.Void System.Array.Resize<ushort>(ushort[]&,int)
 		// System.Void System.Array.Sort<ProjectGame.HotFix.Core.Network.LobbyPlayerState>(ProjectGame.HotFix.Core.Network.LobbyPlayerState[],System.Comparison<ProjectGame.HotFix.Core.Network.LobbyPlayerState>)
 		// System.Void System.Array.Sort<ProjectGame.HotFix.Core.Session.PlayerSessionData>(ProjectGame.HotFix.Core.Session.PlayerSessionData[],System.Comparison<ProjectGame.HotFix.Core.Session.PlayerSessionData>)
@@ -2516,6 +2520,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// UnityEngine.Vector2 UnityEngine.InputSystem.InputActionState.ReadValue<UnityEngine.Vector2>(int,int,bool)
 		// float UnityEngine.InputSystem.InputActionState.ReadValue<float>(int,int,bool)
 		// object UnityEngine.JsonUtility.FromJson<object>(string)
+		// object UnityEngine.Object.FindFirstObjectByType<object>()
 		// object UnityEngine.Object.FindObjectOfType<object>()
 		// object UnityEngine.Object.FindObjectOfType<object>(bool)
 		// object UnityEngine.Object.Instantiate<object>(object)

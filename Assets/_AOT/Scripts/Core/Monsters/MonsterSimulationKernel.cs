@@ -210,14 +210,14 @@ namespace ProjectGame.Core.Monsters
                 return Vector2.zero;
 
             Vector2 direction = flowDirection;
-            if (direction.sqrMagnitude <= 0.000001f)
-            {
-                Vector2 offset = targetPosition - motion.Position;
-                if (offset.sqrMagnitude <= config.AttackRangeSqr || !targetWalkable)
-                    return Vector2.zero;
+            Vector2 targetOffset = targetPosition - motion.Position;
+            if (targetOffset.sqrMagnitude <= config.AttackRangeSqr || !targetWalkable)
+                return Vector2.zero;
 
-                direction = offset.normalized;
-            }
+            if (direction.sqrMagnitude <= 0.000001f)
+                direction = targetOffset.normalized;
+            else
+                direction = (direction * 0.75f + targetOffset.normalized * 0.25f).normalized;
 
             return direction * config.MoveSpeed * GetSpeedMultiplier(ref status, tick);
         }

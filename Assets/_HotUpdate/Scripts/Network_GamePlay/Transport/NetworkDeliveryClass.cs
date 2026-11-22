@@ -11,5 +11,6 @@ namespace ProjectGame.HotFix.Gameplay.Network
         ReliableEvent = 3,
         UnreliableEvent = 4,
         UnreliableSnapshot = 5,
+        ReliableFragmentedEvent = 6,
     }
 }

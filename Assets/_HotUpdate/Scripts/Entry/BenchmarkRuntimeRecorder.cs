@@ -8,6 +8,7 @@ using ProjectGame.Bootstrap;
 using ProjectGame.HotFix.Gameplay.Benchmarking;
 using ProjectGame.HotFix.Gameplay.Monsters;
 using ProjectGame.HotFix.Gameplay.Network;
+using ProjectGame.HotFix.Gameplay.Pooling;
 using ProjectGame.HotFix.Gameplay.Player;
 using ProjectGame.HotFix.Gameplay.Player.Sync;
 using ProjectGame.HotFix.Gameplay.Weapon;
@@ -98,6 +99,8 @@ namespace ProjectGame.HotFix.Benchmarking
         public int projectileSpawnedCount;
         public double averageActiveProjectileCount;
         public int maximumActiveProjectileCount;
+        public int maximumVfxOnHitCount;
+        public int maximumHitBloodCount;
         public bool workloadValid;
         public string invalidReason;
         public string captureStartedUtc;
@@ -167,6 +170,7 @@ namespace ProjectGame.HotFix.Benchmarking
             "Monster.Network.GroupSnapshot.Write",
             "Monster.Network.GroupSnapshot.Send",
             "Monster.Network.SendUnnamedMessage",
+            "Monster.Network.SendNamedMessage",
             "Monster.Network.RecordSent",
             "Monster.Network.SendRoomBegin",
             "Monster.Network.ReceiveRoomBegin",
@@ -182,9 +186,26 @@ namespace ProjectGame.HotFix.Benchmarking
             "Gameplay.TickClock.CombatSimulation",
             "Gameplay.TickClock.Replication",
             "Monster.View.ApplyAuthority",
+            "Monster.View.ApplyClient",
+            "Monster.View.ApplyReplica",
+            "Monster.View.ApplyReplica.Loop",
+            "Monster.VAT.Update",
+            "Monster.VAT.Update.Loop",
             "Monster.SpatialIndex.Build",
             "Monster.SpatialIndex.Query",
+            "Weapon.Projectile.Tick",
+            "Weapon.Projectile.ActiveLoop",
+            "Weapon.Projectile.MonsterQuery",
             "Weapon.Projectile.MonsterNarrowPhase",
+            "Weapon.Projectile.ResolveContact",
+            "Weapon.Projectile.EffectDispatch",
+            "Weapon.Projectile.Remove",
+            "Weapon.Projectile.HitSet",
+            "Weapon.Effect.Lightning",
+            "Weapon.Effect.StormCloud",
+            "Weapon.Effect.DamageArea",
+            "Weapon.Network.Presentation.SendChunk",
+            "Weapon.Network.Presentation.SendUnnamedMessage",
         };
 
         private sealed class Counter
@@ -261,11 +282,14 @@ namespace ProjectGame.HotFix.Benchmarking
         private float _movementDistance;
         private MonsterSpatialIndexDiagnostics _spatialDiagnostics;
         private WeaponRuntimeService _weaponRuntime;
+        private LocalVFXPool _vfxPool;
         private int _shotFiredCount;
         private int _projectileSpawnedCount;
         private long _activeProjectileCountSum;
         private int _activeProjectileSampleCount;
         private int _maximumActiveProjectileCount;
+        private int _maximumVfxOnHitCount;
+        private int _maximumHitBloodCount;
         private bool _focusInitialized;
         private bool _lastFocused;
         private int _focusedFrames;
@@ -292,13 +316,26 @@ namespace ProjectGame.HotFix.Benchmarking
             _gcAllocatedBytes.Clear();
             _frameRows.Clear();
             _markerCounters.Clear();
+
+            int captureCapacity = Mathf.CeilToInt(_options.CaptureSeconds * 120f);
+            _frameMilliseconds.Capacity = captureCapacity;
+            _mainThreadMilliseconds.Capacity = captureCapacity;
+            _renderThreadMilliseconds.Capacity = captureCapacity;
+            _gpuFrameMilliseconds.Capacity = captureCapacity;
+            _gcAllocatedBytes.Capacity = captureCapacity;
+            _frameRows.Capacity = captureCapacity;
+
             _mainThread = StartCounter(ProfilerCategory.Internal, "Main Thread");
             _renderThread = StartCounter(ProfilerCategory.Render, "Render Thread");
             _gpuFrame = StartCounter(ProfilerCategory.Render, "GPU Frame Time");
             _gpuFrame.MaximumValidValue = 10_000_000_000L;
             _gcAllocated = StartCounter(ProfilerCategory.Memory, "GC Allocated In Frame");
             foreach (string markerName in CustomMarkerNames)
-                _markerCounters.Add(StartCounter(ProfilerCategory.Scripts, markerName));
+            {
+                Counter marker = StartCounter(ProfilerCategory.Scripts, markerName);
+                marker.FrameValues.Capacity = captureCapacity;
+                _markerCounters.Add(marker);
+            }
 
             _gc0 = GC.CollectionCount(0);
             _gc1 = GC.CollectionCount(1);
@@ -319,11 +356,14 @@ namespace ProjectGame.HotFix.Benchmarking
             if (_options.Role == BenchmarkProcessRole.Host)
                 authority.SpatialIndex.BeginPerformanceDiagnostics();
             _weaponRuntime = WeaponRuntimeService.Instance;
+            _vfxPool = LocalVFXPool.Instance;
             _shotFiredCount = 0;
             _projectileSpawnedCount = 0;
             _activeProjectileCountSum = 0L;
             _activeProjectileSampleCount = 0;
             _maximumActiveProjectileCount = 0;
+            _maximumVfxOnHitCount = 0;
+            _maximumHitBloodCount = 0;
             _weaponRuntime.ShotFired += OnShotFired;
             _weaponRuntime.ProjectileSpawned += OnProjectileSpawned;
             _focusInitialized = false;
@@ -367,6 +407,12 @@ namespace ProjectGame.HotFix.Benchmarking
             _activeProjectileCountSum += activeProjectileCount;
             _activeProjectileSampleCount++;
             _maximumActiveProjectileCount = Math.Max(_maximumActiveProjectileCount, activeProjectileCount);
+            _maximumVfxOnHitCount = Math.Max(
+                _maximumVfxOnHitCount,
+                _vfxPool.GetPoolPlayingCount("VFX_OnHit"));
+            _maximumHitBloodCount = Math.Max(
+                _maximumHitBloodCount,
+                _vfxPool.GetPoolPlayingCount("HitBlood"));
 
             if (_mainThread.TryGetLatestValue(out long mainThreadValue))
                 _mainThreadMilliseconds.Add(mainThreadValue / 1_000_000d);
@@ -568,6 +614,8 @@ namespace ProjectGame.HotFix.Benchmarking
                 projectileSpawnedCount = _projectileSpawnedCount,
                 averageActiveProjectileCount = Average(_activeProjectileCountSum, _activeProjectileSampleCount),
                 maximumActiveProjectileCount = _maximumActiveProjectileCount,
+                maximumVfxOnHitCount = _maximumVfxOnHitCount,
+                maximumHitBloodCount = _maximumHitBloodCount,
                 workloadValid = environmentValid && durationValid && focusValid && monsterValid && movementValid && flowValid && spatialValid,
                 invalidReason = invalidReason,
                 captureStartedUtc = _captureStartUtc.ToString("O"),
@@ -628,6 +676,7 @@ namespace ProjectGame.HotFix.Benchmarking
             report.AppendLine($"- FlowField 重建 Topology/Source/Cost：{metrics.topologyRebuildCount} / {metrics.sourceRebuildCount} / {metrics.costRebuildCount}");
             report.AppendLine($"- 移动命令/实际距离/经过路点：{metrics.movementCommands} / {metrics.movementDistance:F2}m / {metrics.movementWaypoints}");
             report.AppendLine($"- 射击/生成弹丸/活动弹丸平均-最大：{metrics.shotFiredCount} / {metrics.projectileSpawnedCount} / {metrics.averageActiveProjectileCount:F2}-{metrics.maximumActiveProjectileCount}");
+            report.AppendLine($"- VFX_OnHit / HitBlood 同时播放峰值：{metrics.maximumVfxOnHitCount} / {metrics.maximumHitBloodCount}");
             if (_options.Role == BenchmarkProcessRole.Host)
             {
                 report.AppendLine($"- 四叉树 Build/Query：{metrics.spatialBuildCount} / {metrics.spatialQueryCount} 次");

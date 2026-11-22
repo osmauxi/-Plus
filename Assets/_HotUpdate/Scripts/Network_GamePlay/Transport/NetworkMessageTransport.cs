@@ -23,6 +23,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
         private static readonly ProfilerMarker RecordSentMarker =
             new("Monster.Network.RecordSent");
         private readonly Dictionary<string, NetworkMessageHandler> _handlers = new(StringComparer.Ordinal);
+        private readonly Dictionary<byte, NetworkMessageHandler> _routedUnnamedHandlers = new();
         private NetworkMessageHandler _unnamedHandler;
         private readonly List<ulong> _connectedClientIds = new();
         private readonly List<ulong> _remoteClientIds = new();
@@ -89,6 +90,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
             }
 
             _handlers.Clear();
+            _routedUnnamedHandlers.Clear();
             _unnamedHandler = null;
             _connectedClientIds.Clear();
             _remoteClientIds.Clear();
@@ -143,8 +145,24 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (_unnamedHandler != null)
                 throw new InvalidOperationException("Gameplay Unnamed Message 处理器已经注册。");
 
+            bool wasEmpty = _routedUnnamedHandlers.Count == 0;
             _unnamedHandler = handler;
-            _networkManager.CustomMessagingManager.OnUnnamedMessage += DispatchUnnamed;
+            if (wasEmpty)
+                _networkManager.CustomMessagingManager.OnUnnamedMessage += DispatchUnnamed;
+        }
+
+        public void RegisterUnnamedHandler(byte channel, NetworkMessageHandler handler)
+        {
+            EnsureInitialized();
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
+            if (_routedUnnamedHandlers.ContainsKey(channel))
+                throw new InvalidOperationException($"Gameplay Unnamed Message 通道 {channel} 已经注册。");
+
+            bool wasEmpty = _unnamedHandler == null && _routedUnnamedHandlers.Count == 0;
+            _routedUnnamedHandlers.Add(channel, handler);
+            if (wasEmpty)
+                _networkManager.CustomMessagingManager.OnUnnamedMessage += DispatchUnnamed;
         }
 
         public void UnregisterUnnamedHandler()
@@ -154,9 +172,17 @@ namespace ProjectGame.HotFix.Gameplay.Network
                 return;
 
             CustomMessagingManager messaging = _networkManager.CustomMessagingManager;
-            if (messaging != null)
+            if (messaging != null && _routedUnnamedHandlers.Count == 0)
                 messaging.OnUnnamedMessage -= DispatchUnnamed;
             _unnamedHandler = null;
+        }
+
+        public void UnregisterUnnamedHandler(byte channel)
+        {
+            EnsureInitialized();
+            _routedUnnamedHandlers.Remove(channel);
+            if (_unnamedHandler == null && _routedUnnamedHandlers.Count == 0)
+                _networkManager.CustomMessagingManager.OnUnnamedMessage -= DispatchUnnamed;
         }
 
         public void SendToServer(string messageName,FastBufferWriter writer,NetworkDeliveryClass delivery)
@@ -167,13 +193,15 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (!_networkManager.IsClient)
                 return;
 
-            _networkManager.CustomMessagingManager.SendNamedMessage(
-                messageName,
-                NetworkManager.ServerClientId,
-                writer,
-                ResolveDelivery(delivery));
+            using (SendNamedMessageMarker.Auto())
+                _networkManager.CustomMessagingManager.SendNamedMessage(
+                    messageName,
+                    NetworkManager.ServerClientId,
+                    writer,
+                    ResolveDelivery(delivery));
 
-            _stats.RecordSent(messageName, writer.Length);
+            using (RecordSentMarker.Auto())
+                _stats.RecordSent(messageName, writer.Length);
         }
 
         public void SendToClient(ulong clientId,string messageName,FastBufferWriter writer,NetworkDeliveryClass delivery)
@@ -184,13 +212,37 @@ namespace ProjectGame.HotFix.Gameplay.Network
             if (!_networkManager.IsServer)
                 return;
 
-            _networkManager.CustomMessagingManager.SendNamedMessage(
-                messageName,
-                clientId,
-                writer,
-                ResolveDelivery(delivery));
+            using (SendNamedMessageMarker.Auto())
+                _networkManager.CustomMessagingManager.SendNamedMessage(
+                    messageName,
+                    clientId,
+                    writer,
+                    ResolveDelivery(delivery));
 
-            _stats.RecordSent(messageName, writer.Length);
+            using (RecordSentMarker.Auto())
+                _stats.RecordSent(messageName, writer.Length);
+        }
+
+        public void SendUnnamedToClient(
+            ulong clientId,
+            string statsName,
+            FastBufferWriter writer,
+            NetworkDeliveryClass delivery)
+        {
+            EnsureInitialized();
+            ValidateMessageName(statsName);
+
+            if (!_networkManager.IsServer)
+                return;
+
+            using (SendUnnamedMessageMarker.Auto())
+                _networkManager.CustomMessagingManager.SendUnnamedMessage(
+                    clientId,
+                    writer,
+                    ResolveDelivery(delivery));
+
+            using (RecordSentMarker.Auto())
+                _stats.RecordSent(statsName, writer.Length);
         }
 
         public void SendToClients(IReadOnlyList<ulong> clientIds, string messageName, FastBufferWriter writer, NetworkDeliveryClass delivery)
@@ -220,6 +272,19 @@ namespace ProjectGame.HotFix.Gameplay.Network
             ValidateMessageName(statsName);
             if (!_networkManager.IsServer || clientIds.Count == 0)
                 return;
+
+            if (clientIds.Count == 1)
+            {
+                using (SendUnnamedMessageMarker.Auto())
+                    _networkManager.CustomMessagingManager.SendUnnamedMessage(
+                        clientIds[0],
+                        writer,
+                        ResolveDelivery(delivery));
+
+                using (RecordSentMarker.Auto())
+                    _stats.RecordSent(statsName, writer.Length);
+                return;
+            }
 
             using (SendUnnamedMessageMarker.Auto())
                 _networkManager.CustomMessagingManager.SendUnnamedMessage(
@@ -256,6 +321,7 @@ namespace ProjectGame.HotFix.Gameplay.Network
                     return NetworkDelivery.Unreliable;
 
                 case NetworkDeliveryClass.FullSnapshot:
+                case NetworkDeliveryClass.ReliableFragmentedEvent:
                     return NetworkDelivery.ReliableFragmentedSequenced;
 
                 case NetworkDeliveryClass.ReliableEvent:
@@ -279,6 +345,21 @@ namespace ProjectGame.HotFix.Gameplay.Network
         {
             const string unnamedMessageName = "PG.Unnamed";
             _stats.RecordReceived(unnamedMessageName, reader.Length);
+
+            int startPosition = reader.Position;
+            if (!reader.TryBeginRead(1))
+            {
+                _unnamedHandler?.Invoke(senderClientId, reader);
+                return;
+            }
+            reader.ReadByte(out byte channel);
+            if (_routedUnnamedHandlers.TryGetValue(channel, out NetworkMessageHandler routedHandler))
+            {
+                routedHandler(senderClientId, reader);
+                return;
+            }
+
+            reader.Seek(startPosition);
             _unnamedHandler?.Invoke(senderClientId, reader);
         }
 

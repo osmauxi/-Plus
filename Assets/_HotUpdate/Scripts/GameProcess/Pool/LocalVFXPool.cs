@@ -132,6 +132,25 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             await entry.PrepareCompletion.Task.AttachExternalCancellation(cancellationToken);
         }
 
+        public void EnsurePoolCapacity(string poolId, int capacity)
+        {
+            EnsureInitialized();
+
+            if (!_entriesById.TryGetValue(poolId, out PoolEntry entry))
+                throw new KeyNotFoundException($"没有登记特效池定义：{poolId}");
+            if (!entry.IsPrepared || entry.Pool == null)
+                throw new InvalidOperationException($"特效池尚未 Prepare，不能扩充：{poolId}");
+            if (entry.CreatedCount >= capacity)
+                return;
+
+            int additionalCount = capacity - entry.CreatedCount;
+            List<GameObject> instances = new(additionalCount);
+            for (int i = 0; i < additionalCount; i++)
+                instances.Add(entry.Pool.Get());
+            for (int i = 0; i < instances.Count; i++)
+                entry.Pool.Release(instances[i]);
+        }
+
         /// <summary>
         /// 批量并行准备特效池 
         /// </summary>
@@ -542,6 +561,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             _entryByInstanceId.Add(instanceId, entry);
             _instances.Add(instanceId, instance);
+            entry.CreatedCount++;
   
             //这些扫描只在实例真正创建时执行一次 
             _runtimeCaches.Add(instanceId, new VFXRuntimeCache(instance));
@@ -578,6 +598,8 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
             int instanceId = instance.GetInstanceID();
 
             _rentedInstanceIds.Remove(instanceId);
+            if (_entryByInstanceId.TryGetValue(instanceId, out PoolEntry entry))
+                entry.CreatedCount--;
             _entryByInstanceId.Remove(instanceId);
             _instances.Remove(instanceId);
             _runtimeCaches.Remove(instanceId);
@@ -824,6 +846,7 @@ namespace ProjectGame.HotFix.Gameplay.Pooling
 
             public int EffectEventId;
             public int PlayingCount;
+            public int CreatedCount;
 
             public bool IsPrepared;
             public bool IsPreparing;

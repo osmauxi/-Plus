@@ -51,6 +51,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// 房间World/Replica等运行时容器预留容量
         /// </summary>
         [SerializeField, Min(1)] private int _initialCapacity = 128;
+        [SerializeField] private MonsterSimulationBackendKind _simulationBackendKind =
+            MonsterSimulationBackendKind.ManagedSoA;
         /// <summary>
         /// Host 本地整房间表现采样间隔。
         /// </summary>
@@ -217,7 +219,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             {
                 AuthorityRoom = new MonsterRoomRuntime(
                     Catalogs.Runtime, Catalogs.Attacks, _quantizer, spatialData, roomRoot,
-                    _monsterHitRadius, _initialCapacity);
+                    _monsterHitRadius, _simulationBackendKind, _initialCapacity);
                 _authorityWriteFrame.EnsureCapacity(expectedTotalMonsterCount);
                 _authorityPublishedFrame.EnsureCapacity(expectedTotalMonsterCount);
                 AuthorityRoom.BeginRoom(expectedTotalMonsterCount, data.GroundY);

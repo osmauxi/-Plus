@@ -539,3 +539,34 @@ Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client �
 这组压测确认 StorageIndex 和 ViewSlot 的稳态调用链已经通过。批量死亡、SwapBack、EntityId 重映射、重新生成和群组重建已经通过 Unity Editor 定向烟测。9000 怪物压测本身没有产生死亡，因此不把死亡复用场景混入稳态帧时结论。
 
 当前 Slot 重构阶段标记为通过，可以进入下一阶段工作。
+
+## 20. 三阶段策略模式第一步
+
+本轮把模拟执行后端从房间编排中抽出固定策略边界。
+
+### 20.1 策略接口
+
+`IMonsterSimulationBackend` 只包含一次模拟 Tick 所需的计算能力：
+
+- 接收 `MonsterWorld`、玩家目标、FlowField 数据和 Occupancy 快照；
+- 输出通过 `MonsterWorld` 写回的运动与状态结果；
+- 暂存并执行近战请求；
+- 提供寻路调试数据和 Separation 查询；
+- 接收房间生命周期的容量扩展和诊断重置。
+
+接口不包含网络发送、VAT、对象池、Transform 创建或房间开始结束逻辑。这样三个后端共享玩法语义，表现和网络仍由外层模块统一消费。
+
+### 20.2 策略选择位置
+
+`MonsterRuntimeService` 在房间级保存 `MonsterSimulationBackendKind`。`MonsterRoomRuntime` 创建时通过 `MonsterSimulationBackendFactory` 固化一次后端实例，之后每个 Tick 只发生一次整 Tick 策略调用，不在逐怪循环中做接口分派。
+
+当前已接入的实现是 `ManagedSoA`，对应现有 `MonsterSimulation`。`ManualNativeSoABurst` 和 `EntitiesEcs` 已进入统一枚举，但实现尚未接入，选择它们会在房间创建时明确报出未支持状态，不会伪装成另一种后端。
+
+### 20.3 后续接入顺序
+
+1. 保持 `ManagedSoA` 作为行为基线，冻结接口和量化口径；
+2. 新增 `ManualNativeSoABurst`，复用同一套输入边界和输出事件；
+3. 用相同场景、Seed、射击路线和采样窗口完成两种后端的行为对照；
+4. 再新增 `EntitiesEcs`，让 ECS 适配器只负责把 Chunk 数据映射到同一输出边界。
+
+第一步只改变调用边界，没有改变 ManagedSoA 的数据布局和模拟算法。

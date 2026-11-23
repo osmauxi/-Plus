@@ -11,7 +11,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     /// <summary>
     /// 服务器怪物主循环：索敌、近战状态机、追踪和移动
     /// </summary>
-    public sealed class MonsterSimulation
+    public sealed class MonsterSimulation : IMonsterSimulationBackend
     {
         private readonly MonsterRuntimeCatalog _configs;
         private readonly MonsterAttackCatalog _attackProfiles;

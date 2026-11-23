@@ -41,7 +41,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private readonly RuntimeNavigationGrid _navigationGrid;
         private readonly RuntimeNavigationObstacleSystem _obstacleSystem;
-        private readonly MonsterSimulation _simulation;
+        private readonly IMonsterSimulationBackend _simulation;
         private readonly MonsterOccupancySnapshot _occupancySnapshot;
         private readonly MonsterMeleePhysicsResolver _melee = new();
         private readonly MonsterSpatialIndex _spatialIndex;
@@ -60,6 +60,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public Transform RoomRoot => _roomRoot;
         public float GroundY => _groundY;
         public float MonsterHitRadius { get; }
+        public MonsterSimulationBackendKind SimulationBackendKind { get; }
         public bool HasFlowField => _simulation.HasFlowField;
         public int TopologyRebuildCount => _simulation.TopologyRebuildCount;
         public int SourceRebuildCount => _simulation.SourceRebuildCount;
@@ -73,15 +74,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             RoomSpatialData spatialData,
             Transform roomRoot,
             float monsterHitRadius,
+            MonsterSimulationBackendKind simulationBackendKind,
             int initialCapacity = 64)
         {
             _configs = configs;
             _quantizer = quantizer;
             _roomRoot = roomRoot;
+            SimulationBackendKind = simulationBackendKind;
 
             _navigationGrid = new RuntimeNavigationGrid(spatialData);
             _obstacleSystem = new RuntimeNavigationObstacleSystem(_navigationGrid, roomRoot);
-            _simulation = new MonsterSimulation(configs,attackProfiles,_navigationGrid,roomRoot);
+            _simulation = MonsterSimulationBackendFactory.Create(
+                simulationBackendKind,
+                configs,
+                attackProfiles,
+                _navigationGrid,
+                roomRoot);
             _occupancySnapshot = new MonsterOccupancySnapshot(
                 roomRoot,
                 _navigationGrid.Width,

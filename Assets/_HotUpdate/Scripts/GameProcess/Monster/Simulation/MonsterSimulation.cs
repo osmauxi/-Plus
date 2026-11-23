@@ -172,9 +172,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 world.Attack,
                 world.Presentation,
                 _configs.SimulationItems,
-                occupancySnapshot.ActiveSlots,
+                occupancySnapshot.ActiveStorageIndices,
                 occupancySnapshot.ActiveCount,
-                occupancySnapshot.FineCellOfSlot,
+                occupancySnapshot.FineCellOfStorageIndex,
                 _flowCellData,
                 players.Positions,
                 players.CellWalkable,
@@ -233,7 +233,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 topologyDirection);
         }
 
-        public Vector2 GetRawSeparation(int slot) => _separation.Get(slot);
+        public Vector2 GetRawSeparation(int storageIndex) => _separation.Get(storageIndex);
 
         public void ExecutePendingMeleeAttacks(
             MonsterWorld world,
@@ -246,7 +246,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             for (int i = 0; i < _pendingMeleeAttackCount; i++)
             {
                 MonsterAttackRequestData request = _pendingMeleeAttacks[i];
-                MonsterMotionData motion = world.Motion[request.Slot];
+                MonsterMotionData motion = world.Motion[request.StorageIndex];
                 Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
                 Vector3 root = new Vector3(motion.Position.x, groundY, motion.Position.y);
                 ref readonly MonsterAttackProfile profile = ref _attackProfiles.Get(request.AttackProfileIndex);
@@ -462,9 +462,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                      activeIndex < occupancySnapshot.ActiveCount;
                      activeIndex++)
                 {
-                    int slot = occupancySnapshot.ActiveSlots[activeIndex];
-                    _targetPositionScratch[slot] = world.Motion[slot].Position;
-                    int cellIndex = occupancySnapshot.FineCellOfSlot[slot];
+                    int storageIndex = occupancySnapshot.ActiveStorageIndices[activeIndex];
+                    _targetPositionScratch[storageIndex] = world.Motion[storageIndex].Position;
+                    int cellIndex = occupancySnapshot.FineCellOfStorageIndex[storageIndex];
                     if ((uint)cellIndex >= (uint)_flowCellData.Length ||
                         _flowCellData[cellIndex].Flags != 0 ||
                         _recoveryCacheVersions[cellIndex] == _flowFieldDataVersion)

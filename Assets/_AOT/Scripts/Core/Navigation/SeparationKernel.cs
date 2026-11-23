@@ -62,9 +62,9 @@ namespace ProjectGame.Core.Navigation
             int[] activeBuckets,
             int activeBucketCount,
             int[] nextSlot,
-            int slotCount)
+            int storageCount)
         {
-            Array.Clear(_separation, 0, slotCount);
+            Array.Clear(_separation, 0, storageCount);
             CalculatePairs(
                 positions,
                 bucketHeads,
@@ -73,7 +73,7 @@ namespace ProjectGame.Core.Navigation
                 nextSlot);
         }
 
-        public Vector2 Get(int slot) => _separation[slot];
+        public Vector2 Get(int storageIndex) => _separation[storageIndex];
 
         public Vector2[] Values => _separation;
 

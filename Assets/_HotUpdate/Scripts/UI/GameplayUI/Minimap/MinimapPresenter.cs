@@ -228,14 +228,14 @@ namespace ProjectGame.HotFix.UI.Gameplay.Minimap
             MonsterReplica replica = _monsterRuntime.Replica;
             bool boss = _tacticalRoom.RoomType == RoomType.Boss;
             float now = Time.unscaledTime;
-            for (int slot = 0; slot < replica.SlotCount; slot++)
+            for (int viewSlot = 0; viewSlot < replica.ViewSlotCount; viewSlot++)
             {
-                MonsterReplicaState monster = replica.GetState(slot, now);
+                MonsterReplicaState monster = replica.GetState(viewSlot, now);
                 if (!monster.IsActive)
                     continue;
 
                 Vector3 world = new(monster.Position.x, _monsterRuntime.RoomGroundY, monster.Position.y);
-                _view.SetEnemyMarker(slot, WorldToTactical(world), boss);
+                _view.SetEnemyMarker(viewSlot, WorldToTactical(world), boss);
             }
             _view.EndEnemyMarkerUpdate();
         }

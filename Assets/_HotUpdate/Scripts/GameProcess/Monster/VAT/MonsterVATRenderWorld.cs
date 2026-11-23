@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
     /// <summary>
-    /// 房间级 VAT 状态与批量绘制；所有实例按稳定 Monster Slot 索引。
+    /// 房间级 VAT 状态与批量绘制；所有实例按稳定 Monster ViewSlot 索引。
     /// </summary>
     public sealed class MonsterVATRenderWorld : IDisposable
     {
@@ -33,11 +33,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly float _groundY;
         //所有不同的渲染组
         private readonly List<RenderGroup> _groups = new List<RenderGroup>();
-        //每个怪物 Slot 对应的动画状态
+        //每个怪物 ViewSlot 对应的动画状态
         private InstanceState[] _states = Array.Empty<InstanceState>();
-        private int _slotCount;
+        private int _viewSlotCount;
 
-        public int SlotCount => _slotCount;
+        public int ViewSlotCount => _viewSlotCount;
         public int ActiveCount { get; private set; }
 
         public MonsterVATRenderWorld(float groundY)
@@ -45,15 +45,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _groundY = groundY;
         }
 
-        public void Spawn(int slot, in MonsterVATRenderProfile profile, Vector2 position, float yaw)
+        public void Spawn(int viewSlot, in MonsterVATRenderProfile profile, Vector2 position, float yaw)
         {
-            if (slot != _slotCount)
-                throw new InvalidOperationException($"Monster VAT Slot 必须连续追加：Expected={_slotCount}, Actual={slot}。");
+            if (viewSlot != _viewSlotCount)
+                throw new InvalidOperationException($"Monster VAT ViewSlot 必须连续追加：Expected={_viewSlotCount}, Actual={viewSlot}。");
 
-            EnsureCapacity(slot + 1);
+            EnsureCapacity(viewSlot + 1);
             int groupIndex = GetOrCreateGroup(profile);
             RenderGroup group = _groups[groupIndex];
-            _states[slot] = new InstanceState
+            _states[viewSlot] = new InstanceState
             {
                 Active = true,
                 GroupIndex = groupIndex,
@@ -70,20 +70,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 SourceLoop = true,
                 TargetLoop = true,
             };
-            group.Slots.Add(slot);
-            _slotCount++;
+            group.ViewSlots.Add(viewSlot);
+            _viewSlotCount++;
             ActiveCount++;
         }
 
-        public void SetPose(int slot, Vector2 position, float yaw, float deltaTime)
+        public void SetPose(int viewSlot, Vector2 position, float yaw, float deltaTime)
         {
-            ref InstanceState state = ref _states[slot];
+            ref InstanceState state = ref _states[viewSlot];
             RenderGroup group = _groups[state.GroupIndex];
             ApplyPose(ref state, group, position, yaw, deltaTime);
         }
 
         public void SetTargetPose(
-            int slot,
+            int viewSlot,
             Vector2 pose,
             float yaw,
             Vector2 targetPose,
@@ -92,7 +92,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float updatesPerSecond,
             float deltaTime)
         {
-            ref InstanceState state = ref _states[slot];
+            ref InstanceState state = ref _states[viewSlot];
             RenderGroup group = _groups[state.GroupIndex];
             ApplyPose(ref state, group, pose, yaw, deltaTime);
             state.PoseStartPosition = pose;
@@ -122,9 +122,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             SetLocomotion(ref state, group, moving);
         }
 
-        public void PlayAttack(int slot)
+        public void PlayAttack(int viewSlot)
         {
-            ref InstanceState state = ref _states[slot];
+            ref InstanceState state = ref _states[viewSlot];
             RenderGroup group = _groups[state.GroupIndex];
             state.AttackPlaying = true;
             //当前本身就在攻击，则重新触发攻击动画，从第一帧重新开始
@@ -140,23 +140,23 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             BeginTransition(ref state, group.AttackClip, false, group.CrossFadeDuration);
         }
 
-        public void PlayHit(int slot)
+        public void PlayHit(int viewSlot)
         {
-            ref InstanceState state = ref _states[slot];
+            ref InstanceState state = ref _states[viewSlot];
             state.HitFlashRemaining = _groups[state.GroupIndex].HitFlashDuration;
         }
 
-        public void Despawn(int slot)
+        public void Despawn(int viewSlot)
         {
-            if (!_states[slot].Active)
+            if (!_states[viewSlot].Active)
                 return;
-            _states[slot].Active = false;
+            _states[viewSlot].Active = false;
             ActiveCount--;
         }
 
         public void Clear()
         {
-            _slotCount = 0;
+            _viewSlotCount = 0;
             ActiveCount = 0;
             for (int i = 0; i < _groups.Count; i++)
                 _groups[i].Dispose();
@@ -169,9 +169,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             using (UpdateMarker.Auto())
             using (UpdateLoopMarker.Auto())
             {
-                for (int slot = 0; slot < _slotCount; slot++)
+                for (int viewSlot = 0; viewSlot < _viewSlotCount; viewSlot++)
                 {
-                    ref InstanceState state = ref _states[slot];
+                    ref InstanceState state = ref _states[viewSlot];
                     if (!state.Active)
                         continue;
                     if (state.HasPoseTarget)
@@ -232,9 +232,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void Draw(RenderGroup group)
         {
             int drawCount = 0;
-            for (int i = 0; i < group.Slots.Count; i++)
+            for (int i = 0; i < group.ViewSlots.Count; i++)
             {
-                ref InstanceState state = ref _states[group.Slots[i]];
+                ref InstanceState state = ref _states[group.ViewSlots[i]];
                 if (!state.Active)
                     continue;
                 //获得当前实例应该绘制的动画帧
@@ -449,7 +449,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             public readonly Material SourceMaterial;
             public readonly Color HitFlashColor;
 
-            public readonly List<int> Slots = new List<int>();
+            public readonly List<int> ViewSlots = new List<int>();
             public readonly Matrix4x4[] Matrices = new Matrix4x4[DrawBatchCapacity];
             public readonly float[] CurrentFrames = new float[DrawBatchCapacity];
             public readonly float[] NextFrames = new float[DrawBatchCapacity];

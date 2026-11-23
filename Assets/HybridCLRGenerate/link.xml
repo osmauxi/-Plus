@@ -56,6 +56,9 @@
     <type fullname="Cinemachine.CinemachineCore" preserve="all" />
     <type fullname="Cinemachine.CinemachineCore/Stage" preserve="all" />
     <type fullname="Cinemachine.CinemachineExtension" preserve="all" />
+    <type fullname="Cinemachine.CinemachineImpulseDefinition" preserve="all" />
+    <type fullname="Cinemachine.CinemachineImpulseDefinition/ImpulseShapes" preserve="all" />
+    <type fullname="Cinemachine.CinemachineImpulseDefinition/ImpulseTypes" preserve="all" />
     <type fullname="Cinemachine.CinemachineImpulseSource" preserve="all" />
     <type fullname="Cinemachine.CinemachineTransposer" preserve="all" />
     <type fullname="Cinemachine.CinemachineTransposer/BindingMode" preserve="all" />

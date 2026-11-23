@@ -171,34 +171,34 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             LastQueryVisitedNodeCount = 0;
         }
 
-        public void Add(MonsterWorld world, int slot)
+        public void Add(MonsterWorld world, int storageIndex)
         {
             if (!_isBuilt)
                 return;
 
-            Vector2 position = world.Motion[slot].Position;
-            _spatialPositions[slot] = position;
-            _spatialActiveMask[slot] = 1;
-            _kernel.Add(slot, position);
+            Vector2 position = world.Motion[storageIndex].Position;
+            _spatialPositions[storageIndex] = position;
+            _spatialActiveMask[storageIndex] = 1;
+            _kernel.Add(storageIndex, position);
         }
 
-        public void Remove(int slot)
+        public void Remove(int storageIndex)
         {
             if (!_isBuilt)
                 return;
 
-            _spatialActiveMask[slot] = 0;
-            _kernel.Remove(slot);
+            _spatialActiveMask[storageIndex] = 0;
+            _kernel.Remove(storageIndex);
         }
 
-        public void Relocate(MonsterWorld world, int slot)
+        public void Relocate(MonsterWorld world, int storageIndex)
         {
             if (!_isBuilt)
                 return;
 
-            Vector2 position = world.Motion[slot].Position;
-            _spatialPositions[slot] = position;
-            _kernel.Relocate(slot, position);
+            Vector2 position = world.Motion[storageIndex].Position;
+            _spatialPositions[storageIndex] = position;
+            _kernel.Relocate(storageIndex, position);
         }
         /// <summary>
         /// 子弹使用的查询接口，查询从 start 到 end 的圆形扫掠区域内的所有怪物索引
@@ -277,13 +277,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             using (BuildMarker.Auto())
             {
-                for (int slot = 0; slot < world.SlotCount; slot++)
+                for (int storageIndex = 0; storageIndex < world.StorageCount; storageIndex++)
                 {
-                    _spatialPositions[slot] = world.Motion[slot].Position;
-                    _spatialActiveMask[slot] = world.Meta[slot].IsActive ? (byte)1 : (byte)0;
+                    _spatialPositions[storageIndex] = world.Motion[storageIndex].Position;
+                    _spatialActiveMask[storageIndex] = 1;
                 }
 
-                _kernel.Build(_spatialPositions, _spatialActiveMask, world.SlotCount);
+                _kernel.Build(_spatialPositions, _spatialActiveMask, world.StorageCount);
                 _isBuilt = true;
                 BuildVersion++;
                 if (_performanceDiagnosticsEnabled)

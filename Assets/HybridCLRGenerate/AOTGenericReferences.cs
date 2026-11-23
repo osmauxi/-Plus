@@ -313,9 +313,11 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Action<ushort>
 	// System.ArraySegment.Enumerator<byte>
 	// System.ArraySegment.Enumerator<int>
+	// System.ArraySegment.Enumerator<ulong>
 	// System.ArraySegment.Enumerator<ushort>
 	// System.ArraySegment<byte>
 	// System.ArraySegment<int>
+	// System.ArraySegment<ulong>
 	// System.ArraySegment<ushort>
 	// System.Buffers.ArrayMemoryPool.ArrayMemoryPoolBuffer<byte>
 	// System.Buffers.ArrayMemoryPool<byte>
@@ -342,6 +344,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Buffers.TlsOverPerCoreLockedStacksArrayPool<int>
 	// System.ByReference<byte>
 	// System.ByReference<int>
+	// System.ByReference<ulong>
 	// System.ByReference<ushort>
 	// System.Collections.Concurrent.ConcurrentQueue.<Enumerate>d__28<object>
 	// System.Collections.Concurrent.ConcurrentQueue.Segment<object>
@@ -1631,9 +1634,11 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.ReadOnlyMemory<byte>
 	// System.ReadOnlySpan.Enumerator<byte>
 	// System.ReadOnlySpan.Enumerator<int>
+	// System.ReadOnlySpan.Enumerator<ulong>
 	// System.ReadOnlySpan.Enumerator<ushort>
 	// System.ReadOnlySpan<byte>
 	// System.ReadOnlySpan<int>
+	// System.ReadOnlySpan<ulong>
 	// System.ReadOnlySpan<ushort>
 	// System.Runtime.CompilerServices.AsyncTaskMethodBuilder<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,UnityEngine.SceneManagement.Scene>>>>>>>>>
 	// System.Runtime.CompilerServices.AsyncTaskMethodBuilder<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,byte>>>>>>>>>
@@ -1814,9 +1819,11 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Runtime.CompilerServices.ValueTaskAwaiter<object>
 	// System.Span.Enumerator<byte>
 	// System.Span.Enumerator<int>
+	// System.Span.Enumerator<ulong>
 	// System.Span.Enumerator<ushort>
 	// System.Span<byte>
 	// System.Span<int>
+	// System.Span<ulong>
 	// System.Span<ushort>
 	// System.Threading.Tasks.ContinuationTaskFromResultTask<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,UnityEngine.SceneManagement.Scene>>>>>>>>
 	// System.Threading.Tasks.ContinuationTaskFromResultTask<System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,System.ValueTuple<byte,byte>>>>>>>>
@@ -2296,7 +2303,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// ulong[] System.Array.Empty<ulong>()
 		// ushort[] System.Array.Empty<ushort>()
 		// System.Void System.Array.Fill<int>(int[],int)
-		// System.Void System.Array.Fill<int>(int[],int,int,int)
 		// int System.Array.IndexOf<object>(object[],object)
 		// int System.Array.IndexOfImpl<object>(object[],object,int,int)
 		// System.Void System.Array.Resize<ProjectGame.Core.Monsters.MonsterAttackData>(ProjectGame.Core.Monsters.MonsterAttackData[]&,int)
@@ -2353,7 +2359,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<System.Collections.Generic.KeyValuePair<ulong,object>>.Select<object>(System.Func<System.Collections.Generic.KeyValuePair<ulong,object>,object>)
 		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Iterator<ulong>.Select<object>(System.Func<ulong,object>)
 		// System.Linq.IOrderedEnumerable<object> System.Linq.IOrderedEnumerable<object>.CreateOrderedEnumerable<int>(System.Func<object,int>,System.Collections.Generic.IComparer<int>,bool)
-		// System.Span<int> System.MemoryExtensions.AsSpan<int>(int[],int,int)
+		// System.Span<ulong> System.MemoryExtensions.AsSpan<ulong>(ulong[],int,int)
 		// object System.Reflection.CustomAttributeExtensions.GetCustomAttribute<object>(System.Reflection.MemberInfo)
 		// System.Void System.Runtime.CompilerServices.AsyncVoidMethodBuilder.AwaitUnsafeOnCompleted<Cysharp.Threading.Tasks.UniTask.Awaiter,object>(Cysharp.Threading.Tasks.UniTask.Awaiter&,object&)
 		// System.Void System.Runtime.CompilerServices.AsyncVoidMethodBuilder.AwaitUnsafeOnCompleted<System.Runtime.CompilerServices.TaskAwaiter<object>,object>(System.Runtime.CompilerServices.TaskAwaiter<object>&,object&)

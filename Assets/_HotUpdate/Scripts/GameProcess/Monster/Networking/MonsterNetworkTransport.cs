@@ -13,7 +13,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         void ReceiveRoomBegin(MonsterRoomBeginData data);
         void ReceiveSpawnBatch(MonsterSpawnBatch batch);
-        void ReceiveDespawn(int slot);
+        void ReceiveDespawn(ulong entityId);
         void ReceiveRoomEnd();
         void ReceiveGroupMembership(ref FastBufferReader reader);
         void ReceiveGroupSnapshot(MonsterGroupSnapshot frame, byte intervalTicks);
@@ -131,10 +131,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             IReadOnlyList<ulong> clients,
             uint groupId,
             uint membershipRevision,
-            ReadOnlySpan<int> memberSlots)
+            ReadOnlySpan<ulong> memberEntityIds)
         {
             using var groupTransportScope = GroupTransportMarker.Auto();
-            int payloadLength = MonsterNetworkCodec.GetGroupMembershipByteCount(memberSlots.Length);
+            int payloadLength = MonsterNetworkCodec.GetGroupMembershipByteCount(memberEntityIds.Length);
             int length = 1 + payloadLength;
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try
@@ -145,7 +145,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 {
                     writer.WriteByte((byte)MonsterNetworkMessageKind.GroupMembership);
                     MonsterNetworkCodec.WriteGroupMembership(
-                        ref writer, groupId, membershipRevision, memberSlots, payloadLength);
+                        ref writer, groupId, membershipRevision, memberEntityIds, payloadLength);
                 }
                 _transport.SendUnnamedToClients(clients, GroupMembershipMessageName, writer,NetworkDeliveryClass.ReliableEvent);
             }
@@ -186,15 +186,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
         }
 
-        internal void SendDespawn(int slot)
+        internal void SendDespawn(ulong entityId)
         {
-            FastBufferWriter writer = new(1 + sizeof(uint), Allocator.Temp, 1 + sizeof(uint));
+            FastBufferWriter writer = new(1 + sizeof(ulong), Allocator.Temp, 1 + sizeof(ulong));
             try
             {
-                if (!writer.TryBeginWrite(1 + sizeof(uint)))
+                if (!writer.TryBeginWrite(1 + sizeof(ulong)))
                     throw new OverflowException("Monster Despawn Writer 容量不足。");
                 writer.WriteByte((byte)MonsterNetworkMessageKind.Despawn);
-                MonsterNetworkCodec.WriteDespawn(ref writer, slot);
+                MonsterNetworkCodec.WriteDespawn(ref writer, entityId);
                 _transport.SendUnnamedToRemoteClients(DespawnMessageName, writer, NetworkDeliveryClass.ReliableEvent);
             }
             finally

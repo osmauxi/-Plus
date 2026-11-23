@@ -67,7 +67,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         [Tooltip("首次生成或持续补充时希望保持的存活怪物数量。")]
         [SerializeField, Min(1)] private int _targetAliveMonsterCount = 256;
 
-        [Tooltip("本次房间允许创建的 Slot 总数上限。死亡 Slot 在房间结束前不会复用，因此该值必须有限。")]
+        [Tooltip("本次房间允许同时存活的怪物总数上限。死亡实体回收后会复用底层 StorageIndex。")]
         [SerializeField, Min(1)] private int _maximumTotalSpawnCount = 256;
 
         [Tooltip("启用后怪物死亡时会补充到目标存活数，直到达到总生成上限；关闭时只生成初始目标数量。")]
@@ -119,7 +119,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         [SerializeField] private bool _faceSpawnCenter = true;
 
         [Header("诊断日志")]
-        [Tooltip("每个 SpawnBatch 完成后输出当前 Alive、Slot 和累计生成数。大量小批次时建议关闭。")]
+        [Tooltip("每个 SpawnBatch 完成后输出当前 Alive、Storage 和累计生成数。大量小批次时建议关闭。")]
         [SerializeField] private bool _logEachBatch;
 
         [Tooltip("开始、达到目标或达到总上限时输出压测摘要。")]
@@ -296,7 +296,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     Debug.Log(
                         $"[{nameof(MonsterNavigationStressTestManager)}] 已生成批次，" +
                         $"Batch={batchCount}，Alive={_monsterRuntimeService.AliveMonsterCount}，" +
-                        $"Slots={_monsterRuntimeService.MonsterSlotCount}，Total={_totalSpawned}，" +
+                        $"Storage={_monsterRuntimeService.MonsterStorageCount}，Total={_totalSpawned}，" +
                         $"Radius={_activeSpawnRadius:F1}");
                 }
 
@@ -314,7 +314,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 Debug.Log(
                     $"[{nameof(MonsterNavigationStressTestManager)}] {reason}，" +
                     $"Alive={_monsterRuntimeService.AliveMonsterCount}，" +
-                    $"Slots={_monsterRuntimeService.MonsterSlotCount}，Total={_totalSpawned}");
+                    $"Storage={_monsterRuntimeService.MonsterStorageCount}，Total={_totalSpawned}");
             }
 
             _spawnRoutine = null;

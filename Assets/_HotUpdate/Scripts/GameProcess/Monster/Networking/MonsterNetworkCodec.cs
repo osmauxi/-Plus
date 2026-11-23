@@ -20,7 +20,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new ProfilerMarker("Monster.Presentation.GroupDecode");
 
         //已经算好的各数据结构额外头数据的大小
-        private const int SpawnHeaderSize = 6;
+        private const int SpawnHeaderSize = 2;
         private const int RoomBeginSize = 24;
         private const int GroupSnapshotHeaderSize = 15;
         private const int GroupSnapshotBatchHeaderSize = 2;
@@ -29,13 +29,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public static int GetRoomBeginByteCount() => RoomBeginSize;
 
-        internal static void WriteDespawn(ref FastBufferWriter writer, int slot) =>
-            writer.WriteValueSafe(slot);
+        internal static void WriteDespawn(ref FastBufferWriter writer, ulong entityId) =>
+            WriteUInt64(ref writer, entityId);
 
-        internal static int ReadDespawn(ref FastBufferReader reader)
+        internal static ulong ReadDespawn(ref FastBufferReader reader)
         {
-            reader.ReadValueSafe(out int slot);
-            return slot;
+            return ReadUInt64(ref reader);
         }
 
         public static int WriteRoomBegin(ref FastBufferWriter writer,in MonsterRoomBeginData data)
@@ -123,26 +122,26 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 throw new ArgumentException("Monster GroupSnapshot 批次头不完整。");
             return ReadUInt16(ref reader);
         }
-        internal static int GetGroupMembershipByteCount(int count) => GroupMembershipHeaderSize + count * sizeof(uint);
+        internal static int GetGroupMembershipByteCount(int count) => GroupMembershipHeaderSize + count * sizeof(ulong);
         /// <summary>
-        /// 单个组的成员表序列化方法，包含群组ID，当前组版本，和成员槽位列表
-        /// 不传输具体成员状态，给客户端判定当前组对应槽位，未变时可直接复用
+        /// 单个组的成员表序列化方法，包含群组ID，当前组版本，和成员身份列表。
+        /// 不传输具体成员状态，给客户端通过身份映射找到本地表现槽位。
         /// </summary>
         internal static void WriteGroupMembership(
             ref FastBufferWriter writer,
             uint groupId,
             uint membershipRevision,
-            ReadOnlySpan<int> memberSlots,
+            ReadOnlySpan<ulong> memberEntityIds,
             int length)
         {
             writer.TryBeginWrite(length);
 
             WriteUInt32(ref writer, groupId);
             WriteUInt32(ref writer, membershipRevision);
-            WriteUInt16(ref writer, (ushort)memberSlots.Length);
+            WriteUInt16(ref writer, (ushort)memberEntityIds.Length);
 
-            foreach (int slot in memberSlots)
-                WriteUInt32(ref writer, (uint)slot);
+            foreach (ulong entityId in memberEntityIds)
+                WriteUInt64(ref writer, entityId);
         }
 
         internal static int ReadGroupMembershipHeader(
@@ -156,16 +155,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             groupId = ReadUInt32(ref reader);
             membershipRevision = ReadUInt32(ref reader);
             int count = ReadUInt16(ref reader);
-            if (count > MonsterNetworkGroupKernel.GroupCapacity || !reader.TryBeginRead(count * sizeof(uint)))
+            if (count > MonsterNetworkGroupKernel.GroupCapacity || !reader.TryBeginRead(count * sizeof(ulong)))
                 throw new ArgumentException("Monster GroupMembership 成员表超出缓冲范围。");
 
             return count;
         }
 
-        internal static void ReadGroupMembershipSlots(ref FastBufferReader reader, Span<int> memberSlots)
+        internal static void ReadGroupMembershipEntityIds(ref FastBufferReader reader, Span<ulong> memberEntityIds)
         {
-            for (int i = 0; i < memberSlots.Length; i++)
-                memberSlots[i] = checked((int)ReadUInt32(ref reader));
+            for (int i = 0; i < memberEntityIds.Length; i++)
+                memberEntityIds[i] = ReadUInt64(ref reader);
         }
 
         internal static void ReadGroupSnapshotInto(
@@ -203,7 +202,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
 
         public static int GetSpawnByteCount(MonsterSpawnBatch batch) =>
-            checked(SpawnHeaderSize + (ushort)batch.Count * 6);
+            checked(SpawnHeaderSize + (ushort)batch.Count * 14);
 
         public static void WriteSpawn(ref FastBufferWriter writer, MonsterSpawnBatch batch)
         {
@@ -211,12 +210,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!writer.TryBeginWrite(length))
                 throw new OverflowException("Monster Spawn Writer 容量不足。");
 
-            WriteUInt32(ref writer, checked((uint)batch.StartSlot));
             WriteUInt16(ref writer, checked((ushort)batch.Count));
 
             for (int i = 0; i < batch.Count; i++)
             {
                 MonsterSpawnData item = batch.Items[i];
+                WriteUInt64(ref writer, item.EntityId);
                 WriteUInt16(ref writer, item.ConfigIndex);
                 WriteUInt32(ref writer, item.PackedPose);
             }
@@ -227,16 +226,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!reader.TryBeginRead(SpawnHeaderSize))
                 throw new ArgumentException("Monster Spawn 包头被截断。");
 
-            int startSlot = checked((int)ReadUInt32(ref reader));
             ushort count = ReadUInt16(ref reader);
-            if (!reader.TryBeginRead(count * 6))
+            if (!reader.TryBeginRead(count * 14))
                 throw new ArgumentException("Monster Spawn 成员数据被截断。");
             var items = new MonsterSpawnData[count];
 
             for (int i = 0; i < count; i++)
-                items[i] = new MonsterSpawnData(ReadUInt16(ref reader),ReadUInt32(ref reader));
+                items[i] = new MonsterSpawnData(
+                    ReadUInt64(ref reader), ReadUInt16(ref reader), ReadUInt32(ref reader));
 
-            return new MonsterSpawnBatch(startSlot, items);
+            return new MonsterSpawnBatch(items);
         }
         private static void WriteUInt16(ref FastBufferWriter writer,ushort value)
         {
@@ -269,6 +268,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             reader.ReadByte(out byte b3);
             return b0 | (uint)b1 << 8 | (uint)b2 << 16 | (uint)b3 << 24;
         }
+
+        private static void WriteUInt64(ref FastBufferWriter writer, ulong value)
+        {
+            WriteUInt32(ref writer, (uint)value);
+            WriteUInt32(ref writer, (uint)(value >> 32));
+        }
+
+        private static ulong ReadUInt64(ref FastBufferReader reader) =>
+            ReadUInt32(ref reader) | (ulong)ReadUInt32(ref reader) << 32;
         /// <summary>
         /// 写浮点数直接把三十二位拆出来当int传，走的还是自己写的UInt32序列化方法
         /// 浮点最高位可能为1(负数)转uint要Unchecked

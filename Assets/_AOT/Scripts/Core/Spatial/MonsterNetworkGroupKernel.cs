@@ -38,19 +38,19 @@ namespace ProjectGame.Core.Spatial
         private byte[] _groupIntervals = Array.Empty<byte>();
         private int[] _groupMembers = Array.Empty<int>();
 
-        private int[] _groupBySlot = Array.Empty<int>();
-        private int[] _slotIndexInGroup = Array.Empty<int>();
+        private int[] _groupByStorageIndex = Array.Empty<int>();
+        private int[] _storageIndexInGroup = Array.Empty<int>();
         private int _regionCount;
         private int _groupCount;
 
         public int GroupCount => _groupCount;
 
-        public MonsterNetworkGroupKernel(int initialSlotCapacity = 64)
+        public MonsterNetworkGroupKernel(int initialStorageCapacity = 64)
         {
             Array.Fill(_regionIndexByCode, Unlinked);
             Array.Fill(_regionFirstGroup, Unlinked);
             Array.Fill(_regionLastGroup, Unlinked);
-            EnsureCapacity(initialSlotCapacity);
+            EnsureCapacity(initialStorageCapacity);
         }
 
         public void Clear()
@@ -58,62 +58,52 @@ namespace ProjectGame.Core.Spatial
             Array.Fill(_regionIndexByCode, Unlinked);
             Array.Fill(_regionFirstGroup, Unlinked);
             Array.Fill(_regionLastGroup, Unlinked);
-            Array.Fill(_groupBySlot, Unlinked);
-            Array.Fill(_slotIndexInGroup, Unlinked);
+            Array.Fill(_groupByStorageIndex, Unlinked);
+            Array.Fill(_storageIndexInGroup, Unlinked);
             _regionCount = 0;
             _groupCount = 0;
         }
 
-        public void EnsureCapacity(int slotCapacity)
+        public void EnsureCapacity(int storageCapacity)
         {
-            if (_groupBySlot.Length < slotCapacity)
+            if (_groupByStorageIndex.Length < storageCapacity)
             {
-                int previous = _groupBySlot.Length;
-                int capacity = Math.Max(slotCapacity, previous == 0 ? 64 : previous * 2);
-                Array.Resize(ref _groupBySlot, capacity);
-                Array.Resize(ref _slotIndexInGroup, capacity);
-                Array.Fill(_groupBySlot, Unlinked, previous, capacity - previous);
-                Array.Fill(_slotIndexInGroup, Unlinked, previous, capacity - previous);
+                int previous = _groupByStorageIndex.Length;
+                int capacity = Math.Max(storageCapacity, previous == 0 ? 64 : previous * 2);
+                Array.Resize(ref _groupByStorageIndex, capacity);
+                Array.Resize(ref _storageIndexInGroup, capacity);
+                Array.Fill(_groupByStorageIndex, Unlinked, previous, capacity - previous);
+                Array.Fill(_storageIndexInGroup, Unlinked, previous, capacity - previous);
             }
 
-            int requiredGroups = Math.Max(4, (slotCapacity + GroupCapacity - 1) / GroupCapacity);
+            int requiredGroups = Math.Max(4, (storageCapacity + GroupCapacity - 1) / GroupCapacity);
             EnsureGroupCapacity(requiredGroups);
         }
 
         public void Refresh(
-            MonsterMetaData[] meta,
             MonsterMotionData[] motion,
-            int slotCount,
+            int storageCount,
             Vector2[] playerPositions,
             int playerCount,
             Vector2 rootCenter,
             float rootHalfSize,
             uint tick)
         {
-            EnsureCapacity(slotCount);
+            EnsureCapacity(storageCount);
 
-            for (int slot = 0; slot < slotCount; slot++)
+            for (int storageIndex = 0; storageIndex < storageCount; storageIndex++)
             {
-                int previousGroup = _groupBySlot[slot];
-                if (!meta[slot].IsActive)
-                {
-                    if (previousGroup >= 0)
-                        RemoveFromGroup(slot, previousGroup);
-                    _groupBySlot[slot] = Unlinked;
-                    _slotIndexInGroup[slot] = Unlinked;
-                    continue;
-                }
-
+                int previousGroup = _groupByStorageIndex[storageIndex];
                 uint regionCode = MonsterQuadTreeKernel.ComputeBaseRegionCode(
-                    motion[slot].Position, rootCenter, rootHalfSize);
+                    motion[storageIndex].Position, rootCenter, rootHalfSize);
                 if (previousGroup >= 0 && GetRegionCode(previousGroup) == regionCode)
                     continue;
 
                 if (previousGroup >= 0)
-                    RemoveFromGroup(slot, previousGroup);
+                    RemoveFromGroup(storageIndex, previousGroup);
 
                 int nextGroup = GetGroupWithSpace(regionCode, rootCenter, rootHalfSize, playerPositions, playerCount, tick);
-                AddToGroup(slot, nextGroup);
+                AddToGroup(storageIndex, nextGroup);
             }
 
             if (tick % TierRefreshInterval == 0)
@@ -127,7 +117,7 @@ namespace ProjectGame.Core.Spatial
         public byte GetIntervalTicks(int groupIndex) => _groupIntervals[groupIndex];
         public uint GetNextPoseTick(int groupIndex) => _groupNextPoseTicks[groupIndex];
         public int GetMemberCount(int groupIndex) => _groupCounts[groupIndex];
-        public ReadOnlySpan<int> GetMemberSlots(int groupIndex) =>
+        public ReadOnlySpan<int> GetMemberStorageIndices(int groupIndex) =>
             _groupMembers.AsSpan(groupIndex * GroupCapacity, _groupCounts[groupIndex]);
 
         public bool IsMembershipChanged(int groupIndex) =>
@@ -265,32 +255,32 @@ namespace ProjectGame.Core.Spatial
                 _groupNextPoseTicks[groupIndex] = phaseTick;
         }
 
-        private void AddToGroup(int slot, int groupIndex)
+        private void AddToGroup(int storageIndex, int groupIndex)
         {
             int count = _groupCounts[groupIndex];
-            _groupMembers[groupIndex * GroupCapacity + count] = slot;
+            _groupMembers[groupIndex * GroupCapacity + count] = storageIndex;
             _groupCounts[groupIndex] = count + 1;
-            _groupBySlot[slot] = groupIndex;
-            _slotIndexInGroup[slot] = count;
+            _groupByStorageIndex[storageIndex] = groupIndex;
+            _storageIndexInGroup[storageIndex] = count;
             _groupMembershipRevisions[groupIndex]++;
         }
 
-        private void RemoveFromGroup(int slot, int groupIndex)
+        private void RemoveFromGroup(int storageIndex, int groupIndex)
         {
             int count = _groupCounts[groupIndex];
-            int index = _slotIndexInGroup[slot];
+            int index = _storageIndexInGroup[storageIndex];
             int lastIndex = count - 1;
-            int lastSlot = _groupMembers[groupIndex * GroupCapacity + lastIndex];
+            int lastStorageIndex = _groupMembers[groupIndex * GroupCapacity + lastIndex];
             if (index != lastIndex)
             {
-                _groupMembers[groupIndex * GroupCapacity + index] = lastSlot;
-                _slotIndexInGroup[lastSlot] = index;
+                _groupMembers[groupIndex * GroupCapacity + index] = lastStorageIndex;
+                _storageIndexInGroup[lastStorageIndex] = index;
             }
 
             _groupCounts[groupIndex] = lastIndex;
             _groupMembershipRevisions[groupIndex]++;
-            _groupBySlot[slot] = Unlinked;
-            _slotIndexInGroup[slot] = Unlinked;
+            _groupByStorageIndex[storageIndex] = Unlinked;
+            _storageIndexInGroup[storageIndex] = Unlinked;
         }
 
         private uint GetRegionCodeForGroup(int groupIndex) =>

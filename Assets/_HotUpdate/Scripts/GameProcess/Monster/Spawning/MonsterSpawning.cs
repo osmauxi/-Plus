@@ -158,49 +158,50 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
     public readonly struct MonsterSpawnData
     {
+        public readonly ulong EntityId;
         public readonly ushort ConfigIndex;
         public readonly uint PackedPose;
-        public MonsterSpawnData(ushort configIndex, uint packedPose)
+        public MonsterSpawnData(ulong entityId, ushort configIndex, uint packedPose)
         {
+            EntityId = entityId;
             ConfigIndex = configIndex;
             PackedPose = packedPose; 
         }
     }
 
     /// <summary>
-    /// 一波可靠静态出生数据，数组顺序隐式映射连续 Slot。
+    /// 一波可靠静态出生数据。数组顺序只表示本批次的写入顺序，网络身份由 EntityId 显式携带。
     /// </summary>
     public sealed class MonsterSpawnBatch
     {
         private readonly MonsterSpawnData[] _items;
-        public int StartSlot { get; }
         public int Count => _items.Length;
         public IReadOnlyList<MonsterSpawnData> Items => _items;
 
-        public MonsterSpawnBatch(int startSlot, MonsterSpawnData[] items)
+        public MonsterSpawnBatch(MonsterSpawnData[] items)
         {
-            if (startSlot < 0) 
-                throw new ArgumentOutOfRangeException(nameof(startSlot));
             if (items == null) 
                 throw new ArgumentNullException(nameof(items));
             _items = items;
-            if ((long)startSlot + _items.Length > int.MaxValue)
-                throw new ArgumentException("Monster SpawnBatch Slot 范围溢出。", nameof(items));
-            StartSlot = startSlot;
         }
 
-        public static MonsterSpawnBatch FromPlans(int startSlot, IReadOnlyList<MonsterSpawnPlan> plans,
-            MonsterPoseQuantizer quantizer)
+        public static MonsterSpawnBatch FromPlans(
+            int startStorageIndex,
+            IReadOnlyList<MonsterSpawnPlan> plans,
+            MonsterPoseQuantizer quantizer,
+            MonsterWorld world)
         {
             if (plans == null) 
                 throw new ArgumentNullException(nameof(plans));
             if (quantizer == null) 
                 throw new ArgumentNullException(nameof(quantizer));
+            if (world == null)
+                throw new ArgumentNullException(nameof(world));
             var items = new MonsterSpawnData[plans.Count];
             for (int i = 0; i < plans.Count; i++)
-                items[i] = new MonsterSpawnData(plans[i].ConfigIndex,
+                items[i] = new MonsterSpawnData(world.GetEntityId(startStorageIndex + i), plans[i].ConfigIndex,
                     quantizer.Pack(plans[i].Position, plans[i].Yaw));
-            return new MonsterSpawnBatch(startSlot, items);
+            return new MonsterSpawnBatch(items);
         }
     }
 }

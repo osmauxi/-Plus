@@ -95,7 +95,7 @@ namespace ProjectGame.Editor.Gameplay
 
             var reference = new MonsterSpatialIndex(root, RoomHalfSize, capacity);
             var kernel = new MonsterQuadTreeKernel(Vector2.zero, RoomHalfSize, capacity);
-            kernel.Build(positions, activeMask, world.SlotCount);
+            kernel.Build(positions, activeMask, world.StorageCount);
             Query query = new(new Vector2(-30f, -30f), new Vector2(30f, 30f), 2f);
             CompareQuery("增量操作初始", world, reference, kernel, query, capacity);
 

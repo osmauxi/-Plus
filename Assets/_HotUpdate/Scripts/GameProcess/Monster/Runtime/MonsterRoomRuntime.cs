@@ -47,7 +47,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterSpatialIndex _spatialIndex;
         private readonly MonsterNetworkGroupKernel _networkGroups = new();
         private readonly Transform _roomRoot;
-        private MonsterPackedState[] _packedStateBySlot = Array.Empty<MonsterPackedState>();
+        private MonsterPackedState[] _packedStateByStorageIndex = Array.Empty<MonsterPackedState>();
+        private ulong[] _groupEntityIds = Array.Empty<ulong>();
 
         private readonly MonsterPlayerTargetBuffer _players = new();
         private float _groundY;
@@ -110,18 +111,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterSpawnBatch Spawn(IReadOnlyList<MonsterSpawnPlan> plans)
         {
-            int startSlot = World.SlotCount;
-            EnsureMonsterCapacity(startSlot + plans.Count);
+            CompactDead();
+            int startStorageIndex = World.StorageCount;
+            EnsureMonsterCapacity(startStorageIndex + plans.Count);
 
             for (int i = 0; i < plans.Count; i++)
             {
                 MonsterSpawnPlan plan = plans[i];
                 ref readonly MonsterRuntimeConfig config = ref _configs.Get(plan.ConfigIndex);
-                int slot = World.Create(plan.ConfigIndex, plan.Position, plan.Yaw, config.MaxHealth);
-                _spatialIndex.Add(World, slot);
+                int storageIndex = World.Create(plan.ConfigIndex, plan.Position, plan.Yaw, config.MaxHealth);
+                _spatialIndex.Add(World, storageIndex);
             }
 
-            return MonsterSpawnBatch.FromPlans(startSlot, plans, _quantizer);
+            return MonsterSpawnBatch.FromPlans(startStorageIndex, plans, _quantizer, World);
         }
 
         public void Tick(PlayerManager manager, uint tick, float deltaTime)
@@ -154,12 +156,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         internal void PackPresentationStates()
         {
             MonsterPresentationPackKernel.PackActive(
-                World.ActiveSlots,
+                World.ActiveStorageIndices,
                 World.AliveCount,
                 World.Motion,
                 World.Presentation,
                 _quantizer.Data,
-                _packedStateBySlot);
+                _packedStateByStorageIndex);
         }
 
         /// <summary>
@@ -183,22 +185,36 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int[] results) =>
             _spatialIndex.QuerySweptCircle(World, center, center, radius, results);
 
-        public bool DamageMonster(int slot, float damage)
+        public bool DamageMonster(int storageIndex, float damage)
         {
             if (ProjectGame.HotFix.Gameplay.Benchmarking.BenchmarkMovementDriver.SuppressMonsterDamage)
-                return World.RecordHit(slot);
+                return World.RecordHit(storageIndex);
 
-            bool damaged = World.Damage(slot, damage);
-            if (damaged && !World.IsActive(slot))
-                _spatialIndex.Remove(slot);
+            bool damaged = World.Damage(storageIndex, damage);
+            if (damaged && !World.IsActive(storageIndex))
+                _spatialIndex.Remove(storageIndex);
             return damaged;
         }
 
-        public bool PushMonster(int slot, Vector2 offset)
+        internal bool CompactDead()
         {
-            if (!World.Push(slot, offset))
+            if (!World.CompactDead())
                 return false;
-            _spatialIndex.Relocate(World, slot);
+
+            _spatialIndex.Clear();
+            _networkGroups.Clear();
+            return true;
+        }
+
+        public ulong GetMonsterEntityId(int storageIndex) => World.GetEntityId(storageIndex);
+
+        public int ResolveMonsterStorageIndex(ulong entityId) => World.ResolveStorageIndex(entityId);
+
+        public bool PushMonster(int storageIndex, Vector2 offset)
+        {
+            if (!World.Push(storageIndex, offset))
+                return false;
+            _spatialIndex.Relocate(World, storageIndex);
             return true;
         }
 
@@ -217,21 +233,21 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public bool IsFlowProgressCorrectionCell(int x, int y) =>
             _simulation.IsFlowProgressCorrectionCell(x, y);
 
-        public Vector2 GetRawSeparation(int slot) => _simulation.GetRawSeparation(slot);
+        public Vector2 GetRawSeparation(int storageIndex) => _simulation.GetRawSeparation(storageIndex);
 
-        public bool TryGetMonsterNavigationDebug(int slot, out MonsterNavigationDebugData data)
+        public bool TryGetMonsterNavigationDebug(int storageIndex, out MonsterNavigationDebugData data)
         {
-            if (!World.IsActive(slot))
+            if (!World.IsActive(storageIndex))
             {
                 data = default;
                 return false;
             }
 
-            MonsterMotionData motion = World.Motion[slot];
+            MonsterMotionData motion = World.Motion[storageIndex];
             data = new MonsterNavigationDebugData(
                 motion.Position,
                 motion.Velocity,
-                _simulation.GetRawSeparation(slot));
+                _simulation.GetRawSeparation(storageIndex));
             return true;
         }
 
@@ -239,17 +255,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterPresentationPackingSystem.CaptureInto(
                 World,
                 serverTick,
-                World.ActiveSlots,
+                World.ActiveStorageIndices,
                 World.AliveCount,
-                _packedStateBySlot,
+                _packedStateByStorageIndex,
                 destination);
 
         internal void RefreshNetworkGroups(uint tick)
         {
             _networkGroups.Refresh(
-                World.Meta,
                 World.Motion,
-                World.SlotCount,
+                World.StorageCount,
                 _players.Positions,
                 _players.Count,
                 _spatialIndex.RootCenter,
@@ -265,9 +280,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _networkGroups.GetGroupId(groupIndex),
                 _networkGroups.GetMembershipRevision(groupIndex),
                 serverTick,
-                _networkGroups.GetMemberSlots(groupIndex),
-                _packedStateBySlot,
+                _networkGroups.GetMemberStorageIndices(groupIndex),
+                _packedStateByStorageIndex,
                 destination);
+
+        internal ReadOnlySpan<ulong> GetGroupMemberEntityIds(int groupIndex)
+        {
+            int memberCount = _networkGroups.GetMemberCount(groupIndex);
+            ReadOnlySpan<int> memberStorageIndices = _networkGroups.GetMemberStorageIndices(groupIndex);
+            for (int i = 0; i < memberCount; i++)
+                _groupEntityIds[i] = World.GetEntityId(memberStorageIndices[i]);
+            return _groupEntityIds.AsSpan(0, memberCount);
+        }
 
         public void EndRoom()
         {
@@ -283,12 +307,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             World.EnsureCapacity(count);
             int capacity = World.Capacity;
-            if (_packedStateBySlot.Length < capacity)
-                Array.Resize(ref _packedStateBySlot, capacity);
+            if (_packedStateByStorageIndex.Length < capacity)
+                Array.Resize(ref _packedStateByStorageIndex, capacity);
             _occupancySnapshot.EnsureCapacity(capacity);
             _spatialIndex.EnsureCapacity(capacity);
             _simulation.EnsureCapacity(capacity);
             _networkGroups.EnsureCapacity(capacity);
+            if (_groupEntityIds.Length < MonsterNetworkGroupKernel.GroupCapacity)
+                Array.Resize(ref _groupEntityIds, MonsterNetworkGroupKernel.GroupCapacity);
         }
 
 

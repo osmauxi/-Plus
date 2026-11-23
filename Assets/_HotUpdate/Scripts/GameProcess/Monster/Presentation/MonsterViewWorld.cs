@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ProjectGame.HotFix.Gameplay.Monsters
 {
     /// <summary>
-    /// Slot 到 VAT 渲染状态的映射。每个 Slot 只保留数据，不创建表现 GameObject。
+    /// ViewSlot 到 VAT 渲染状态的映射。每个 ViewSlot 只保留数据，不创建表现 GameObject。
     /// </summary>
     public sealed class MonsterViewWorld : IDisposable
     {
@@ -23,7 +23,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private uint _lastReplicaRevision;
         private bool _disposed;
 
-        public int SlotCount => _vatWorld.SlotCount;
+        public int ViewSlotCount => _vatWorld.ViewSlotCount;
         public int ActiveRenderCount => _vatWorld.ActiveCount;
 
         public MonsterViewWorld(
@@ -41,23 +41,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void ApplySpawnBatch(MonsterSpawnBatch batch)
         {
             EnsureUsable();
-            if (batch.StartSlot != SlotCount)
-                throw new InvalidOperationException(
-                    $"Monster Render SpawnBatch 必须连续追加：Expected={SlotCount}, Actual={batch.StartSlot}。");
-
-            EnsureCapacity(batch.StartSlot + batch.Count);
+            int startViewSlot = ViewSlotCount;
+            EnsureCapacity(startViewSlot + batch.Count);
             for (int created = 0; created < batch.Count; created++)
             {
-                int slot = batch.StartSlot + created;
+                int viewSlot = startViewSlot + created;
                 MonsterViewConfig config = _catalog.Get(batch.Items[created].ConfigIndex);
                 MonsterVATRenderProfile profile = _profiles.Resolve(config.LocalPoolId);
                 _quantizer.Unpack(
                     batch.Items[created].PackedPose,
                     out Vector2 position,
                     out float yaw);
-                _vatWorld.Spawn(slot, profile, position, yaw);
-                _attackSequence[slot] = 0;
-                _hitSequence[slot] = 0;
+                _vatWorld.Spawn(viewSlot, profile, position, yaw);
+                _attackSequence[viewSlot] = 0;
+                _hitSequence[viewSlot] = 0;
             }
         }
 
@@ -66,10 +63,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             using var applyScope = ApplyReplicaMarker.Auto();
             using (ApplyReplicaLoopMarker.Auto())
             {
-                for (int slot = 0; slot < SlotCount; slot++)
+                for (int viewSlot = 0; viewSlot < ViewSlotCount; viewSlot++)
                 {
                     replica.GetViewState(
-                        slot,
+                        viewSlot,
                         now,
                         out bool active,
                         out Vector2 pose,
@@ -82,12 +79,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                         out byte hitSequence);
                     if (!active)
                     {
-                        _vatWorld.Despawn(slot);
+                        _vatWorld.Despawn(viewSlot);
                         continue;
                     }
 
                     _vatWorld.SetTargetPose(
-                        slot,
+                        viewSlot,
                         pose,
                         yaw,
                         targetPose,
@@ -95,12 +92,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                         poseEndTime,
                         updatesPerSecond,
                         Time.deltaTime);
-                    if (attackSequence != _attackSequence[slot])
-                        _vatWorld.PlayAttack(slot);
-                    if (hitSequence != _hitSequence[slot])
-                        _vatWorld.PlayHit(slot);
-                    _attackSequence[slot] = attackSequence;
-                    _hitSequence[slot] = hitSequence;
+                    if (attackSequence != _attackSequence[viewSlot])
+                        _vatWorld.PlayAttack(viewSlot);
+                    if (hitSequence != _hitSequence[viewSlot])
+                        _vatWorld.PlayHit(viewSlot);
+                    _attackSequence[viewSlot] = attackSequence;
+                    _hitSequence[viewSlot] = hitSequence;
                 }
             }
             _lastReplicaRevision = replica.ViewRevision;

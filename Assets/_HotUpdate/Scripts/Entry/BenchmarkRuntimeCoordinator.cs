@@ -148,7 +148,7 @@ namespace ProjectGame.HotFix.Benchmarking
                     options,
                     "driver-configured",
                     $"自动移动与射击驱动已启动；Alive={MonsterRuntimeService.Instance.AliveMonsterCount}，" +
-                    $"Slots={MonsterRuntimeService.Instance.MonsterSlotCount}");
+                    $"Slots={MonsterRuntimeService.Instance.MonsterStorageCount}");
 
                 if (options.Role == BenchmarkProcessRole.Host)
                 {
@@ -239,17 +239,17 @@ namespace ProjectGame.HotFix.Benchmarking
 
             if (options.Role == BenchmarkProcessRole.Host)
                 return monsters.AliveMonsterCount == options.MonsterCount &&
-                       monsters.MonsterSlotCount == options.MonsterCount;
+                       monsters.MonsterStorageCount == options.MonsterCount;
 
             MonsterReplica replica = monsters.Replica;
             if (replica.GroupPoseReadyCount != options.MonsterCount ||
-                replica.SlotCount != options.MonsterCount ||
+                replica.ViewSlotCount != options.MonsterCount ||
                 replica.ActiveCount != options.MonsterCount)
                 return false;
 
             MonsterViewRuntimeService view = FindObjectOfType<MonsterViewRuntimeService>();
             return view != null &&
-                   view.RenderSlotCount == options.MonsterCount &&
+                   view.ViewSlotCount == options.MonsterCount &&
                    view.ActiveRenderCount == options.MonsterCount;
         }
 

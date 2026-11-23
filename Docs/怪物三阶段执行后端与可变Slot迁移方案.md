@@ -409,3 +409,133 @@ for memberIndex = 0 .. groupMemberCount - 1
 - 仍然可以保留 `ActiveSlots` 作为过渡结构，直到所有 SlotCount 循环完成密集化。
 
 所以外部索引层是身份正确性的基础，密集 StorageIndex 和按 AliveCount 改造循环才是遍历优化本身。两层需要一起迁移，但可以分阶段完成。
+
+## 13. 第一阶段实现结果
+
+`MonsterWorld.Kill` 已将 `_activeSlots` 的死亡删除从尾部整体前移改为 O(1) SwapBack：
+
+- 读取死亡实体在活动列表中的位置；
+- 取活动列表最后一项填入死亡位置；
+- 更新被移动实体的 `_activeIndexBySlot`；
+- 将死亡实体的索引标记为 `-1`；
+- 减少 `_aliveCount`。
+
+本阶段只改变活动列表的排列，不移动 `Meta`、`Motion`、`Health`、`Status`、`Attack` 和 `Presentation` 数组中的实体数据。Slot 身份、网络协议、四叉树索引、群组成员表和 VAT 索引保持原有语义。
+
+因此这一阶段的收益集中在死亡批次处理，尤其是同一 Tick 大量怪物死亡时。后续仍需单独完成 EntityId 与 StorageIndex 分离，才能进一步压缩历史 Slot 高水位和全量扫描范围。
+
+## 14. 第二阶段实现结果，接入身份查询链路
+
+当前已经在 `MonsterWorld` 增加按 Slot 保存的 EntityId 表和 EntityId 到 Slot 的查询表。现阶段 EntityId 仍使用与旧协议兼容的 `MonsterEntityIdBase + Slot` 生成方式，底层数组位置没有移动，网络包格式也没有改变。
+
+以下链路已经停止直接计算 `MonsterEntityIdBase + slot`：
+
+- 弹丸命中目标和穿透命中集合；
+- 弹丸窄相候选目标过滤；
+- 闪电跳跃目标；
+- 执行 Effect；
+- Crowd Control 目标；
+- 执行特效的目标身份。
+
+这些路径现在统一通过 `MonsterRuntimeService.GetMonsterEntityId` 和 `ResolveMonsterSlot` 访问身份层。后续底层 StorageIndex 发生交换时，武器模块不需要重新修改目标身份逻辑。
+
+本阶段的映射表仍然保留死亡实体的身份到房间结束，保证当前 Tick 内排队的 Effect 和延迟结算仍能解析到原 Slot，并由 `IsActive` 判断目标是否已经死亡。进入密集 StorageIndex 阶段后，映射删除和死亡提交会移动到 Tick 边界统一处理。
+
+Unity 编译、工程编译和 HotFix DLL 同步均已通过。下一阶段需要把 EntityId 映射继续接入底层 StorageIndex 的 SwapBack。
+
+## 15. 第三阶段实现结果，生成与群组网络接入 EntityId
+
+本轮把稳定身份继续接入怪物网络层，网络包不再把本地存储 Slot 当成远端身份。
+
+### 15.1 SpawnBatch
+
+`MonsterSpawnData` 现在显式携带 `EntityId`、`ConfigIndex` 和量化姿态。`MonsterSpawnBatch` 不再保存 `StartSlot`。客户端表现槽位从本地当前计数继续追加，网络身份由批次字段建立映射。
+
+这样即使服务器后续因为 SwapBack 改变底层存储位置，生成包仍然只描述哪只怪物出生，不会把服务器数组下标传播给客户端。
+
+### 15.2 GroupMembership
+
+服务器群组内核仍然用 Slot 维护空间分组和姿态采集，因为这些是权威端的本地数组访问。发送成员表时，房间运行时把成员 Slot 转换为 `EntityId`，网络编码和客户端缓存都使用身份。
+
+客户端收到群组成员表后，通过 `EntityId -> 本地表现 Slot` 字典解析姿态写入目标数组。群组快照仍然只传输按成员表顺序排列的量化状态，因此快照包的成员状态布局没有变化。
+
+### 15.3 Despawn
+
+死亡通知现在传输 `EntityId`。客户端先用身份表解析本地 Slot，再关闭对应的表现状态。生成包尚未到达时收到群组或死亡通知，身份查找失败会跳过当前成员，后续可靠包到达后由新的状态继续建立。
+
+### 15.4 当前边界
+
+上一阶段只替换了跨网络的身份语义，没有移动底层 SoA 数据。服务器模拟、四叉树和群组内核仍以 Slot 访问数组，客户端表现数组暂时仍按生成顺序追加。本阶段已经把服务器 StorageIndex 的 SwapBack 接入身份映射和发布前的索引重建。
+
+## 16. 第四阶段实现结果，服务器密集 StorageIndex
+
+本轮完成了服务器端所有 SoA 行的密集化。`MonsterWorld` 的数组有效区现在始终是 `0 .. AliveCount - 1`，这个整数只代表当前 Tick 内部的 `StorageIndex`。
+
+### 16.1 死亡提交时机
+
+战斗阶段只把死亡行标记为 inactive，并记录待移除的 StorageIndex。这样同一个 Tick 内的弹丸穿透、范围 Effect、闪电链和近战请求仍然可以使用本 Tick 开始时的索引，不会因为中途搬行让后续事件指向另一只怪。
+
+Replication 阶段开始前统一调用 `CompactDead`。它从密集区尾部寻找仍然存活的行，复制整行 `Meta`、`Motion`、`Health`、`Status`、`Attack`、`Presentation` 和 EntityId 到死亡位置，然后更新被移动实体的身份映射。
+
+### 16.2 索引重建
+
+发生搬行后，四叉树和网络群组都被清空。下一次四叉树查询按新的密集 StorageIndex 重建，下一次群组刷新按新的密集 StorageIndex 重新分组。这样不需要在每个 SwapBack 分支里同时修补多个空间结构。
+
+### 16.3 本地完整表现帧
+
+本地完整表现帧不再使用历史 Slot 的活动掩码。服务器按密集顺序写入 `EntityId` 和 `MonsterPackedState`，Host Replica 先把 EntityId 解析成自己的表现槽位，再应用姿态。客户端表现槽位仍可保持自己的生命周期顺序，因此服务器搬行不会改变客户端 VAT 实例的身份。
+
+### 16.4 当前可观察结果
+
+- 主循环和空间索引的有效范围由存活数量决定；
+- 死亡数量增加后不会继续抬高服务器数组遍历上限；
+- EntityId 在搬行前后不变；
+- 武器碰撞、范围 Effect、群组快照和本地表现帧继续通过身份解析或当前 Tick 的 StorageIndex 工作；
+- 搬行成本集中在死亡提交阶段，存活期间没有额外复制。
+
+占用快照、网络群组刷新和四叉树重建已经按密集区直接遍历，不再为每一行重复判断 `IsActive`。死亡行只会在战斗阶段被空间索引主动移除，提交压缩后下一次构建的有效区全部是活跃实体。
+
+本轮使用 Unity Editor 内存验证创建 4 只怪物，击杀第 2 只后执行 CompactDead。结果为存活数量 3，尾部 StorageIndex 失效，原尾部实体移动到第 2 行，身份查询返回新的 StorageIndex 1。
+
+## 17. 第五阶段实现结果，完整收口 Slot 语义
+
+本轮把剩余调用链按数据所属层次完成了命名迁移。服务器权威数据中的整数索引统一称为 `StorageIndex`，客户端表现数据中的整数索引统一称为 `ViewSlot`。
+
+服务器侧的 `MonsterWorld.StorageCount`、`ActiveStorageIndices` 和 `ResolveStorageIndex` 明确表达当前密集 SoA 行。空间索引、占用快照、分组内核、寻路目标、姿态打包、近战请求、弹丸候选、范围效果和武器目标解析都使用 `StorageIndex` 命名。网络协议继续只携带 `EntityId`，因此命名迁移没有把物理索引泄露回网络层。
+
+客户端 Replica 和 VAT 渲染世界使用 `ViewSlotCount`、`ViewSlot`。ViewSlot 是客户端自己的表现数组位置，服务端 SwapBack 不会改变它。完整帧先按 `EntityId` 找到 ViewSlot，再把量化姿态写入本地表现数组。
+
+`MonsterRoomRuntime.Spawn` 在创建新实体前执行一次 `CompactDead`。如果上一轮战斗产生了待回收行，先完成密集化并清空空间索引和网络群组，再从新的 `StorageCount` 尾部追加新实体。这样分批生成不会把死亡行重新夹回有效区。
+
+当前代码中仍保留的 `slot` 文本只属于无关 UI 槽位或历史说明，不再作为怪物服务器索引 API 的名称。VAT 和 Replica 的局部数组也不再被称为服务器 Slot。
+
+## 18. 批量死亡压缩修正与链路烟测
+
+本轮链路烟测发现，原先按待死亡索引逐个从尾部交换的实现，在同一批次同时包含中间行和尾行时，会先缩短有效区，再跳过已经落到有效区外的尾行记录，导致 `StorageCount` 多保留一行死亡数据。
+
+`MonsterWorld.CompactDead` 现改为两步：
+
+1. 先为本批次所有死亡实体清除 `EntityId -> StorageIndex` 映射；
+2. 从旧有效区头到尾扫描，把活跃行按读写指针连续写回前缀，并同步更新被移动实体的身份映射。
+
+该实现仍然只在存在待提交死亡时运行。没有死亡时不会扫描；提交时最多扫描一次旧有效区，且不会把本 Tick 中途的索引变化暴露给战斗请求。
+
+已在 Unity Editor 中完成以下验证：
+
+- 中间行与尾行同时死亡，压缩后存活数量、行顺序和两条死亡身份映射正确；
+- 压缩后追加新实体，新实体从当前 `StorageCount` 继续写入且获得新的 EntityId；
+- 压缩后再次死亡并搬移多行，活跃实体的身份映射与密集行同步；
+- 全部实体死亡后压缩到 0，再生成实体复用行 0，旧 EntityId 不会重新解析。
+- 压缩后清空并重建网络群组，群组成员不再保留旧的 StorageIndex。
+
+## 19. 9000 怪物三次压测验收
+
+RunId：`20261123-155220-16ba2ce8`
+
+三次 Host 和三次 Client 采样全部有效，前台占比均为 100%，双端时间对齐均在 100 ms 内。三次运行的权威存活数均为 9000，客户端 Replica 和 ViewSlot 均为 `9000/9000`，没有出现实体数量丢失或表现槽位缺失。
+
+Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client 三次平均帧间隔为 `17.224 ms`、`16.236 ms`、`18.996 ms`。`Monster.Replication.Publish` 的三次 Host 平均每次耗时约 `5.35 ms`，网络发送速率约 `942～959 KiB/s`，三次结果稳定。
+
+这组压测确认 StorageIndex 和 ViewSlot 的稳态调用链已经通过。批量死亡、SwapBack、EntityId 重映射、重新生成和群组重建已经通过 Unity Editor 定向烟测。9000 怪物压测本身没有产生死亡，因此不把死亡复用场景混入稳态帧时结论。
+
+当前 Slot 重构阶段标记为通过，可以进入下一阶段工作。

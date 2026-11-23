@@ -67,16 +67,16 @@ namespace ProjectGame.Core.Monsters
     /// </summary>
     public readonly struct MonsterAttackRequestData
     {
-        public readonly int Slot;
+        public readonly int StorageIndex;
         public readonly ushort AttackProfileIndex;
         public readonly float Damage;
 
         public MonsterAttackRequestData(
-            int slot,
+            int storageIndex,
             ushort attackProfileIndex,
             float damage)
         {
-            Slot = slot;
+            StorageIndex = storageIndex;
             AttackProfileIndex = attackProfileIndex;
             Damage = damage;
         }

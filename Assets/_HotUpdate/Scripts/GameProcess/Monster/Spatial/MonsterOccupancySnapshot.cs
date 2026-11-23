@@ -14,16 +14,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly Transform _roomRoot;
         private readonly MonsterOccupancySnapshotKernel _kernel;
 
-        public int SlotCount => _kernel.SlotCount;
+        public int StorageCount => _kernel.StorageCount;
         public int ActiveCount => _kernel.ActiveCount;
         public int ActiveBucketCount => _kernel.ActiveBucketCount;
         public Vector2[] Positions => _kernel.Positions;
-        public int[] ActiveSlots => _kernel.ActiveSlots;
-        public int[] FineCellOfSlot => _kernel.FineCellOfSlot;
+        public int[] ActiveStorageIndices => _kernel.ActiveStorageIndices;
+        public int[] FineCellOfStorageIndex => _kernel.FineCellOfStorageIndex;
         public int[] FineCellCounts => _kernel.FineCellCounts;
         public int[] BucketHeads => _kernel.BucketHeads;
         public int[] ActiveBuckets => _kernel.ActiveBuckets;
-        public int[] NextSlot => _kernel.NextSlot;
+        public int[] NextStorageIndex => _kernel.NextStorageIndex;
         public int FineWidth => _kernel.FineWidth;
         public int FineHeight => _kernel.FineHeight;
 
@@ -55,9 +55,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void Build(MonsterWorld world, float groundY)
         {
             _kernel.Build(
-                world.Meta,
                 world.Motion,
-                world.SlotCount,
+                world.StorageCount,
                 groundY,
                 _roomRoot.worldToLocalMatrix);
         }

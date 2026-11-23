@@ -971,7 +971,7 @@ namespace ProjectGame.Editor.Benchmarking
         public long receivedMessageCount;
         public long receivedPayloadBytes;
         public int authorityAliveMonsterCount;
-        public int replicaSlotCount;
+        public int replicaViewSlotCount;
         public int replicaActiveCount;
         public int activeViewCount;
         public int viewSlotCount;
@@ -1346,7 +1346,7 @@ namespace ProjectGame.Editor.Benchmarking
                             continue;
                         summary.AppendLine(
                             $"| {monsterCount} | {repeat} | {FormatRole(focusTarget)} | {host.authorityAliveMonsterCount} | " +
-                            $"{client.replicaSlotCount}/{client.replicaActiveCount} | {client.viewSlotCount}/{client.activeViewCount} | " +
+                            $"{client.replicaViewSlotCount}/{client.replicaActiveCount} | {client.viewSlotCount}/{client.activeViewCount} | " +
                             $"{FormatMovement(host)} | {FormatMovement(client)} | {FormatRebuilds(host)} |");
                     }
                 }

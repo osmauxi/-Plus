@@ -339,7 +339,7 @@ internal static class RoomNavigationGizmoDrawer
 
         float worldY = runtime.GroundY + settings.HeightOffset + 0.16f;
 
-        for (int slot = 0; slot < runtime.World.SlotCount; slot++)
+        for (int slot = 0; slot < runtime.World.StorageCount; slot++)
         {
             if (!runtime.TryGetMonsterNavigationDebug(slot, out MonsterNavigationDebugData monster))
                 continue;
@@ -425,7 +425,7 @@ internal static class RoomNavigationGizmoDrawer
         if (settings.DrawMonsterHitRadius)
         {
             Handles.color = HitRadiusColor;
-            for (int slot = 0; slot < runtime.World.SlotCount; slot++)
+            for (int slot = 0; slot < runtime.World.StorageCount; slot++)
             {
                 if (!runtime.World.TryGetPosition(slot, out Vector2 position))
                     continue;

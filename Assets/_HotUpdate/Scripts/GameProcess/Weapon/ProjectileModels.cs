@@ -43,20 +43,24 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public ProjectileHitResolution Resolution;
     }
 
-    /// <summary>把权威命中数据映射为本地命中特效使用的无上限权重。</summary>
+    /// <summary>把权威命中数据映射为本地命中特效使用的权重。</summary>
     public static class ProjectileImpactVfxWeight
     {
         // 当前标准武器为 20 伤害、0.1 弹体尺寸，因此普通命中的基础权重为 1。
         public const float ReferenceDamage = 20f;
         public const float ReferenceProjectileSize = 0.1f;
         public const float CriticalEmphasis = 1.5f;
+        // 低伤害测试枪仍需保留可见的命中反馈，伤害只负责放大表现，不决定血液是否可见。
+        public const float MinimumWeight = 0.5f;
 
         public static float Calculate(float damage, float projectileSize, bool isCritical)
         {
             float damageWeight = damage / ReferenceDamage;
             float sizeWeight = projectileSize / ReferenceProjectileSize;
             float criticalWeight = isCritical ? CriticalEmphasis : 1f;
-            return damageWeight * sizeWeight * criticalWeight;
+            return Mathf.Max(
+                MinimumWeight,
+                damageWeight * sizeWeight * criticalWeight);
         }
     }
 

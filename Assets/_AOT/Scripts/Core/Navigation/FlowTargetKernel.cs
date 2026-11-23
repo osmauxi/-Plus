@@ -61,10 +61,10 @@ namespace ProjectGame.Core.Navigation
     public static class FlowTargetKernel
     {
         public static void ResolveBatch(
-            int[] activeSlots,
+            int[] activeStorageIndices,
             int activeCount,
             Vector2[] monsterPositions,
-            int[] fineCellOfSlot,
+            int[] fineCellOfStorageIndex,
             FlowTargetCellData[] cells,
             Vector2[] playerPositions,
             byte[] playerWalkable,
@@ -72,18 +72,18 @@ namespace ProjectGame.Core.Navigation
         {
             for (int activeIndex = 0; activeIndex < activeCount; activeIndex++)
             {
-                int slot = activeSlots[activeIndex];
-                int cellIndex = fineCellOfSlot[slot];
+                int storageIndex = activeStorageIndices[activeIndex];
+                int cellIndex = fineCellOfStorageIndex[storageIndex];
                 if ((uint)cellIndex >= (uint)cells.Length)
                 {
-                    results[slot] = MonsterTargetResult.None;
+                    results[storageIndex] = MonsterTargetResult.None;
                     continue;
                 }
 
                 FlowTargetCellData cell = cells[cellIndex];
                 if ((cell.Flags & (FlowTargetCellData.Valid | FlowTargetCellData.Recovery)) == 0)
                 {
-                    results[slot] = MonsterTargetResult.None;
+                    results[storageIndex] = MonsterTargetResult.None;
                     continue;
                 }
 
@@ -92,26 +92,26 @@ namespace ProjectGame.Core.Navigation
                 byte flags = 0;
                 if ((cell.Flags & FlowTargetCellData.Recovery) != 0)
                 {
-                    Vector2 recoveryOffset = cell.RecoveryPosition - monsterPositions[slot];
+                    Vector2 recoveryOffset = cell.RecoveryPosition - monsterPositions[storageIndex];
                     if (recoveryOffset.sqrMagnitude <= 0.000001f)
                     {
-                        results[slot] = MonsterTargetResult.None;
+                        results[storageIndex] = MonsterTargetResult.None;
                         continue;
                     }
 
                     flags |= MonsterTargetResult.Recovering;
-                    results[slot] = new MonsterTargetResult(
+                    results[storageIndex] = new MonsterTargetResult(
                         (byte)(flags | MonsterTargetResult.HasTarget |
                                (playerWalkable[sourceIndex] != 0
                                    ? MonsterTargetResult.TargetWalkable : 0)),
                         targetPosition,
-                        (targetPosition - monsterPositions[slot]).sqrMagnitude,
+                        (targetPosition - monsterPositions[storageIndex]).sqrMagnitude,
                         recoveryOffset.normalized);
                     continue;
                 }
 
-                Vector2 offset = targetPosition - monsterPositions[slot];
-                results[slot] = new MonsterTargetResult(
+                Vector2 offset = targetPosition - monsterPositions[storageIndex];
+                results[storageIndex] = new MonsterTargetResult(
                     (byte)(MonsterTargetResult.HasTarget |
                            (playerWalkable[sourceIndex] != 0
                                ? MonsterTargetResult.TargetWalkable : 0)),

@@ -32,9 +32,9 @@ namespace ProjectGame.Core.Monsters
             MonsterAttackData[] attack,
             MonsterPresentationData[] presentation,
             MonsterSimulationConfig[] configs,
-            int[] activeSlots,
+            int[] activeStorageIndices,
             int activeCount,
-            int[] fineCellOfSlot,
+            int[] fineCellOfStorageIndex,
             FlowTargetCellData[] flowCellData,
             Vector2[] playerPositions,
             byte[] playerWalkable,
@@ -54,10 +54,10 @@ namespace ProjectGame.Core.Monsters
             using (EntityTargetMarker.Auto())
             {
                 FlowTargetKernel.ResolveBatch(
-                    activeSlots,
+                    activeStorageIndices,
                     activeCount,
                     targetPositionScratch,
-                    fineCellOfSlot,
+                    fineCellOfStorageIndex,
                     flowCellData,
                     playerPositions,
                     playerWalkable,
@@ -67,16 +67,16 @@ namespace ProjectGame.Core.Monsters
             int attackRequestCount = 0;
             for (int activeIndex = 0; activeIndex < activeCount; activeIndex++)
             {
-                int slot = activeSlots[activeIndex];
-                ref MonsterMotionData currentMotion = ref motion[slot];
-                MonsterTargetResult target = targetResults[slot];
+                int storageIndex = activeStorageIndices[activeIndex];
+                ref MonsterMotionData currentMotion = ref motion[storageIndex];
+                MonsterTargetResult target = targetResults[storageIndex];
                 bool hasTarget = (target.Flags & MonsterTargetResult.HasTarget) != 0;
                 bool isRecovering = (target.Flags & MonsterTargetResult.Recovering) != 0;
                 bool targetWalkable = (target.Flags & MonsterTargetResult.TargetWalkable) != 0;
                 ref readonly MonsterSimulationConfig config =
-                    ref configs[meta[slot].ConfigIndex];
+                    ref configs[meta[storageIndex].ConfigIndex];
 
-                if (!HasReached(tick, status[slot].StunEndTick))
+                if (!HasReached(tick, status[storageIndex].StunEndTick))
                 {
                     currentMotion.Velocity = Vector2.zero;
                     continue;
@@ -85,7 +85,7 @@ namespace ProjectGame.Core.Monsters
                 if (isRecovering)
                 {
                     Vector2 recoveryVelocity = target.FlowDirection * config.MoveSpeed *
-                        GetSpeedMultiplier(ref status[slot], tick);
+                        GetSpeedMultiplier(ref status[storageIndex], tick);
                     Integrate(ref currentMotion, recoveryVelocity, deltaTime);
                     continue;
                 }
@@ -93,9 +93,9 @@ namespace ProjectGame.Core.Monsters
                 using (EntityAttackMarker.Auto())
                 {
                     TickAttack(
-                        ref attack[slot],
-                        ref presentation[slot],
-                        slot,
+                        ref attack[storageIndex],
+                        ref presentation[storageIndex],
+                        storageIndex,
                         config,
                         tick,
                         hasTarget,
@@ -109,8 +109,8 @@ namespace ProjectGame.Core.Monsters
                 {
                     navigationVelocity = CalculateVelocity(
                         ref currentMotion,
-                        ref status[slot],
-                        attack[slot].Phase,
+                        ref status[storageIndex],
+                        attack[storageIndex].Phase,
                         config,
                         tick,
                         hasTarget,
@@ -120,14 +120,14 @@ namespace ProjectGame.Core.Monsters
                 }
 
                 Vector2 velocity = navigationVelocity;
-                if (attack[slot].Phase == MonsterAttackPhase.Ready)
+                if (attack[storageIndex].Phase == MonsterAttackPhase.Ready)
                 {
                     using (EntitySeparationMarker.Auto())
                     {
                         velocity = ApplySeparation(
                             velocity,
-                            separation[slot],
-                            ref status[slot],
+                            separation[storageIndex],
+                            ref status[storageIndex],
                             config,
                             tick);
                     }
@@ -158,7 +158,7 @@ namespace ProjectGame.Core.Monsters
         private static void TickAttack(
             ref MonsterAttackData attack,
             ref MonsterPresentationData presentation,
-            int slot,
+            int storageIndex,
             in MonsterSimulationConfig config,
             uint tick,
             bool hasTarget,
@@ -183,7 +183,7 @@ namespace ProjectGame.Core.Monsters
             if (attack.Phase == MonsterAttackPhase.Windup)
             {
                 attackRequests[attackRequestCount++] = new MonsterAttackRequestData(
-                    slot,
+                    storageIndex,
                     config.AttackProfileIndex,
                     config.AttackDamage);
                 attack.Phase = MonsterAttackPhase.Recovery;

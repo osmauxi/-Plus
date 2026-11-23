@@ -18,23 +18,23 @@ namespace ProjectGame.Core.Spatial
         private readonly int _bucketHeight;
 
         private Vector2[] _positions = Array.Empty<Vector2>();
-        private int[] _activeSlots = Array.Empty<int>();
-        private int[] _fineCellOfSlot = Array.Empty<int>();
+        private int[] _activeStorageIndices = Array.Empty<int>();
+        private int[] _fineCellOfStorageIndex = Array.Empty<int>();
         private readonly int[] _fineCellCounts;
         private readonly int[] _bucketHeads;
         private readonly int[] _activeBuckets;
-        private int[] _nextSlot = Array.Empty<int>();
+        private int[] _nextStorageIndex = Array.Empty<int>();
 
-        public int SlotCount { get; private set; }
+        public int StorageCount { get; private set; }
         public int ActiveCount { get; private set; }
         public int ActiveBucketCount { get; private set; }
         public Vector2[] Positions => _positions;
-        public int[] ActiveSlots => _activeSlots;
-        public int[] FineCellOfSlot => _fineCellOfSlot;
+        public int[] ActiveStorageIndices => _activeStorageIndices;
+        public int[] FineCellOfStorageIndex => _fineCellOfStorageIndex;
         public int[] FineCellCounts => _fineCellCounts;
         public int[] BucketHeads => _bucketHeads;
         public int[] ActiveBuckets => _activeBuckets;
-        public int[] NextSlot => _nextSlot;
+        public int[] NextStorageIndex => _nextStorageIndex;
         public int FineWidth => _fineWidth;
         public int FineHeight => _fineHeight;
 
@@ -70,7 +70,7 @@ namespace ProjectGame.Core.Spatial
 
         public void Clear()
         {
-            SlotCount = 0;
+            StorageCount = 0;
             ActiveCount = 0;
             ActiveBucketCount = 0;
             Array.Clear(_fineCellCounts, 0, _fineCellCounts.Length);
@@ -78,27 +78,24 @@ namespace ProjectGame.Core.Spatial
         }
 
         public void Build(
-            MonsterMetaData[] meta,
             MonsterMotionData[] motion,
-            int slotCount,
+            int storageCount,
             float groundY,
             Matrix4x4 roomWorldToLocal)
         {
-            SlotCount = slotCount;
+            StorageCount = storageCount;
             ActiveCount = 0;
             ActiveBucketCount = 0;
             Array.Clear(_fineCellCounts, 0, _fineCellCounts.Length);
             Array.Fill(_bucketHeads, -1);
+            ActiveCount = storageCount;
 
-            for (int slot = 0; slot < slotCount; slot++)
+            for (int storageIndex = 0; storageIndex < storageCount; storageIndex++)
             {
-                _fineCellOfSlot[slot] = -1;
-                if (!meta[slot].IsActive)
-                    continue;
-
-                Vector2 position = motion[slot].Position;
-                _positions[slot] = position;
-                _activeSlots[ActiveCount++] = slot;
+                _fineCellOfStorageIndex[storageIndex] = -1;
+                Vector2 position = motion[storageIndex].Position;
+                _positions[storageIndex] = position;
+                _activeStorageIndices[storageIndex] = storageIndex;
 
                 Vector3 local = roomWorldToLocal.MultiplyPoint3x4(
                     new Vector3(position.x, groundY, position.y));
@@ -108,7 +105,7 @@ namespace ProjectGame.Core.Spatial
                     (uint)cellY < (uint)_fineHeight)
                 {
                     int cellIndex = cellY * _fineWidth + cellX;
-                    _fineCellOfSlot[slot] = cellIndex;
+                    _fineCellOfStorageIndex[storageIndex] = cellIndex;
                     _fineCellCounts[cellIndex]++;
                 }
 
@@ -119,8 +116,8 @@ namespace ProjectGame.Core.Spatial
                 if (_bucketHeads[bucket] < 0)
                     _activeBuckets[ActiveBucketCount++] = bucket;
 
-                _nextSlot[slot] = _bucketHeads[bucket];
-                _bucketHeads[bucket] = slot;
+                _nextStorageIndex[storageIndex] = _bucketHeads[bucket];
+                _bucketHeads[bucket] = storageIndex;
             }
         }
 
@@ -150,9 +147,9 @@ namespace ProjectGame.Core.Spatial
                 count,
                 _positions.Length == 0 ? 64 : _positions.Length * 2);
             Array.Resize(ref _positions, capacity);
-            Array.Resize(ref _activeSlots, capacity);
-            Array.Resize(ref _fineCellOfSlot, capacity);
-            Array.Resize(ref _nextSlot, capacity);
+            Array.Resize(ref _activeStorageIndices, capacity);
+            Array.Resize(ref _fineCellOfStorageIndex, capacity);
+            Array.Resize(ref _nextStorageIndex, capacity);
         }
     }
 }

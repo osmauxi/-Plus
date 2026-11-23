@@ -380,9 +380,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
             if (monsters == null || !monsters.IsRoomActive) return;
-            int targetSlot = ToMonsterSlot(command.TargetEntityId);
+            int targetStorageIndex = monsters.ResolveMonsterStorageIndex(command.TargetEntityId);
             float executeThreshold = GetExecuteThreshold(command.EffectSetId);
-            ApplyLightning(monsters, targetSlot, command.Origin, command.Damage,
+            ApplyLightning(monsters, targetStorageIndex, command.Origin, command.Damage,
                 command.JumpCount, command.BranchCount, command.SearchRadius,
                 command.ApplyInitialDamage, executeThreshold);
         }
@@ -436,18 +436,18 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public void TryExecute(in ExecuteEffectCommand command)
         {
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null) return;
-            TryExecuteMonster(monsters, ToMonsterSlot(command.TargetEntityId),
+            if (monsters == null || !monsters.IsRoomActive) return;
+            TryExecuteMonster(monsters, monsters.ResolveMonsterStorageIndex(command.TargetEntityId),
                 command.HealthThreshold);
         }
 
         public void ApplyCrowdControl(in CrowdControlEffectCommand command)
         {
             MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            int slot = ToMonsterSlot(command.TargetEntityId);
-            if (monsters == null ||
-                !monsters.TryGetMonsterPosition(slot, out Vector3 position)) return;
-            monsters.StunMonster(slot, command.Duration, _currentTick);
+            if (monsters == null || !monsters.IsRoomActive) return;
+            int storageIndex = monsters.ResolveMonsterStorageIndex(command.TargetEntityId);
+            if (!monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) return;
+            monsters.StunMonster(storageIndex, command.Duration, _currentTick);
             PublishSpecialVfx(WeaponSpecialVfxType.KineticBoost,
                 command.TargetEntityId, 0,
                 position, default, 0.7f, command.Duration);
@@ -509,13 +509,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             CollectMonsters(monsters, command.Position, command.Radius, _effectTargets);
             for (int i = 0; i < _effectTargets.Count; i++)
             {
-                int slot = _effectTargets[i];
-                if (!monsters.TryGetMonsterPosition(slot, out Vector3 position)) continue;
+                int storageIndex = _effectTargets[i];
+                if (!monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) continue;
                 Vector3 offset = position - command.Position;
                 float forceRatio = 1f - Mathf.Clamp01(offset.magnitude / command.Radius);
-                DamageMonster(monsters, slot, command.Damage, executeThreshold);
+                DamageMonster(monsters, storageIndex, command.Damage, executeThreshold);
                 Vector2 direction = new Vector2(offset.x, offset.z).normalized;
-                monsters.PushMonster(slot, direction * (command.Force * forceRatio * 0.1f));
+                monsters.PushMonster(storageIndex, direction * (command.Force * forceRatio * 0.1f));
             }
         }
 
@@ -572,9 +572,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 Physics.SyncTransforms();
         }
 
-        private static int ToMonsterSlot(ulong entityId) =>
-            checked((int)(entityId - MonsterRuntimeService.MonsterEntityIdBase));
-
         private static PlayerHealthNetworkState FindPlayerHealth(ulong entityId)
         {
             PlayerManager manager = PlayerManager.Instance;
@@ -617,10 +614,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             float radiusSqr = radius * radius;
             for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
             {
-                int slot = _monsterQueryBuffer[candidateIndex];
-                if (monsters.TryGetMonsterPosition(slot, out Vector3 monsterPosition) &&
+                int storageIndex = _monsterQueryBuffer[candidateIndex];
+                if (monsters.TryGetMonsterPosition(storageIndex, out Vector3 monsterPosition) &&
                     (monsterPosition - position).sqrMagnitude <= radiusSqr)
-                    results.Add(slot);
+                    results.Add(storageIndex);
             }
         }
 
@@ -629,25 +626,25 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             Vector3 position,
             float radius)
         {
-            EnsureMonsterQueryCapacity(monsters.MonsterSlotCount);
+            EnsureMonsterQueryCapacity(monsters.MonsterStorageCount);
             return monsters.QueryMonsterCircleCandidates(
                 new Vector2(position.x, position.z),
                 radius,
                 _monsterQueryBuffer);
         }
 
-        private void EnsureMonsterQueryCapacity(int slotCount)
+        private void EnsureMonsterQueryCapacity(int storageCount)
         {
-            if (_monsterQueryBuffer.Length >= slotCount)
+            if (_monsterQueryBuffer.Length >= storageCount)
                 return;
 
             int capacity = Math.Max(
-                slotCount,
+                storageCount,
                 _monsterQueryBuffer.Length == 0 ? 64 : _monsterQueryBuffer.Length * 2);
             Array.Resize(ref _monsterQueryBuffer, capacity);
         }
 
-        private void ApplyLightning(MonsterRuntimeService monsters, int targetSlot,
+        private void ApplyLightning(MonsterRuntimeService monsters, int targetStorageIndex,
             Vector3 origin, float damage, byte jumpCount, byte branchCount,
             float searchRadius, bool applyInitialDamage, float executeThreshold)
         {
@@ -655,15 +652,15 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             if (applyInitialDamage)
             {
                 bool hasInitialPosition =
-                    monsters.TryGetMonsterPosition(targetSlot, out Vector3 initialPosition);
-                DamageMonster(monsters, targetSlot, damage, executeThreshold);
+                    monsters.TryGetMonsterPosition(targetStorageIndex, out Vector3 initialPosition);
+                DamageMonster(monsters, targetStorageIndex, damage, executeThreshold);
                 if (hasInitialPosition)
                     PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
                         0, 0, origin + Vector3.up * 1.5f, initialPosition, 0f, 0.2f);
             }
 
             _lightningVisited.Clear();
-            _lightningVisited.Add(targetSlot);
+            _lightningVisited.Add(targetStorageIndex);
             _lightningNodes.Clear();
             _lightningNodes.Add(new LightningNode(origin, 0));
             float radiusSqr = searchRadius * searchRadius;
@@ -676,24 +673,24 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     monsters, node.Position, searchRadius);
                 for (int branch = 0; branch < branchCount; branch++)
                 {
-                    int nearestSlot = -1;
+                    int nearestStorageIndex = -1;
                     float nearestDistance = radiusSqr;
                     Vector3 nearestPosition = default;
                     for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
                     {
-                        int slot = _monsterQueryBuffer[candidateIndex];
-                        if (_lightningVisited.Contains(slot) ||
-                            !monsters.TryGetMonsterPosition(slot, out Vector3 candidatePosition))
+                        int storageIndex = _monsterQueryBuffer[candidateIndex];
+                        if (_lightningVisited.Contains(storageIndex) ||
+                            !monsters.TryGetMonsterPosition(storageIndex, out Vector3 candidatePosition))
                             continue;
                         float distance = (candidatePosition - node.Position).sqrMagnitude;
                         if (distance >= nearestDistance) continue;
-                        nearestSlot = slot;
+                        nearestStorageIndex = storageIndex;
                         nearestDistance = distance;
                         nearestPosition = candidatePosition;
                     }
-                    if (nearestSlot < 0) break;
-                    _lightningVisited.Add(nearestSlot);
-                    DamageMonster(monsters, nearestSlot, damage, executeThreshold);
+                    if (nearestStorageIndex < 0) break;
+                    _lightningVisited.Add(nearestStorageIndex);
+                    DamageMonster(monsters, nearestStorageIndex, damage, executeThreshold);
                     PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
                         0, 0, node.Position, nearestPosition, 0f, 0.2f);
                     _lightningNodes.Add(new LightningNode(nearestPosition, checked((byte)(node.Depth + 1))));
@@ -716,14 +713,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 cloud.TimeUntilStrike += cloud.StrikeInterval;
                 CollectMonsters(monsters, ownerPosition, cloud.Radius, _effectTargets);
                 if (_effectTargets.Count == 0) continue;
-                int slot = _effectTargets[UnityEngine.Random.Range(0, _effectTargets.Count)];
-                if (!monsters.TryGetMonsterPosition(slot, out Vector3 targetPosition)) continue;
-                DamageMonster(monsters, slot, cloud.StrikeDamage, cloud.ExecuteThreshold);
+                int storageIndex = _effectTargets[UnityEngine.Random.Range(0, _effectTargets.Count)];
+                if (!monsters.TryGetMonsterPosition(storageIndex, out Vector3 targetPosition)) continue;
+                DamageMonster(monsters, storageIndex, cloud.StrikeDamage, cloud.ExecuteThreshold);
                 PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
                     0, pair.Key, ownerPosition + Vector3.up * 4f,
                     targetPosition, 0f, 0.2f);
                 if (cloud.OverloadJumpCount > 0)
-                    ApplyLightning(monsters, slot, targetPosition, cloud.OverloadDamage,
+                    ApplyLightning(monsters, storageIndex, targetPosition, cloud.OverloadDamage,
                         cloud.OverloadJumpCount, 3, 5f, false, cloud.ExecuteThreshold);
             }
         }
@@ -754,9 +751,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 CollectMonsters(monsters, area.Position, area.Radius, _effectTargets);
                 for (int targetIndex = 0; targetIndex < _effectTargets.Count; targetIndex++)
                 {
-                    int slot = _effectTargets[targetIndex];
-                    DamageMonster(monsters, slot, area.DamagePerTick, area.ExecuteThreshold);
-                    monsters.SlowMonster(slot, Mathf.Max(0.1f, 1f - area.SlowRatio), 1.2f, _currentTick);
+                    int storageIndex = _effectTargets[targetIndex];
+                    DamageMonster(monsters, storageIndex, area.DamagePerTick, area.ExecuteThreshold);
+                    monsters.SlowMonster(storageIndex, Mathf.Max(0.1f, 1f - area.SlowRatio), 1.2f, _currentTick);
                 }
             }
         }
@@ -765,21 +762,21 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             ExecutionerEffectSystem.GetThreshold(
                 effectSetId == 0 ? EffectSet.Empty : _effectSets.Get(effectSetId));
 
-        private void DamageMonster(MonsterRuntimeService monsters, int slot,
+        private void DamageMonster(MonsterRuntimeService monsters, int storageIndex,
             float damage, float executeThreshold)
         {
-            if (!monsters.DamageMonster(slot, damage) || executeThreshold <= 0f) return;
-            TryExecuteMonster(monsters, slot, executeThreshold);
+            if (!monsters.DamageMonster(storageIndex, damage) || executeThreshold <= 0f) return;
+            TryExecuteMonster(monsters, storageIndex, executeThreshold);
         }
 
-        private void TryExecuteMonster(MonsterRuntimeService monsters, int slot, float threshold)
+        private void TryExecuteMonster(MonsterRuntimeService monsters, int storageIndex, float threshold)
         {
-            if (!monsters.TryGetMonsterHealthRatio(slot, out float healthRatio) ||
+            if (!monsters.TryGetMonsterHealthRatio(storageIndex, out float healthRatio) ||
                 healthRatio > threshold ||
-                !monsters.TryGetMonsterPosition(slot, out Vector3 position)) return;
-            monsters.DamageMonster(slot, float.MaxValue);
+                !monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) return;
+            monsters.DamageMonster(storageIndex, float.MaxValue);
             PublishSpecialVfx(WeaponSpecialVfxType.Execution,
-                MonsterRuntimeService.MonsterEntityIdBase + (uint)slot, 0,
+                monsters.GetMonsterEntityId(storageIndex), 0,
                 position, default, 1.8f, 0.8f);
         }
 

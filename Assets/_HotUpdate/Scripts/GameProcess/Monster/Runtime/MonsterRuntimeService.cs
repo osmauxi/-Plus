@@ -116,7 +116,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterReplica Replica { get; private set; }
         public float RoomGroundY { get; private set; }
         public int AliveMonsterCount => AuthorityRoom?.World.AliveCount ?? 0;
-        public int MonsterSlotCount => AuthorityRoom?.World.SlotCount ?? 0;
+        public int MonsterStorageCount => AuthorityRoom?.World.StorageCount ?? 0;
         public float MonsterHitRadius => AuthorityRoom?.MonsterHitRadius ?? _monsterHitRadius;
 
         //模块对外的事件
@@ -218,8 +218,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 AuthorityRoom = new MonsterRoomRuntime(
                     Catalogs.Runtime, Catalogs.Attacks, _quantizer, spatialData, roomRoot,
                     _monsterHitRadius, _initialCapacity);
-                _authorityWriteFrame.EnsureCapacity(expectedTotalMonsterCount, expectedTotalMonsterCount);
-                _authorityPublishedFrame.EnsureCapacity(expectedTotalMonsterCount, expectedTotalMonsterCount);
+                _authorityWriteFrame.EnsureCapacity(expectedTotalMonsterCount);
+                _authorityPublishedFrame.EnsureCapacity(expectedTotalMonsterCount);
                 AuthorityRoom.BeginRoom(expectedTotalMonsterCount, data.GroundY);
             }
             _roomActive = true;
@@ -227,7 +227,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         /// <summary>
-        /// Server生成新的Slot，并把静态出生数据可靠发送给远端客户端
+        /// Server生成新的实体，并把静态出生数据可靠发送给远端客户端
         /// </summary>
         public MonsterSpawnBatch Spawn(IReadOnlyList<MonsterSpawnPlan> plans)
         {
@@ -235,9 +235,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterSpawnBatch batch = AuthorityRoom.Spawn(plans);
             if (batch.Count > 0)
             {
-                int slotCount = AuthorityRoom.World.SlotCount;
-                _authorityWriteFrame.EnsureCapacity(slotCount, slotCount);
-                _authorityPublishedFrame.EnsureCapacity(slotCount, slotCount);
+                int storageCount = AuthorityRoom.World.StorageCount;
+                _authorityWriteFrame.EnsureCapacity(storageCount);
+                _authorityPublishedFrame.EnsureCapacity(storageCount);
                 // 权威端也建立 Replica/View，供 Host 表现；命中判定只读取 MonsterWorld。
                 ApplySpawnBatchLocal(batch);
                 _transport.SendSpawn(batch);
@@ -245,22 +245,28 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return batch;
         }
 
-        public bool IsMonsterAlive(int slot) =>
-            AuthorityRoom != null && AuthorityRoom.World.IsActive(slot);
+        public bool IsMonsterAlive(int storageIndex) =>
+            AuthorityRoom != null && AuthorityRoom.World.IsActive(storageIndex);
 
-        public bool DamageMonster(int slot, float damage)
+        public ulong GetMonsterEntityId(int storageIndex) =>
+            AuthorityRoom.GetMonsterEntityId(storageIndex);
+
+        public int ResolveMonsterStorageIndex(ulong entityId) =>
+            AuthorityRoom.ResolveMonsterStorageIndex(entityId);
+
+        public bool DamageMonster(int storageIndex, float damage)
         {
-            if (AuthorityRoom == null || !AuthorityRoom.DamageMonster(slot, damage))
+            if (AuthorityRoom == null || !AuthorityRoom.DamageMonster(storageIndex, damage))
                 return false;
 
-            if (!AuthorityRoom.World.IsActive(slot))
-                _transport.SendDespawn(slot);
+            if (!AuthorityRoom.World.IsActive(storageIndex))
+                _transport.SendDespawn(AuthorityRoom.GetMonsterEntityId(storageIndex));
             return true;
         }
 
-        public bool TryGetMonsterPosition(int slot, out Vector3 position)
+        public bool TryGetMonsterPosition(int storageIndex, out Vector3 position)
         {
-            if (AuthorityRoom != null && AuthorityRoom.World.TryGetPosition(slot, out Vector2 flat))
+            if (AuthorityRoom != null && AuthorityRoom.World.TryGetPosition(storageIndex, out Vector2 flat))
             {
                 position = new Vector3(flat.x, RoomGroundY, flat.y);
                 return true;
@@ -280,34 +286,34 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return AuthorityRoom.QueryMonsterCircleCandidates(center, radius, results);
         }
 
-        public bool TryGetMonsterHealthRatio(int slot, out float ratio)
+        public bool TryGetMonsterHealthRatio(int storageIndex, out float ratio)
         {
-            if (AuthorityRoom == null || !AuthorityRoom.World.IsActive(slot))
+            if (AuthorityRoom == null || !AuthorityRoom.World.IsActive(storageIndex))
             {
                 ratio = 0f;
                 return false;
             }
-            ushort configIndex = AuthorityRoom.World.Meta[slot].ConfigIndex;
+            ushort configIndex = AuthorityRoom.World.Meta[storageIndex].ConfigIndex;
             return AuthorityRoom.World.TryGetHealthRatio(
-                slot, Catalogs.Runtime.Get(configIndex).MaxHealth, out ratio);
+                storageIndex, Catalogs.Runtime.Get(configIndex).MaxHealth, out ratio);
         }
 
-        public bool SlowMonster(int slot, float speedMultiplier, float duration, uint currentTick)
+        public bool SlowMonster(int storageIndex, float speedMultiplier, float duration, uint currentTick)
         {
             uint durationTicks = (uint)Mathf.Max(1, Mathf.CeilToInt(duration / _network.Clock.TickDeltaTime));
             return AuthorityRoom != null && AuthorityRoom.World.ApplySlow(
-                slot, speedMultiplier, currentTick, currentTick + durationTicks);
+                storageIndex, speedMultiplier, currentTick, currentTick + durationTicks);
         }
 
-        public bool StunMonster(int slot, float duration, uint currentTick)
+        public bool StunMonster(int storageIndex, float duration, uint currentTick)
         {
             uint durationTicks = (uint)Mathf.Max(1, Mathf.CeilToInt(duration / _network.Clock.TickDeltaTime));
             return AuthorityRoom != null && AuthorityRoom.World.ApplyStun(
-                slot, currentTick, currentTick + durationTicks);
+                storageIndex, currentTick, currentTick + durationTicks);
         }
 
-        public bool PushMonster(int slot, Vector2 offset) =>
-            AuthorityRoom != null && AuthorityRoom.PushMonster(slot, offset);
+        public bool PushMonster(int storageIndex, Vector2 offset) =>
+            AuthorityRoom != null && AuthorityRoom.PushMonster(storageIndex, offset);
         /// <summary>
         /// Monster 权威模拟；在玩家完成本 Tick 后、弹丸碰撞前推进。
         /// </summary>
@@ -338,6 +344,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
 
             using var publishScope = PublishMarker.Auto();
+            AuthorityRoom.CompactDead();
             bool captureLocal = tick % (uint)_presentationIntervalTicks == 0;
             bool publishRemote = _network.HasRemoteClients;
             if (captureLocal || publishRemote)
@@ -387,7 +394,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                                         clients,
                                         groups.GetGroupId(groupIndex),
                                         membershipRevision,
-                                        groups.GetMemberSlots(groupIndex));
+                                        AuthorityRoom.GetGroupMemberEntityIds(groupIndex));
                                 }
                                 groups.MarkMembershipPublished(groupIndex);
                             }
@@ -431,7 +438,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                             clients,
                             groups.GetGroupId(groupIndex),
                             groups.GetMembershipRevision(groupIndex),
-                            groups.GetMemberSlots(groupIndex));
+                            AuthorityRoom.GetGroupMemberEntityIds(groupIndex));
                     }
                 }
 
@@ -469,8 +476,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
 
             int count = MonsterNetworkCodec.ReadGroupMembershipHeader(ref reader, out uint groupId, out uint revision);
-            Span<int> slots = Replica.BeginGroupMembershipWrite(groupId, count, out int offset);
-            MonsterNetworkCodec.ReadGroupMembershipSlots(ref reader, slots);
+            Span<ulong> entityIds = Replica.BeginGroupMembershipWrite(groupId, count, out int offset);
+            MonsterNetworkCodec.ReadGroupMembershipEntityIds(ref reader, entityIds);
             Replica.CommitGroupMembership(groupId, offset, count, revision);
         }
 
@@ -497,12 +504,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             ApplySpawnBatchLocal(batch);
         }
 
-        public void ReceiveDespawn(int slot)
+        public void ReceiveDespawn(ulong entityId)
         {
             if (!_roomActive || _networkManager.IsServer)
                 return;
 
-            Replica.Despawn(slot);
+            Replica.Despawn(entityId);
         }
 
         public void ReceiveRoomEnd()

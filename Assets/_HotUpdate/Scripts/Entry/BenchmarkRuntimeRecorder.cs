@@ -71,7 +71,7 @@ namespace ProjectGame.HotFix.Benchmarking
         public long receivedMessageCount;
         public long receivedPayloadBytes;
         public int authorityAliveMonsterCount;
-        public int replicaSlotCount;
+        public int replicaViewSlotCount;
         public int replicaActiveCount;
         public int activeViewCount;
         public int viewSlotCount;
@@ -497,7 +497,7 @@ namespace ProjectGame.HotFix.Benchmarking
             bool monsterValid = _options.Role == BenchmarkProcessRole.Host
                 ? monsters != null && monsters.AliveMonsterCount == _options.MonsterCount
                 : replica != null && replica.GroupPoseReadyCount == _options.MonsterCount &&
-                  replica.SlotCount == _options.MonsterCount &&
+                  replica.ViewSlotCount == _options.MonsterCount &&
                   replica.ActiveCount == _options.MonsterCount &&
                   view != null && view.ActiveRenderCount == _options.MonsterCount;
             bool flowValid = _options.Role != BenchmarkProcessRole.Host || sourceRebuilds > 0;
@@ -584,10 +584,10 @@ namespace ProjectGame.HotFix.Benchmarking
                 receivedMessageCount = (stats?.TotalReceivedMessageCount ?? 0L) - _receivedMessages,
                 receivedPayloadBytes = (stats?.TotalReceivedPayloadBytes ?? 0L) - _receivedBytes,
                 authorityAliveMonsterCount = monsters?.AliveMonsterCount ?? 0,
-                replicaSlotCount = replica?.SlotCount ?? 0,
+                replicaViewSlotCount = replica?.ViewSlotCount ?? 0,
                 replicaActiveCount = replica?.ActiveCount ?? 0,
                 activeViewCount = view?.ActiveRenderCount ?? 0,
-                viewSlotCount = view?.RenderSlotCount ?? 0,
+                viewSlotCount = view?.ViewSlotCount ?? 0,
                 sourceRebuildCount = sourceRebuilds,
                 topologyRebuildCount = (authority?.TopologyRebuildCount ?? 0) - _topologyRebuilds,
                 costRebuildCount = (authority?.CostRebuildCount ?? 0) - _costRebuilds,
@@ -662,7 +662,7 @@ namespace ProjectGame.HotFix.Benchmarking
                 report.AppendLine($"- 无效原因：{metrics.invalidReason}");
             report.AppendLine($"- 怪物数：{metrics.monsterCount}");
             report.AppendLine($"- 前台目标：{metrics.focusTarget}");
-            report.AppendLine($"- 权威端存活 / Replica 槽位-激活 / View 槽位-激活：{metrics.authorityAliveMonsterCount} / {metrics.replicaSlotCount}-{metrics.replicaActiveCount} / {metrics.viewSlotCount}-{metrics.activeViewCount}");
+            report.AppendLine($"- 权威端存活 / Replica ViewSlot-激活 / View ViewSlot-激活：{metrics.authorityAliveMonsterCount} / {metrics.replicaViewSlotCount}-{metrics.replicaActiveCount} / {metrics.viewSlotCount}-{metrics.activeViewCount}");
             report.AppendLine($"- 样本数 / 实际时长：{metrics.sampleCount} / {metrics.actualDurationSeconds:F3}s");
             report.AppendLine($"- 前台/后台帧及切换次数：{metrics.focusedFrameCount}/{metrics.unfocusedFrameCount}，切换 {metrics.focusChangeCount} 次");
             report.AppendLine($"- 帧间隔 平均/P50/P90/P95/P99/最大(ms)：{metrics.averageFrameMilliseconds:F3} / {metrics.p50FrameMilliseconds:F3} / {metrics.p90FrameMilliseconds:F3} / {metrics.p95FrameMilliseconds:F3} / {metrics.p99FrameMilliseconds:F3} / {metrics.maximumFrameMilliseconds:F3}");

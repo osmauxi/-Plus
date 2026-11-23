@@ -28,7 +28,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private MonsterVATRenderWorld _vatWorld;
 
         public bool IsInitialized { get; private set; }
-        public int RenderSlotCount => _viewWorld?.SlotCount ?? 0;
+        public int ViewSlotCount => _viewWorld?.ViewSlotCount ?? 0;
         public int ActiveRenderCount => _viewWorld?.ActiveRenderCount ?? 0;
 
         private void Awake() => enabled = false;

@@ -37,7 +37,7 @@ namespace ProjectGame.Core.Monsters
     }
 
     /// <summary>
-    /// 每个复制 Tick 只执行一次姿态量化，结果按 Slot 缓存供本地帧和群组快照复用。
+    /// 每个复制 Tick 只执行一次姿态量化，结果按 StorageIndex 缓存供本地帧和群组快照复用。
     /// </summary>
     public static class MonsterPresentationPackKernel
     {
@@ -46,20 +46,20 @@ namespace ProjectGame.Core.Monsters
             new("Monster.Replication.PackActive");
 
         public static void PackActive(
-            int[] activeSlots,
+            int[] activeStorageIndices,
             int activeCount,
             MonsterMotionData[] motion,
             MonsterPresentationData[] presentation,
             MonsterQuantizationData quantization,
-            MonsterPackedState[] packedStateBySlot)
+            MonsterPackedState[] packedStateByStorageIndex)
         {
             using var packScope = PackMarker.Auto();
             for (int i = 0; i < activeCount; i++)
             {
-                int slot = activeSlots[i];
-                MonsterMotionData pose = motion[slot];
-                MonsterPresentationData visual = presentation[slot];
-                packedStateBySlot[slot] = new MonsterPackedState(
+                int storageIndex = activeStorageIndices[i];
+                MonsterMotionData pose = motion[storageIndex];
+                MonsterPresentationData visual = presentation[storageIndex];
+                packedStateByStorageIndex[storageIndex] = new MonsterPackedState(
                     PackPose(pose.Position, pose.Yaw, quantization),
                     visual.AttackSequence,
                     visual.HitSequence);

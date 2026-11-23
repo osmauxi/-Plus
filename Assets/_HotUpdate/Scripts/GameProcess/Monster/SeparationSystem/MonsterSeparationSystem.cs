@@ -42,14 +42,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     snapshot.BucketHeads,
                     snapshot.ActiveBuckets,
                     snapshot.ActiveBucketCount,
-                    snapshot.NextSlot,
-                    snapshot.SlotCount);
+                    snapshot.NextStorageIndex,
+                    snapshot.StorageCount);
             }
         }
 
         public void EnsureCapacity(int count) => _kernel.EnsureCapacity(count);
 
-        public Vector2 Get(int slot) => _kernel.Get(slot);
+        public Vector2 Get(int storageIndex) => _kernel.Get(storageIndex);
 
         internal Vector2[] Values => _kernel.Values;
 

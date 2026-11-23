@@ -46,7 +46,7 @@ namespace ProjectGame.Core.Spatial
             public Vector2 Center;
             public float HalfSize;
             public int FirstChild;
-            public int HeadSlot;
+            public int HeadStorageIndex;
             public int Count;
             public byte Depth;
             //Morton码用于编码节点再四叉树中的空间路径，根据象限掩码推算
@@ -60,10 +60,10 @@ namespace ProjectGame.Core.Spatial
         private readonly int[] _queryStack;
         private Vector2[] _positions = Array.Empty<Vector2>();
         //链表结构，存储每个slot的下一个slot索引
-        private int[] _nextSlot;
+        private int[] _nextStorageIndex;
         //组成双向链表，方便删除slot时快速找到前一个slot
-        private int[] _previousSlot;
-        private int[] _leafBySlot;
+        private int[] _previousStorageIndex;
+        private int[] _leafByStorageIndex;
         //当前树实际创建的节点数，不代表数组容量
         private int _nodeCount;
         public int NodeCount => _nodeCount;
@@ -90,12 +90,12 @@ namespace ProjectGame.Core.Spatial
             int maximumNodeCount = FullTreeNodeCount(MaxDepth);
             _nodes = new Node[maximumNodeCount];
             _queryStack = new int[maximumNodeCount];
-            _nextSlot = new int[initialMonsterCapacity];
-            _previousSlot = new int[initialMonsterCapacity];
-            _leafBySlot = new int[initialMonsterCapacity];
-            FillUnlinked(_nextSlot, 0);
-            FillUnlinked(_previousSlot, 0);
-            FillUnlinked(_leafBySlot, 0);
+            _nextStorageIndex = new int[initialMonsterCapacity];
+            _previousStorageIndex = new int[initialMonsterCapacity];
+            _leafByStorageIndex = new int[initialMonsterCapacity];
+            FillUnlinked(_nextStorageIndex, 0);
+            FillUnlinked(_previousStorageIndex, 0);
+            FillUnlinked(_leafByStorageIndex, 0);
         }
 
         public void SetPositionBuffer(Vector2[] positions) => _positions = positions;
@@ -107,45 +107,45 @@ namespace ProjectGame.Core.Spatial
             LastQueryVisitedNodeCount = 0;
         }
 
-        public void Build(Vector2[] positions, byte[] activeMask, int slotCount)
+        public void Build(Vector2[] positions, byte[] activeMask, int storageCount)
         {
             //重置旧索引
             _positions = positions;
-            FillUnlinked(_nextSlot, 0);
-            FillUnlinked(_previousSlot, 0);
-            FillUnlinked(_leafBySlot, 0);
+            FillUnlinked(_nextStorageIndex, 0);
+            FillUnlinked(_previousStorageIndex, 0);
+            FillUnlinked(_leafByStorageIndex, 0);
             _nodeCount = 0;
             //重建基础树
             int root = CreateNode(_rootCenter, _rootHalfSize, 0, 0);
             BuildBaseTree(root);
             //插入活跃怪物
-            for (int slot = 0; slot < slotCount; slot++)
+            for (int storageIndex = 0; storageIndex < storageCount; storageIndex++)
             {
-                if (activeMask[slot] != 0)
-                    Insert(slot, positions[slot], 0);
+                if (activeMask[storageIndex] != 0)
+                    Insert(storageIndex, positions[storageIndex], 0);
             }
         }
 
-        public void Add(int slot, Vector2 position)
+        public void Add(int storageIndex, Vector2 position)
         {
-            _positions[slot] = position;
-            Insert(slot, position, 0);
+            _positions[storageIndex] = position;
+            Insert(storageIndex, position, 0);
         }
 
-        public void Remove(int slot)
+        public void Remove(int storageIndex)
         {
-            int leaf = _leafBySlot[slot];
+            int leaf = _leafByStorageIndex[storageIndex];
             if (leaf == Unlinked)
                 return;
 
-            Unlink(slot, leaf);
+            Unlink(storageIndex, leaf);
         }
 
-        public void Relocate(int slot, Vector2 position)
+        public void Relocate(int storageIndex, Vector2 position)
         {
-            _positions[slot] = position;
-            Remove(slot);
-            Insert(slot, position, 0);
+            _positions[storageIndex] = position;
+            Remove(storageIndex);
+            Insert(storageIndex, position, 0);
         }
 
         public int QuerySweptCircle(
@@ -181,8 +181,8 @@ namespace ProjectGame.Core.Spatial
                 }
 
                 //叶节点，遍历该叶节点的slot链表，将所有slot索引加入结果数组
-                for (int slot = node.HeadSlot; slot >= 0; slot = _nextSlot[slot])
-                    results[resultCount++] = slot;
+                for (int storageIndex = node.HeadStorageIndex; storageIndex >= 0; storageIndex = _nextStorageIndex[storageIndex])
+                    results[resultCount++] = storageIndex;
             }
             LastQueryCandidateCount = resultCount;
             LastQueryVisitedNodeCount = visitedNodeCount;
@@ -269,7 +269,7 @@ namespace ProjectGame.Core.Spatial
                 Center = center,
                 HalfSize = halfSize,
                 FirstChild = Unlinked,
-                HeadSlot = Unlinked,
+                HeadStorageIndex = Unlinked,
                 Depth = depth,
                 MortonCode = mortonCode,
             };
@@ -278,7 +278,7 @@ namespace ProjectGame.Core.Spatial
         /// <summary>
         /// 将slot插入到四叉树中，找到对应的叶节点，如果叶节点超过阈值则进行分裂
         /// </summary>
-        private void Insert(int slot, Vector2 position, int nodeIndex)
+        private void Insert(int storageIndex, Vector2 position, int nodeIndex)
         {
             //判断是否越界
             if (!Contains(_nodes[0], position))
@@ -287,7 +287,7 @@ namespace ProjectGame.Core.Spatial
             while (_nodes[nodeIndex].FirstChild >= 0)
                 nodeIndex = SelectChild(nodeIndex, position);
 
-            LinkAtHead(slot, nodeIndex);
+            LinkAtHead(storageIndex, nodeIndex);
             //叶子节点的怪物数量超过阈值且深度未达到最大深度，则进行分裂
             ref Node leaf = ref _nodes[nodeIndex];
             if (leaf.Count > SplitThreshold && leaf.Depth < MaxDepth)
@@ -297,22 +297,22 @@ namespace ProjectGame.Core.Spatial
         private void Split(int nodeIndex)
         {
             ref Node node = ref _nodes[nodeIndex];
-            int previousHead = node.HeadSlot;
+            int previousHead = node.HeadStorageIndex;
             CreateChildren(nodeIndex);
             //将原来的叶节点的slot链表拆分到新的子节点中
             //有叶子的节点不会维护slot链表
-            node.HeadSlot = Unlinked;
+            node.HeadStorageIndex = Unlinked;
             node.Count = 0;
             //从头开始遍历slot链表，将每个slot重新插入到新的子节点中
             //逻辑上是拿出来再插入，实际上是更新slot的链表指针和叶节点索引
             while (previousHead >= 0)
             {
-                int slot = previousHead;
-                previousHead = _nextSlot[slot];
-                _nextSlot[slot] = Unlinked;
-                _previousSlot[slot] = Unlinked;
-                _leafBySlot[slot] = Unlinked;
-                Insert(slot, _positions[slot], nodeIndex);
+                int storageIndex = previousHead;
+                previousHead = _nextStorageIndex[storageIndex];
+                _nextStorageIndex[storageIndex] = Unlinked;
+                _previousStorageIndex[storageIndex] = Unlinked;
+                _leafByStorageIndex[storageIndex] = Unlinked;
+                Insert(storageIndex, _positions[storageIndex], nodeIndex);
             }
         }
         /// <summary>
@@ -359,57 +359,57 @@ namespace ProjectGame.Core.Spatial
         /// <summary>
         /// 将slot插入到链表头部
         /// </summary>
-        private void LinkAtHead(int slot, int leaf)
+        private void LinkAtHead(int storageIndex, int leaf)
         {
             //这里维护的是slot链表
-            int head = _nodes[leaf].HeadSlot;
+            int head = _nodes[leaf].HeadStorageIndex;
             //slot变成头部，他前面没有slot，后面是原来的头部slot
-            _previousSlot[slot] = Unlinked;
-            _nextSlot[slot] = head;
+            _previousStorageIndex[storageIndex] = Unlinked;
+            _nextStorageIndex[storageIndex] = head;
             //原来的头部slot的前面是新插入的slot
             if (head >= 0)
-                _previousSlot[head] = slot;
+                _previousStorageIndex[head] = storageIndex;
 
             //叶节点的头部slot变成新插入的slot
             //这里更新的是这个叶节点的链表头部索引，方便后续遍历这个叶节点的所有slot
-            _nodes[leaf].HeadSlot = slot;
+            _nodes[leaf].HeadStorageIndex = storageIndex;
             //增加叶节点的怪物slot计数
             _nodes[leaf].Count++;
             //记录slot属于哪个叶节点
-            _leafBySlot[slot] = leaf;
+            _leafByStorageIndex[storageIndex] = leaf;
         }
 
-        private void Unlink(int slot, int leaf)
+        private void Unlink(int storageIndex, int leaf)
         {
-            int previous = _previousSlot[slot];
-            int next = _nextSlot[slot];
+            int previous = _previousStorageIndex[storageIndex];
+            int next = _nextStorageIndex[storageIndex];
             if (previous >= 0)
-                _nextSlot[previous] = next;
+                _nextStorageIndex[previous] = next;
             else
-                _nodes[leaf].HeadSlot = next;
+                _nodes[leaf].HeadStorageIndex = next;
 
             if (next >= 0)
-                _previousSlot[next] = previous;
+                _previousStorageIndex[next] = previous;
 
             _nodes[leaf].Count--;
-            _nextSlot[slot] = Unlinked;
-            _previousSlot[slot] = Unlinked;
-            _leafBySlot[slot] = Unlinked;
+            _nextStorageIndex[storageIndex] = Unlinked;
+            _previousStorageIndex[storageIndex] = Unlinked;
+            _leafByStorageIndex[storageIndex] = Unlinked;
         }
 
         public void EnsureCapacity(int count)
         {
-            if (_leafBySlot.Length >= count)
+            if (_leafByStorageIndex.Length >= count)
                 return;
 
-            int previousCapacity = _leafBySlot.Length;
+            int previousCapacity = _leafByStorageIndex.Length;
             int capacity = Math.Max(count, previousCapacity == 0 ? 64 : previousCapacity * 2);
-            Array.Resize(ref _nextSlot, capacity);
-            Array.Resize(ref _previousSlot, capacity);
-            Array.Resize(ref _leafBySlot, capacity);
-            FillUnlinked(_nextSlot, previousCapacity);
-            FillUnlinked(_previousSlot, previousCapacity);
-            FillUnlinked(_leafBySlot, previousCapacity);
+            Array.Resize(ref _nextStorageIndex, capacity);
+            Array.Resize(ref _previousStorageIndex, capacity);
+            Array.Resize(ref _leafByStorageIndex, capacity);
+            FillUnlinked(_nextStorageIndex, previousCapacity);
+            FillUnlinked(_previousStorageIndex, previousCapacity);
+            FillUnlinked(_leafByStorageIndex, previousCapacity);
         }
 
         private static bool Contains(in Node node, Vector2 point) =>

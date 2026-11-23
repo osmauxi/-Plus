@@ -56,7 +56,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private struct Contact
         {
             public ContactKind Kind;
-            public int MonsterSlot;
+            public int MonsterStorageIndex;
             public Vector3 Point;
             public Vector3 Normal;
             public float Distance;
@@ -86,7 +86,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             {
                 MonsterRoomRuntime room = _monsters.AuthorityRoom;
                 if (room != null)
-                    EnsureMonsterCandidateCapacity(room.World.SlotCount);
+                    EnsureMonsterCandidateCapacity(room.World.StorageCount);
 
                 using (ActiveLoopMarker.Auto())
                 {
@@ -286,8 +286,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
             if (isMonsterContact)
             {
-                targetEntityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)hit.MonsterSlot;
-                hasTarget = _monsters.DamageMonster(hit.MonsterSlot, damage);
+                    targetEntityId = _monsters.GetMonsterEntityId(hit.MonsterStorageIndex);
+                hasTarget = _monsters.DamageMonster(hit.MonsterStorageIndex, damage);
             }
 
             ProjectileHitResolution resolution = ProjectileHitResolution.Destroy;
@@ -422,14 +422,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 //遍历所有候选怪物，进行窄相检测
                 for (int i = 0; i < candidateCount; i++)
                 {
-                    int slot = _monsterCandidates[i];
+                    int storageIndex = _monsterCandidates[i];
                     //是子弹的拥有者，怪物不是被再次命中
-                    ulong entityId = MonsterRuntimeService.MonsterEntityIdBase + (uint)slot;
+                    ulong entityId = _monsters.GetMonsterEntityId(storageIndex);
                     if (entityId == ownerEntityId || HasHit(projectileId, entityId))
                         continue;
                     //center为怪物的圆心，toCenter为子弹起点指向怪物圆心的向量
                     //pathDistance为子弹到达碰撞点的距离
-                    Vector2 center = room.World.Motion[slot].Position;
+                    Vector2 center = room.World.Motion[storageIndex].Position;
                     Vector2 toCenter = center - start;
                     float pathDistance;
 
@@ -478,7 +478,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     contact = new Contact
                     {
                         Kind = ContactKind.Monster,
-                        MonsterSlot = slot,
+                        MonsterStorageIndex = storageIndex,
                         Point = new Vector3(
                             center.x + normal2.x * monsterHitRadius,
                             projectileAtHit.y,
@@ -497,11 +497,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// <summary>
         /// 确保候选结果数组容量足够
         /// </summary>
-        private void EnsureMonsterCandidateCapacity(int slotCount)
+        private void EnsureMonsterCandidateCapacity(int storageCount)
         {
-            if (_monsterCandidates.Length >= slotCount)
+            if (_monsterCandidates.Length >= storageCount)
                 return;
-            int capacity = Math.Max(slotCount, _monsterCandidates.Length == 0 ? 64 : _monsterCandidates.Length * 2);
+            int capacity = Math.Max(storageCount, _monsterCandidates.Length == 0 ? 64 : _monsterCandidates.Length * 2);
             Array.Resize(ref _monsterCandidates, capacity);
         }
         /// <summary>
@@ -536,7 +536,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 contact = new Contact
                 {
                     Kind = ContactKind.World,
-                    MonsterSlot = -1,
+                    MonsterStorageIndex = -1,
                     Point = hit.point,
                     Normal = hit.normal,
                     Distance = hit.distance,
@@ -581,7 +581,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 contact = new Contact
                 {
                     Kind = ContactKind.World,
-                    MonsterSlot = -1,
+                    MonsterStorageIndex = -1,
                     Point = point,
                     Normal = normal.sqrMagnitude > 0.0001f ? normal.normalized : -direction,
                     Distance = 0f

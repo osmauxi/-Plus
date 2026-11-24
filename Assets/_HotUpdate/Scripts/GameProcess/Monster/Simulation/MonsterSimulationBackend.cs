@@ -12,24 +12,18 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     public interface IMonsterSimulationBackend
     {
         bool HasFlowField { get; }
-        int PendingMeleeAttackCount { get; }
         int TopologyRebuildCount { get; }
         int SourceRebuildCount { get; }
         int CostRebuildCount { get; }
         uint LastRebuildTick { get; }
 
-        void Tick(
-            MonsterWorld world,
-            MonsterPlayerTargetBuffer players,
-            uint tick,
-            float deltaTime,
-            float groundY,
-            MonsterOccupancySnapshot occupancySnapshot);
+        MonsterSimulationTickOutput Tick(in MonsterSimulationTickInput input);
 
         void ExecutePendingMeleeAttacks(
             MonsterWorld world,
             float groundY,
-            MonsterMeleePhysicsResolver resolver);
+            MonsterMeleePhysicsResolver resolver,
+            in MonsterSimulationTickOutput output);
 
         bool TryGetFlowFieldDebugCell(int x, int y, out FlowFieldCellDebugData cell);
 

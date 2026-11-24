@@ -85,14 +85,14 @@ MonsterSimulationBackend
 策略共享两个边界结构：
 
 ```text
-MonsterTickInput
+MonsterSimulationTickInput
     玩家目标
     活动实体
     FlowField 数据
     怪物配置
     Tick 和 DeltaTime
 
-MonsterTickOutput
+MonsterSimulationTickOutput
     运动结果
     攻击请求
     死亡结果
@@ -546,13 +546,16 @@ Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client �
 
 ### 20.1 策略接口
 
-`IMonsterSimulationBackend` 只包含一次模拟 Tick 所需的计算能力：
+`IMonsterSimulationBackend` 只包含一次模拟 Tick 所需的计算能力。房间层通过 `MonsterSimulationTickInput` 组织当前 Tick 的数据引用，策略返回 `MonsterSimulationTickOutput`：
 
-- 接收 `MonsterWorld`、玩家目标、FlowField 数据和 Occupancy 快照；
-- 输出通过 `MonsterWorld` 写回的运动与状态结果；
-- 暂存并执行近战请求；
+- 输入包含 `MonsterWorld`、玩家目标、Occupancy 快照、Tick、DeltaTime 和 GroundY；
+- 运动与状态结果仍然写回 `MonsterWorld` 的 SoA 数组；
+- 输出只携带跨阶段消费的近战请求数组和请求数量；
+- 近战阶段消费上一次模拟返回的输出；
 - 提供寻路调试数据和 Separation 查询；
 - 接收房间生命周期的容量扩展和诊断重置。
+
+这两个结构是无分配的只读值类型。它们当前保存的是托管数组和房间对象的引用，因此先完成调用边界整理，再为 Native SoA 后端建立对应的 Native 数据视图。不能把当前结构直接当作 Burst 输入。
 
 接口不包含网络发送、VAT、对象池、Transform 创建或房间开始结束逻辑。这样三个后端共享玩法语义，表现和网络仍由外层模块统一消费。
 
@@ -569,4 +572,4 @@ Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client �
 3. 用相同场景、Seed、射击路线和采样窗口完成两种后端的行为对照；
 4. 再新增 `EntitiesEcs`，让 ECS 适配器只负责把 Chunk 数据映射到同一输出边界。
 
-第一步只改变调用边界，没有改变 ManagedSoA 的数据布局和模拟算法。
+第一步只改变调用边界，没有改变 ManagedSoA 的数据布局和模拟算法。当前 `MonsterRoomRuntime.Tick` 创建输入结构，策略返回输出结构，`ResolveCombat` 在下一个阶段消费输出。这个跨阶段结果避免了策略接口继续隐藏一份只能由自身读取的攻击请求状态。

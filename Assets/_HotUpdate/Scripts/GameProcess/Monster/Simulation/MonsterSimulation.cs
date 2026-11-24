@@ -100,7 +100,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private bool _hasTopologyReferenceFlowField;
 
         public bool HasFlowField => _hasFlowField;
-        public int PendingMeleeAttackCount => _pendingMeleeAttackCount;
         public int TopologyRebuildCount { get; private set; }
         public int SourceRebuildCount { get; private set; }
         public int CostRebuildCount { get; private set; }
@@ -140,15 +139,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Fill(_recoveryCacheVersions, -1);
         }
 
-        public void Tick(
-            MonsterWorld world,
-            MonsterPlayerTargetBuffer players,
-            uint tick,
-            float deltaTime,
-            float groundY,
-            MonsterOccupancySnapshot occupancySnapshot)
+        public MonsterSimulationTickOutput Tick(in MonsterSimulationTickInput input)
         {
             _pendingMeleeAttackCount = 0;
+            MonsterWorld world = input.World;
+            MonsterPlayerTargetBuffer players = input.Players;
+            uint tick = input.Tick;
+            float deltaTime = input.DeltaTime;
+            float groundY = input.GroundY;
+            MonsterOccupancySnapshot occupancySnapshot = input.OccupancySnapshot;
             EnsureCapacity(world.Capacity);
             EnsureGridTransform(groundY);
             players.UpdateNavigationCells(_roomRoot, _navigationGrid, groundY);
@@ -188,6 +187,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 tick,
                 deltaTime,
                 _pendingMeleeAttacks);
+
+            return new MonsterSimulationTickOutput(
+                _pendingMeleeAttacks,
+                _pendingMeleeAttackCount);
         }
 
         public bool TryGetFlowFieldDebugCell(int x, int y, out FlowFieldCellDebugData cell)
@@ -238,14 +241,15 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void ExecutePendingMeleeAttacks(
             MonsterWorld world,
             float groundY,
-            MonsterMeleePhysicsResolver resolver)
+            MonsterMeleePhysicsResolver resolver,
+            in MonsterSimulationTickOutput output)
         {
             if (resolver == null)
                 throw new ArgumentNullException(nameof(resolver));
 
-            for (int i = 0; i < _pendingMeleeAttackCount; i++)
+            for (int i = 0; i < output.MeleeAttackCount; i++)
             {
-                MonsterAttackRequestData request = _pendingMeleeAttacks[i];
+                MonsterAttackRequestData request = output.MeleeAttackRequests[i];
                 MonsterMotionData motion = world.Motion[request.StorageIndex];
                 Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
                 Vector3 root = new Vector3(motion.Position.x, groundY, motion.Position.y);

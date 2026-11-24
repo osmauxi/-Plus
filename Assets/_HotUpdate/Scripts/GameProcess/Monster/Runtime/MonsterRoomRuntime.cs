@@ -44,6 +44,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly IMonsterSimulationBackend _simulation;
         private readonly MonsterOccupancySnapshot _occupancySnapshot;
         private readonly MonsterMeleePhysicsResolver _melee = new();
+        private MonsterSimulationTickOutput _simulationOutput;
         private readonly MonsterSpatialIndex _spatialIndex;
         private readonly MonsterNetworkGroupKernel _networkGroups = new();
         private readonly Transform _roomRoot;
@@ -141,13 +142,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterPlayerTargetCapture.Capture(manager, _players);
             using (OccupancySnapshotBuildMarker.Auto())
                 _occupancySnapshot.Build(World, _groundY);
-            _simulation.Tick(
+            MonsterSimulationTickInput input = new(
                 World,
                 _players,
+                _occupancySnapshot,
                 tick,
                 deltaTime,
-                _groundY,
-                _occupancySnapshot);
+                _groundY);
+            _simulationOutput = _simulation.Tick(input);
             //simulation过后，怪物位置可能发生变化，这里是触发四叉树的检测更新
             //实际更新是在等人真正查询的时候触发，根据标记判定是否先进行更新
             _spatialIndex.Invalidate();
@@ -158,7 +160,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         public void ResolveCombat()
         {
-            _simulation.ExecutePendingMeleeAttacks(World, _groundY, _melee);
+            _simulation.ExecutePendingMeleeAttacks(
+                World,
+                _groundY,
+                _melee,
+                _simulationOutput);
         }
 
         internal void PackPresentationStates()

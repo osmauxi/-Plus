@@ -504,12 +504,12 @@ Tick
 
 ### 10.4 HotFix 调用边界
 
-修改后 `MonsterSimulation` 只保留以下职责：
+当前 `MonsterSimulation` 作为 Managed SoA 策略只保留以下职责：
 
 1. 接收房间 Tick、玩家目标和导航环境；
 2. 更新 Density、FlowField、Occupancy 和 Separation 输入；
 3. 调用一次 `MonsterSimulationKernel.Tick`；
-4. 读取预分配的近战请求缓冲并交给战斗结算。
+4. 返回预分配的近战请求缓冲，由 `MonsterRoomRuntime` 交给战斗结算。
 
 以下逻辑移出 HotFix 的逐 Slot 路径：
 
@@ -546,7 +546,9 @@ Kernel 只负责判断攻击阶段、写入请求和推进攻击状态；近战�
 - `Assets/_HotUpdate/Scripts/GameProcess/Monster/Runtime/MonsterRoomRuntime.cs`：连接 Kernel 输入、输出和攻击请求；
 - `Assets/_AOT/Scripts/Core/Monsters/MonsterSimulationData.cs`：新增 AOT 共享状态、配置和攻击请求值类型；
 - `Assets/_AOT/Scripts/Core/Monsters/MonsterSimulationKernel.cs`：新增实体 Tick AOT Kernel；
-- `Assets/_HotUpdate/Scripts/GameProcess/Monster/Simulation/MonsterSimulation.cs`：持有一次扩容的攻击请求数组并负责战斗阶段编排。
+- `Assets/_HotUpdate/Scripts/GameProcess/Monster/Simulation/MonsterSimulation.cs`：Managed SoA 策略，持有一次扩容的攻击请求数组并返回策略输出。
+- `Assets/_HotUpdate/Scripts/GameProcess/Monster/Simulation/MonsterSimulationBackend.cs`：统一策略接口、后端选择和工厂。
+- `Assets/_HotUpdate/Scripts/GameProcess/Monster/Simulation/MonsterSimulationContracts.cs`：Tick 输入和输出契约。
 
 表现 Capture、网络包格式和群组分层在本阶段保持不变，避免把模拟收益和复制协议变化混在一次量化中。
 

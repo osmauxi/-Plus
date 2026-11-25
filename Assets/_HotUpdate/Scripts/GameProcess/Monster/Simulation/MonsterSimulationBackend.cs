@@ -19,12 +19,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         MonsterSimulationTickOutput Tick(in MonsterSimulationTickInput input);
 
-        void ExecutePendingMeleeAttacks(
-            MonsterWorld world,
-            float groundY,
-            MonsterMeleePhysicsResolver resolver,
-            in MonsterSimulationTickOutput output);
-
         bool TryGetFlowFieldDebugCell(int x, int y, out FlowFieldCellDebugData cell);
 
         bool TryGetTopologyReferenceFlowFieldDebugCell(
@@ -56,14 +50,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public static IMonsterSimulationBackend Create(
             MonsterSimulationBackendKind kind,
             MonsterRuntimeCatalog configs,
-            MonsterAttackCatalog attackProfiles,
             RuntimeNavigationGrid navigationGrid,
             Transform roomRoot)
         {
             return kind switch
             {
                 MonsterSimulationBackendKind.ManagedSoA =>
-                    new MonsterSimulation(configs, attackProfiles, navigationGrid, roomRoot),
+                    new MonsterSimulation(configs, navigationGrid, roomRoot),
                 _ => throw new System.NotSupportedException(
                     $"Monster 模拟后端尚未接入：{kind}。当前可用后端为 ManagedSoA。"),
             };

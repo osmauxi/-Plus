@@ -14,9 +14,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     public sealed class MonsterSimulation : IMonsterSimulationBackend
     {
         private readonly MonsterRuntimeCatalog _configs;
-        private readonly MonsterAttackCatalog _attackProfiles;
         private MonsterAttackRequestData[] _pendingMeleeAttacks = new MonsterAttackRequestData[64];
-        private int _pendingMeleeAttackCount;
 
         private int _lastTopologyVersion = -1;
         private int _lastCostVersion = -1;
@@ -117,12 +115,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterSimulation(
             MonsterRuntimeCatalog configs,
-            MonsterAttackCatalog attackProfiles,
             RuntimeNavigationGrid navigationGrid,
             Transform roomRoot)
         {
             _configs = configs ?? throw new ArgumentNullException(nameof(configs));
-            _attackProfiles = attackProfiles ?? throw new ArgumentNullException(nameof(attackProfiles));
             _navigationGrid = navigationGrid ?? throw new ArgumentNullException(nameof(navigationGrid));
             _roomRoot = roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
 
@@ -141,7 +137,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterSimulationTickOutput Tick(in MonsterSimulationTickInput input)
         {
-            _pendingMeleeAttackCount = 0;
             MonsterWorld world = input.World;
             MonsterPlayerTargetBuffer players = input.Players;
             uint tick = input.Tick;
@@ -164,7 +159,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             RefreshFlowCellCache();
             PrepareRecoveryCache(world, occupancySnapshot);
 
-            _pendingMeleeAttackCount = MonsterSimulationKernel.Tick(
+            int meleeAttackCount = MonsterSimulationKernel.Tick(
                 world.Meta,
                 world.Motion,
                 world.Status,
@@ -190,7 +185,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             return new MonsterSimulationTickOutput(
                 _pendingMeleeAttacks,
-                _pendingMeleeAttackCount);
+                meleeAttackCount);
         }
 
         public bool TryGetFlowFieldDebugCell(int x, int y, out FlowFieldCellDebugData cell)
@@ -237,32 +232,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         public Vector2 GetRawSeparation(int storageIndex) => _separation.Get(storageIndex);
-
-        public void ExecutePendingMeleeAttacks(
-            MonsterWorld world,
-            float groundY,
-            MonsterMeleePhysicsResolver resolver,
-            in MonsterSimulationTickOutput output)
-        {
-            if (resolver == null)
-                throw new ArgumentNullException(nameof(resolver));
-
-            for (int i = 0; i < output.MeleeAttackCount; i++)
-            {
-                MonsterAttackRequestData request = output.MeleeAttackRequests[i];
-                MonsterMotionData motion = world.Motion[request.StorageIndex];
-                Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
-                Vector3 root = new Vector3(motion.Position.x, groundY, motion.Position.y);
-                ref readonly MonsterAttackProfile profile = ref _attackProfiles.Get(request.AttackProfileIndex);
-                resolver.Execute(
-                    root + rotation * profile.OriginOffset,
-                    rotation * Vector3.forward,
-                    profile,
-                    request.Damage);
-            }
-
-            _pendingMeleeAttackCount = 0;
-        }
 
         /// <summary>
         /// 地块重建入口，每次Tick都会检查是否需要重建FlowField

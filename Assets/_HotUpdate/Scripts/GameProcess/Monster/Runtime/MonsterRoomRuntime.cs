@@ -37,6 +37,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             new("Monster.OccupancySnapshot.Build");
 
         private readonly MonsterRuntimeCatalog _configs;
+        private readonly MonsterAttackCatalog _attackProfiles;
         private readonly MonsterPoseQuantizer _quantizer;
 
         private readonly RuntimeNavigationGrid _navigationGrid;
@@ -79,6 +80,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int initialCapacity = 64)
         {
             _configs = configs;
+            _attackProfiles = attackProfiles;
             _quantizer = quantizer;
             _roomRoot = roomRoot;
             SimulationBackendKind = simulationBackendKind;
@@ -88,7 +90,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _simulation = MonsterSimulationBackendFactory.Create(
                 simulationBackendKind,
                 configs,
-                attackProfiles,
                 _navigationGrid,
                 roomRoot);
             _occupancySnapshot = new MonsterOccupancySnapshot(
@@ -160,11 +161,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         public void ResolveCombat()
         {
-            _simulation.ExecutePendingMeleeAttacks(
-                World,
-                _groundY,
-                _melee,
-                _simulationOutput);
+            MonsterSimulationTickOutput output = _simulationOutput;
+            _simulationOutput = default;
+            for (int i = 0; i < output.MeleeAttackCount; i++)
+            {
+                MonsterAttackRequestData request = output.MeleeAttackRequests[i];
+                MonsterMotionData motion = World.Motion[request.StorageIndex];
+                Quaternion rotation = Quaternion.Euler(0f, motion.Yaw, 0f);
+                Vector3 root = new(motion.Position.x, _groundY, motion.Position.y);
+                ref readonly MonsterAttackProfile profile =
+                    ref _attackProfiles.Get(request.AttackProfileIndex);
+                _melee.Execute(
+                    root + rotation * profile.OriginOffset,
+                    rotation * Vector3.forward,
+                    profile,
+                    request.Damage);
+            }
         }
 
         internal void PackPresentationStates()

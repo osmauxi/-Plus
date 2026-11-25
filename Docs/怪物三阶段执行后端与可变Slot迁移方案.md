@@ -551,7 +551,7 @@ Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client �
 - 输入包含 `MonsterWorld`、玩家目标、Occupancy 快照、Tick、DeltaTime 和 GroundY；
 - 运动与状态结果仍然写回 `MonsterWorld` 的 SoA 数组；
 - 输出只携带跨阶段消费的近战请求数组和请求数量；
-- 近战阶段消费上一次模拟返回的输出；
+- 近战阶段由 `MonsterRoomRuntime` 消费输出，并统一调用 `MonsterMeleePhysicsResolver`；
 - 提供寻路调试数据和 Separation 查询；
 - 接收房间生命周期的容量扩展和诊断重置。
 
@@ -572,4 +572,4 @@ Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client �
 3. 用相同场景、Seed、射击路线和采样窗口完成两种后端的行为对照；
 4. 再新增 `EntitiesEcs`，让 ECS 适配器只负责把 Chunk 数据映射到同一输出边界。
 
-第一步只改变调用边界，没有改变 ManagedSoA 的数据布局和模拟算法。当前 `MonsterRoomRuntime.Tick` 创建输入结构，策略返回输出结构，`ResolveCombat` 在下一个阶段消费输出。这个跨阶段结果避免了策略接口继续隐藏一份只能由自身读取的攻击请求状态。
+第一步只改变调用边界，没有改变 ManagedSoA 的数据布局和模拟算法。当前 `MonsterRoomRuntime.Tick` 创建输入结构，策略返回输出结构，`ResolveCombat` 在下一个阶段消费输出。模拟策略不再持有攻击配置和 Unity Physics 解析器，后续 Native SoA 后端只需生成同语义的攻击请求。

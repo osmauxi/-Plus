@@ -548,14 +548,14 @@ Host 三次平均帧间隔为 `25.483 ms`、`22.713 ms`、`28.221 ms`，Client �
 
 `IMonsterSimulationBackend` 只包含一次模拟 Tick 所需的计算能力。房间层通过 `MonsterSimulationTickInput` 组织当前 Tick 的数据引用，策略返回 `MonsterSimulationTickOutput`：
 
-- 输入包含 `MonsterWorld`、玩家目标、Occupancy 快照、Tick、DeltaTime 和 GroundY；
+- 输入包含已经完成导航格缓存的 `MonsterWorld`、玩家目标、Occupancy 快照、Tick、DeltaTime 和 GroundY；
 - 运动与状态结果仍然写回 `MonsterWorld` 的 SoA 数组；
 - 输出只携带跨阶段消费的近战请求数组和请求数量；
 - 近战阶段由 `MonsterRoomRuntime` 消费输出，并统一调用 `MonsterMeleePhysicsResolver`；
 - 提供寻路调试数据和 Separation 查询；
 - 接收房间生命周期的容量扩展和诊断重置。
 
-这两个结构是无分配的只读值类型。它们当前保存的是托管数组和房间对象的引用，因此先完成调用边界整理，再为 Native SoA 后端建立对应的 Native 数据视图。不能把当前结构直接当作 Burst 输入。
+这两个结构是无分配的只读值类型。房间层在构造输入前完成玩家导航格缓存和占用快照，策略只消费这些输入并写回 World 的模拟结果。它们当前保存的是托管数组和房间对象的引用，因此先完成调用边界整理，再为 Native SoA 后端建立对应的 Native 数据视图。不能把当前结构直接当作 Burst 输入。
 
 接口不包含网络发送、VAT、对象池、Transform 创建或房间开始结束逻辑。这样三个后端共享玩法语义，表现和网络仍由外层模块统一消费。
 

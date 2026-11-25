@@ -143,9 +143,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float deltaTime = input.DeltaTime;
             float groundY = input.GroundY;
             MonsterOccupancySnapshot occupancySnapshot = input.OccupancySnapshot;
-            EnsureCapacity(world.Capacity);
             EnsureGridTransform(groundY);
-            players.UpdateNavigationCells(_roomRoot, _navigationGrid, groundY);
 
             using (DensityUpdateMarker.Auto())
                 _densitySystem.Update(occupancySnapshot, _navigationGrid, tick);

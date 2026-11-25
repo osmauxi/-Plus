@@ -141,6 +141,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _obstacleSystem.Tick();
 
             MonsterPlayerTargetCapture.Capture(manager, _players);
+            _players.UpdateNavigationCells(_roomRoot, _navigationGrid, _groundY);
             using (OccupancySnapshotBuildMarker.Auto())
                 _occupancySnapshot.Build(World, _groundY);
             MonsterSimulationTickInput input = new(

@@ -11,7 +11,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         public EffectRollResult(IReadOnlyList<EffectRollOption> options, bool isChaos)
         {
-            Options = options ?? throw new ArgumentNullException(nameof(options));
+            Options = options;
             IsChaos = isChaos;
         }
     }
@@ -21,7 +21,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
         public readonly WeaponEffectDefinition Effect;
         public readonly WeaponEffectRollDefinition Presentation;
         public readonly byte CurrentLevel;
-        public byte NextLevel => checked((byte)(CurrentLevel + 1));
+        public byte NextLevel => (byte)(CurrentLevel + 1);
 
         public EffectRollOption(
             WeaponEffectDefinition effect,
@@ -41,7 +41,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         public EffectRollService(WeaponEffectCatalog catalog)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+            _catalog = catalog;
         }
 
         public IReadOnlyList<EffectRollOption> Roll(
@@ -61,8 +61,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             bool chaos = false,
             bool fallbackToChaos = true)
         {
-            if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
-            if (loadout == null) throw new ArgumentNullException(nameof(loadout));
             if (amount == 0) return new EffectRollResult(Array.Empty<EffectRollOption>(), chaos);
 
             var candidates = BuildCandidates(pool, loadout, chaos);
@@ -94,24 +92,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             IReadOnlyList<ushort> effectIds,
             IReadOnlyList<byte> currentLevels)
         {
-            if (effectIds == null) throw new ArgumentNullException(nameof(effectIds));
-            if (currentLevels == null) throw new ArgumentNullException(nameof(currentLevels));
-            if (effectIds.Count != currentLevels.Count)
-                throw new ArgumentException("Effect Roll 候选 ID 与等级数量不一致。");
-
             var result = new EffectRollOption[effectIds.Count];
-            var uniqueIds = new HashSet<ushort>();
             for (int i = 0; i < result.Length; i++)
-            {
-                ushort id = effectIds[i];
-                if (!uniqueIds.Add(id))
-                    throw new InvalidOperationException($"Effect Roll 候选包含重复 EffectID={id}。");
-                WeaponEffectDefinition effect = _catalog.GetEffect(id);
-                byte level = currentLevels[i];
-                if (level >= effect.MaxLevel)
-                    throw new InvalidOperationException($"EffectID={id} 的候选等级已达到上限。");
-                result[i] = new EffectRollOption(effect, _catalog.GetRoll(id), level);
-            }
+                result[i] = new EffectRollOption(
+                    _catalog.GetEffect(effectIds[i]), _catalog.GetRoll(effectIds[i]), currentLevels[i]);
             return result;
         }
 
@@ -138,7 +122,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
                             weight += effect.SchoolWeightBonus;
                 }
 
-                if (weight > 0f) candidates.Add(new Candidate(effect, weight));
+                candidates.Add(new Candidate(effect, weight));
             }
 
             return candidates;

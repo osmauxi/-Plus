@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
@@ -46,7 +45,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         public WeaponStatModifierCalculator(WeaponEffectCatalog catalog)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+            _catalog = catalog;
         }
 
         public WeaponEffectCalculation Calculate(
@@ -55,26 +54,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             ushort statSnapshotId,
             float tickDeltaTime)
         {
-            if (effectSet == null) 
-                throw new ArgumentNullException(nameof(effectSet));
-            if (tickDeltaTime <= 0f || float.IsNaN(tickDeltaTime) || float.IsInfinity(tickDeltaTime))
-                throw new ArgumentOutOfRangeException(nameof(tickDeltaTime));
             var values = new MutableStats(baseStats);
             //按顺序开始Apply
-            if (effectSet.AcquisitionOrder.Length > 0)
-            {
-                for (int i = 0; i < effectSet.AcquisitionOrder.Length; i++)
-                    ApplyEffect(ref values, effectSet.AcquisitionOrder[i]);
-            }
-            else
-            {
-                //兼容旧的仅聚合EffectSet，目前这部分不走
-                for (int i = 0; i < effectSet.Effects.Length; i++)
-                    for (int level = 0; level < effectSet.Effects[i].Stack; level++)
-                        ApplyEffect(ref values, effectSet.Effects[i].EffectId);
-            }
+            for (int i = 0; i < effectSet.AcquisitionOrder.Length; i++)
+                ApplyEffect(ref values, effectSet.AcquisitionOrder[i]);
 
-            ValidateFinite(values);
             //从MutableStats转换到实际输出快照包
             WeaponStatSnapshot result = baseStats;
             result.Id = statSnapshotId;
@@ -94,7 +78,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             result.FireIntervalTicks = WeaponSystem.ToTicks(1f / result.FireRate, tickDeltaTime);
             result.ReloadTicks = WeaponSystem.ToTicks(result.ReloadTime, tickDeltaTime);
 
-            WeaponStatSnapshotRepository.Validate(in result);
             //应用护盾到玩家，这是归属玩家的状态
             var ownerStats = new EffectOwnerStatSnapshot(Mathf.Max(0f, values.ShieldCapacity));
             return new WeaponEffectCalculation(in result, in ownerStats);
@@ -135,7 +118,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
                 case WeaponModifierStat.ProjectileSize: values.ProjectileSize = Apply(values.ProjectileSize); break;
                 case WeaponModifierStat.ProjectileLifeTime: values.ProjectileLifeTime = Apply(values.ProjectileLifeTime); break;
                 case WeaponModifierStat.ShieldCapacity: values.ShieldCapacity = Apply(values.ShieldCapacity); break;
-                default: throw new ArgumentOutOfRangeException(nameof(modifier.Stat), modifier.Stat, null);
             }
         }
 
@@ -143,17 +125,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         private static byte ToByte(float value) => (byte)Mathf.Clamp(Mathf.RoundToInt(value), 0, byte.MaxValue);
 
-        private static void ValidateFinite(in MutableStats value)
-        {
-            if (!Finite(value.Damage) || !Finite(value.FireRate) || !Finite(value.ReloadTime) ||
-                !Finite(value.MagSize) || !Finite(value.CritChance) || !Finite(value.CritMultiplier) ||
-                !Finite(value.ProjectileSpeed) || !Finite(value.ProjectileCount) || !Finite(value.SpreadAngle) ||
-                !Finite(value.BounceCount) || !Finite(value.PierceCount) || !Finite(value.ProjectileSize) ||
-                !Finite(value.ProjectileLifeTime) || !Finite(value.ShieldCapacity))
-                throw new InvalidOperationException("Effect Modifier 计算产生了 NaN 或 Infinity。");
-        }
-
-        private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
         /// <summary>
         /// 取整Stat，先全部用Float表示，算完取整
         /// </summary>

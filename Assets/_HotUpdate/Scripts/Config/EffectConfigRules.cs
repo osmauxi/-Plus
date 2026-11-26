@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ProjectGame.HotFix.Config
 {
-    /// <summary>Effect 三表的字段和外键约束。配置导出做逐行校验，运行时目录构建再做跨表校验。</summary>
+    /// <summary>Effect 三表的字段约束，供配置导出逐行校验。</summary>
     public static class EffectConfigRules
     {
         public const int MaxStatType = 13;
@@ -60,54 +60,6 @@ namespace ProjectGame.HotFix.Config
             if (string.IsNullOrWhiteSpace(row.DisplayName) || string.IsNullOrWhiteSpace(row.Description) ||
                 string.IsNullOrWhiteSpace(row.UpgradeDescription) || string.IsNullOrWhiteSpace(row.IconAddress))
                 throw new ArgumentException($"EffectRoll EffectID={row.EffectID} 存在空显示字段或图标地址。");
-        }
-
-        public static void ValidateAll(
-            IDictionary<int, Config_Effect> effects,
-            IDictionary<int, Config_Modifier> modifiers,
-            IDictionary<int, Config_EffectRoll> rolls)
-        {
-            if (effects == null || modifiers == null || rolls == null)
-                throw new InvalidOperationException("Effect、Modifier、EffectRoll 必须全部加载后才能构建 Effect 目录。");
-
-            var effectNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (KeyValuePair<int, Config_Effect> pair in effects)
-            {
-                ValidateEffect(pair.Value);
-                if (pair.Key != pair.Value.EffectID)
-                    throw new InvalidOperationException($"Effect 表键 {pair.Key} 与 EffectID={pair.Value.EffectID} 不一致。");
-                if (!effectNames.Add(pair.Value.CodeName))
-                    throw new InvalidOperationException($"Effect CodeName 重复：{pair.Value.CodeName}。");
-
-                if (!pair.Value.Enabled) continue;
-                if (!rolls.TryGetValue(pair.Key, out Config_EffectRoll roll) || !roll.Enabled)
-                    throw new InvalidOperationException($"启用的 EffectID={pair.Key} 缺少启用的 EffectRoll 行。");
-                if (pair.Value.ModifierIDs == null) continue;
-                foreach (int modifierId in pair.Value.ModifierIDs)
-                {
-                    if (!modifiers.TryGetValue(modifierId, out Config_Modifier modifier) || !modifier.Enabled)
-                        throw new InvalidOperationException($"EffectID={pair.Key} 引用了缺失或禁用的 ModifierID={modifierId}。");
-                }
-            }
-
-            var modifierNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (KeyValuePair<int, Config_Modifier> pair in modifiers)
-            {
-                ValidateModifier(pair.Value);
-                if (pair.Key != pair.Value.ModifierID)
-                    throw new InvalidOperationException($"Modifier 表键 {pair.Key} 与 ModifierID={pair.Value.ModifierID} 不一致。");
-                if (!modifierNames.Add(pair.Value.CodeName))
-                    throw new InvalidOperationException($"Modifier CodeName 重复：{pair.Value.CodeName}。");
-            }
-
-            foreach (KeyValuePair<int, Config_EffectRoll> pair in rolls)
-            {
-                ValidateRoll(pair.Value);
-                if (pair.Key != pair.Value.EffectID)
-                    throw new InvalidOperationException($"EffectRoll 表键 {pair.Key} 与 EffectID={pair.Value.EffectID} 不一致。");
-                if (!effects.ContainsKey(pair.Key))
-                    throw new InvalidOperationException($"EffectRoll EffectID={pair.Key} 在 Effect 表中不存在。");
-            }
         }
 
         private static void ValidateRuntimeId(int id, string field)

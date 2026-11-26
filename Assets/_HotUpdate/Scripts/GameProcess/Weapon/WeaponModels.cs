@@ -33,11 +33,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// </summary>
         public ushort[] AcquisitionOrder { get; }
 
-        public EffectSet(ushort id, ulong mask, EffectSnapshot[] effects)
-            : this(id, mask, effects, Array.Empty<ushort>())
-        {
-        }
-
         public EffectSet(ushort id, ulong mask, EffectSnapshot[] effects, ushort[] acquisitionOrder)
         {
             Id = id;
@@ -160,7 +155,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public bool AutoReload { get; }
         public WeaponDefinition(ushort weaponId, in WeaponStatSnapshot stats, ushort reserveAmmo, bool autoReload)
         {
-            WeaponStatSnapshotRepository.Validate(stats);
             WeaponId = weaponId;
             Stats = stats;
             ReserveAmmo = reserveAmmo;

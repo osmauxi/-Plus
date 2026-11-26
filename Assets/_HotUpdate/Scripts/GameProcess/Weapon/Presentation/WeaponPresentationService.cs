@@ -55,8 +55,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         {
             if (IsInitialized)
                 return;
-            if (Instance != null && Instance != this)
-                throw new InvalidOperationException("场景中存在重复 WeaponPresentationService。");
 
             _network = GameNetworkRuntime.Gameplay;
             _weaponRuntime = WeaponRuntimeService.Instance;
@@ -65,15 +63,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             _specialVfx = GetComponent<WeaponSpecialEffectVfxPlayer>();
             if (_specialVfx == null)
                 _specialVfx = gameObject.AddComponent<WeaponSpecialEffectVfxPlayer>();
-
-            if (_network == null || !_network.IsInitialized ||
-                _weaponRuntime == null || !_weaponRuntime.IsInitialized)
-                throw new InvalidOperationException(
-                    "WeaponPresentationService 必须在网络与 WeaponRuntimeService 后初始化。");
-            if (_objectPool == null || !_objectPool.IsInitialized ||
-                _vfxPool == null || !_vfxPool.IsInitialized)
-                throw new InvalidOperationException(
-                    "WeaponPresentationService 必须在本地对象池和 VFX 池后初始化。");
 
             await UniTask.WhenAll(
                 _objectPool.PreparePoolAsync(_projectilePoolId, cancellationToken),
@@ -142,8 +131,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         public void RegisterWeaponView(ulong entityId, PlayerWeaponPresentationController controller)
         {
-            if (controller == null)
-                throw new ArgumentNullException(nameof(controller));
             _weaponViews[entityId] = controller;
         }
 
@@ -163,10 +150,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         private void FlushServerFrame(uint tick)
         {
-            if (!IsInitialized ||
-                (_pendingShots.Count == 0 && _pendingSpawns.Count == 0 &&
-                 _pendingImpacts.Count == 0 && _pendingRemoved.Count == 0 &&
-                 _pendingSpecialEffects.Count == 0))
+            if (_pendingShots.Count == 0 && _pendingSpawns.Count == 0 &&
+                _pendingImpacts.Count == 0 && _pendingRemoved.Count == 0 &&
+                _pendingSpecialEffects.Count == 0)
                 return;
 
             try
@@ -220,19 +206,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             if (_projectileViews.ContainsKey(key) || IsTombstoned(key))
                 return;
 
-            Quaternion rotation = spawn.Projectile.Velocity.sqrMagnitude > 0.000001f
-                ? Quaternion.LookRotation(spawn.Projectile.Velocity.normalized, Vector3.up)
-                : Quaternion.identity;
             GameObject instance = _objectPool.Rent(
-                _projectilePoolId, spawn.Projectile.Position, rotation);
-            if (!instance.TryGetComponent(out WeaponProjectileView view))
-            {
-                Debug.LogError(
-                    $"Weapon 表现子弹缺少 {nameof(WeaponProjectileView)}：{instance.name}");
-                _objectPool.Return(instance);
-                return;
-            }
-
+                _projectilePoolId, spawn.Projectile.Position, Quaternion.identity);
+            WeaponProjectileView view = instance.GetComponent<WeaponProjectileView>();
             view.Launch(
                 spawn,
                 CalculateFastForward(spawn.SpawnTick, spawn.Projectile.RemainingLifeTime));
@@ -266,7 +242,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                     return;
 
                 Quaternion rotation = impact.Normal.sqrMagnitude > 0.000001f
-                    ? Quaternion.LookRotation(impact.Normal.normalized, Vector3.up)
+                    ? Quaternion.LookRotation(impact.Normal, Vector3.up)
                     : Quaternion.identity;
                 _vfxPool.Play(
                     poolId,
@@ -289,7 +265,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         private float CalculateFastForward(uint fireTick, float remainingLifeTime)
         {
-            if (_network == null || _maximumFastForwardTicks <= 0)
+            if (_maximumFastForwardTicks <= 0)
                 return 0f;
 
             uint currentTick = _network.Transport.IsServer

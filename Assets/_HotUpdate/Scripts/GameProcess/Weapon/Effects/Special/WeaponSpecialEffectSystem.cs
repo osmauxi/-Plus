@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -224,7 +223,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
         protected WeaponSpecialEffectSystem(IWeaponSpecialEffectCommandSink commands)
         {
-            Commands = commands ?? throw new ArgumentNullException(nameof(commands));
+            Commands = commands;
         }
 
         public virtual void OnEquipped(byte level, in WeaponEffectEquipContext context) { }
@@ -244,49 +243,35 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
     /// <summary>类 ECS 调度器：EffectSet 是数据，按 ID 注册的纯 C# System 是行为。</summary>
     public sealed class WeaponSpecialEffectManager : IProjectileEffectDispatcher
     {
-        private readonly WeaponEffectCatalog _catalog;
         private readonly EffectSetRepository _effectSets;
         private readonly Dictionary<ushort, WeaponSpecialEffectSystem> _systems = new();
         private readonly Dictionary<ulong, HashSet<ushort>> _ownerSpecialEffects = new();
 
-        public WeaponSpecialEffectManager(WeaponEffectCatalog catalog, EffectSetRepository effectSets)
+        public WeaponSpecialEffectManager(EffectSetRepository effectSets)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-            _effectSets = effectSets ?? throw new ArgumentNullException(nameof(effectSets));
+            _effectSets = effectSets;
         }
 
-        public void Register(WeaponSpecialEffectSystem system)
-        {
-            if (system == null) throw new ArgumentNullException(nameof(system));
-            _systems.Add(system.EffectId, system);
-        }
-
-        public void ValidateRegistrations()
-        {
-            foreach (WeaponEffectDefinition effect in _catalog.Effects)
-                if (effect.Type == WeaponEffectType.Special && !_systems.ContainsKey(effect.Id))
-                    throw new InvalidOperationException($"特殊 EffectID={effect.Id}({effect.CodeName}) 缺少纯 C# System 注册。");
-        }
+        public void Register(WeaponSpecialEffectSystem system) => _systems.Add(system.EffectId, system);
 
         public void DispatchOwnerState(ulong ownerEntityId, EffectSet set,
             in WeaponStatSnapshot stats)
         {
-            if (set == null) throw new ArgumentNullException(nameof(set));
             var context = new WeaponEffectEquipContext(ownerEntityId, set, stats);
             var current = new HashSet<ushort>();
             for (int i = 0; i < set.Effects.Length; i++)
             {
                 EffectSnapshot snapshot = set.Effects[i];
-                WeaponEffectDefinition definition = _catalog.GetEffect(snapshot.EffectId);
-                if (definition.Type != WeaponEffectType.Special) continue;
+                if (!_systems.TryGetValue(snapshot.EffectId, out WeaponSpecialEffectSystem system))
+                    continue;
                 current.Add(snapshot.EffectId);
-                GetSystem(snapshot.EffectId).OnEquipped(snapshot.Stack, context);
+                system.OnEquipped(snapshot.Stack, context);
             }
 
             if (_ownerSpecialEffects.TryGetValue(ownerEntityId, out HashSet<ushort> previous))
                 foreach (ushort effectId in previous)
-                    if (!current.Contains(effectId) && _systems.TryGetValue(effectId, out WeaponSpecialEffectSystem system))
-                        system.OnUnequipped(ownerEntityId);
+                    if (!current.Contains(effectId))
+                        _systems[effectId].OnUnequipped(ownerEntityId);
 
             if (current.Count == 0) _ownerSpecialEffects.Remove(ownerEntityId);
             else _ownerSpecialEffects[ownerEntityId] = current;
@@ -296,8 +281,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         {
             if (!_ownerSpecialEffects.TryGetValue(ownerEntityId, out HashSet<ushort> effects)) return;
             foreach (ushort effectId in effects)
-                if (_systems.TryGetValue(effectId, out WeaponSpecialEffectSystem system))
-                    system.OnUnequipped(ownerEntityId);
+                _systems[effectId].OnUnequipped(ownerEntityId);
             _ownerSpecialEffects.Remove(ownerEntityId);
         }
 
@@ -305,8 +289,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         {
             foreach (KeyValuePair<ulong, HashSet<ushort>> owner in _ownerSpecialEffects)
                 foreach (ushort effectId in owner.Value)
-                    if (_systems.TryGetValue(effectId, out WeaponSpecialEffectSystem system))
-                        system.OnUnequipped(owner.Key);
+                    _systems[effectId].OnUnequipped(owner.Key);
             _ownerSpecialEffects.Clear();
         }
 
@@ -315,40 +298,40 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
             for (int i = 0; i < context.Effects.Effects.Length; i++)
             {
                 EffectSnapshot effect = context.Effects.Effects[i];
-                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                if (_systems.TryGetValue(effect.EffectId, out WeaponSpecialEffectSystem system))
                     system.BeforeFire(effect.Stack, context);
             }
         }
 
         public void DispatchAfterFire(in ShotContext shot, in WeaponStatSnapshot stats)
         {
-            EffectSet set = GetSet(shot.EffectSetId);
+            EffectSet set = _effectSets.Get(shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
             {
                 EffectSnapshot effect = set.Effects[i];
-                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                if (_systems.TryGetValue(effect.EffectId, out WeaponSpecialEffectSystem system))
                     system.AfterFire(effect.Stack, shot, stats);
             }
         }
 
         public void DispatchSpawn(ref ProjectileState projectile, in ProjectileSpawnEffectContext context)
         {
-            EffectSet set = GetSet(context.Shot.EffectSetId);
+            EffectSet set = _effectSets.Get(context.Shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
             {
                 EffectSnapshot effect = set.Effects[i];
-                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                if (_systems.TryGetValue(effect.EffectId, out WeaponSpecialEffectSystem system))
                     system.OnProjectileSpawn(effect.Stack, ref projectile, context);
             }
         }
 
         public void DispatchHit(ref ProjectileState projectile, in ProjectileHitContext context)
         {
-            EffectSet set = GetSet(context.Shot.EffectSetId);
+            EffectSet set = _effectSets.Get(context.Shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
             {
                 EffectSnapshot effect = set.Effects[i];
-                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                if (_systems.TryGetValue(effect.EffectId, out WeaponSpecialEffectSystem system))
                     system.OnProjectileHit(effect.Stack, ref projectile, context);
             }
         }
@@ -356,11 +339,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         public void DispatchBounce(ref ProjectileState projectile, in ShotContext shot,
             in WeaponStatSnapshot stats, Vector3 hitPoint, Vector3 hitNormal)
         {
-            EffectSet set = GetSet(shot.EffectSetId);
+            EffectSet set = _effectSets.Get(shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
             {
                 EffectSnapshot effect = set.Effects[i];
-                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                if (_systems.TryGetValue(effect.EffectId, out WeaponSpecialEffectSystem system))
                     system.OnProjectileBounce(effect.Stack, ref projectile,
                         shot, stats, hitPoint, hitNormal);
             }
@@ -368,31 +351,13 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 
         public void DispatchDestroyed(ref ProjectileState projectile, in ProjectileDestroyedEffectContext context)
         {
-            EffectSet set = GetSet(context.Shot.EffectSetId);
+            EffectSet set = _effectSets.Get(context.Shot.EffectSetId);
             for (int i = 0; i < set.Effects.Length; i++)
             {
                 EffectSnapshot effect = set.Effects[i];
-                if (TryGetSystem(effect.EffectId, out WeaponSpecialEffectSystem system))
+                if (_systems.TryGetValue(effect.EffectId, out WeaponSpecialEffectSystem system))
                     system.OnProjectileDestroyed(effect.Stack, ref projectile, context);
             }
         }
-
-        private EffectSet GetSet(ushort id) => id == 0 ? EffectSet.Empty : _effectSets.Get(id);
-
-        private bool TryGetSystem(ushort effectId, out WeaponSpecialEffectSystem system)
-        {
-            WeaponEffectDefinition definition = _catalog.GetEffect(effectId);
-            if (definition.Type != WeaponEffectType.Special)
-            {
-                system = null;
-                return false;
-            }
-            system = GetSystem(effectId);
-            return true;
-        }
-
-        private WeaponSpecialEffectSystem GetSystem(ushort effectId) =>
-            _systems.TryGetValue(effectId, out WeaponSpecialEffectSystem system)
-                ? system : throw new InvalidOperationException($"特殊 EffectID={effectId} 未注册。");
     }
 }

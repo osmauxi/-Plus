@@ -28,7 +28,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         private const string FrameStatsName = "PG.Weapon.Presentation.Frame";
         private const int WriterInitialCapacity = 1024;
         private const int WriterMaxCapacity = 64 * 1024;
-        private const int MaxEventsPerFrame = 4096;
         private const int MaxEventsPerMessage = 128;
 
         private static readonly ProfilerMarker SendChunkMarker =
@@ -44,17 +43,15 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         public WeaponPresentationTransport(NetworkMessageTransport transport)
         {
-            _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+            _transport = transport;
         }
 
         public void Initialize(IWeaponPresentationReceiver receiver)
         {
             if (IsInitialized)
                 return;
-            if (!_transport.IsInitialized)
-                throw new InvalidOperationException("Gameplay 通用 Transport 尚未初始化。");
 
-            _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
+            _receiver = receiver;
             if (_transport.IsClient)
             {
                 _transport.RegisterUnnamedHandler(UnnamedChannel, OnFrameReceived);
@@ -86,26 +83,19 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             IReadOnlyList<ProjectileState> removed,
             IReadOnlyList<WeaponSpecialVfxEvent> specialEffects)
         {
-            EnsureInitialized();
-            if (!_transport.IsServer || targetClientId == NetworkManager.ServerClientId)
+            if (targetClientId == NetworkManager.ServerClientId)
                 return;
-
-            ValidateCount(shots?.Count ?? 0, nameof(shots));
-            ValidateCount(spawns?.Count ?? 0, nameof(spawns));
-            ValidateCount(impacts?.Count ?? 0, nameof(impacts));
-            ValidateCount(removed?.Count ?? 0, nameof(removed));
-            ValidateCount(specialEffects?.Count ?? 0, nameof(specialEffects));
 
             int shotIndex = 0;
             int spawnIndex = 0;
             int impactIndex = 0;
             int removedIndex = 0;
             int specialEffectIndex = 0;
-            int shotTotal = shots?.Count ?? 0;
-            int spawnTotal = spawns?.Count ?? 0;
-            int impactTotal = impacts?.Count ?? 0;
-            int removedTotal = removed?.Count ?? 0;
-            int specialEffectTotal = specialEffects?.Count ?? 0;
+            int shotTotal = shots.Count;
+            int spawnTotal = spawns.Count;
+            int impactTotal = impacts.Count;
+            int removedTotal = removed.Count;
+            int specialEffectTotal = specialEffects.Count;
 
             while (shotIndex < shotTotal || spawnIndex < spawnTotal ||
                    impactIndex < impactTotal || removedIndex < removedTotal ||
@@ -200,7 +190,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         private void OnFrameReceived(ulong senderClientId, FastBufferReader reader)
         {
-            if (!_transport.IsClient || senderClientId != NetworkManager.ServerClientId || _receiver == null)
+            if (senderClientId != NetworkManager.ServerClientId)
                 return;
 
             try
@@ -399,21 +389,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
         private static int ReadCount(FastBufferReader reader)
         {
             reader.ReadValueSafe(out ushort count);
-            if (count > MaxEventsPerFrame)
-                throw new InvalidOperationException($"单帧 Weapon 表现事件过多：{count}");
             return count;
-        }
-
-        private static void ValidateCount(int count, string name)
-        {
-            if (count < 0 || count > MaxEventsPerFrame)
-                throw new ArgumentOutOfRangeException(name, count, $"单帧事件数必须位于 0~{MaxEventsPerFrame}。");
-        }
-
-        private void EnsureInitialized()
-        {
-            if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(WeaponPresentationTransport)} 尚未初始化。");
         }
     }
 }

@@ -67,10 +67,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             MonsterRuntimeService monsters,
             IProjectileEffectDispatcher effects = null)
         {
-            _world = world ?? throw new ArgumentNullException(nameof(world));
-            _shots = shots ?? throw new ArgumentNullException(nameof(shots));
-            _config = config ?? throw new ArgumentNullException(nameof(config));
-            _monsters = monsters ?? throw new ArgumentNullException(nameof(monsters));
+            _world = world;
+            _shots = shots;
+            _config = config;
+            _monsters = monsters;
             _effects = effects ?? NoneProjectileEffectDispatcher.Instance;
         }
 
@@ -79,9 +79,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// </summary>
         public void Tick(float deltaTime)
         {
-            if (deltaTime <= 0f) 
-                return;
-
             using (TickMarker.Auto())
             {
                 MonsterRoomRuntime room = _monsters.AuthorityRoom;
@@ -100,13 +97,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                         using (RemoveMarker.Auto())
                         {
                             //子弹死了，把快照找出来，发事件给表现层，然后删掉
-                            if (_shots.TryGet(projectile.ShotId, out ShotContext shot))
-                            {
-                                WeaponStatSnapshot stats = _world.StatSnapshots[i];
-                                using (EffectDispatchMarker.Auto())
-                                    _effects.DispatchDestroyed(ref projectile,
-                                        new ProjectileDestroyedEffectContext(shot, stats));
-                            }
+                            ShotContext shot = _shots.Get(projectile.ShotId);
+                            WeaponStatSnapshot stats = _world.StatSnapshots[i];
+                            using (EffectDispatchMarker.Auto())
+                                _effects.DispatchDestroyed(ref projectile,
+                                    new ProjectileDestroyedEffectContext(shot, stats));
 
                             _world.RemoveAtSwapBack(i);
                             //哈希表回收，对象回池
@@ -152,8 +147,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             float travelTime = Mathf.Min(deltaTime, remainingLifeTime);
             remainingLifeTime -= deltaTime;
             remainingLifeTimes[index] = remainingLifeTime;
-            if (travelTime <= 0) 
-                return false;
             //用速度求出当前Tick的位移
             float remaining = velocity.magnitude * travelTime;
             //碰撞检测半径，这里碰撞检测类似拿一个碰撞球沿路径扫过去
@@ -173,11 +166,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 if (TryInitialOverlap(position, projectileIds[index], ownerEntityId,
                         radius, direction, out var initialHit))
                 {
-                    if (collisionCount++ >= Mathf.Max(1, _config.MaxCollisionsPerTick))
-                        return false;
-
-                    if (!_shots.TryGet(shotId, out shot))
-                        return false;
+                    collisionCount++;
+                    shot = _shots.Get(shotId);
 
                     _world.Read(index, ref projectile);
                     hasState = true;
@@ -193,7 +183,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             while(remaining > Mathf.Epsilon)
             {
                 //已到最大碰撞限制就死掉，防止卡死
-                if(collisionCount++ >= Mathf.Max(1, _config.MaxCollisionsPerTick))
+                if(collisionCount++ >= _config.MaxCollisionsPerTick)
                     return false;
                 //每次循环重新取方向，考虑弹射的情况
                 if (hasState)
@@ -215,8 +205,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
                 if (!hasState)
                 {
-                    if (!_shots.TryGet(shotId, out shot))
-                        return false;
+                    shot = _shots.Get(shotId);
                     _world.Read(index, ref projectile);
                     hasState = true;
                     projectile.RemainingLifeTime = remainingLifeTime;
@@ -568,13 +557,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 _overlapBuffer,
                 _config.WorldMask.value,
                 QueryTriggerInteraction.Collide);
-            //取最近的碰撞点
-            for (int i = 0; i < count; i++)
+            //取第一个命中的碰撞体
+            if (count > 0)
             {
-                Collider collider = _overlapBuffer[i];
-                if (collider == null)
-                    continue;
-
+                Collider collider = _overlapBuffer[0];
                 Vector3 point = collider.ClosestPoint(position);
                 Vector3 normal = position - point;
 

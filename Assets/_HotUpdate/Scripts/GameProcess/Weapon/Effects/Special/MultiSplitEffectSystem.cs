@@ -1,5 +1,3 @@
-using System;
-
 namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
 {
     public sealed class MultiSplitEffectSystem : WeaponSpecialEffectSystem
@@ -13,7 +11,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
             in ProjectileHitContext context)
         {
             if (projectile.Generation >= 1) return;
-            ushort count = checked((ushort)(2 + level - 1));
+            ushort count = (ushort)(level + 1);
             Commands.SpawnProjectiles(new SplitProjectileEffectCommand(
                 projectile, context, count, 90f, 0.6f));
         }

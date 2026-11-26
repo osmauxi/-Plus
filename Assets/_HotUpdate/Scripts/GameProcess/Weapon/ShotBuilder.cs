@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
@@ -20,8 +19,8 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public ShotBuilder(ShotRepository shots, ProjectileWorld projectiles,
             IProjectileEffectDispatcher effects = null)
         {
-            _shots = shots ?? throw new ArgumentNullException(nameof(shots));
-            _projectiles = projectiles ?? throw new ArgumentNullException(nameof(projectiles));
+            _shots = shots;
+            _projectiles = projectiles;
             _effects = effects ?? NoneProjectileEffectDispatcher.Instance;
         }
 
@@ -37,8 +36,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             ICollection<ProjectileSpawn> spawnOutput = null)
         {
             aimDirection.y = 0f;
-            if (!IsFinite(origin) || !IsFinite(aimDirection) || aimDirection.sqrMagnitude <= Mathf.Epsilon)
-                throw new ArgumentException("枪口和瞄准方向必须是有限值，且瞄准方向不能为零。");
 
             ShotContext shot = new ShotContext
             {
@@ -92,15 +89,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             }
         }
 
-        private static Vector3 BuildSpreadDirection(Vector3 baseDirection,float spreadAngle,System.Random random)
+        private static Vector3 BuildSpreadDirection(Vector3 baseDirection, float spreadAngle, System.Random random)
         {
-            Vector3 forward = baseDirection.normalized;
             if (spreadAngle <= 0f)
-                return forward;
+                return baseDirection;
 
-            float angle = Mathf.Lerp(-spreadAngle * 0.5f,spreadAngle * 0.5f,(float)random.NextDouble());
+            float angle = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, (float)random.NextDouble());
             //仅涉及Y轴旋转，也就是X_Z平面旋转，基于我们的游戏特性
-            return (Quaternion.AngleAxis(angle, Vector3.up) * forward).normalized;
+            return Quaternion.AngleAxis(angle, Vector3.up) * baseDirection;
         }
         //FNV-1a (Fowler–Noll–Vo)哈希算法
         private static uint BuildSeed(ulong ownerEntityId, uint shotSequence, uint fireTick)
@@ -118,10 +114,5 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 return hash;
             }
         }
-
-        private static bool IsFinite(Vector3 value) =>
-            !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
-            !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
-            !float.IsNaN(value.z) && !float.IsInfinity(value.z);
     }
 }

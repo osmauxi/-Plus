@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 
 namespace ProjectGame.HotFix.Config
 {
@@ -23,7 +22,6 @@ namespace ProjectGame.HotFix.Config
         public static int DefaultWeaponId()
         {
             var table = ConfigManager.Instance.GetTable<Config_Weapon>();
-            if (table == null) throw new InvalidOperationException("Weapon 配置尚未加载。");
 
             for (int id = 0; id < table.Count; id++)
                 if (IsSelectable(id)) return id;

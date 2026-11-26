@@ -177,7 +177,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
             _timedObjects.Add(new TimedObject
             {
                 Root = root,
-                ExpiresAt = Time.unscaledTime + Mathf.Max(0.08f, duration),
+                ExpiresAt = Time.unscaledTime + duration,
             });
             CreateBurst("LightningSpark", end + Vector3.up * 0.15f,
                 Color.white, 0.2f, 0.15f, 2.2f, 0.07f, 12, 0.18f);
@@ -255,7 +255,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 Root = root,
                 Line = line,
                 StartedAt = Time.unscaledTime,
-                Duration = Mathf.Max(0.05f, duration),
+                Duration = duration,
                 StartRadius = startRadius,
                 EndRadius = endRadius,
                 Color = color,
@@ -303,7 +303,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
             ParticleSystem.MainModule main = particles.main;
             main.loop = loop;
-            main.duration = Mathf.Max(0.1f, duration);
+            main.duration = duration;
             main.startLifetime = lifetime;
             main.startSpeed = speed;
             main.startSize = size;

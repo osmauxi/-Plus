@@ -62,7 +62,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         internal WeaponModifierDefinition(Config_Modifier row)
         {
-            Id = checked((ushort)row.ModifierID);
+            Id = (ushort)row.ModifierID;
             CodeName = row.CodeName;
             Stat = (WeaponModifierStat)row.StatType;
             Operation = (WeaponModifierOperation)row.Operation;
@@ -88,11 +88,11 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         internal WeaponEffectDefinition(Config_Effect row)
         {
-            Id = checked((ushort)row.EffectID);
+            Id = (ushort)row.EffectID;
             CodeName = row.CodeName;
             ModifierIds = CopyIds(row.ModifierIDs);
             Repeatable = row.Repeatable;
-            MaxLevel = checked((byte)row.MaxLevel);
+            MaxLevel = (byte)row.MaxLevel;
             Type = (WeaponEffectType)row.EffectType;
             RollPool = (WeaponEffectRollPool)row.RollPool;
             SchoolIds = CopyIds(row.SchoolIDs);
@@ -107,7 +107,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
                 return Array.Empty<ushort>();
             var result = new ushort[values.Length];
             for (int i = 0; i < values.Length; i++) 
-                result[i] = checked((ushort)values[i]);
+                result[i] = (ushort)values[i];
             return result;
         }
     }
@@ -124,7 +124,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         internal WeaponEffectRollDefinition(Config_EffectRoll row)
         {
-            EffectId = checked((ushort)row.EffectID);
+            EffectId = (ushort)row.EffectID;
             DisplayName = row.DisplayName;
             Description = row.Description;
             UpgradeDescription = row.UpgradeDescription;
@@ -149,34 +149,26 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             IDictionary<int, Config_Modifier> modifiers,
             IDictionary<int, Config_EffectRoll> rolls)
         {
-            EffectConfigRules.ValidateAll(effects, modifiers, rolls);
-
             foreach (KeyValuePair<int, Config_Modifier> pair in modifiers)
                 if (pair.Value.Enabled)
-                    _modifiers.Add(checked((ushort)pair.Key), new WeaponModifierDefinition(pair.Value));
+                    _modifiers.Add((ushort)pair.Key, new WeaponModifierDefinition(pair.Value));
 
             foreach (KeyValuePair<int, Config_EffectRoll> pair in rolls)
                 if (pair.Value.Enabled)
-                    _rolls.Add(checked((ushort)pair.Key), new WeaponEffectRollDefinition(pair.Value));
+                    _rolls.Add((ushort)pair.Key, new WeaponEffectRollDefinition(pair.Value));
 
             foreach (KeyValuePair<int, Config_Effect> pair in effects)
                 if (pair.Value.Enabled)
-                    _effects.Add(checked((ushort)pair.Key), new WeaponEffectDefinition(pair.Value));
-
-            if (_effects.Count == 0) 
-                throw new InvalidOperationException("Effect 表没有启用项。");
+                    _effects.Add((ushort)pair.Key, new WeaponEffectDefinition(pair.Value));
         }
 
         public bool TryGetEffect(ushort id, out WeaponEffectDefinition definition) =>
             _effects.TryGetValue(id, out definition);
 
-        public WeaponEffectDefinition GetEffect(ushort id) => _effects.TryGetValue(id, out var definition)
-            ? definition : throw new KeyNotFoundException($"EffectID={id} 未配置或未启用。");
+        public WeaponEffectDefinition GetEffect(ushort id) => _effects[id];
 
-        public WeaponModifierDefinition GetModifier(ushort id) => _modifiers.TryGetValue(id, out var definition)
-            ? definition : throw new KeyNotFoundException($"ModifierID={id} 未配置或未启用。");
+        public WeaponModifierDefinition GetModifier(ushort id) => _modifiers[id];
 
-        public WeaponEffectRollDefinition GetRoll(ushort effectId) => _rolls.TryGetValue(effectId, out var definition)
-            ? definition : throw new KeyNotFoundException($"EffectRoll EffectID={effectId} 未配置或未启用。");
+        public WeaponEffectRollDefinition GetRoll(ushort effectId) => _rolls[effectId];
     }
 }

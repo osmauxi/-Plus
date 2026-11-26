@@ -28,12 +28,18 @@ namespace ProjectGame.HotFix.Character
         private void Awake()
         {
             CacheEmbeddedVfx();
+            if (_shellEjectionVfx != null)
+            {
+                ParticleSystem.MainModule main = _shellEjectionVfx.main;
+                main.loop = true;
+                ParticleSystem.EmissionModule emission = _shellEjectionVfx.emission;
+                emission.enabled = false;
+            }
             StopAllWeaponVFX();
         }
 
         public void PlayFireVFX()
         {
-            CacheEmbeddedVfx();
             if (_muzzleFlashVfx == null)
                 return;
 
@@ -43,13 +49,11 @@ namespace ProjectGame.HotFix.Character
 
         public void PlayShellEjectionVFX()
         {
-            CacheEmbeddedVfx();
             EmitParticle(_shellEjectionVfx);
         }
 
         public void PlayReloadVFX()
         {
-            CacheEmbeddedVfx();
             RestartParticle(_reloadVfx);
         }
 
@@ -86,17 +90,13 @@ namespace ProjectGame.HotFix.Character
 
         /// <summary>
         /// 每枪只追加一枚弹壳，不重启粒子系统，避免清掉仍在飞行或弹跳的旧弹壳。
-        /// 关闭时间轴自动发射并保持系统生命周期，由枪击事件显式追加粒子。
+        /// 依赖 Awake 已关闭自动发射并开启循环，由枪击事件显式追加粒子。
         /// </summary>
         private static void EmitParticle(ParticleSystem particle)
         {
             if (particle == null)
                 return;
 
-            ParticleSystem.MainModule main = particle.main;
-            main.loop = true;
-            ParticleSystem.EmissionModule emission = particle.emission;
-            emission.enabled = false;
             if (!particle.isPlaying)
                 particle.Play(true);
             particle.Emit(1);

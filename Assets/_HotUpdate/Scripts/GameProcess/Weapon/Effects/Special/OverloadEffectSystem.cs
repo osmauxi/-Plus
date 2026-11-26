@@ -9,7 +9,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects.Special
         public override void OnProjectileHit(byte level, ref ProjectileState projectile,
             in ProjectileHitContext context)
         {
-            byte jumpCount = checked((byte)(1 + level - 1));
+            byte jumpCount = level;
             float damage = context.Stats.Damage * (0.5f + 0.1f * (level - 1));
             Commands.EmitLightning(new LightningEffectCommand(
                 context, damage, jumpCount,

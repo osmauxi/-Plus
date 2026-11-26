@@ -42,7 +42,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         public PlayerEffectLoadout(WeaponEffectCatalog catalog)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+            _catalog = catalog;
         }
 
         public byte GetLevel(ushort effectId) => _levels.TryGetValue(effectId, out byte level) ? level : (byte)0;
@@ -72,7 +72,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
             byte previous = GetLevel(effectId);
             if (previous == 0) 
                 _uniqueOrder.Add(effectId);
-            _levels[effectId] = checked((byte)(previous + 1));
+            _levels[effectId] = (byte)(previous + 1);
             _acquisitionOrder.Add(effectId);
             return EffectAcquireResult.Success;
         }

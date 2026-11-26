@@ -28,13 +28,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
         public EffectRollOffer(uint id, WeaponEffectRollPool pool, bool isChaos,
             IReadOnlyList<EffectRollOption> options)
         {
-            if (id == 0) 
-                throw new ArgumentOutOfRangeException(nameof(id));
-            if (!Enum.IsDefined(typeof(WeaponEffectRollPool), pool))
-                throw new ArgumentOutOfRangeException(nameof(pool));
-            if (options == null) 
-                throw new ArgumentNullException(nameof(options));
-
             Id = id;
             Pool = pool;
             IsChaos = isChaos;
@@ -88,15 +81,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Effects
 
         public EffectRollOfferAuthority(EffectRollService rolls, PlayerEffectLoadout loadout)
         {
-            _rolls = rolls ?? throw new ArgumentNullException(nameof(rolls));
-            _loadout = loadout ?? throw new ArgumentNullException(nameof(loadout));
+            _rolls = rolls;
+            _loadout = loadout;
         }
 
         public EffectRollOffer Create(WeaponEffectRollPool pool, int amount, int seed,
             bool chaos = false, bool fallbackToChaos = true)
         {
-            uint id = unchecked(++_nextOfferId);
-            if (id == 0) id = unchecked(++_nextOfferId);
+            uint id = ++_nextOfferId;
             EffectRollResult result = _rolls.RollWithResult(
                 pool, amount, _loadout, seed, chaos, fallbackToChaos);
             ActiveOffer = new EffectRollOffer(id, pool, result.IsChaos, result.Options);

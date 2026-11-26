@@ -20,12 +20,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         public static void Reconfigure(ref WeaponRuntimeState state, WeaponDefinition definition,
             in WeaponStatSnapshot stats, ushort effectSetId, ushort snapshotVersion)
         {
-            if (definition == null) 
-                throw new ArgumentNullException(nameof(definition));
-            WeaponStatSnapshotRepository.Validate(stats);
-            if (state.IsEquipped && state.WeaponId != definition.WeaponId)
-                throw new InvalidOperationException("不能用 Effect 重配置接口切换武器。");
-
             if (!state.IsEquipped)
             {
                 state = Equip(definition, stats, effectSetId, snapshotVersion);
@@ -56,11 +50,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             //没定义，没装备，Disabled
             if(definition == null || !state.IsEquipped || state.IsDisabled) 
                 return false;
-            if(deltaTime <= 0 || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime))
-                throw new ArgumentOutOfRangeException(nameof(deltaTime));
-            //定义是否与状态是同一把枪
-            if(state.WeaponId != definition.WeaponId || state.StatSnapshotId == 0)
-                throw new InvalidOperationException("武器快照与已装配定义不一致。");
 
             if(state.FireCooldownTicks > 0) 
                 state.FireCooldownTicks--;
@@ -116,8 +105,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         {
             //Ceiling向上取整保证转换Tick时间等于或高于定义时间，保底1Tick
             double ticks = Math.Ceiling((double)seconds / deltaTime - 0.00001);
-            if (ticks > ushort.MaxValue || double.IsNaN(ticks) || ticks < 0)
-                throw new ArgumentOutOfRangeException(nameof(seconds), "武器计时超出网络字段范围。");
             return (ushort)Math.Max(1, ticks);
         }
     }

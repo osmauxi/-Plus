@@ -72,8 +72,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
 
         public void ApplyImpact(in ProjectileImpact impact)
         {
-            if (!_launched || impact.Projectile.ProjectileId != ProjectileId ||
-                impact.Projectile.ShotId != ShotId)
+            if (!_launched || impact.Projectile.ProjectileId != ProjectileId || impact.Projectile.ShotId != ShotId)
                 return;
 
             transform.position = impact.Point;
@@ -141,18 +140,15 @@ namespace ProjectGame.HotFix.Gameplay.Weapon.Presentation
                 Destroy(gameObject);
         }
 
-        private void FaceVelocity()
-        {
-            if (_velocity.sqrMagnitude > 0.000001f)
-                transform.rotation = Quaternion.LookRotation(_velocity.normalized, Vector3.up);
-        }
+        private void FaceVelocity() =>
+            transform.rotation = Quaternion.LookRotation(_velocity, Vector3.up);
 
         private void SetBodyVisible(bool visible)
         {
             if (_bodyRenderers == null)
                 return;
             for (int i = 0; i < _bodyRenderers.Length; i++)
-                if (_bodyRenderers[i] != null) _bodyRenderers[i].enabled = visible;
+                _bodyRenderers[i].enabled = visible;
         }
 
         public void OnRentFromPool()

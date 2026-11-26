@@ -23,19 +23,14 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly Dictionary<int, WeaponDefinition> _definitions = new();
         public WeaponCatalog(IDictionary<int, Config_Weapon> rows, WeaponStatSnapshotRepository snapshots, float tickDeltaTime)
         {
-            if (rows == null) 
-                throw new InvalidOperationException("Config_Weapon 尚未加载。");
             foreach (var pair in rows)
             {
                 var row = pair.Value;
-                WeaponConfigRules.Validate(row);
-                if (pair.Key != row.WeaponID) 
-                    throw new InvalidOperationException("Weapon 表键与 WeaponID 不一致。");
                 if (!row.Enabled) 
                     continue;
                 var stats = new WeaponStatSnapshot
                 {
-                    Id = checked((ushort)(row.WeaponID + 1)), 
+                    Id = (ushort)(row.WeaponID + 1), 
                     Damage = row.Damage,
                     FireRate = row.FireRate, 
                     ReloadTime = row.ReloadTime,
@@ -57,12 +52,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 _definitions.Add(row.WeaponID, new WeaponDefinition((ushort)row.WeaponID, stats,
                     (ushort)row.ReserveAmmo, row.AutoReload));
             }
-            if (_definitions.Count == 0) 
-                throw new InvalidOperationException("Weapon 表没有启用任何武器。");
         }
 
-        public WeaponDefinition Get(int weaponId) => _definitions.TryGetValue(weaponId, out var definition)
-            ? definition : throw new InvalidOperationException($"武器 {weaponId} 未配置或未启用。");
+        public WeaponDefinition Get(int weaponId) => _definitions[weaponId];
     }
 
     /// <summary>
@@ -121,6 +113,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private readonly List<LightningNode> _lightningNodes = new(16);
         private WeaponStatModifierCalculator _effectCalculator;
         private WeaponSpecialEffectManager _specialEffects;
+        private MonsterRuntimeService _monsters;
         private GameplayNetworkRuntime _network;
         private ShotBuilder _builder;
         private ProjectileSimulation _simulation;
@@ -169,11 +162,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             if(IsInitialized) 
                 return UniTask.CompletedTask;
             cancellationToken.ThrowIfCancellationRequested();
-            if(Instance != null && Instance != this) 
-                throw new InvalidOperationException("重复 WeaponRuntimeService。");
             _network = GameNetworkRuntime.Gameplay;
-            if(_network == null || !_network.IsInitialized) 
-                throw new InvalidOperationException("Weapon 必须在 GameNetworkRuntime 后初始化。");
             Catalog = new WeaponCatalog(ConfigManager.Instance.GetTable<Config_Weapon>(), _stats, _network.Clock.TickDeltaTime);
             EffectCatalog = new WeaponEffectCatalog(
                 ConfigManager.Instance.GetTable<Config_Effect>(),
@@ -181,7 +170,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 ConfigManager.Instance.GetTable<Config_EffectRoll>());
             EffectRolls = new EffectRollService(EffectCatalog);
             _effectCalculator = new WeaponStatModifierCalculator(EffectCatalog);
-            _specialEffects = new WeaponSpecialEffectManager(EffectCatalog, _effectSets);
+            _specialEffects = new WeaponSpecialEffectManager(_effectSets);
             _specialEffects.Register(new OverloadEffectSystem(this));
             _specialEffects.Register(new StormCloudEffectSystem(this));
             _specialEffects.Register(new StaticShieldEffectSystem(this));
@@ -192,23 +181,12 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             _specialEffects.Register(new MultiSplitEffectSystem(this));
             _specialEffects.Register(new NuclearFissionEffectSystem(this));
             _specialEffects.Register(new ShockwaveEffectSystem(this));
-            _specialEffects.ValidateRegistrations();
 
-            foreach(var row in ConfigManager.Instance.GetTable<Config_Weapon>().Values)
-            {
-                if (!row.Enabled) 
-                    continue;
-                if (!WeaponConfigRules.IsSelectable(row.WeaponID)) 
-                    throw new InvalidOperationException($"武器 {row.WeaponID} 缺少 Lobby 资源行。");
-            }
-            if (_worldMask.value == 0)
-                throw new InvalidOperationException("Weapon 的 World LayerMask 不能为空。");
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance ??
-                throw new InvalidOperationException("Weapon 必须在 MonsterRuntimeService 后初始化。");
+            _monsters = MonsterRuntimeService.Instance;
             _builder = new ShotBuilder(_shots, _world, _specialEffects);
             _simulation = new ProjectileSimulation(_world, _shots,
                 new ProjectileSimulationConfig { WorldMask = _worldMask },
-                monsters,
+                _monsters,
                 _specialEffects);
             _simulation.Impact += HandleImpact;
             _simulation.Removed += HandleRemoved;
@@ -219,11 +197,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             return UniTask.CompletedTask;
         }
 
-        public PlayerEffectLoadout CreatePlayerEffectLoadout()
-        {
-            if (!IsInitialized) throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
-            return new PlayerEffectLoadout(EffectCatalog);
-        }
+        public PlayerEffectLoadout CreatePlayerEffectLoadout() => new PlayerEffectLoadout(EffectCatalog);
 
         /// <summary>
         /// 服务端创建不可覆盖的新EffectSet与属性快照，供后续ShotContext持有
@@ -234,12 +208,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             WeaponDefinition definition,
             PlayerEffectLoadout loadout)
         {
-            if (!IsInitialized)
-               throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
-            if (!_network.Transport.IsServer) 
-                throw new InvalidOperationException("只有服务端可以注册权威 Effect 快照。");
-            if (definition == null || loadout == null) 
-                throw new ArgumentNullException();
             //没有Effect不用创建快照直接返回空的
             if (loadout.AcquisitionCount == 0)
             {
@@ -269,7 +237,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// <summary>玩家离开或回池时移除跟随玩家的常驻特殊 Effect。</summary>
         public void RemovePlayerEffectState(ulong ownerEntityId)
         {
-            if (!IsInitialized || _network == null || !_network.Transport.IsServer) return;
+            if (!IsInitialized || !_network.Transport.IsServer) return;
             _specialEffects.RemoveOwner(ownerEntityId);
             _stormClouds.Remove(ownerEntityId);
             _shieldCapacities.Remove(ownerEntityId);
@@ -287,10 +255,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             WeaponDefinition definition,
             PlayerEffectLoadout loadout)
         {
-            if (!IsInitialized) 
-                throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
-            if (definition == null || loadout == null) 
-                throw new ArgumentNullException();
             EffectSet set = loadout.AcquisitionCount == 0 ? EffectSet.Empty : loadout.CreateSnapshot(1);
             return _effectCalculator.Calculate(definition.Stats, set, definition.Stats.Id,
                 _network.Clock.TickDeltaTime);
@@ -302,11 +266,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// </summary>
         public void ConfigureBenchmarkStressWeapon(PlayerWeaponController controller)
         {
-            if (!IsInitialized)
-                throw new InvalidOperationException("WeaponRuntimeService 尚未初始化。");
-            if (controller == null || controller.Definition == null || !controller.IsSpawned)
-                throw new InvalidOperationException("Benchmark 压力武器要求玩家已经完成武器绑定并 Spawn。");
-
             WeaponStatSnapshot baseStats = controller.Definition.Stats;
             WeaponStatSnapshot stats = baseStats;
             stats.Id = BenchmarkStressStatsId;
@@ -327,8 +286,6 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             stats.ProjectileSize = 0.22f;
             stats.ProjectileLifeTime = 2f;
 
-            EffectCatalog.GetEffect(MultiSplitEffectSystem.Id);
-            EffectCatalog.GetEffect(ShockwaveEffectSystem.Id);
             var effects = new EffectSet(
                 BenchmarkStressEffectSetId,
                 (1UL << (MultiSplitEffectSystem.Id & 63)) |
@@ -356,11 +313,9 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         internal void CommitShot(ulong ownerEntityId, in WeaponRuntimeState state, uint tick,
             Vector3 origin, Vector3 direction)
         {
-            if (!IsInitialized || !_network.Transport.IsServer) 
-                return;
             //根据权威ID拿到对应数据快照和Effect效果
             WeaponStatSnapshot stats = _stats.Get(state.StatSnapshotId);
-            EffectSet effects = state.EffectSetId == 0 ? EffectSet.Empty : _effectSets.Get(state.EffectSetId);
+            EffectSet effects = _effectSets.Get(state.EffectSetId);
             //触发特殊效果的开火前效果
             _specialEffects.DispatchBeforeFire(new WeaponEffectFireContext(
                 ownerEntityId, tick, state.WeaponId, stats, effects));
@@ -378,11 +333,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         public void EmitLightning(in LightningEffectCommand command)
         {
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null || !monsters.IsRoomActive) return;
-            int targetStorageIndex = monsters.ResolveMonsterStorageIndex(command.TargetEntityId);
+            if (!_monsters.IsRoomActive) return;
+            int targetStorageIndex = _monsters.ResolveMonsterStorageIndex(command.TargetEntityId);
             float executeThreshold = GetExecuteThreshold(command.EffectSetId);
-            ApplyLightning(monsters, targetStorageIndex, command.Origin, command.Damage,
+            ApplyLightning(_monsters, targetStorageIndex, command.Origin, command.Damage,
                 command.JumpCount, command.BranchCount, command.SearchRadius,
                 command.ApplyInitialDamage, executeThreshold);
         }
@@ -435,19 +389,17 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         public void TryExecute(in ExecuteEffectCommand command)
         {
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null || !monsters.IsRoomActive) return;
-            TryExecuteMonster(monsters, monsters.ResolveMonsterStorageIndex(command.TargetEntityId),
+            if (!_monsters.IsRoomActive) return;
+            TryExecuteMonster(_monsters, _monsters.ResolveMonsterStorageIndex(command.TargetEntityId),
                 command.HealthThreshold);
         }
 
         public void ApplyCrowdControl(in CrowdControlEffectCommand command)
         {
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null || !monsters.IsRoomActive) return;
-            int storageIndex = monsters.ResolveMonsterStorageIndex(command.TargetEntityId);
-            if (!monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) return;
-            monsters.StunMonster(storageIndex, command.Duration, _currentTick);
+            if (!_monsters.IsRoomActive) return;
+            int storageIndex = _monsters.ResolveMonsterStorageIndex(command.TargetEntityId);
+            if (!_monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) return;
+            _monsters.StunMonster(storageIndex, command.Duration, _currentTick);
             PublishSpecialVfx(WeaponSpecialVfxType.KineticBoost,
                 command.TargetEntityId, 0,
                 position, default, 0.7f, command.Duration);
@@ -456,13 +408,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         /// <summary>分裂弹仍属于同一个 Shot；这里扩展引用计数并发布普通出生事件。</summary>
         public void SpawnProjectiles(in SplitProjectileEffectCommand command)
         {
-            if (!IsInitialized || !_network.Transport.IsServer || command.SplitCount == 0) return;
             ShotContext shot = command.Context.Shot;
             WeaponStatSnapshot stats = command.Context.Stats;
-            Vector3 forward = command.Parent.Velocity.sqrMagnitude > Mathf.Epsilon
-                ? command.Parent.Velocity.normalized : shot.AimDirection.normalized;
             float speed = command.Parent.Velocity.magnitude;
-            if (speed <= Mathf.Epsilon) speed = stats.ProjectileSpeed;
+            Vector3 forward = command.Parent.Velocity / speed;
 
             _shots.RetainProjectiles(shot.ShotId, command.SplitCount);
             for (int i = 0; i < command.SplitCount; i++)
@@ -470,7 +419,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 float t = command.SplitCount == 1 ? 0.5f : i / (float)(command.SplitCount - 1);
                 float angle = Mathf.Lerp(-command.SpreadAngle * 0.5f,
                     command.SpreadAngle * 0.5f, t);
-                Vector3 direction = (Quaternion.AngleAxis(angle, Vector3.up) * forward).normalized;
+                Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
                 var projectile = new ProjectileState
                 {
                     ProjectileId = _world.AllocateProjectileId(),
@@ -482,7 +431,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     SizeMultiplier = command.Parent.SizeMultiplier,
                     PierceRemaining = stats.PierceCount,
                     BounceRemaining = stats.BounceCount,
-                    Generation = checked((byte)(command.Parent.Generation + 1)),
+                    Generation = (byte)(command.Parent.Generation + 1),
                     Flags = command.Parent.Flags & ProjectileFlags.Critical,
                 };
                 using (EffectDispatchMarker.Auto())
@@ -500,22 +449,21 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
 
         public void EmitRadialImpact(in RadialImpactEffectCommand command)
         {
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null || !monsters.IsRoomActive) return;
+            if (!_monsters.IsRoomActive) return;
             float executeThreshold = GetExecuteThreshold(command.EffectSetId);
             PublishSpecialVfx(WeaponSpecialVfxType.Shockwave,
                 0, 0,
                 command.Position, default, command.Radius, 0.6f);
-            CollectMonsters(monsters, command.Position, command.Radius, _effectTargets);
+            CollectMonsters(_monsters, command.Position, command.Radius, _effectTargets);
             for (int i = 0; i < _effectTargets.Count; i++)
             {
                 int storageIndex = _effectTargets[i];
-                if (!monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) continue;
+                if (!_monsters.TryGetMonsterPosition(storageIndex, out Vector3 position)) continue;
                 Vector3 offset = position - command.Position;
                 float forceRatio = 1f - Mathf.Clamp01(offset.magnitude / command.Radius);
-                DamageMonster(monsters, storageIndex, command.Damage, executeThreshold);
+                DamageMonster(_monsters, storageIndex, command.Damage, executeThreshold);
                 Vector2 direction = new Vector2(offset.x, offset.z).normalized;
-                monsters.PushMonster(storageIndex, direction * (command.Force * forceRatio * 0.1f));
+                _monsters.PushMonster(storageIndex, direction * (command.Force * forceRatio * 0.1f));
             }
         }
 
@@ -693,7 +641,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     DamageMonster(monsters, nearestStorageIndex, damage, executeThreshold);
                     PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
                         0, 0, node.Position, nearestPosition, 0f, 0.2f);
-                    _lightningNodes.Add(new LightningNode(nearestPosition, checked((byte)(node.Depth + 1))));
+                    _lightningNodes.Add(new LightningNode(nearestPosition, (byte)(node.Depth + 1)));
                 }
             }
         }
@@ -701,8 +649,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private void TickStormClouds(float deltaTime)
         {
             using var stormCloudScope = StormCloudMarker.Auto();
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null || !monsters.IsRoomActive) return;
+            if (!_monsters.IsRoomActive) return;
             foreach (KeyValuePair<ulong, StormCloudState> pair in _stormClouds)
             {
                 StormCloudState cloud = pair.Value;
@@ -711,16 +658,16 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                     !TryGetPlayerPosition(pair.Key, out Vector3 ownerPosition))
                     continue;
                 cloud.TimeUntilStrike += cloud.StrikeInterval;
-                CollectMonsters(monsters, ownerPosition, cloud.Radius, _effectTargets);
+                CollectMonsters(_monsters, ownerPosition, cloud.Radius, _effectTargets);
                 if (_effectTargets.Count == 0) continue;
                 int storageIndex = _effectTargets[UnityEngine.Random.Range(0, _effectTargets.Count)];
-                if (!monsters.TryGetMonsterPosition(storageIndex, out Vector3 targetPosition)) continue;
-                DamageMonster(monsters, storageIndex, cloud.StrikeDamage, cloud.ExecuteThreshold);
+                if (!_monsters.TryGetMonsterPosition(storageIndex, out Vector3 targetPosition)) continue;
+                DamageMonster(_monsters, storageIndex, cloud.StrikeDamage, cloud.ExecuteThreshold);
                 PublishSpecialVfx(WeaponSpecialVfxType.LightningArc,
                     0, pair.Key, ownerPosition + Vector3.up * 4f,
                     targetPosition, 0f, 0.2f);
                 if (cloud.OverloadJumpCount > 0)
-                    ApplyLightning(monsters, storageIndex, targetPosition, cloud.OverloadDamage,
+                    ApplyLightning(_monsters, storageIndex, targetPosition, cloud.OverloadDamage,
                         cloud.OverloadJumpCount, 3, 5f, false, cloud.ExecuteThreshold);
             }
         }
@@ -728,8 +675,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
         private void TickDamageAreas(float deltaTime)
         {
             using var damageAreaScope = DamageAreaMarker.Auto();
-            MonsterRuntimeService monsters = MonsterRuntimeService.Instance;
-            if (monsters == null || !monsters.IsRoomActive)
+            if (!_monsters.IsRoomActive)
             {
                 _damageAreas.Clear();
                 return;
@@ -748,19 +694,18 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 if (area.TimeUntilTick > 0f) continue;
                 area.TimeUntilTick += area.TickInterval;
 
-                CollectMonsters(monsters, area.Position, area.Radius, _effectTargets);
+                CollectMonsters(_monsters, area.Position, area.Radius, _effectTargets);
                 for (int targetIndex = 0; targetIndex < _effectTargets.Count; targetIndex++)
                 {
                     int storageIndex = _effectTargets[targetIndex];
-                    DamageMonster(monsters, storageIndex, area.DamagePerTick, area.ExecuteThreshold);
-                    monsters.SlowMonster(storageIndex, Mathf.Max(0.1f, 1f - area.SlowRatio), 1.2f, _currentTick);
+                    DamageMonster(_monsters, storageIndex, area.DamagePerTick, area.ExecuteThreshold);
+                    _monsters.SlowMonster(storageIndex, Mathf.Max(0.1f, 1f - area.SlowRatio), 1.2f, _currentTick);
                 }
             }
         }
 
         private float GetExecuteThreshold(ushort effectSetId) =>
-            ExecutionerEffectSystem.GetThreshold(
-                effectSetId == 0 ? EffectSet.Empty : _effectSets.Get(effectSetId));
+            ExecutionerEffectSystem.GetThreshold(_effectSets.Get(effectSetId));
 
         private void DamageMonster(MonsterRuntimeService monsters, int storageIndex,
             float damage, float executeThreshold)
@@ -802,10 +747,10 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
                 _network.Clock.Unsubscribe(GameplayTickPhase.PhysicsSync, SyncPhysicsTransforms);
                 _network.Clock.Unsubscribe(GameplayTickPhase.CombatSimulation, TickCombat);
             }
-            if (_simulation != null) 
-            { 
+            if (_simulation != null)
+            {
                 _simulation.Impact -= HandleImpact;
-                _simulation.Removed -= HandleRemoved; 
+                _simulation.Removed -= HandleRemoved;
             }
             _world.Clear(); 
             _shots.Clear(); 
@@ -822,6 +767,7 @@ namespace ProjectGame.HotFix.Gameplay.Weapon
             EffectRolls = null;
             _effectCalculator = null;
             _specialEffects = null;
+            _monsters = null;
             _simulation = null; 
             _builder = null; 
             _network = null;

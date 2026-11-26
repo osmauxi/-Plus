@@ -64,8 +64,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         internal const string GroupInitialSnapshotMessageName = "PG.Monster.GroupInitialSnapshot";
         internal const string GroupSnapshotMessageName = "PG.Monster.GroupSnapshot";
 
-        private const int MaxPayloadBytes = 2 * 1024 * 1024;
-
         private readonly NetworkMessageTransport _transport;
         private readonly MonsterGroupSnapshot _receiveGroupSnapshot = new(MonsterNetworkGroupKernel.GroupCapacity);
 
@@ -84,21 +82,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             if (IsInitialized) 
                 return;
-            if (!_transport.IsInitialized)
-                throw new InvalidOperationException("Gameplay 通用 Transport 尚未初始化。");
             _receiver = receiver;
-            if (_transport.IsClient)
+            if (_transport.IsClient && !_transport.IsServer)
             {
-                try
-                {
-                    _transport.RegisterUnnamedHandler(OnUnnamedMessageReceived);
-
-                }
-                catch
-                {
-                    _transport.UnregisterUnnamedHandler();
-                    throw;
-                }
+                _transport.RegisterUnnamedHandler(OnUnnamedMessageReceived);
                 _handlersRegistered = true;
             }
 
@@ -107,17 +94,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void SendSpawn(MonsterSpawnBatch batch)
         {
-            EnsureServer();
             using var marker = SendSpawnMarker.Auto();
             //获取字节数后生成数组，写入，发出，结构基本相同
             int length = 1 + MonsterNetworkCodec.GetSpawnByteCount(batch);
-            ValidatePayloadLength(length);
-
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try 
             { 
-                if (!writer.TryBeginWrite(length))
-                    throw new OverflowException("Monster Spawn Writer 容量不足。");
+                writer.TryBeginWrite(length);
                 writer.WriteByte((byte)MonsterNetworkMessageKind.Spawn);
                 MonsterNetworkCodec.WriteSpawn(ref writer, batch);
                 _transport.SendUnnamedToRemoteClients(SpawnMessageName, writer, NetworkDeliveryClass.FullSnapshot);
@@ -134,18 +117,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             ReadOnlySpan<ulong> memberEntityIds)
         {
             using var groupTransportScope = GroupTransportMarker.Auto();
-            int payloadLength = MonsterNetworkCodec.GetGroupMembershipByteCount(memberEntityIds.Length);
-            int length = 1 + payloadLength;
+            int length = 1 + MonsterNetworkCodec.GetGroupMembershipByteCount(memberEntityIds.Length);
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try
             {
-                if (!writer.TryBeginWrite(length))
-                    throw new OverflowException("Monster GroupMembership Writer 容量不足。");
+                writer.TryBeginWrite(length);
                 using (GroupMembershipWriteMarker.Auto())
                 {
                     writer.WriteByte((byte)MonsterNetworkMessageKind.GroupMembership);
                     MonsterNetworkCodec.WriteGroupMembership(
-                        ref writer, groupId, membershipRevision, memberEntityIds, payloadLength);
+                        ref writer, groupId, membershipRevision, memberEntityIds);
                 }
                 _transport.SendUnnamedToClients(clients, GroupMembershipMessageName, writer,NetworkDeliveryClass.ReliableEvent);
             }
@@ -161,19 +142,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             bool isInitialSnapshot)
         {
             using var groupTransportScope = GroupTransportMarker.Auto();
-            int payloadLength = MonsterNetworkCodec.GetGroupSnapshotBatchByteCount(frames);
-            int length = 1 + payloadLength;
+            int length = 1 + MonsterNetworkCodec.GetGroupSnapshotBatchByteCount(frames);
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             try
             {
-                if (!writer.TryBeginWrite(length))
-                    throw new OverflowException("Monster GroupSnapshot Writer 容量不足。");
+                writer.TryBeginWrite(length);
                 using (GroupSnapshotWriteMarker.Auto())
                 {
                     writer.WriteByte((byte)(isInitialSnapshot
                         ? MonsterNetworkMessageKind.GroupInitialSnapshot
                         : MonsterNetworkMessageKind.GroupSnapshot));
-                    MonsterNetworkCodec.WriteGroupSnapshotBatch(ref writer, frames, intervalTicks, payloadLength);
+                    MonsterNetworkCodec.WriteGroupSnapshotBatch(ref writer, frames, intervalTicks);
                 }
                 string name = isInitialSnapshot ? GroupInitialSnapshotMessageName : GroupSnapshotMessageName;
                 NetworkDeliveryClass delivery = isInitialSnapshot ? NetworkDeliveryClass.ReliableEvent : NetworkDeliveryClass.UnreliableSnapshot;
@@ -188,11 +167,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         internal void SendDespawn(ulong entityId)
         {
-            FastBufferWriter writer = new(1 + sizeof(ulong), Allocator.Temp, 1 + sizeof(ulong));
+            const int length = 1 + sizeof(ulong);
+            FastBufferWriter writer = new(length, Allocator.Temp, length);
             try
             {
-                if (!writer.TryBeginWrite(1 + sizeof(ulong)))
-                    throw new OverflowException("Monster Despawn Writer 容量不足。");
+                writer.TryBeginWrite(length);
                 writer.WriteByte((byte)MonsterNetworkMessageKind.Despawn);
                 MonsterNetworkCodec.WriteDespawn(ref writer, entityId);
                 _transport.SendUnnamedToRemoteClients(DespawnMessageName, writer, NetworkDeliveryClass.ReliableEvent);
@@ -205,15 +184,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void SendRoomBegin(in MonsterRoomBeginData data)
         {
-            EnsureServer();
             using var marker = SendRoomBeginMarker.Auto();
             int length = 1 + MonsterNetworkCodec.GetRoomBeginByteCount();
             FastBufferWriter writer = new(length, Allocator.Temp, length);
             //因为using变量不让用ref传，所以这里退而使用try finally保证释放
             try
             {
-                if (!writer.TryBeginWrite(length))
-                    throw new OverflowException("Monster RoomBegin Writer 容量不足。");
+                writer.TryBeginWrite(length);
                 writer.WriteByte((byte)MonsterNetworkMessageKind.RoomBegin);
                 MonsterNetworkCodec.WriteRoomBegin(ref writer, data);
                 _transport.SendUnnamedToRemoteClients(RoomBeginMessageName, writer, NetworkDeliveryClass.ReliableEvent);
@@ -226,19 +203,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void SendRoomEnd()
         {
-            EnsureServer();
             using var marker = SendRoomEndMarker.Auto();
             //有可能存在NGO不接受0容量发包的情况，这里进行规避
             using FastBufferWriter writer = new(1, Allocator.Temp, 1);
-            if (!writer.TryBeginWrite(1))
-                throw new OverflowException("Monster RoomEnd Writer 容量不足。");
+            writer.TryBeginWrite(1);
             writer.WriteByte((byte)MonsterNetworkMessageKind.RoomEnd);
             _transport.SendUnnamedToRemoteClients(RoomEndMessageName, writer, NetworkDeliveryClass.ReliableEvent);
-        }
-        private static void ValidatePayloadLength(int length)
-        {
-            if (length < 0 || length > MaxPayloadBytes)
-                throw new InvalidOperationException($"Monster Payload 长度非法：{length}。");
         }
 
         /// <summary>路由所有怪物 Unnamed Message，并把首字节后的 payload 交给原有解析器。</summary>
@@ -255,23 +225,23 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 switch ((MonsterNetworkMessageKind)kind)
                 {
                     case MonsterNetworkMessageKind.RoomBegin:
-                        OnRoomBeginReceived(senderClientId, reader);
+                        OnRoomBeginReceived(reader);
                         break;
                     case MonsterNetworkMessageKind.Spawn:
-                        OnSpawnReceived(senderClientId, reader);
+                        OnSpawnReceived(reader);
                         break;
                     case MonsterNetworkMessageKind.Despawn:
-                        OnDespawnReceived(senderClientId, reader);
+                        OnDespawnReceived(reader);
                         break;
                     case MonsterNetworkMessageKind.RoomEnd:
-                        OnRoomEndReceived(senderClientId, reader);
+                        OnRoomEndReceived();
                         break;
                     case MonsterNetworkMessageKind.GroupMembership:
-                        OnGroupMembershipReceived(senderClientId, reader);
+                        OnGroupMembershipReceived(reader);
                         break;
                     case MonsterNetworkMessageKind.GroupInitialSnapshot:
                     case MonsterNetworkMessageKind.GroupSnapshot:
-                        OnGroupSnapshotReceived(senderClientId, reader);
+                        OnGroupSnapshotReceived(reader);
                         break;
                     default:
                         throw new ArgumentException($"未知的 Monster Unnamed Message 类型：{kind}。");
@@ -284,68 +254,29 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         /// <summary>包收到后就丢出去。</summary>
-        private void OnSpawnReceived(ulong senderClientId, FastBufferReader reader)
+        private void OnSpawnReceived(FastBufferReader reader)
         {
-            if (!CanReceive(senderClientId)) 
-                return;
-            try
-            {
-                using var marker = ReceiveSpawnMarker.Auto();
-                ValidatePayloadLength(reader.Length - reader.Position);
-                _receiver.ReceiveSpawnBatch(MonsterNetworkCodec.ReadSpawn(ref reader));
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[{nameof(MonsterNetworkTransport)}] Spawn 解析失败：{exception.Message}");
-            }
+            using var marker = ReceiveSpawnMarker.Auto();
+            _receiver.ReceiveSpawnBatch(MonsterNetworkCodec.ReadSpawn(ref reader));
         }
 
-        private void OnRoomBeginReceived(ulong senderClientId, FastBufferReader reader)
+        private void OnRoomBeginReceived(FastBufferReader reader)
         {
-            if (!CanReceive(senderClientId)) return;
-            try
-            {
-                using var marker = ReceiveRoomBeginMarker.Auto();
-                ValidatePayloadLength(reader.Length - reader.Position);
-                _receiver.ReceiveRoomBegin(MonsterNetworkCodec.ReadRoomBegin(ref reader));
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[{nameof(MonsterNetworkTransport)}] RoomBegin 解析失败：{exception.Message}");
-            }
+            using var marker = ReceiveRoomBeginMarker.Auto();
+            _receiver.ReceiveRoomBegin(MonsterNetworkCodec.ReadRoomBegin(ref reader));
         }
-        /// <summary>
-        /// Roomend只是通知
-        /// </summary>
-        /// <param name="senderClientId"></param>
-        /// <param name="reader"></param>
-        private void OnRoomEndReceived(ulong senderClientId, FastBufferReader reader)
-        {
-            if (!CanReceive(senderClientId)) return;
-            try
-            {
-                using var marker = ReceiveRoomEndMarker.Auto();
-                if (reader.Length != reader.Position)
-                    throw new InvalidOperationException("Monster RoomEnd Payload 必须为空。");
-                _receiver.ReceiveRoomEnd();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[{nameof(MonsterNetworkTransport)}] RoomEnd 解析失败：{exception.Message}");
-            }
-        }
-        private void OnGroupMembershipReceived(ulong senderClientId, FastBufferReader reader)
-        {
-            if (!CanReceive(senderClientId))
-                return;
 
+        private void OnRoomEndReceived()
+        {
+            using var marker = ReceiveRoomEndMarker.Auto();
+            _receiver.ReceiveRoomEnd();
+        }
+
+        private void OnGroupMembershipReceived(FastBufferReader reader) =>
             _receiver.ReceiveGroupMembership(ref reader);
-        }
-        private void OnGroupSnapshotReceived(ulong senderClientId, FastBufferReader reader)
-        {
-            if (!CanReceive(senderClientId))
-                return;
 
+        private void OnGroupSnapshotReceived(FastBufferReader reader)
+        {
             int count = MonsterNetworkCodec.ReadGroupSnapshotBatchHeader(ref reader);
             for (int i = 0; i < count; i++)
             {
@@ -355,23 +286,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
         }
 
-        private void OnDespawnReceived(ulong senderClientId, FastBufferReader reader)
-        {
-            if (!CanReceive(senderClientId))
-                return;
-
+        private void OnDespawnReceived(FastBufferReader reader) =>
             _receiver.ReceiveDespawn(MonsterNetworkCodec.ReadDespawn(ref reader));
-        }
+
         private bool CanReceive(ulong senderClientId) => _transport.IsClient &&
             senderClientId == NetworkManager.ServerClientId;
 
-        private void EnsureServer()
-        {
-            if (!IsInitialized) 
-                throw new InvalidOperationException("MonsterNetworkTransport 尚未初始化。");
-            if (!_transport.IsServer) 
-                throw new InvalidOperationException("只有 Server 可以发送 Monster 状态。");
-        }
         public void Shutdown()
         {
             if (!IsInitialized) return;

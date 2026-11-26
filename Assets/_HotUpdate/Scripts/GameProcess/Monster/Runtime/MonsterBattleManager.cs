@@ -94,15 +94,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             if (IsInitialized) return UniTask.CompletedTask;
             cancellationToken.ThrowIfCancellationRequested();
-            if (Instance != null && Instance != this)
-                throw new InvalidOperationException("重复 MonsterBattleManager。");
             if (_monsterRuntimeService == null) _monsterRuntimeService = GetComponent<MonsterRuntimeService>();
-            if (_monsterRuntimeService == null || !_monsterRuntimeService.IsInitialized)
-                throw new InvalidOperationException("MonsterBattleManager 必须在 MonsterRuntimeService 后初始化。");
             _networkManager = NetworkManager.Singleton;
-            if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("MonsterBattleManager 初始化时网络尚未启动。");
-            ValidateSettings();
             Instance = this;
             IsInitialized = true;
             return UniTask.CompletedTask;
@@ -110,9 +103,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool TryStartRoomBattle(in MonsterRoomBattleRequest request)
         {
-            EnsureInitialized();
             if (!_networkManager.IsServer || IsBattleActive) return false;
-            ValidateRequest(request);
 
             RoomSpawnRegion region = request.RoomView.SpawnRegion;
             var groundRandom = new System.Random(unchecked(request.Seed * 486187739 + 49979687));
@@ -126,22 +117,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             region.GetWorldXZBounds(out Vector2 quantizationOrigin, out Vector2 quantizationSize);
             float groundY = _groundProbe[0].y;
 
-            try
-            {
-                _selector = new MonsterSpawnSelector(_monsterRuntimeService.Catalogs.Spawns, request.Seed);
-                _spawnPlanner = new MonsterRandomGroundSpawnPlanner(region, _groundSampler,
-                    unchecked(request.Seed * 16777619 + 86028121), _monsterMinimumSpacing,
-                    groundY, _groundHeightTolerance, _spawnAttemptsPerPoint);
-                _monsterRuntimeService.BeginRoom(quantizationOrigin, quantizationSize, groundY, request.RoomView.SpatialData,request.RoomView.transform);
-            }
-            catch (Exception exception)
-            {
-                _selector = null;
-                _spawnPlanner = null;
-                RoomBattleFailed?.Invoke(request.RoomId, exception.Message);
-                Debug.LogError($"[{nameof(MonsterBattleManager)}] 房间启动失败：{exception}");
-                return false;
-            }
+            _selector = new MonsterSpawnSelector(_monsterRuntimeService.Catalogs.Spawns, request.Seed);
+            _spawnPlanner = new MonsterRandomGroundSpawnPlanner(region, _groundSampler,
+                unchecked(request.Seed * 16777619 + 86028121), _monsterMinimumSpacing,
+                groundY, _groundHeightTolerance, _spawnAttemptsPerPoint);
+            _monsterRuntimeService.BeginRoom(quantizationOrigin, quantizationSize, groundY, request.RoomView.SpatialData, request.RoomView.transform);
 
             CurrentRoomId = request.RoomId;
             _maxActiveMonsters = request.MaxActiveMonsters;
@@ -206,17 +186,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     continue;
                 }
 
-                try
-                {
-                    // 一个波次只调用一次：种类和位置共同进入同一个可靠 SpawnBatch。
-                    _monsterRuntimeService.Spawn(_wavePlans);
-                }
-                catch (Exception exception)
-                {
-                    FailCurrentBattle($"当前波次 Spawn 失败：{exception.Message}");
-                    Debug.LogError($"[{nameof(MonsterBattleManager)}] 波次生成失败：{exception}");
-                    yield break;
-                }
+                // 一个波次只调用一次：种类和位置共同进入同一个可靠 SpawnBatch。
+                _monsterRuntimeService.Spawn(_wavePlans);
                 _remainingBudget = _waveBudgetAfterSelection;
                 _spawnedCount += _waveConfigs.Count;
                 _waveConfigs.Clear();
@@ -233,7 +204,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!IsInitialized || !IsBattleActive) return;
             if (_waveRoutine != null) StopCoroutine(_waveRoutine);
             _waveRoutine = null;
-            if (_monsterRuntimeService.IsRoomActive) _monsterRuntimeService.EndRoom();
+            _monsterRuntimeService.EndRoom();
             ResetBattleState();
         }
 
@@ -250,7 +221,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             int roomId = CurrentRoomId;
             _waveRoutine = null;
-            if (_monsterRuntimeService.IsRoomActive) _monsterRuntimeService.EndRoom();
+            _monsterRuntimeService.EndRoom();
             ResetBattleState();
             RoomBattleFailed?.Invoke(roomId, reason);
         }
@@ -283,33 +254,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (Instance == this) Instance = null;
             IsInitialized = false;
             return UniTask.CompletedTask;
-        }
-
-        private static void ValidateRequest(in MonsterRoomBattleRequest request)
-        {
-            if (request.RoomId < 0) throw new ArgumentOutOfRangeException(nameof(request.RoomId));
-            if (request.RoomView == null) throw new ArgumentNullException(nameof(request.RoomView));
-            if (request.Budget < 0) throw new ArgumentOutOfRangeException(nameof(request.Budget));
-            if (request.Difficulty < 0) throw new ArgumentOutOfRangeException(nameof(request.Difficulty));
-            if (request.MaxActiveMonsters < 1)
-                throw new ArgumentOutOfRangeException(nameof(request.MaxActiveMonsters));
-        }
-
-        private void ValidateSettings()
-        {
-            if (_maxMonstersPerRoom < 1 || _spawnAttemptsPerPoint < 1 || _maxSampleFailures < 1 ||
-                !MonsterMath.IsNonNegativeFinite(_battleStartDelay) ||
-                !MonsterMath.IsNonNegativeFinite(_normalWaveDelay) ||
-                !MonsterMath.IsNonNegativeFinite(_rushWaveDelay) ||
-                !MonsterMath.IsNonNegativeFinite(_monsterMinimumSpacing) ||
-                !MonsterMath.IsNonNegativeFinite(_groundHeightTolerance) ||
-                !MonsterMath.IsNonNegativeFinite(_sampleRetryDelay))
-                throw new InvalidOperationException("MonsterBattleManager 波次配置非法。");
-        }
-
-        private void EnsureInitialized()
-        {
-            if (!IsInitialized) throw new InvalidOperationException("MonsterBattleManager 尚未初始化。");
         }
 
         private void OnDestroy() => ShutdownAsync(CancellationToken.None).Forget();

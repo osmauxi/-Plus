@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using ProjectGame.Core.Monsters;
 using UnityEngine;
@@ -19,25 +18,19 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterRoomBeginData(Vector2 quantizationOrigin, Vector2 quantizationSize,
             float groundY, uint minimumAcceptedTick)
         {
-            if (!MonsterMath.IsFinite(quantizationOrigin) ||
-                !MonsterMath.IsPositiveFinite(quantizationSize.x) ||
-                !MonsterMath.IsPositiveFinite(quantizationSize.y) ||
-                !MonsterMath.IsFinite(groundY))
-                throw new ArgumentOutOfRangeException(nameof(quantizationSize));
             QuantizationOrigin = quantizationOrigin;
             QuantizationSize = quantizationSize;
             GroundY = groundY;
             MinimumAcceptedTick = minimumAcceptedTick;
         }
     }
+
     public readonly struct MonsterPlayerTarget
     {
         public readonly Vector2 Position;
 
         public MonsterPlayerTarget(Vector2 position)
         {
-            if (!MonsterMath.IsFinite(position))
-                throw new ArgumentOutOfRangeException(nameof(position));
             Position = position;
         }
     }
@@ -66,20 +59,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             uint windupTicks, uint recoveryTicks, float attackDamage,
             float maxHealth, ushort attackProfileIndex)
         {
-            if (configId < 0 || !MonsterMath.IsNonNegativeFinite(moveSpeed) ||
-                !MonsterMath.IsPositiveFinite(attackRange) ||
-                windupTicks == 0 || windupTicks > int.MaxValue ||
-                recoveryTicks == 0 || recoveryTicks > int.MaxValue ||
-                !MonsterMath.IsPositiveFinite(attackDamage) ||
-                !MonsterMath.IsPositiveFinite(maxHealth))
-                throw new ArgumentOutOfRangeException(nameof(configId), "Monster Runtime 配置包含非法字段。");
-            double attackRangeSqr = (double)attackRange * attackRange;
-            if (attackRangeSqr > float.MaxValue)
-                throw new ArgumentOutOfRangeException(nameof(attackRange), "Monster AttackRange 平方后超出 float 范围。");
-
             ConfigId = configId;
             MoveSpeed = moveSpeed;
-            AttackRangeSqr = (float)attackRangeSqr;
+            AttackRangeSqr = attackRange * attackRange;
             WindupTicks = windupTicks;
             RecoveryTicks = recoveryTicks;
             AttackDamage = attackDamage;
@@ -102,7 +84,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _simulationItems = new MonsterSimulationConfig[items.Length];
             for (int i = 0; i < _items.Length; i++)
             {
-                _indices.Add(_items[i].ConfigId, checked((ushort)i));
+                _indices.Add(_items[i].ConfigId, (ushort)i);
                 MonsterRuntimeConfig config = _items[i];
                 _simulationItems[i] = new MonsterSimulationConfig(
                     config.MoveSpeed,
@@ -127,6 +109,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool TryGetIndex(int configId, out ushort index) => _indices.TryGetValue(configId, out index);
     }
+
     /// <summary>
     /// 攻击检测的空间参数
     /// </summary>
@@ -142,9 +125,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterAttackProfile(Vector3 originOffset, float radius, float distance, LayerMask targetMask)
         {
-            if (!MonsterMath.IsFinite(originOffset) || !MonsterMath.IsPositiveFinite(radius) ||
-                !MonsterMath.IsNonNegativeFinite(distance))
-                throw new ArgumentOutOfRangeException(nameof(radius), "Monster AttackProfile 包含非法空间参数。");
             OriginOffset = originOffset;
             Radius = radius;
             Distance = distance;
@@ -159,8 +139,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterAttackCatalog(MonsterAttackProfile[] items)
         {
-            if (items == null) 
-                throw new ArgumentNullException(nameof(items));
             _items = items;
         }
 
@@ -169,6 +147,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return ref _items[index];
         }
     }
+
     /// <summary>
     /// 怪物生成配置，指定某一种怪物在波次生成系统的中的生成规则
     /// </summary>
@@ -190,9 +169,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public MonsterSpawnConfig(ushort configIndex, int cost, float weight,
             int minDifficulty = 0, int maxDifficulty = int.MaxValue, int maxPerWave = int.MaxValue)
         {
-            if (cost <= 0 || !MonsterMath.IsPositiveFinite(weight) || minDifficulty < 0 ||
-                maxDifficulty < minDifficulty || maxPerWave <= 0)
-                throw new ArgumentOutOfRangeException(nameof(cost), "Monster Spawn 配置包含非法字段。");
             ConfigIndex = configIndex;
             Cost = cost;
             Weight = weight;
@@ -209,22 +185,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterSpawnConfig[] _items;
         public int Count => _items.Length;
 
-        public MonsterSpawnCatalog(MonsterSpawnConfig[] items, MonsterRuntimeCatalog runtimeCatalog)
+        public MonsterSpawnCatalog(MonsterSpawnConfig[] items)
         {
-            if (items == null) 
-                throw new ArgumentNullException(nameof(items));
-            if (runtimeCatalog == null) 
-                throw new ArgumentNullException(nameof(runtimeCatalog));
             _items = items;
-            //这里做Catalog的外键校验，保证其数据是有对应的，因为这些数据分了两个表
-            for (int i = 0; i < _items.Length; i++)
-                runtimeCatalog.Get(_items[i].ConfigIndex);
         }
 
         public ref readonly MonsterSpawnConfig Get(int index)
         {
-            if ((uint)index >= (uint)_items.Length) 
-                throw new IndexOutOfRangeException();
             return ref _items[index];
         }
     }
@@ -236,7 +203,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterViewConfig(ushort configIndex, string localPoolId)
         {
-            if (string.IsNullOrWhiteSpace(localPoolId)) throw new ArgumentException("Monster View PoolId 不能为空。", nameof(localPoolId));
             ConfigIndex = configIndex;
             LocalPoolId = localPoolId;
         }
@@ -246,31 +212,17 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
     {
         private readonly Dictionary<ushort, MonsterViewConfig> _items = new Dictionary<ushort, MonsterViewConfig>();
 
-        public MonsterViewCatalog(IEnumerable<MonsterViewConfig> items, MonsterRuntimeCatalog runtimeCatalog)
+        public MonsterViewCatalog(IEnumerable<MonsterViewConfig> items)
         {
-            if (items == null) throw new ArgumentNullException(nameof(items));
-            if (runtimeCatalog == null) throw new ArgumentNullException(nameof(runtimeCatalog));
             foreach (MonsterViewConfig item in items)
-            {
-                if (item == null) 
-                    throw new ArgumentException("Monster View 配置不能为空。", nameof(items));
-                //外键检查，这也是单独一个表
-                runtimeCatalog.Get(item.ConfigIndex);
                 _items.Add(item.ConfigIndex, item);
-            }
         }
 
-        public MonsterViewConfig Get(ushort configIndex) => _items.TryGetValue(configIndex, out var item)
-            ? item : throw new KeyNotFoundException($"Monster View ConfigIndex={configIndex} 未注册。");
+        public MonsterViewConfig Get(ushort configIndex) => _items[configIndex];
     }
 
     internal static class MonsterMath
     {
-        internal static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
-        internal static bool IsNonNegativeFinite(float value) => value >= 0 && IsFinite(value);
-        internal static bool IsPositiveFinite(float value) => value > 0 && IsFinite(value);
-        internal static bool IsFinite(Vector2 value) => IsFinite(value.x) && IsFinite(value.y);
-        internal static bool IsFinite(Vector3 value) => IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
         internal static bool HasReached(uint tick, uint deadline) => unchecked((int)(tick - deadline)) >= 0;
         internal static bool IsNewer(uint tick, uint previous) => unchecked((int)(tick - previous)) > 0;
     }

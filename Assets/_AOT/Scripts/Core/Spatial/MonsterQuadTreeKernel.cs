@@ -107,7 +107,7 @@ namespace ProjectGame.Core.Spatial
             LastQueryVisitedNodeCount = 0;
         }
 
-        public void Build(Vector2[] positions, byte[] activeMask, int storageCount)
+        public void Build(Vector2[] positions, int storageCount)
         {
             //重置旧索引
             _positions = positions;
@@ -120,10 +120,7 @@ namespace ProjectGame.Core.Spatial
             BuildBaseTree(root);
             //插入活跃怪物
             for (int storageIndex = 0; storageIndex < storageCount; storageIndex++)
-            {
-                if (activeMask[storageIndex] != 0)
-                    Insert(storageIndex, positions[storageIndex], 0);
-            }
+                Insert(storageIndex, positions[storageIndex], 0);
         }
 
         public void Add(int storageIndex, Vector2 position)

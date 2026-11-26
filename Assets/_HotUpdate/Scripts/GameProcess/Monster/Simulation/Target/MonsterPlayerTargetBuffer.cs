@@ -13,8 +13,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public const int MaximumCapacity = 4;
         private readonly MonsterPlayerTarget[] _items = new MonsterPlayerTarget[MaximumCapacity];
         private readonly Vector2[] _positions = new Vector2[MaximumCapacity];
-        private readonly Vector2Int[] _cells = new Vector2Int[MaximumCapacity];
-        private readonly bool[] _cellValid = new bool[MaximumCapacity];
         private readonly byte[] _cellWalkable = new byte[MaximumCapacity];
 
         public int Count { get; private set; }
@@ -43,16 +41,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                     new Vector3(position.x, groundY, position.y),
                     out Vector2Int cell);
 
-                _cellValid[i] = valid;
-                _cells[i] = cell;
                 _cellWalkable[i] = (byte)(valid && grid.IsWalkable(cell.x, cell.y) ? 1 : 0);
             }
         }
-
-        internal bool IsCellWalkable(int index) =>
-            (uint)index < (uint)Count && _cellValid[index] && _cellWalkable[index] != 0;
-
-        internal Vector2Int GetCell(int index) => _cells[index];
     }
 
     /// <summary>

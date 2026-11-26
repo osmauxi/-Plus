@@ -16,7 +16,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterSpawnSelector(MonsterSpawnCatalog catalog, int? seed = null)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+            _catalog = catalog;
             _random = seed.HasValue ? new System.Random(seed.Value) : new System.Random();
             _selectedPerEntry = new int[_catalog.Count];
         }
@@ -24,10 +24,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// <returns>无法继续购买后的剩余预算。</returns>
         public int Select(int budget, int difficulty, int maxCount, List<ushort> destination)
         {
-            if (budget < 0) throw new ArgumentOutOfRangeException(nameof(budget));
-            if (difficulty < 0) throw new ArgumentOutOfRangeException(nameof(difficulty));
-            if (maxCount < 0) throw new ArgumentOutOfRangeException(nameof(maxCount));
-            if (destination == null) throw new ArgumentNullException(nameof(destination));
             destination.Clear();
             Array.Clear(_selectedPerEntry, 0, _selectedPerEntry.Length);
 
@@ -44,25 +40,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
                 double choice = _random.NextDouble() * totalWeight;
                 int selectedIndex = -1;
+                int lastValidIndex = -1;
                 for (int i = 0; i < _catalog.Count; i++)
                 {
                     ref readonly MonsterSpawnConfig item = ref _catalog.Get(i);
                     if (item.Cost > budget || !item.IsAvailable(difficulty) || _selectedPerEntry[i] >= item.MaxPerWave)
                         continue;
+                    lastValidIndex = i;
                     choice -= item.Weight;
                     if (choice > 0) continue;
                     selectedIndex = i;
                     break;
                 }
-                // 浮点尾差兜底：寻找最后一个有效候选。
                 if (selectedIndex < 0)
-                    for (int i = _catalog.Count - 1; i >= 0; i--)
-                    {
-                        ref readonly MonsterSpawnConfig item = ref _catalog.Get(i);
-                        if (item.Cost <= budget && item.IsAvailable(difficulty) && _selectedPerEntry[i] < item.MaxPerWave)
-                        { selectedIndex = i; break; }
-                    }
-                if (selectedIndex < 0) break;
+                    selectedIndex = lastValidIndex;
 
                 ref readonly MonsterSpawnConfig selected = ref _catalog.Get(selectedIndex);
                 destination.Add(selected.ConfigIndex);
@@ -72,6 +63,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return budget;
         }
     }
+
     /// <summary>
     /// 一个已经规划好的怪物生成信息
     /// </summary>
@@ -83,8 +75,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterSpawnPlan(ushort configIndex, Vector2 position, float yaw)
         {
-            if (!MonsterMath.IsFinite(position) || !MonsterMath.IsFinite(yaw))
-                throw new ArgumentOutOfRangeException(nameof(position));
             ConfigIndex = configIndex;
             Position = position;
             Yaw = yaw;
@@ -118,12 +108,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int attemptsPerPoint = 48)
         {
             _region = region;
-            _sampler = sampler ?? throw new ArgumentNullException(nameof(sampler));
-            if (!MonsterMath.IsNonNegativeFinite(minimumSpacing))
-                throw new ArgumentOutOfRangeException(nameof(minimumSpacing));
-            if (!MonsterMath.IsFinite(groundY) || !MonsterMath.IsNonNegativeFinite(groundHeightTolerance))
-                throw new ArgumentOutOfRangeException(nameof(groundY));
-            if (attemptsPerPoint < 1) throw new ArgumentOutOfRangeException(nameof(attemptsPerPoint));
+            _sampler = sampler;
             _random = new System.Random(seed);
             _minimumSpacing = minimumSpacing;
             _groundY = groundY;
@@ -134,9 +119,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public bool TryBuildPlans(IReadOnlyList<ushort> configIndices, MonsterPlayerTargetBuffer players,
             List<MonsterSpawnPlan> destination)
         {
-            if (configIndices == null) throw new ArgumentNullException(nameof(configIndices));
-            if (players == null) throw new ArgumentNullException(nameof(players));
-            if (destination == null) throw new ArgumentNullException(nameof(destination));
             destination.Clear();
             if (!_sampler.TrySampleMany(_region, configIndices.Count, 1f, _minimumSpacing,
                     _random, _positions, _attemptsPerPoint))
@@ -165,7 +147,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             EntityId = entityId;
             ConfigIndex = configIndex;
-            PackedPose = packedPose; 
+            PackedPose = packedPose;
         }
     }
 
@@ -180,8 +162,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterSpawnBatch(MonsterSpawnData[] items)
         {
-            if (items == null) 
-                throw new ArgumentNullException(nameof(items));
             _items = items;
         }
 
@@ -191,12 +171,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterPoseQuantizer quantizer,
             MonsterWorld world)
         {
-            if (plans == null) 
-                throw new ArgumentNullException(nameof(plans));
-            if (quantizer == null) 
-                throw new ArgumentNullException(nameof(quantizer));
-            if (world == null)
-                throw new ArgumentNullException(nameof(world));
             var items = new MonsterSpawnData[plans.Count];
             for (int i = 0; i < plans.Count; i++)
                 items[i] = new MonsterSpawnData(world.GetEntityId(startStorageIndex + i), plans[i].ConfigIndex,

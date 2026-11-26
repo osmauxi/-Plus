@@ -30,19 +30,19 @@ namespace ProjectGame.Editor.Gameplay
             GameObject root = new GameObject("QuadTreeParityRoot");
             try
             {
-                ValidateScenario(root.transform, "空房间", Array.Empty<Vector2>(), Array.Empty<byte>());
-                ValidateScenario(root.transform, "5012 固定随机", CreateRandomPositions(5012, 12345), null);
-                ValidateScenario(root.transform, "稀疏 Slot", CreateRandomPositions(257, 2718), CreateSparseMask(257));
+                ValidateScenario(root.transform, "空房间", Array.Empty<Vector2>());
+                ValidateScenario(root.transform, "5012 固定随机", CreateRandomPositions(5012, 12345));
+                ValidateCompactedScenario(root.transform, "压缩后 Slot", CreateRandomPositions(257, 2718));
                 ValidateScenario(root.transform, "边界与越界", new[]
                 {
                     new Vector2(-50f, -50f), new Vector2(50f, 50f),
                     new Vector2(-50f, 50f), new Vector2(50f, -50f),
                     new Vector2(-50.01f, 0f), new Vector2(50.01f, 0f),
                     new Vector2(0f, -50.01f), new Vector2(0f, 50.01f),
-                }, null);
-                ValidateScenario(root.transform, "分裂阈值 16", CreateRepeatedPositions(16), null);
-                ValidateScenario(root.transform, "分裂阈值 17", CreateRepeatedPositions(17), null);
-                ValidateScenario(root.transform, "同位置与最大深度", CreateRepeatedPositions(96), null);
+                });
+                ValidateScenario(root.transform, "分裂阈值 16", CreateRepeatedPositions(16));
+                ValidateScenario(root.transform, "分裂阈值 17", CreateRepeatedPositions(17));
+                ValidateScenario(root.transform, "同位置与最大深度", CreateRepeatedPositions(96));
                 ValidateIncrementalOperations(root.transform);
                 ValidateOutOfBoundsExcluded();
                 Debug.Log("四叉树 AOT 一致性验证通过：Build、Query、节点结构、候选顺序和增量操作均一致。");
@@ -56,14 +56,38 @@ namespace ProjectGame.Editor.Gameplay
         private static void ValidateScenario(
             Transform root,
             string name,
-            Vector2[] positions,
-            byte[] activeMask)
+            Vector2[] positions)
         {
-            activeMask ??= CreateActiveMask(positions.Length);
-            MonsterWorld world = CreateWorld(positions, activeMask);
+            MonsterWorld world = CreateWorld(positions);
+            ValidateWorldParity(root, name, world, positions);
+        }
+
+        private static void ValidateCompactedScenario(
+            Transform root,
+            string name,
+            Vector2[] initialPositions)
+        {
+            MonsterWorld world = CreateWorld(initialPositions);
+            for (int i = 1; i < initialPositions.Length; i += 3)
+                world.Damage(i, 1f);
+            world.CompactDead();
+
+            var compactedPositions = new Vector2[world.StorageCount];
+            for (int i = 0; i < compactedPositions.Length; i++)
+                world.TryGetPosition(i, out compactedPositions[i]);
+
+            ValidateWorldParity(root, name, world, compactedPositions);
+        }
+
+        private static void ValidateWorldParity(
+            Transform root,
+            string name,
+            MonsterWorld world,
+            Vector2[] positions)
+        {
             var reference = new MonsterSpatialIndex(root, RoomHalfSize, Math.Max(64, positions.Length));
             var kernel = new MonsterQuadTreeKernel(Vector2.zero, RoomHalfSize, Math.Max(64, positions.Length));
-            kernel.Build(positions, activeMask, positions.Length);
+            kernel.Build(positions, positions.Length);
 
             Query[] queries =
             {
@@ -84,31 +108,27 @@ namespace ProjectGame.Editor.Gameplay
         {
             const int capacity = 64;
             Vector2[] positions = new Vector2[capacity];
-            byte[] activeMask = new byte[capacity];
             MonsterWorld world = new MonsterWorld(capacity);
             for (int i = 0; i < 20; i++)
             {
                 positions[i] = new Vector2(i - 10f, i * 0.5f - 5f);
-                activeMask[i] = 1;
                 world.Create(0, positions[i], 0f, 1f);
             }
 
             var reference = new MonsterSpatialIndex(root, RoomHalfSize, capacity);
             var kernel = new MonsterQuadTreeKernel(Vector2.zero, RoomHalfSize, capacity);
-            kernel.Build(positions, activeMask, world.StorageCount);
+            kernel.Build(positions, world.StorageCount);
             Query query = new(new Vector2(-30f, -30f), new Vector2(30f, 30f), 2f);
             CompareQuery("增量操作初始", world, reference, kernel, query, capacity);
 
             Vector2 addedPosition = new(12f, -8f);
             int addedSlot = world.Create(0, addedPosition, 0f, 1f);
             positions[addedSlot] = addedPosition;
-            activeMask[addedSlot] = 1;
             reference.Add(world, addedSlot);
             kernel.Add(addedSlot, addedPosition);
             CompareQuery("增量 Add", world, reference, kernel, query, capacity);
 
             world.Damage(3, 1f);
-            activeMask[3] = 0;
             reference.Remove(3);
             kernel.Remove(3);
             CompareQuery("增量 Remove", world, reference, kernel, query, capacity);
@@ -125,9 +145,8 @@ namespace ProjectGame.Editor.Gameplay
         private static void ValidateOutOfBoundsExcluded()
         {
             Vector2[] positions = { Vector2.zero, new(50.01f, 0f) };
-            byte[] activeMask = { 1, 1 };
             var kernel = new MonsterQuadTreeKernel(Vector2.zero, RoomHalfSize, positions.Length);
-            kernel.Build(positions, activeMask, positions.Length);
+            kernel.Build(positions, positions.Length);
 
             int[] results = new int[positions.Length];
             int count = kernel.QuerySweptCircle(
@@ -194,15 +213,11 @@ namespace ProjectGame.Editor.Gameplay
             }
         }
 
-        private static MonsterWorld CreateWorld(Vector2[] positions, byte[] activeMask)
+        private static MonsterWorld CreateWorld(Vector2[] positions)
         {
             MonsterWorld world = new MonsterWorld(Math.Max(64, positions.Length));
             for (int i = 0; i < positions.Length; i++)
-            {
-                int slot = world.Create(0, positions[i], 0f, 1f);
-                if (activeMask[slot] == 0)
-                    world.Damage(slot, 1f);
-            }
+                world.Create(0, positions[i], 0f, 1f);
             return world;
         }
 
@@ -225,22 +240,6 @@ namespace ProjectGame.Editor.Gameplay
             for (int i = 0; i < positions.Length; i++)
                 positions[i] = new Vector2(3f, -7f);
             return positions;
-        }
-
-        private static byte[] CreateActiveMask(int count)
-        {
-            var mask = new byte[count];
-            for (int i = 0; i < mask.Length; i++)
-                mask[i] = 1;
-            return mask;
-        }
-
-        private static byte[] CreateSparseMask(int count)
-        {
-            byte[] mask = CreateActiveMask(count);
-            for (int i = 1; i < mask.Length; i += 3)
-                mask[i] = 0;
-            return mask;
         }
     }
 }

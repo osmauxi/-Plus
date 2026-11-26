@@ -27,7 +27,6 @@ namespace ProjectGame.Core.Spatial
         private readonly byte[] _regionIntervals = new byte[RegionCapacity];
         private readonly int[] _regionFirstGroup = new int[RegionCapacity];
         private readonly int[] _regionLastGroup = new int[RegionCapacity];
-        private readonly int[] _activeRegionIndices = new int[RegionCapacity];
 
         private int[] _groupRegionIndices = Array.Empty<int>();
         private int[] _groupNextInRegion = Array.Empty<int>();
@@ -89,8 +88,6 @@ namespace ProjectGame.Core.Spatial
             float rootHalfSize,
             uint tick)
         {
-            EnsureCapacity(storageCount);
-
             for (int storageIndex = 0; storageIndex < storageCount; storageIndex++)
             {
                 int previousGroup = _groupByStorageIndex[storageIndex];
@@ -111,7 +108,7 @@ namespace ProjectGame.Core.Spatial
         }
 
         public uint GetGroupId(int groupIndex) => unchecked((uint)(groupIndex + 1));
-        public uint GetRegionCode(int groupIndex) => GetRegionCodeForGroup(groupIndex);
+        public uint GetRegionCode(int groupIndex) => _regionCodes[_groupRegionIndices[groupIndex]];
         public uint GetMembershipRevision(int groupIndex) => _groupMembershipRevisions[groupIndex];
         public uint GetPublishedMembershipRevision(int groupIndex) => _groupPublishedMembershipRevisions[groupIndex];
         public byte GetIntervalTicks(int groupIndex) => _groupIntervals[groupIndex];
@@ -199,7 +196,6 @@ namespace ProjectGame.Core.Spatial
             regionIndex = _regionCount++;
             _regionIndexByCode[regionCode] = regionIndex;
             _regionCodes[regionIndex] = regionCode;
-            _activeRegionIndices[regionIndex] = regionIndex;
             _regionCenters[regionIndex] = MonsterQuadTreeKernel.ComputeBaseRegionCenter(
                 regionCode, rootCenter, rootHalfSize);
             _regionHalfSizes[regionIndex] = rootHalfSize / (1 << BaseDepth);
@@ -213,7 +209,7 @@ namespace ProjectGame.Core.Spatial
         private void RefreshTiers(Vector2[] playerPositions, int playerCount, uint tick)
         {
             for (int i = 0; i < _regionCount; i++)
-                RefreshRegionTier(_activeRegionIndices[i], playerPositions, playerCount, tick);
+                RefreshRegionTier(i, playerPositions, playerCount, tick);
         }
 
         private void RefreshRegionTier(int regionIndex, Vector2[] playerPositions, int playerCount, uint tick)
@@ -282,9 +278,6 @@ namespace ProjectGame.Core.Spatial
             _groupByStorageIndex[storageIndex] = Unlinked;
             _storageIndexInGroup[storageIndex] = Unlinked;
         }
-
-        private uint GetRegionCodeForGroup(int groupIndex) =>
-            _regionCodes[_groupRegionIndices[groupIndex]];
 
         private void EnsureGroupCapacity(int required)
         {

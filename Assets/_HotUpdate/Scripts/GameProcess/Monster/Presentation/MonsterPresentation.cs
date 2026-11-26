@@ -16,18 +16,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public MonsterPoseQuantizer(Vector2 origin, Vector2 size)
         {
-            if (!MonsterMath.IsFinite(origin) || !MonsterMath.IsPositiveFinite(size.x) ||
-                !MonsterMath.IsPositiveFinite(size.y))
-                throw new ArgumentOutOfRangeException(nameof(size));
             _data = new MonsterQuantizationData(origin, size);
         }
 
-        public uint Pack(Vector2 position, float yaw)
-        {
-            if (!MonsterMath.IsFinite(position) || !MonsterMath.IsFinite(yaw))
-                throw new ArgumentOutOfRangeException(nameof(position));
-            return MonsterPresentationPackKernel.PackPose(position, yaw, _data);
-        }
+        public uint Pack(Vector2 position, float yaw) =>
+            MonsterPresentationPackKernel.PackPose(position, yaw, _data);
         //反过来就是解包
         public void Unpack(uint packed, out Vector2 position, out float yaw)
         {
@@ -75,7 +68,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             int capacity = Math.Max(16, current);
             while (capacity < required)
-                capacity = checked(capacity * 2);
+                capacity *= 2;
             return capacity;
         }
     }
@@ -100,8 +93,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterPackedState[] packedStateByStorageIndex,
             MonsterPresentationFrame destination)
         {
-            if (world == null) throw new ArgumentNullException(nameof(world));
-
             using var captureScope = CaptureMarker.Auto();
             //每只存活怪物包含身份、4字节姿态和1字节离散表现序列。
             using (CaptureBeginWriteMarker.Auto())
@@ -256,7 +247,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         public void ApplySpawnBatch(MonsterSpawnBatch batch, MonsterPoseQuantizer quantizer)
         {
             int startViewSlot = ViewSlotCount;
-            EnsureCapacity(checked(startViewSlot + batch.Count));
+            EnsureCapacity(startViewSlot + batch.Count);
             for (int i = 0; i < batch.Count; i++)
             {
                 int viewSlot = startViewSlot + i;
@@ -462,7 +453,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         {
             if (count <= _config.Length) return;
             int capacity = Math.Max(64, _config.Length);
-            while (capacity < count) capacity = checked(capacity * 2);
+            while (capacity < count) capacity *= 2;
             Array.Resize(ref _config, capacity);
             if (_frameStorageIndices.Length < capacity)
                 Array.Resize(ref _frameStorageIndices, capacity);

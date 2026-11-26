@@ -115,8 +115,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _occupancySnapshot.Clear();
             _spatialIndex.Clear();
             _networkGroups.Clear();
-            _networkGroups.EnsureCapacity(expectedTotalMonsterCount);
-            _simulation.ResetDiagnostics();
+            _simulation.BeginRoom(groundY);
         }
 
         public MonsterSpawnBatch Spawn(IReadOnlyList<MonsterSpawnPlan> plans)
@@ -212,15 +211,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int[] results) =>
             _spatialIndex.QuerySweptCircle(World, center, center, radius, results);
 
-        public bool DamageMonster(int storageIndex, float damage)
+        public bool DamageMonster(int storageIndex, float damage) =>
+            DamageMonster(storageIndex, damage, out _);
+
+        internal bool DamageMonster(int storageIndex, float damage, out bool killed)
         {
             if (ProjectGame.HotFix.Gameplay.Benchmarking.BenchmarkMovementDriver.SuppressMonsterDamage)
+            {
+                killed = false;
                 return World.RecordHit(storageIndex);
+            }
 
-            bool damaged = World.Damage(storageIndex, damage);
-            if (damaged && !World.IsActive(storageIndex))
+            if (!World.Damage(storageIndex, damage, out killed))
+                return false;
+            if (killed)
                 _spatialIndex.Remove(storageIndex);
-            return damaged;
+            return true;
         }
 
         internal bool CompactDead()

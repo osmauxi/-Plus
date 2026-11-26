@@ -132,47 +132,23 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (IsInitialized) 
                 return UniTask.CompletedTask;
             cancellationToken.ThrowIfCancellationRequested();
-            if (Instance != null && Instance != this)
-                throw new InvalidOperationException("重复 MonsterRuntimeService。");
-            if (_initialCapacity < 1 || _presentationIntervalTicks < 1 ||
-                _monsterHitRadius <= 0f)
-                throw new InvalidOperationException(
-                    "Monster Capacity、PresentationInterval 与 HitRadius 必须大于 0。");
 
             _network = GameNetworkRuntime.Gameplay;
             _dueGroupComparison = CompareDueGroups;
             _networkManager = NetworkManager.Singleton;
-            if (_network == null || !_network.IsInitialized || _networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("Monster 必须在 Gameplay 网络运行时后初始化。");
 
             Catalogs = MonsterConfigAssembler.FromConfigManager(ConfigManager.Instance, _network.Clock.TickRate);
             _transport = new MonsterNetworkTransport(_network.Transport);
-            try
+            _transport.Initialize(this);
+            Replica = new MonsterReplica();
+
+            if (_networkManager.IsServer)
             {
-                _transport.Initialize(this);
-                Replica = new MonsterReplica();
-                
-                if (_networkManager.IsServer)
-                {
-                    _authorityWriteFrame = new MonsterPresentationFrame(_initialCapacity);
-                    _authorityPublishedFrame = new MonsterPresentationFrame(_initialCapacity);
-                    _network.Clock.Subscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
-                    _network.Clock.Subscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
-                    _network.Clock.Subscribe(GameplayTickPhase.Replication, PublishAuthorityState);
-                }
-            }
-            catch
-            {
-                _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
-                _network.Clock.Unsubscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
-                _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
-                _transport.Shutdown();
-                _transport = null;
-                Replica = null;
-                Catalogs = null;
-                _network = null;
-                _networkManager = null;
-                throw;
+                _authorityWriteFrame = new MonsterPresentationFrame(_initialCapacity);
+                _authorityPublishedFrame = new MonsterPresentationFrame(_initialCapacity);
+                _network.Clock.Subscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+                _network.Clock.Subscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
+                _network.Clock.Subscribe(GameplayTickPhase.Replication, PublishAuthorityState);
             }
 
             Instance = this;
@@ -187,31 +163,16 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             RoomSpatialData spatialData, Transform roomRoot,
             int expectedTotalMonsterCount = 0, uint? minimumAcceptedTick = null)
         {
-            EnsureInitialized();
-            if (!_networkManager.IsServer)
-                throw new InvalidOperationException("只有 Server 可以开启 Monster 房间。");
-            if (_roomActive) 
-                throw new InvalidOperationException("Monster 房间已经开始，请先 EndRoom。");
-            if (expectedTotalMonsterCount < 0) 
-                throw new ArgumentOutOfRangeException(nameof(expectedTotalMonsterCount));
             uint roomTick = minimumAcceptedTick ?? _network.Clock.EstimatedServerTick;
             var data = new MonsterRoomBeginData(quantizationOrigin, quantizationSize, groundY, roomTick);
-            try
-            {
-                BeginRoomLocal(data, expectedTotalMonsterCount, spatialData, roomRoot);
-                _transport.SendRoomBegin(data);
-            }
-            catch
-            {
-                EndRoomLocal(false);
-                throw;
-            }
+            BeginRoomLocal(data, expectedTotalMonsterCount, spatialData, roomRoot);
+            _transport.SendRoomBegin(data);
         }
 
         private void BeginRoomLocal(in MonsterRoomBeginData data, int expectedTotalMonsterCount,RoomSpatialData spatialData = null, Transform roomRoot = null)
         {
             if (_roomActive) 
-                EndRoomLocal(true);
+                EndRoomLocal();
             _quantizer = new MonsterPoseQuantizer(data.QuantizationOrigin, data.QuantizationSize);
             RoomGroundY = data.GroundY;
             Replica.BeginRoom(data.MinimumAcceptedTick);
@@ -233,7 +194,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         public MonsterSpawnBatch Spawn(IReadOnlyList<MonsterSpawnPlan> plans)
         {
-            EnsureAuthorityRoom();
             MonsterSpawnBatch batch = AuthorityRoom.Spawn(plans);
             if (batch.Count > 0)
             {
@@ -258,10 +218,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public bool DamageMonster(int storageIndex, float damage)
         {
-            if (AuthorityRoom == null || !AuthorityRoom.DamageMonster(storageIndex, damage))
+            if (AuthorityRoom == null || !AuthorityRoom.DamageMonster(storageIndex, damage, out bool killed))
                 return false;
 
-            if (!AuthorityRoom.World.IsActive(storageIndex))
+            if (killed)
                 _transport.SendDespawn(AuthorityRoom.GetMonsterEntityId(storageIndex));
             return true;
         }
@@ -296,8 +256,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return false;
             }
             ushort configIndex = AuthorityRoom.World.Meta[storageIndex].ConfigIndex;
-            return AuthorityRoom.World.TryGetHealthRatio(
-                storageIndex, Catalogs.Runtime.Get(configIndex).MaxHealth, out ratio);
+            ratio = AuthorityRoom.World.GetHealthRatio(storageIndex, Catalogs.Runtime.Get(configIndex).MaxHealth);
+            return true;
         }
 
         public bool SlowMonster(int storageIndex, float speedMultiplier, float duration, uint currentTick)
@@ -321,7 +281,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         /// </summary>
         private void TickAuthoritySimulation(uint tick)
         {
-            if (!_roomActive || AuthorityRoom == null) 
+            if (!_roomActive) 
                 return;
             PlayerManager players = PlayerManager.Instance;
             if (players == null || !players.IsInitialized) 
@@ -331,7 +291,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void ResolveAuthorityCombat(uint tick)
         {
-            if (!_roomActive || AuthorityRoom == null)
+            if (!_roomActive)
                 return;
 
             AuthorityRoom.ResolveCombat();
@@ -474,7 +434,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             AuthorityRoom.NetworkGroups.CompareDueGroups(left, right);
         public void ReceiveGroupMembership(ref FastBufferReader reader)
         {
-            if (!_roomActive || _networkManager.IsServer)
+            if (!_roomActive)
                 return;
 
             int count = MonsterNetworkCodec.ReadGroupMembershipHeader(ref reader, out uint groupId, out uint revision);
@@ -485,41 +445,32 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void ReceiveGroupSnapshot(MonsterGroupSnapshot frame, byte intervalTicks)
         {
-            if (!_roomActive || _networkManager.IsServer)
+            if (!_roomActive)
                 return;
 
             float duration = intervalTicks * _network.Clock.TickDeltaTime;
             Replica.ApplyGroupSnapshot(frame, _quantizer, Time.unscaledTime, duration);
         }
 
-        public void ReceiveRoomBegin(MonsterRoomBeginData data)
-        {
-            if (!IsInitialized || _networkManager.IsServer) 
-                return;
+        public void ReceiveRoomBegin(MonsterRoomBeginData data) =>
             BeginRoomLocal(data, 0);
-        }
 
         public void ReceiveSpawnBatch(MonsterSpawnBatch batch)
         {
-            if (!_roomActive || _networkManager.IsServer)
+            if (!_roomActive)
                 return;
             ApplySpawnBatchLocal(batch);
         }
 
         public void ReceiveDespawn(ulong entityId)
         {
-            if (!_roomActive || _networkManager.IsServer)
+            if (!_roomActive)
                 return;
 
             Replica.Despawn(entityId);
         }
 
-        public void ReceiveRoomEnd()
-        {
-            if (!IsInitialized || _networkManager.IsServer) 
-                return;
-            EndRoomLocal(true);
-        }
+        public void ReceiveRoomEnd() => EndRoomLocal();
 
         private void ApplySpawnBatchLocal(MonsterSpawnBatch batch)
         {
@@ -536,44 +487,34 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void EndRoom()
         {
-            if (!IsInitialized || !_roomActive) return;
+            if (!_roomActive) return;
             if (_networkManager.IsServer)
                 _transport.SendRoomEnd();
-            EndRoomLocal(true);
+            EndRoomLocal();
         }
 
-        private void EndRoomLocal(bool notify)
+        private void EndRoomLocal()
         {
-            if (!_roomActive && AuthorityRoom == null && _quantizer == null) 
+            if (!_roomActive)
                 return;
-            DisposeAuthorityRoom();
+            AuthorityRoom?.EndRoom();
+            AuthorityRoom = null;
             _duePoseGroups.Clear();
             Replica.BeginRoom(0);
             _quantizer = null;
             RoomGroundY = 0f;
             _roomActive = false;
-            if (notify)
-               RoomEnded?.Invoke();
-        }
-
-        private void DisposeAuthorityRoom()
-        {
-            if (AuthorityRoom == null) return;
-            AuthorityRoom.EndRoom();
-            AuthorityRoom = null;
+            RoomEnded?.Invoke();
         }
 
         public UniTask ShutdownAsync(CancellationToken cancellationToken)
         {
             if (!IsInitialized) return UniTask.CompletedTask;
             EndRoom();
-            if (_network != null)
-            {
-                _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
-                _network.Clock.Unsubscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
-                _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
-            }
-            _transport?.Shutdown();
+            _network.Clock.Unsubscribe(GameplayTickPhase.WorldSimulation, TickAuthoritySimulation);
+            _network.Clock.Unsubscribe(GameplayTickPhase.MeleeCombat, ResolveAuthorityCombat);
+            _network.Clock.Unsubscribe(GameplayTickPhase.Replication, PublishAuthorityState);
+            _transport.Shutdown();
             _transport = null;
             _authorityWriteFrame = null;
             _authorityPublishedFrame = null;
@@ -590,18 +531,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (Instance == this) Instance = null;
             IsInitialized = false;
             return UniTask.CompletedTask;
-        }
-
-        private void EnsureInitialized()
-        {
-            if (!IsInitialized) throw new InvalidOperationException("MonsterRuntimeService 尚未初始化。");
-        }
-
-        private void EnsureAuthorityRoom()
-        {
-            EnsureInitialized();
-            if (!_networkManager.IsServer || !_roomActive || AuthorityRoom == null)
-                throw new InvalidOperationException("Monster 权威房间尚未开始。");
         }
 
         private void OnDestroy() => ShutdownAsync(CancellationToken.None).Forget();

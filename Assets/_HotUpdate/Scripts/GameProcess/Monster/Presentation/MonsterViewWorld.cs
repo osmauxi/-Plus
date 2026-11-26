@@ -21,7 +21,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private byte[] _attackSequence = Array.Empty<byte>();
         private byte[] _hitSequence = Array.Empty<byte>();
         private uint _lastReplicaRevision;
-        private bool _disposed;
 
         public int ViewSlotCount => _vatWorld.ViewSlotCount;
         public int ActiveRenderCount => _vatWorld.ActiveCount;
@@ -40,7 +39,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void ApplySpawnBatch(MonsterSpawnBatch batch)
         {
-            EnsureUsable();
             int startViewSlot = ViewSlotCount;
             EnsureCapacity(startViewSlot + batch.Count);
             for (int created = 0; created < batch.Count; created++)
@@ -105,7 +103,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void Clear()
         {
-            EnsureUsable();
             _vatWorld.Clear();
             Array.Clear(_attackSequence, 0, _attackSequence.Length);
             Array.Clear(_hitSequence, 0, _hitSequence.Length);
@@ -117,17 +114,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float unscaledDeltaTime,
             float now)
         {
-            EnsureUsable();
             if (_lastReplicaRevision != replica.ViewRevision)
                 SyncReplica(replica, now);
             _vatWorld.Update(deltaTime, unscaledDeltaTime, now);
         }
 
-        public void Render()
-        {
-            EnsureUsable();
-            _vatWorld.Render();
-        }
+        public void Render() => _vatWorld.Render();
 
         private void EnsureCapacity(int count)
         {
@@ -135,23 +127,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
             int capacity = Math.Max(64, _attackSequence.Length);
             while (capacity < count)
-                capacity = checked(capacity * 2);
+                capacity *= 2;
             Array.Resize(ref _attackSequence, capacity);
             Array.Resize(ref _hitSequence, capacity);
         }
 
-        private void EnsureUsable()
-        {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(MonsterViewWorld));
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
-            Clear();
-            _disposed = true;
-        }
+        public void Dispose() => Clear();
     }
 }

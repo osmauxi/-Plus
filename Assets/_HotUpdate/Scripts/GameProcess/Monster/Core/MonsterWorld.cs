@@ -74,14 +74,10 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return storageIndex;
         }
 
-        private bool Kill(int storageIndex)
+        private void Kill(int storageIndex)
         {
-            if (!IsActive(storageIndex))
-                return false;
-
             _meta[storageIndex].IsActive = false;
             _pendingDeathStorageIndices[_pendingDeathCount++] = storageIndex;
-            return true;
         }
 
         public bool CompactDead()
@@ -117,15 +113,22 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return true;
         }
 
-        public bool Damage(int storageIndex, float amount)
+        public bool Damage(int storageIndex, float amount) =>
+            Damage(storageIndex, amount, out _);
+
+        internal bool Damage(int storageIndex, float amount, out bool killed)
         {
             if (!IsActive(storageIndex))
+            {
+                killed = false;
                 return false;
+            }
 
             ref MonsterHealthData health = ref _health[storageIndex];
             health.CurrentHealth = Mathf.Max(0f, health.CurrentHealth - amount);
             _presentation[storageIndex].HitSequence++;
-            if (health.CurrentHealth <= 0f)
+            killed = health.CurrentHealth <= 0f;
+            if (killed)
                 Kill(storageIndex);
             return true;
         }
@@ -159,9 +162,12 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return false;
             }
 
-            ratio = _health[storageIndex].CurrentHealth / maxHealth;
+            ratio = GetHealthRatio(storageIndex, maxHealth);
             return true;
         }
+
+        internal float GetHealthRatio(int storageIndex, float maxHealth) =>
+            _health[storageIndex].CurrentHealth / maxHealth;
 
         public bool ApplySlow(int storageIndex, float speedMultiplier, uint currentTick, uint endTick)
         {

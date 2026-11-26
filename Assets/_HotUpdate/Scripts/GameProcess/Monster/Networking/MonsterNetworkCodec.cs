@@ -34,14 +34,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         internal static ulong ReadDespawn(ref FastBufferReader reader)
         {
+            if (!reader.TryBeginRead(sizeof(ulong)))
+                throw new ArgumentException("Monster Despawn 数据被截断。");
             return ReadUInt64(ref reader);
         }
 
-        public static int WriteRoomBegin(ref FastBufferWriter writer,in MonsterRoomBeginData data)
+        public static int WriteRoomBegin(ref FastBufferWriter writer, in MonsterRoomBeginData data)
         {
-            if (!writer.TryBeginWrite(RoomBeginSize))
-                throw new OverflowException("Monster RoomBegin Writer 容量不足。");
-
             WriteSingle(ref writer, data.QuantizationOrigin.x);
             WriteSingle(ref writer, data.QuantizationOrigin.y);
             WriteSingle(ref writer, data.QuantizationSize.x);
@@ -73,25 +72,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             return length;
         }
 
-        /// <summary>按成员表的顺序写入一组的完整状态，满组为 655 字节。</summary>
-        internal static void WriteGroupSnapshot(
-            ref FastBufferWriter writer, MonsterGroupSnapshot frame, byte intervalTicks, int length)
-        {
-            using var serializeScope = SerializeMarker.Auto();
-            // Transport 按编码长度创建 Writer，这里只登记可写范围。
-            writer.TryBeginWrite(length);
-            WriteGroupSnapshotPayload(ref writer, frame, intervalTicks);
-        }
-
         internal static void WriteGroupSnapshotBatch(
             ref FastBufferWriter writer,
             IReadOnlyList<MonsterGroupSnapshot> frames,
-            IReadOnlyList<byte> intervalTicks,
-            int length)
+            IReadOnlyList<byte> intervalTicks)
         {
             using var serializeScope = SerializeMarker.Auto();
-            writer.TryBeginWrite(length);
-            WriteUInt16(ref writer, checked((ushort)frames.Count));
+            WriteUInt16(ref writer, (ushort)frames.Count);
             for (int i = 0; i < frames.Count; i++)
                 WriteGroupSnapshotPayload(ref writer, frames[i], intervalTicks[i]);
         }
@@ -131,11 +118,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             ref FastBufferWriter writer,
             uint groupId,
             uint membershipRevision,
-            ReadOnlySpan<ulong> memberEntityIds,
-            int length)
+            ReadOnlySpan<ulong> memberEntityIds)
         {
-            writer.TryBeginWrite(length);
-
             WriteUInt32(ref writer, groupId);
             WriteUInt32(ref writer, membershipRevision);
             WriteUInt16(ref writer, (ushort)memberEntityIds.Length);
@@ -180,14 +164,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int memberCount = ReadUInt16(ref reader);
             reader.ReadByte(out intervalTicks);
 
-            if (intervalTicks != MonsterNetworkGroupKernel.InnerInterval &&
-                intervalTicks != MonsterNetworkGroupKernel.MiddleInterval &&
-                intervalTicks != MonsterNetworkGroupKernel.OuterInterval)
-                throw new ArgumentException("Monster GroupSnapshot 发送间隔非法。");
-
-            if (memberCount == 0 || memberCount > MonsterNetworkGroupKernel.GroupCapacity ||
+            if (intervalTicks == 0 || memberCount == 0 || memberCount > MonsterNetworkGroupKernel.GroupCapacity ||
                 !reader.TryBeginRead(memberCount * GroupMemberStateSize))
-                throw new ArgumentException("Monster GroupSnapshot 成员数量或包体长度非法。");
+                throw new ArgumentException("Monster GroupSnapshot 发送间隔、成员数量或包体长度非法。");
 
             destination.BeginWrite(groupId, membershipRevision, serverTick, memberCount);
             MonsterPackedState[] states = destination.MemberBuffer;
@@ -202,15 +181,11 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
 
         public static int GetSpawnByteCount(MonsterSpawnBatch batch) =>
-            checked(SpawnHeaderSize + (ushort)batch.Count * 14);
+            SpawnHeaderSize + batch.Count * 14;
 
         public static void WriteSpawn(ref FastBufferWriter writer, MonsterSpawnBatch batch)
         {
-            int length = GetSpawnByteCount(batch);
-            if (!writer.TryBeginWrite(length))
-                throw new OverflowException("Monster Spawn Writer 容量不足。");
-
-            WriteUInt16(ref writer, checked((ushort)batch.Count));
+            WriteUInt16(ref writer, (ushort)batch.Count);
 
             for (int i = 0; i < batch.Count; i++)
             {

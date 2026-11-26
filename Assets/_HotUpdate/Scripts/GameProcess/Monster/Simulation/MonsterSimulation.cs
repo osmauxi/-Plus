@@ -87,7 +87,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private int _flowFieldDataVersion;
         private int _flowCellCacheVersion = -1;
         private RoomGridTransformData _gridTransform;
-        private float _gridTransformGroundY = float.NaN;
         private byte[] _walkableCells = Array.Empty<byte>();
         private Vector2[] _targetPositionScratch = Array.Empty<Vector2>();
         private MonsterTargetResult[] _targetResults = Array.Empty<MonsterTargetResult>();
@@ -118,13 +117,13 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             RuntimeNavigationGrid navigationGrid,
             Transform roomRoot)
         {
-            _configs = configs ?? throw new ArgumentNullException(nameof(configs));
-            _navigationGrid = navigationGrid ?? throw new ArgumentNullException(nameof(navigationGrid));
-            _roomRoot = roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
+            _configs = configs;
+            _navigationGrid = navigationGrid;
+            _roomRoot = roomRoot;
 
-            _separation = new MonsterSeparationSystem(roomRoot,RoomSpatialData.HalfSize,3f,4f);
+            _separation = new MonsterSeparationSystem(roomRoot, RoomSpatialData.HalfSize, 3f, 4f);
 
-            int cellCount = checked(_navigationGrid.Width * _navigationGrid.Height);
+            int cellCount = _navigationGrid.Width * _navigationGrid.Height;
             _densitySystem = new MonsterNavigationDensitySystem(cellCount);
             _flowField = new MultiSourceFlowField(_navigationGrid.Width, _navigationGrid.Height);
             _topologyReferenceFlowField = new MultiSourceFlowField(
@@ -143,7 +142,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float deltaTime = input.DeltaTime;
             float groundY = input.GroundY;
             MonsterOccupancySnapshot occupancySnapshot = input.OccupancySnapshot;
-            EnsureGridTransform(groundY);
 
             using (DensityUpdateMarker.Auto())
                 _densitySystem.Update(occupancySnapshot, _navigationGrid, tick);
@@ -326,8 +324,14 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             }
         }
 
-        public void ResetDiagnostics()
+        public void BeginRoom(float groundY)
         {
+            _gridTransform = new RoomGridTransformData(
+                _roomRoot.worldToLocalMatrix,
+                _roomRoot.localToWorldMatrix,
+                groundY,
+                RoomSpatialData.HalfSize,
+                RoomSpatialData.CellSize);
             TopologyRebuildCount = 0;
             SourceRebuildCount = 0;
             CostRebuildCount = 0;
@@ -337,21 +341,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             Array.Fill(_recoveryCacheVersions, -1);
         }
 
-        private void EnsureGridTransform(float groundY)
-        {
-            if (!float.IsNaN(_gridTransformGroundY) &&
-                Mathf.Abs(_gridTransformGroundY - groundY) <= 0.0001f)
-                return;
-
-            _gridTransform = new RoomGridTransformData(
-                _roomRoot.worldToLocalMatrix,
-                _roomRoot.localToWorldMatrix,
-                groundY,
-                RoomSpatialData.HalfSize,
-                RoomSpatialData.CellSize);
-            _gridTransformGroundY = groundY;
-        }
-
         public void EnsureCapacity(int capacity)
         {
             if (capacity <= _targetResults.Length)
@@ -359,7 +348,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             int next = Math.Max(64, _targetResults.Length);
             while (next < capacity)
-                next = checked(next * 2);
+                next *= 2;
             Array.Resize(ref _targetResults, next);
             Array.Resize(ref _targetPositionScratch, next);
             Array.Resize(ref _pendingMeleeAttacks, next);

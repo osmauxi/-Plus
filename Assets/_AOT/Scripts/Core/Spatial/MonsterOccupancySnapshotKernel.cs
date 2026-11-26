@@ -61,8 +61,8 @@ namespace ProjectGame.Core.Spatial
             _bucketHeight = Mathf.Max(
                 1,
                 Mathf.CeilToInt((_bucketMax.y - _bucketOrigin.y) * _inverseBucketSize));
-            _fineCellCounts = new int[checked(_fineWidth * _fineHeight)];
-            _bucketHeads = new int[checked(_bucketWidth * _bucketHeight)];
+            _fineCellCounts = new int[_fineWidth * _fineHeight];
+            _bucketHeads = new int[_bucketWidth * _bucketHeight];
             _activeBuckets = new int[_bucketHeads.Length];
             EnsureCapacity(initialCapacity);
             Clear();
@@ -84,11 +84,10 @@ namespace ProjectGame.Core.Spatial
             Matrix4x4 roomWorldToLocal)
         {
             StorageCount = storageCount;
-            ActiveCount = 0;
+            ActiveCount = storageCount;
             ActiveBucketCount = 0;
             Array.Clear(_fineCellCounts, 0, _fineCellCounts.Length);
             Array.Fill(_bucketHeads, -1);
-            ActiveCount = storageCount;
 
             for (int storageIndex = 0; storageIndex < storageCount; storageIndex++)
             {

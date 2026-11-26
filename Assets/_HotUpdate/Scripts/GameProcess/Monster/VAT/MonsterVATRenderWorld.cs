@@ -47,9 +47,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         public void Spawn(int viewSlot, in MonsterVATRenderProfile profile, Vector2 position, float yaw)
         {
-            if (viewSlot != _viewSlotCount)
-                throw new InvalidOperationException($"Monster VAT ViewSlot 必须连续追加：Expected={_viewSlotCount}, Actual={viewSlot}。");
-
             EnsureCapacity(viewSlot + 1);
             int groupIndex = GetOrCreateGroup(profile);
             RenderGroup group = _groups[groupIndex];
@@ -293,7 +290,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private static void Tick(ref InstanceState state, RenderGroup group,
             float deltaTime, float unscaledDeltaTime)
         {
-            deltaTime = Mathf.Max(0f, deltaTime);
             state.SourceTime += deltaTime;
             state.TargetTime += deltaTime;
             state.HitFlashRemaining = Mathf.Max(0f, state.HitFlashRemaining - unscaledDeltaTime);
@@ -335,7 +331,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             state.TargetTime = 0f;
             state.TargetLoop = loop;
             state.TransitionElapsed = 0f;
-            state.TransitionDuration = Mathf.Max(0f, duration);
+            state.TransitionDuration = duration;
             if (state.TransitionDuration <= 0f)
                 CompleteTransition(ref state);
         }
@@ -374,7 +370,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         }
 
         private static float GetClipDuration(VATClipData clip) =>
-            clip.FrameCount / Mathf.Max(clip.FrameRate, 0.01f);
+            clip.FrameCount / clip.FrameRate;
 
         private void EnsureCapacity(int count)
         {
@@ -382,7 +378,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return;
             int capacity = Math.Max(64, _states.Length);
             while (capacity < count)
-                capacity = checked(capacity * 2);
+                capacity *= 2;
             Array.Resize(ref _states, capacity);
         }
         /// <summary>
@@ -476,7 +472,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 IdleClip = FindClip(Clips, "idle");
                 WalkClip = FindClip(Clips, "walk");
                 AttackClip = FindClip(Clips, "attack");
-                CrossFadeDuration = Mathf.Max(0f, profile.CrossFadeDuration);
+                CrossFadeDuration = profile.CrossFadeDuration;
                 MovementThreshold = profile.MovementThreshold;
                 HitFlashDuration = profile.HitFlashDuration;
                 RootScale = profile.RootScale;
@@ -542,7 +538,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return Asset == profile.Asset
                     && _materialAsset == profile.Material
                     && SourceMaterial == profile.SourceMaterial
-                    && CrossFadeDuration == Mathf.Max(0f, profile.CrossFadeDuration)
+                    && CrossFadeDuration == profile.CrossFadeDuration
                     && MovementThreshold == profile.MovementThreshold
                     && HitFlashDuration == profile.HitFlashDuration
                     && HitFlashColor == profile.HitFlashColor

@@ -88,8 +88,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private readonly MonsterQuadTreeKernel _kernel;
         //保存每个slot的位置
         private Vector2[] _spatialPositions;
-        //标记每个slot是否活跃，1表示活跃，0表示不活跃
-        private byte[] _spatialActiveMask;
         private bool _isBuilt;
         private bool _performanceDiagnosticsEnabled;
         private int[] _candidateCountHistogram;
@@ -119,9 +117,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             CalculateWorldBounds(roomRoot, roomHalfSize, out Vector2 min, out Vector2 max);
             Vector2 rootCenter = (min + max) * 0.5f;
             float rootHalfSize = Mathf.Max(max.x - min.x, max.y - min.y) * 0.5f;
-            //AOT内核不直接绑定到MonsterWorld，而是通过HotFix层传入位置数组和活跃掩码数组
+            //AOT内核不直接绑定到MonsterWorld，而是通过HotFix层传入位置数组
             _spatialPositions = new Vector2[initialMonsterCapacity];
-            _spatialActiveMask = new byte[initialMonsterCapacity];
             _kernel = new MonsterQuadTreeKernel(rootCenter, rootHalfSize, initialMonsterCapacity);
             _kernel.SetPositionBuffer(_spatialPositions);
         }
@@ -178,7 +175,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             Vector2 position = world.Motion[storageIndex].Position;
             _spatialPositions[storageIndex] = position;
-            _spatialActiveMask[storageIndex] = 1;
             _kernel.Add(storageIndex, position);
         }
 
@@ -187,7 +183,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!_isBuilt)
                 return;
 
-            _spatialActiveMask[storageIndex] = 0;
             _kernel.Remove(storageIndex);
         }
 
@@ -278,12 +273,9 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             using (BuildMarker.Auto())
             {
                 for (int storageIndex = 0; storageIndex < world.StorageCount; storageIndex++)
-                {
                     _spatialPositions[storageIndex] = world.Motion[storageIndex].Position;
-                    _spatialActiveMask[storageIndex] = 1;
-                }
 
-                _kernel.Build(_spatialPositions, _spatialActiveMask, world.StorageCount);
+                _kernel.Build(_spatialPositions, world.StorageCount);
                 _isBuilt = true;
                 BuildVersion++;
                 if (_performanceDiagnosticsEnabled)
@@ -303,7 +295,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int previousCapacity = _spatialPositions.Length;
             int capacity = Math.Max(count, previousCapacity == 0 ? 64 : previousCapacity * 2);
             Array.Resize(ref _spatialPositions, capacity);
-            Array.Resize(ref _spatialActiveMask, capacity);
             _kernel.EnsureCapacity(capacity);
             _kernel.SetPositionBuffer(_spatialPositions);
         }

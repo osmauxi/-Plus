@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -39,10 +38,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 return UniTask.CompletedTask;
 
             _runtime = MonsterRuntimeService.Instance;
-            if (_runtime == null || !_runtime.IsInitialized || _profileCatalog == null)
-                throw new InvalidOperationException(
-                    "MonsterViewRuntimeService 必须在 MonsterRuntimeService 后初始化，并配置 Monster VAT Profile Catalog。");
-
             _runtime.RoomBegan += OnRoomBegan;
             _runtime.RoomEnded += OnRoomEnded;
             _runtime.SpawnBatchReceived += OnSpawnBatchReceived;
@@ -61,7 +56,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _runtime.RoomEnded -= OnRoomEnded;
             _runtime.SpawnBatchReceived -= OnSpawnBatchReceived;
             _runtime.PresentationFrameApplied -= OnPresentationFrameApplied;
-            DisposeViewWorld();
+            ReleaseViewWorld();
             _runtime = null;
             IsInitialized = false;
             return UniTask.CompletedTask;
@@ -69,7 +64,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void OnRoomBegan(MonsterRoomBeginData data)
         {
-            DisposeViewWorld();
+            ReleaseViewWorld();
             _vatWorld = new MonsterVATRenderWorld(data.GroundY);
             _viewWorld = new MonsterViewWorld(
                 _runtime.Catalogs.Views,
@@ -80,7 +75,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             enabled = true;
         }
 
-        private void OnRoomEnded() => DisposeViewWorld();
+        private void OnRoomEnded() => ReleaseViewWorld();
 
         private void OnSpawnBatchReceived(MonsterSpawnBatch batch)
         {
@@ -127,22 +122,20 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         private void HandleBeginContextRendering(ScriptableRenderContext context,List<Camera> cameras)
             => _viewWorld.Render();
 
-        private void DisposeViewWorld()
-        {
-            enabled = false;
-            ReleaseViewWorld();
-        }
-
         private void OnDisable() => ReleaseViewWorld();
 
         private void ReleaseViewWorld()
         {
-            RenderPipelineManager.beginContextRendering -= HandleBeginContextRendering;
             MonsterViewWorld viewWorld = _viewWorld;
+            MonsterVATRenderWorld vatWorld = _vatWorld;
             _viewWorld = null;
-            viewWorld?.Dispose();
-            _vatWorld?.Dispose();
             _vatWorld = null;
+            enabled = false;
+            if (vatWorld == null)
+                return;
+            RenderPipelineManager.beginContextRendering -= HandleBeginContextRendering;
+            viewWorld?.Dispose();
+            vatWorld.Dispose();
         }
 
         private void OnDestroy() => ShutdownAsync(CancellationToken.None).Forget();

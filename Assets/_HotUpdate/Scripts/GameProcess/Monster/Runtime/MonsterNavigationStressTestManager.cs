@@ -155,9 +155,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             int randomSeed,
             BenchmarkMonsterSpawnArea spawnArea)
         {
-            if (monsterCount < 1)
-                throw new ArgumentOutOfRangeException(nameof(monsterCount));
-
             _hasBenchmarkOverride = true;
             _benchmarkMonsterCount = monsterCount;
             _benchmarkSeed = randomSeed;
@@ -187,16 +184,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             if (!_autoStart || mapEvent.Layout.StrategyType != MapLayoutStrategyType.StressArena || !IsServer())
                 return;
 
-            ValidateSettings();
-
-            if (_mapVisualBuilder == null)
-                throw new InvalidOperationException("压测管理器没有绑定 MapVisualBuilder。");
-
-            if (_monsterRuntimeService == null)
-                throw new InvalidOperationException("压测管理器没有绑定 MonsterRuntimeService。");
-
-            if (!_mapVisualBuilder.TryGetRoom(mapEvent.Layout.StartRoomId, out RoomViewRuntime roomRuntime))
-                throw new InvalidOperationException($"找不到压测房间：RoomId={mapEvent.Layout.StartRoomId}");
+            _mapVisualBuilder.TryGetRoom(mapEvent.Layout.StartRoomId, out RoomViewRuntime roomRuntime);
 
             _generationId = mapEvent.GenerationId;
             _roomView = roomRuntime.View;
@@ -322,12 +310,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
         private void BeginMonsterRoom()
         {
-            if (!_monsterRuntimeService.IsInitialized)
-                throw new InvalidOperationException("MonsterRuntimeService 尚未初始化。");
-
-            if (_monsterRuntimeService.IsRoomActive)
-                throw new InvalidOperationException("MonsterRuntimeService 已有活动房间，不能启动导航压测。");
-
             RoomSpawnRegion region = _roomView.SpawnRegion;
             if (!TrySampleAnyGround(region, out Vector3 ground))
                 throw new InvalidOperationException("压测房间 SpawnRegion 内找不到 Ground。");
@@ -357,12 +339,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             _useGlobalSpawnSpacing = _spawnArea == MonsterStressSpawnArea.WholeRoomSpawnRegion;
             if (_useGlobalSpawnSpacing)
-            {
-                // 10024 怪不能继续挤在固定 150 米环带中；使用整个房间后，
-                // 生成密度和四叉树空间分布都与真实大规模压力更接近。
-                _spawnArea = MonsterStressSpawnArea.WholeRoomSpawnRegion;
                 _spawnedGroundPositions.Clear();
-            }
         }
 
         private bool TryBuildSpawnPlans(int count)
@@ -434,10 +411,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
 
             if (_spawnCenter == MonsterStressSpawnCenter.FirstPlayer)
             {
-                IReadOnlyList<PlayerRuntime> players = PlayerManager.Instance.RuntimePlayers;
-                if (players.Count == 0)
-                    throw new InvalidOperationException("压测生成时已经没有可用玩家。");
-                center = players[0].transform.position;
+                center = PlayerManager.Instance.RuntimePlayers[0].transform.position;
             }
             else
             {
@@ -625,12 +599,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             MonsterCatalogBundle catalogs = _monsterRuntimeService.Catalogs;
 
             if (_useFirstSpawnCatalogEntry)
-            {
-                if (catalogs.Spawns.Count == 0)
-                    throw new InvalidOperationException("MonsterSpawn 配表没有可用于压测的配置。");
-
                 return catalogs.Spawns.Get(0).ConfigIndex;
-            }
 
             if (!catalogs.Runtime.TryGetIndex(_monsterConfigId, out ushort index))
                 throw new InvalidOperationException($"找不到压测怪物 ConfigId={_monsterConfigId}。");
@@ -660,12 +629,8 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 _spawnRoutine = null;
             }
 
-            if (endMonsterRoom && _ownsMonsterRoom && IsServer() &&
-                _monsterRuntimeService != null && _monsterRuntimeService.IsInitialized &&
-                _monsterRuntimeService.IsRoomActive)
-            {
+            if (endMonsterRoom && _ownsMonsterRoom && IsServer() && _monsterRuntimeService != null)
                 _monsterRuntimeService.EndRoom();
-            }
 
             _ownsMonsterRoom = false;
             _generationId = -1;
@@ -678,33 +643,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             _spawnPlans.Clear();
             _batchGroundPositions.Clear();
             _spawnedGroundPositions.Clear();
-        }
-
-        private void ValidateSettings()
-        {
-            if (_targetAliveMonsterCount < 1)
-                throw new InvalidOperationException("压测目标存活数量必须大于 0。");
-            if (_maximumTotalSpawnCount < _targetAliveMonsterCount)
-                throw new InvalidOperationException("压测总生成上限不能小于目标存活数量。");
-            if (_spawnBatchSize < 1 || _spawnAttemptsPerMonster < 1)
-                throw new InvalidOperationException("压测批次和采样尝试次数必须大于 0。");
-            if (!IsNonNegativeFinite(_startDelaySeconds) ||
-                !IsNonNegativeFinite(_batchIntervalSeconds) ||
-                !IsPositiveFinite(_refillCheckIntervalSeconds) ||
-                !IsPositiveFinite(_spawnRadius) ||
-                !IsNonNegativeFinite(_ringThickness) ||
-                !IsNonNegativeFinite(_minimumSpawnSpacing) ||
-                !IsNonNegativeFinite(_minimumPlayerSpawnDistance) ||
-                !IsNonNegativeFinite(_groundHeightTolerance) ||
-                !IsNonNegativeFinite(_raycastPadding))
-            {
-                throw new InvalidOperationException("压测管理器包含非法的时间、半径、间距或地面检测参数。");
-            }
-            if (!Enum.IsDefined(typeof(MonsterStressSpawnCenter), _spawnCenter) ||
-                !Enum.IsDefined(typeof(MonsterStressSpawnArea), _spawnArea))
-            {
-                throw new InvalidOperationException("压测生成中心或生成区域枚举非法。");
-            }
         }
 
         private static float CalculateFacingYaw(Vector3 position, Vector3 center)
@@ -720,11 +658,5 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             NetworkManager manager = NetworkManager.Singleton;
             return manager != null && manager.IsListening && manager.IsServer;
         }
-
-        private static bool IsNonNegativeFinite(float value) =>
-            value >= 0f && !float.IsNaN(value) && !float.IsInfinity(value);
-
-        private static bool IsPositiveFinite(float value) =>
-            value > 0f && !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }

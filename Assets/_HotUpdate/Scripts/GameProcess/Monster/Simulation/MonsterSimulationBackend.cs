@@ -29,7 +29,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
         bool IsFlowProgressCorrectionCell(int x, int y);
         Vector2 GetRawSeparation(int storageIndex);
         void EnsureCapacity(int capacity);
-        void ResetDiagnostics();
+        void BeginRoom(float groundY);
     }
 
     /// <summary>

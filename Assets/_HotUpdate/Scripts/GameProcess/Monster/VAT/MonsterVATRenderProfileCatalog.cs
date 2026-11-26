@@ -27,9 +27,6 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
                 MonsterVATRenderProfileCatalogEntry entry = _entries[i];
                 if (entry.LocalPoolId != localPoolId)
                     continue;
-                if (entry.Profile == null)
-                    throw new InvalidOperationException(
-                        $"Monster VAT Profile Catalog 条目缺少 Profile：{localPoolId}");
                 return entry.Profile.ToRuntimeProfile();
             }
 

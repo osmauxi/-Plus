@@ -1,4 +1,3 @@
-using System;
 using ProjectGame.Core.Spatial;
 using ProjectGame.HotFix.Gameplay.Map;
 using UnityEngine;
@@ -35,7 +34,7 @@ namespace ProjectGame.HotFix.Gameplay.Monsters
             float separationRadius,
             int initialCapacity)
         {
-            _roomRoot = roomRoot ?? throw new ArgumentNullException(nameof(roomRoot));
+            _roomRoot = roomRoot;
             CalculateWorldBounds(roomRoot, roomHalfSize, out Vector2 min, out Vector2 max);
             _kernel = new MonsterOccupancySnapshotKernel(
                 RoomSpatialData.HalfSize,

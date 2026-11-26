@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Character;
@@ -68,20 +67,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public async UniTask LoadAsync(PlayerSessionData sessionData, CancellationToken cancellationToken)
         {
             if (IsLoaded)
-            {
-                if (CharacterId == sessionData.CharacterId)
-                    return;
+                return;
 
-                throw new InvalidOperationException($"Gameplay 中不允许修改玩家角色：Current={CharacterId}，Requested={sessionData.CharacterId}");
-            }
-
-            if (_loadCts != null)
-                throw new InvalidOperationException("角色模型正在加载中，不能重复调用 LoadAsync ");
-
-            if (_visualRoot == null)
-                throw new InvalidOperationException($"{nameof(PlayerAppearanceController)} 没有配置 VisualRoot ");
-
-            Config_Lobby_Skins config = GetCharacterConfig(sessionData.CharacterId);
+            Config_Lobby_Skins config = ConfigManager.Instance.GetTable<Config_Lobby_Skins>()[sessionData.CharacterId];
             GameplayCharacterPresentation presentation = GetGameplayPresentation(sessionData.CharacterId);
             string characterAddress = presentation != null &&
                                       !string.IsNullOrWhiteSpace(presentation.ModelAddress)
@@ -108,32 +96,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
                     loadToken.ThrowIfCancellationRequested();
                 }
 
-                if (handle.Status != AsyncOperationStatus.Succeeded || handle.Result == null)
-                {
-                    ReleaseLoadedHandle(handle);
-                    throw new InvalidOperationException($"角色 CharacterId={sessionData.CharacterId} 加载失败：{characterAddress}");
-                }
-
                 GameObject characterInstance = handle.Result;
                 characterInstance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-
-                if (!characterInstance.TryGetComponent(out PlayerModelView modelView))
-                {
-                    ReleaseLoadedHandle(handle);
-                    throw new InvalidOperationException($"角色 CharacterId={sessionData.CharacterId} 缺少 {nameof(PlayerModelView)} ");
-                }
-
-                if (modelView.AnimationBridge == null)
-                {
-                    ReleaseLoadedHandle(handle);
-                    throw new InvalidOperationException($"角色 CharacterId={sessionData.CharacterId} 的 {nameof(PlayerModelView)} 没有配置 {nameof(CharacterAnimationBridge)} ");
-                }
-
-                if (modelView.Animator == null)
-                {
-                    ReleaseLoadedHandle(handle);
-                    throw new InvalidOperationException($"角色 CharacterId={sessionData.CharacterId} 的 {nameof(PlayerModelView)} 没有配置 Animator ");
-                }
+                PlayerModelView modelView = characterInstance.GetComponent<PlayerModelView>();
 
                 // 在公开 ModelView/IsLoaded 前先安装 Gameplay Controller 
                 // PlayerAnimationDriver 在 LateUpdate 观察 ModelView，因而不会绑定到仍使用旧 Controller 的中间状态 
@@ -176,26 +141,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
             IsLoaded = false;
         }
 
-        /// <summary>从已加载配置表解析角色资源键；找不到时立即失败，避免异步流程加载错误默认模型 </summary>
-        private static Config_Lobby_Skins GetCharacterConfig(int characterId)
-        {
-            Dictionary<int, Config_Lobby_Skins> table = ConfigManager.Instance.GetTable<Config_Lobby_Skins>();
-
-            if (table != null && table.TryGetValue(characterId, out Config_Lobby_Skins config))
-                return config;
-
-            throw new KeyNotFoundException($"不存在角色配置：CharacterId={characterId}");
-        }
-
         private GameplayCharacterPresentation GetGameplayPresentation(int characterId)
         {
-            if (_gameplayCharacters == null)
-                return null;
-
             for (int i = 0; i < _gameplayCharacters.Length; i++)
             {
                 GameplayCharacterPresentation presentation = _gameplayCharacters[i];
-                if (presentation != null && presentation.CharacterId == characterId)
+                if (presentation.CharacterId == characterId)
                     return presentation;
             }
 

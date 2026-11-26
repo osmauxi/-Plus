@@ -148,9 +148,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>服务器拒绝的过旧输入数量 </summary>
         public int ServerOutdatedInputCount => _serverAuthority?.OutdatedInputCount ?? 0;
 
-        /// <summary>服务器因 NaN（非数）或 Infinity（无穷值）等不可修复数据而拒绝的输入数量 </summary>
-        public int ServerInvalidInputCount => _serverAuthority?.InvalidInputCount ?? 0;
-
         /// <summary>服务器拒绝的、超出允许未来窗口的输入数量 </summary>
         public int ServerInvalidFutureInputCount => _serverAuthority?.InvalidFutureInputCount ?? 0;
 
@@ -173,26 +170,26 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         public int RemoteBufferedSnapshots => _remoteInterpolation?.BufferedSnapshotCount ?? 0;
 
         /// <summary>最近一次模拟、恢复或插值应用后的运动表现状态 </summary>
-        public PlayerMotionState MotionState => _simulation?.MotionState ?? default;
+        public PlayerMotionState MotionState => _simulation.MotionState;
 
         /// <summary>当前生命状态和移动模式 </summary>
-        public PlayerControlState ControlState => _simulation?.ControlState ?? default;
+        public PlayerControlState ControlState => _simulation.ControlState;
         /// <summary>当前最终表现时间轴上的世界平面瞄准方向，Vector2(x,z) </summary>
-        public Vector2 AimDirection => _simulation?.AimDirection ?? Vector2.zero;
+        public Vector2 AimDirection => _simulation.AimDirection;
         /// <summary>Aim Root 当前是否处于迟滞跟随阶段 </summary>
-        public bool IsAimBodyTurning => _simulation?.IsAimBodyTurning ?? false;
+        public bool IsAimBodyTurning => _simulation.IsAimBodyTurning;
         /// <summary>
         /// Aim Root 开始跟随前允许的最大水平偏角 
         /// 表现层用它限制上半身扭转，避免动画阈值与 Simulation 判定各自维护一份数值 
         /// </summary>
-        public float AimBodyTurnStartAngle => _movementConfig?.AimBodyTurnStartAngle ?? 0f;
+        public float AimBodyTurnStartAngle => _movementConfig.AimBodyTurnStartAngle;
         /// <summary>当前体力、恢复延迟和耗尽状态 </summary>
-        public PlayerStaminaState StaminaState => _simulation?.StaminaState ?? default;
+        public PlayerStaminaState StaminaState => _simulation.StaminaState;
         /// <summary>
         /// 当前最终表现时间轴上的动作运行状态 
         /// Owner 对应预测/校正结果，Remote 对应插值选择结果，Animator Driver 无需自行判断网络身份 
         /// </summary>
-        public PlayerActionRuntimeState ActionState => _simulation?.ActionState ?? default;
+        public PlayerActionRuntimeState ActionState => _simulation.ActionState;
 
         public bool IsSimulationInitialized => _initialized;
         // 只在服务器实际推进 Tick 后通知；预测重放不会触发弹丸副作用。
@@ -200,7 +197,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
         public void ConfigureWeapon(Weapon.WeaponDefinition definition)
         {
-            if (!_initialized) throw new InvalidOperationException("玩家模拟尚未初始化。");
             _simulation.ConfigureWeapon(definition);
             uint tick = _simulationClock.CurrentTick;
             var state = _simulation.CaptureState(tick);
@@ -212,8 +208,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
         public void ConfigureWeaponStats(in Weapon.WeaponStatSnapshot stats)
         {
-            if (!_initialized) 
-                throw new InvalidOperationException("玩家模拟尚未初始化。");
             _simulation.ConfigureWeaponStats(stats);
             uint tick = _simulationClock.CurrentTick;
             _prediction?.Reset(tick);
@@ -230,8 +224,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             ushort effectSetId,
             ushort snapshotVersion)
         {
-            if (!_initialized) 
-                throw new InvalidOperationException("玩家模拟尚未初始化。");
             _simulation.ConfigureWeaponRuntime(stats, effectSetId, snapshotVersion);
             uint tick = _simulationClock.CurrentTick;
             var state = _simulation.CaptureState(tick);
@@ -247,8 +239,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
         public void RefillWeaponForBenchmark()
         {
-            if (!_initialized)
-                throw new InvalidOperationException("玩家模拟尚未初始化。");
             _simulation.RefillWeaponForBenchmark();
             uint tick = _simulationClock.CurrentTick;
             PlayerSimulationState state = _simulation.CaptureState(tick);
@@ -259,24 +249,22 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         }
 
         /// <summary>当前体力相对最大体力的 0~1 比例 </summary>
-        public float NormalizedStamina => _simulation?.NormalizedStamina ?? 0f;
+        public float NormalizedStamina => _simulation.NormalizedStamina;
 
         /// <summary>当前玩家模拟时钟已经完成的最新 Tick </summary>
-        public uint SimulationTick => _simulationClock?.CurrentTick ?? 0u;
+        public uint SimulationTick => _simulationClock.CurrentTick;
 
         /// <summary>当前玩家固定模拟 Tick 的时长，单位为秒 </summary>
-        public float SimulationTickDeltaTime => _simulationClock?.TickDeltaTime ?? 0f;
+        public float SimulationTickDeltaTime => _simulationClock.TickDeltaTime;
 
         #endregion
 
         /// <summary>
         /// 取得 Unity CharacterController（角色控制器），按 Body → Motor → Locomotion → Simulation 顺序
-        /// 创建纯 C# 模拟链，并在网络生成前校验同步配置 
+        /// 创建纯 C# 模拟链
         /// </summary>
         private void Awake()
         {
-            _config.Validate();
-
             CharacterController characterController = GetComponent<CharacterController>();
             IPlayerCharacterBody body = new CharacterControllerPlayerBody(transform, characterController);
             PlayerMotor motor = new(body, _movementConfig);
@@ -303,7 +291,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
                 return;
             }
 
-            ValidateTickRate();
             uint initialTick = ResolveInitialTick();
             // NetworkObject 可能来自对象池；建立本次会话前先清掉死亡、体力、动作和 Motor 惯性 
             // ResetRuntimeState 保留对象池刚设置好的 Transform Pose 
@@ -357,22 +344,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             if (_initialized)
                 _transport?.UnregisterEndpoint(NetworkObjectId);
 
-            _prediction?.Reset();
-            _remoteInterpolation?.Reset();
-
-            _prediction = null;
-            _serverAuthority = null;
-            _remoteInterpolation = null;
-            _transport = null;
-            _networkRuntime = null;
-            _simulationClock?.Reset();
-
-            ResetSnapshotBaseline();
-            _snapshotSendBudget = 0;
-            _latestLocalInput = default;
-
             _initialized = false;
-
             ResetReusableRuntimeState();
 
             base.OnNetworkDespawn();
@@ -384,9 +356,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void SubmitLocalInput(in PlayerInputCommand input)
         {
-            if (!_initialized || !IsOwner)
-                return;
-
             _latestLocalInput.WorldMove = input.WorldMove;
             _latestLocalInput.AimDirection = input.AimDirection;
             _latestLocalInput.Buttons = input.Buttons;
@@ -400,7 +369,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void SetLifeState(PlayerLifeState lifeState)
         {
-            _simulation?.SetLifeState(lifeState);
+            _simulation.SetLifeState(lifeState);
         }
 
         /// <summary>
@@ -409,7 +378,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public bool ApplyHit()
         {
-            if (_simulation == null || (IsSpawned && !IsServer))
+            if (IsSpawned && !IsServer)
                 return false;
 
             // 使用模拟时钟固定步长把受击秒数转换成 Tick；禁止使用本帧 Time.deltaTime 
@@ -432,9 +401,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         private void HandleGameplayTick(uint sessionTick)
         {
-            if (!_initialized)
-                return;
-
             if (IsServer)
             {
                 _simulationClock.SynchronizeToSessionTick(sessionTick);
@@ -568,9 +534,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void ReceiveInputFromClient(ulong senderClientId, in PlayerInputCommand input)
         {
-            if (!_initialized || !IsServer)
-                return;
-
             // Transport（传输层）已经验证过 OwnerClientId（拥有者客户端编号），这里不重复验证 
             _serverAuthority.PushInput(input);
         }
@@ -581,18 +544,18 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void ReceiveServerSnapshot(in PlayerSimulationState state)
         {
-            if (!_initialized || IsServer)
+            if (IsServer)
                 return;
 
             SnapshotReceiveCount++;
 
             if (IsOwner)
             {
-                _prediction?.Reconcile(state);
+                _prediction.Reconcile(state);
                 return;
             }
 
-            _remoteInterpolation?.PushSnapshot(state);
+            _remoteInterpolation.PushSnapshot(state);
         }
 
         #endregion
@@ -602,9 +565,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>按渲染时间从远端缓冲采样状态，并只恢复展示状态，不执行本地移动模拟 </summary>
         private void UpdateRemotePresentation(float deltaTime)
         {
-            if (_remoteInterpolation == null)
-                return;
-
             if (!_remoteInterpolation.TrySample(deltaTime, out PlayerSimulationState renderState))
                 return;
 
@@ -700,27 +660,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         private uint ResolveInitialTick()
         {
-            if (_networkRuntime == null)
-                return 0u;
-
-            if (IsServer || IsOwner)
-                return _networkRuntime.Clock.CurrentTick;
-
-            return _networkRuntime.Clock.EstimatedServerTick;
-        }
-
-        /// <summary>检查玩家专用模拟频率是否与通用 Gameplay 网络时钟一致。</summary>
-        private void ValidateTickRate()
-        {
-            if (_networkRuntime == null)
-                return;
-
-            int networkTickRate = _networkRuntime.Clock.TickRate;
-            if (networkTickRate != _config.SimulationTickRate)
-            {
-                throw new InvalidOperationException(
-                    $"玩家模拟 TickRate={_config.SimulationTickRate}，Gameplay 网络 TickRate={networkTickRate}，两者必须一致。");
-            }
+            return IsServer || IsOwner
+                ? _networkRuntime.Clock.CurrentTick
+                : _networkRuntime.Clock.EstimatedServerTick;
         }
 
         #endregion

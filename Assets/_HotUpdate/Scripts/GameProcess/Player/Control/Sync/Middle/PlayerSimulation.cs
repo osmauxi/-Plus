@@ -1,5 +1,4 @@
 using ProjectGame.HotFix.Gameplay.Player.Movement;
-using System;
 using ProjectGame.HotFix.Gameplay.Player.Stamina;
 using ProjectGame.HotFix.Gameplay.Player.State;
 using UnityEngine;
@@ -27,7 +26,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>注入并持有完整的 Locomotion（移动状态）模拟链 </summary>
         public PlayerSimulation(PlayerLocomotionController locomotion)
         {
-            _locomotion = locomotion ?? throw new ArgumentNullException(nameof(locomotion));
+            _locomotion = locomotion;
         }
 
         /// <summary>最近一次模拟、恢复或重置后的运动表现状态 </summary>
@@ -75,8 +74,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public PlayerSimulationState Simulate(in PlayerInputCommand input, float tickDeltaTime)
         {
-            // 网络输入已经过净化，但恢复/测试入口也可能直接构造命令，因此在统一入口再次规范化方向 
-            _aimDirection = NormalizeDirection(input.AimDirection);
+            _aimDirection = input.AimDirection;
             _locomotion.Simulate(input.ToLocomotionInput(), tickDeltaTime);
             return CaptureState(input.Tick);
         }
@@ -116,7 +114,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void RestoreState(in PlayerSimulationState state)
         {
-            _aimDirection = NormalizeDirection(state.AimDirection);
+            _aimDirection = state.AimDirection;
 
             PlayerMotorRuntimeState motorState = new(
                 state.Position,
@@ -151,13 +149,5 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
         /// <summary>传送角色实体并清空 Motor（运动器）惯性 </summary>
         public void Warp(Vector3 position, Quaternion rotation) => _locomotion.Warp(position, rotation);
-
-        /// <summary>
-        /// 把任意非零二维方向压回单位圆 平方阈值避免对接近零的向量归一化后放大浮点噪声 
-        /// </summary>
-        private static Vector2 NormalizeDirection(Vector2 direction)
-        {
-            return direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.zero;
-        }
     }
 }

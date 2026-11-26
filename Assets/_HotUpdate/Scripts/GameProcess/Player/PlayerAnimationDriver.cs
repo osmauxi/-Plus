@@ -54,7 +54,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         [Tooltip("躯干允许承受的解剖学安全角度；实际角度还会受 Simulation 的身体转向开始角度限制 ")]
         [SerializeField, Range(0f, 90f)] private float _upperBodyAimMaxYaw = 65f;
         [Tooltip("上半身开始/结束瞄准时的权重变化速度 只影响表现，不参与 Simulation ")]
-        [SerializeField, Min(0f)] private float _upperBodyAimBlendSpeed = 10f;
+        [SerializeField, Min(0.01f)] private float _upperBodyAimBlendSpeed = 10f;
         [Tooltip("上半身追随 AimYaw 的平滑时间 过小会生硬，过大会明显落后鼠标 ")]
         [SerializeField, Min(0f)] private float _upperBodyAimSmoothTime = 0.06f;
         [Tooltip("AimYaw 分配给 Spine、Chest、UpperChest 的相对权重；缺少的骨骼会被自动跳过并重新归一化 ")]
@@ -98,8 +98,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         // 不能依赖 Animator 每帧重写 Generic 的运动根，因此侧倾始终以缓存的初始局部旋转绝对赋值 
         private Transform _leanRoot;
         private Quaternion _leanRootBaseLocalRotation = Quaternion.identity;
-        private bool _hasLeanRootBaseLocalRotation;
-        private bool _hasCachedModelBones;
         // 当前平滑后的局部 AimYaw 和表现权重；二者都不属于可回滚 Gameplay 状态 
         private float _upperBodyAimYaw;
         private float _upperBodyAimYawVelocity;
@@ -189,8 +187,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
             if (_stopBlendPending &&
                 _pivotVisualTimeRemaining <= 0f &&
-                control.IsAlive &&
-                !control.IsHitReacting)
+                control.CanUseLocomotion)
             {
                 _animator.CrossFadeInFixedTime(
                     _baseIdleStateName,
@@ -216,18 +213,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         private bool TryBindAnimator()
         {
-            Animator candidate = _appearanceController != null &&
-                                 _appearanceController.ModelView != null
+            Animator candidate = _appearanceController.ModelView != null
                 ? _appearanceController.ModelView.Animator
                 : null;
 
             if (candidate == _animator)
             {
-                // Unity Play Mode 热重载会保留旧的 Animator 引用，但新加入的骨骼缓存字段可能仍为空 
-                // 同一模型的 Avatar 也可能被外部重新绑定，因此这里允许按需补建缓存 
-                if (_animator != null && !_hasCachedModelBones)
-                    CacheUpperBodyBones();
-
                 if (_animator == null)
                     return false;
 
@@ -250,8 +241,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _upperChest = null;
             _leanRoot = null;
             _leanRootBaseLocalRotation = Quaternion.identity;
-            _hasLeanRootBaseLocalRotation = false;
-            _hasCachedModelBones = false;
             _upperBodyAimYaw = 0f;
             _upperBodyAimYawVelocity = 0f;
             _upperBodyAimWeight = 0f;
@@ -284,22 +273,15 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// <summary>从当前 Animator 解析程序化瞄准和转弯侧倾使用的骨骼 </summary>
         private void CacheUpperBodyBones()
         {
-            if (_animator == null)
-                return;
-
-            ProjectGame.HotFix.Character.PlayerModelView modelView =
-                _appearanceController != null ? _appearanceController.ModelView : null;
-            if (modelView != null)
-            {
-                // 模型根位于玩家 Simulation Root 之下，是安全的纯表现 Pivot 
-                // 角色也可在自己的预制件中提供更细粒度的专用 Pivot；不要指定会被动画驱动的运动根骨骼 
-                _leanRoot = modelView.LeanRoot != null
-                    ? modelView.LeanRoot
-                    : modelView.transform;
-                _spine = modelView.AnimationSpine;
-                _chest = modelView.AnimationChest;
-                _upperChest = modelView.AnimationUpperChest;
-            }
+            ProjectGame.HotFix.Character.PlayerModelView modelView = _appearanceController.ModelView;
+            // 模型根位于玩家 Simulation Root 之下，是安全的纯表现 Pivot 
+            // 角色也可在自己的预制件中提供更细粒度的专用 Pivot；不要指定会被动画驱动的运动根骨骼 
+            _leanRoot = modelView.LeanRoot != null
+                ? modelView.LeanRoot
+                : modelView.transform;
+            _spine = modelView.AnimationSpine;
+            _chest = modelView.AnimationChest;
+            _upperChest = modelView.AnimationUpperChest;
 
             if (_animator.isHuman)
             {
@@ -311,13 +293,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                     _upperChest = _animator.GetBoneTransform(HumanBodyBones.UpperChest);
             }
 
-            if (_leanRoot != null)
-            {
-                _leanRootBaseLocalRotation = _leanRoot.localRotation;
-                _hasLeanRootBaseLocalRotation = true;
-            }
-
-            _hasCachedModelBones = true;
+            _leanRootBaseLocalRotation = _leanRoot.localRotation;
         }
 
         /// <summary>
@@ -329,13 +305,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
             if (aimDirection.sqrMagnitude <= 0.000001f)
                 return 0f;
 
-            Vector3 bodyForward = transform.forward;
-            bodyForward.y = 0f;
-            if (bodyForward.sqrMagnitude <= 0.000001f)
-                return 0f;
-
             Vector3 worldAim = new(aimDirection.x, 0f, aimDirection.y);
-            return Vector3.SignedAngle(bodyForward.normalized, worldAim.normalized, Vector3.up);
+            return Vector3.SignedAngle(transform.forward, worldAim, Vector3.up);
         }
 
         /// <summary>
@@ -352,45 +323,36 @@ namespace ProjectGame.HotFix.Gameplay.Player
             bool canAimUpperBody =
                 hasAimBones &&
                 control.IsAiming &&
-                control.IsAlive &&
-                !control.IsHitReacting &&
                 !control.IsReloading &&
                 _syncController.AimDirection.sqrMagnitude > 0.000001f;
 
-            float simulationLimit = _syncController.AimBodyTurnStartAngle;
-            float maxYaw = simulationLimit > 0f
-                ? Mathf.Min(_upperBodyAimMaxYaw, simulationLimit)
-                : _upperBodyAimMaxYaw;
+            float maxYaw = Mathf.Min(_upperBodyAimMaxYaw, _syncController.AimBodyTurnStartAngle);
             float targetYaw = canAimUpperBody
                 ? Mathf.Clamp(aimYaw, -maxYaw, maxYaw)
                 : 0f;
 
-            _upperBodyAimYaw = _upperBodyAimSmoothTime <= 0f
-                ? targetYaw
-                : Mathf.SmoothDampAngle(
-                    _upperBodyAimYaw,
-                    targetYaw,
-                    ref _upperBodyAimYawVelocity,
-                    _upperBodyAimSmoothTime,
-                    Mathf.Infinity,
-                    deltaTime);
+            _upperBodyAimYaw = Mathf.SmoothDampAngle(
+                _upperBodyAimYaw,
+                targetYaw,
+                ref _upperBodyAimYawVelocity,
+                _upperBodyAimSmoothTime,
+                Mathf.Infinity,
+                deltaTime);
 
             float targetWeight = canAimUpperBody ? 1f : 0f;
-            _upperBodyAimWeight = _upperBodyAimBlendSpeed <= 0f
-                ? targetWeight
-                : Mathf.MoveTowards(
-                    _upperBodyAimWeight,
-                    targetWeight,
-                    _upperBodyAimBlendSpeed * deltaTime);
+            _upperBodyAimWeight = Mathf.MoveTowards(
+                _upperBodyAimWeight,
+                targetWeight,
+                _upperBodyAimBlendSpeed * deltaTime);
 
             float weightedYaw = _upperBodyAimYaw * _upperBodyAimWeight;
             if (Mathf.Abs(weightedYaw) <= 0.001f)
                 return;
 
-            // 只统计实际存在且配置为正数的骨骼，保证不同 Humanoid Avatar 上总旋转量一致 
-            float spineWeight = _spine != null ? Mathf.Max(0f, _upperBodyAimBoneWeights.x) : 0f;
-            float chestWeight = _chest != null ? Mathf.Max(0f, _upperBodyAimBoneWeights.y) : 0f;
-            float upperChestWeight = _upperChest != null ? Mathf.Max(0f, _upperBodyAimBoneWeights.z) : 0f;
+            // 只统计实际存在的骨骼，保证不同 Humanoid Avatar 上总旋转量一致 
+            float spineWeight = _spine != null ? _upperBodyAimBoneWeights.x : 0f;
+            float chestWeight = _chest != null ? _upperBodyAimBoneWeights.y : 0f;
+            float upperChestWeight = _upperChest != null ? _upperBodyAimBoneWeights.z : 0f;
             float totalWeight = spineWeight + chestWeight + upperChestWeight;
             if (totalWeight <= 0.0001f)
                 return;
@@ -448,8 +410,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
             bool allowUpperBody =
                 (control.IsAiming || _fireOverlayRequested || control.IsReloading) &&
-                control.IsAlive &&
-                !control.IsHitReacting;
+                control.CanUseLocomotion;
             if (!allowUpperBody)
             {
                 _fireOverlayRequested = false;
@@ -486,34 +447,30 @@ namespace ProjectGame.HotFix.Gameplay.Player
             in PlayerControlState control,
             float deltaTime)
         {
-            if (_leanRoot == null || !_hasLeanRootBaseLocalRotation)
+            if (_leanRoot == null)
                 return;
 
             bool canLean =
                 !control.IsAiming &&
-                control.IsAlive &&
-                !control.IsHitReacting &&
+                control.CanUseLocomotion &&
                 motion.IsMoving &&
                 motion.PivotDirection == PlayerPivotDirection.None &&
                 motion.Speed > _turnLeanMinSpeed;
             float normalizedAngularSpeed = canLean
-                ? Mathf.Clamp(motion.AngularSpeed / Mathf.Max(1f, _turnLeanAngularSpeed), -1f, 1f)
+                ? Mathf.Clamp(motion.AngularSpeed / _turnLeanAngularSpeed, -1f, 1f)
                 : 0f;
-            float fullLeanSpeed = Mathf.Max(_turnLeanMinSpeed + 0.001f, _turnLeanFullSpeed);
             float speedWeight = canLean
-                ? Mathf.InverseLerp(_turnLeanMinSpeed, fullLeanSpeed, motion.Speed)
+                ? Mathf.InverseLerp(_turnLeanMinSpeed, _turnLeanFullSpeed, motion.Speed)
                 : 0f;
             float targetAngle = -normalizedAngularSpeed * _turnLeanMaxAngle * speedWeight;
 
-            _turnLeanAngle = _turnLeanSmoothTime <= 0f
-                ? targetAngle
-                : Mathf.SmoothDampAngle(
-                    _turnLeanAngle,
-                    targetAngle,
-                    ref _turnLeanVelocity,
-                    _turnLeanSmoothTime,
-                    Mathf.Infinity,
-                    deltaTime);
+            _turnLeanAngle = Mathf.SmoothDampAngle(
+                _turnLeanAngle,
+                targetAngle,
+                ref _turnLeanVelocity,
+                _turnLeanSmoothTime,
+                Mathf.Infinity,
+                deltaTime);
 
             // 绝对写入而不是乘到上一帧结果上 Generic Animator 可能把顶层骨骼作为运动根提取，
             // 即使 applyRootMotion=false 也不保证每帧重置该骨骼；增量相乘会因此持续累积直至角色侧倒 
@@ -525,7 +482,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// <summary>解绑、禁用 Animator 或关闭驱动时清除纯表现侧倾，避免模型保留上一帧姿势 </summary>
         private void RestoreLeanRootRotation()
         {
-            if (_leanRoot != null && _hasLeanRootBaseLocalRotation)
+            if (_leanRoot != null)
                 _leanRoot.localRotation = _leanRootBaseLocalRotation;
 
             _turnLeanAngle = 0f;
@@ -544,12 +501,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         private void UpdateWeaponIK(in PlayerControlState control)
         {
-            if (_appearanceController == null || _appearanceController.AnimationBridge == null)
-                return;
-
             bool allowLeftHandIK =
-                control.IsAlive &&
-                !control.IsHitReacting &&
+                control.CanUseLocomotion &&
                 !control.IsReloading;
 
             var animationBridge = _appearanceController.AnimationBridge;
@@ -564,14 +517,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         private void UpdateWeaponAim(in PlayerControlState control)
         {
-            if (_appearanceController == null || _appearanceController.AnimationBridge == null)
-                return;
-
             Vector2 aimDirection = _syncController.AimDirection;
             bool allowWeaponAim =
                 control.IsAiming &&
-                control.IsAlive &&
-                !control.IsHitReacting &&
                 !control.IsReloading &&
                 aimDirection.sqrMagnitude > 0.000001f;
 

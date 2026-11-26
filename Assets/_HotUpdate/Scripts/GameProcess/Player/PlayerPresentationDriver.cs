@@ -21,8 +21,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private const float RotationEpsilon = 0.001f;
 
         [Header("渲染位姿")]
-        [Tooltip("同步时钟尚不可用时采用的补帧时长；正常网络生成后会使用一个 Simulation Tick 的实际时长 ")]
-        [SerializeField, Min(0f)] private float _fallbackInterpolationTime = 1f / 30f;
         [Tooltip("相邻 Simulation 样本超过该距离时视为传送，Presentation Root 立即对齐 ")]
         [SerializeField, Min(0.1f)] private float _snapDistance = 2f;
         [Tooltip("相邻 Simulation 样本超过该角度时视为朝向瞬移，不再补帧 ")]
@@ -30,8 +28,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         // 只读取已经由同步层选定的最终 Simulation 时间线，不参与任何网络判定 
         private PlayerSyncController _syncController;
-        // 提供固定存在的 VisualRoot；动态模型和武器挂点都位于它之下 
-        private PlayerAppearanceController _appearanceController;
+        // 固定存在的 VisualRoot；动态模型和武器挂点都位于它之下 
         private Transform _presentationRoot;
 
         // 当前补帧段的世界空间起点、终点和已推进时间 
@@ -43,24 +40,12 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private bool _hasPose;
 
         /// <summary>模型、武器和本地 Camera 共同使用的逐帧表现节点 </summary>
-        public Transform PresentationRoot => _presentationRoot != null ? _presentationRoot : transform;
+        public Transform PresentationRoot => _presentationRoot;
 
         private void Awake()
         {
             _syncController = GetComponent<PlayerSyncController>();
-            _appearanceController = GetComponent<PlayerAppearanceController>();
-            _presentationRoot = _appearanceController != null
-                ? _appearanceController.VisualRoot
-                : null;
-
-            if (_presentationRoot == null)
-            {
-                Debug.LogError(
-                    $"[{nameof(PlayerPresentationDriver)}] PlayerAppearanceController 没有配置 VisualRoot ",
-                    this);
-                return;
-            }
-
+            _presentationRoot = GetComponent<PlayerAppearanceController>().VisualRoot;
             SnapToSimulationPose();
         }
 
@@ -71,10 +56,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         private void LateUpdate()
         {
-            if (_presentationRoot == null)
-                return;
-
-            if (_syncController == null || !_syncController.IsSpawned ||
+            if (!_syncController.IsSpawned ||
                 (!_syncController.IsServer && !_syncController.IsOwner))
             {
                 SnapToSimulationPose();
@@ -89,9 +71,9 @@ namespace ProjectGame.HotFix.Gameplay.Player
         {
             Vector3 simulationPosition = transform.position;
             Quaternion simulationRotation = transform.rotation;
-            float duration = ResolveInterpolationDuration();
+            float duration = _syncController.SimulationTickDeltaTime;
 
-            if (!_hasPose || duration <= 0f ||
+            if (!_hasPose ||
                 (simulationPosition - _toPosition).sqrMagnitude >= _snapDistance * _snapDistance ||
                 Quaternion.Angle(simulationRotation, _toRotation) >= _snapRotationAngle)
             {
@@ -114,7 +96,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 _elapsed = 0f;
             }
 
-            _elapsed = Mathf.Min(duration, _elapsed + Mathf.Max(0f, deltaTime));
+            _elapsed = Mathf.Min(duration, _elapsed + deltaTime);
             ApplyPresentationPose(
                 EvaluatePosition(duration),
                 EvaluateRotation(duration));
@@ -153,24 +135,14 @@ namespace ProjectGame.HotFix.Gameplay.Player
             SnapToSimulationPose();
         }
 
-        private float ResolveInterpolationDuration()
-        {
-            float tickDuration = _syncController != null
-                ? _syncController.SimulationTickDeltaTime
-                : 0f;
-            return tickDuration > 0f ? tickDuration : _fallbackInterpolationTime;
-        }
-
         private Vector3 EvaluatePosition(float duration)
         {
-            float t = duration > 0f ? Mathf.Clamp01(_elapsed / duration) : 1f;
-            return Vector3.LerpUnclamped(_fromPosition, _toPosition, t);
+            return Vector3.LerpUnclamped(_fromPosition, _toPosition, Mathf.Clamp01(_elapsed / duration));
         }
 
         private Quaternion EvaluateRotation(float duration)
         {
-            float t = duration > 0f ? Mathf.Clamp01(_elapsed / duration) : 1f;
-            return Quaternion.SlerpUnclamped(_fromRotation, _toRotation, t);
+            return Quaternion.SlerpUnclamped(_fromRotation, _toRotation, Mathf.Clamp01(_elapsed / duration));
         }
 
         private void ApplyPresentationPose(Vector3 position, Quaternion rotation)

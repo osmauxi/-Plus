@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using ProjectGame.HotFix.Gameplay.Player.State;
 
@@ -55,13 +54,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             PlayerSimulationClock clock,
             PlayerSyncConfig config)
         {
-            _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
-            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-            _config = config ?? throw new ArgumentNullException(nameof(config));
-            _config.Validate();
-
-            if (_clock.TickRate != _config.SimulationTickRate)
-                throw new InvalidOperationException("预测时钟 TickRate 必须与同步配置一致 ");
+            _simulation = simulation;
+            _clock = clock;
+            _config = config;
 
             _inputHistory = new TickRingBuffer<PlayerInputCommand>(_config.HistoryCapacity);
             _stateHistory = new TickRingBuffer<PlayerSimulationState>(_config.HistoryCapacity);
@@ -72,9 +67,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public PlayerSimulationState Predict(ref PlayerInputCommand input, uint tick)
         {
-            if (tick != _clock.CurrentTick)
-                throw new InvalidOperationException("预测 Tick 必须等于时钟当前派发的 Tick ");
-
             input.Tick = tick;
             _inputHistory.Store(tick, input);
             PlayerSimulationState state = _simulation.Simulate(input, _clock.TickDeltaTime);

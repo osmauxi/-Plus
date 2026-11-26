@@ -1,5 +1,3 @@
-using System;
-
 namespace ProjectGame.HotFix.Gameplay.Player.Sync
 {
     /// <summary>
@@ -24,9 +22,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>创建指定频率的固定步时钟；初始 Tick 为 0 </summary>
         public PlayerSimulationClock(int tickRate)
         {
-            if (tickRate <= 0)
-                throw new ArgumentOutOfRangeException(nameof(tickRate), tickRate, "TickRate 必须大于 0 ");
-
             TickRate = tickRate;
             TickDeltaTime = 1f / tickRate;
         }

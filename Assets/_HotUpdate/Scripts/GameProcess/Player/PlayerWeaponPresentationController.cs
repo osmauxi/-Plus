@@ -18,7 +18,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private uint _lastObservedShotSequence;
         private uint _lastPlayedShotSequence;
         private bool _wasReloading;
-        private bool _bound;
 
         private void Awake()
         {
@@ -28,9 +27,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public void Bind(ulong entityId, WeaponView weaponView, WeaponPresentationService service)
         {
             Unbind();
-            if (weaponView == null || service == null || !service.IsInitialized)
-                throw new System.InvalidOperationException(
-                    "WeaponView 或 WeaponPresentationService 尚未就绪。");
 
             _entityId = entityId;
             _weaponView = weaponView;
@@ -41,7 +37,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _wasReloading = state.IsReloading;
             _weaponController.WeaponStateChanged += HandleWeaponStateChanged;
             _service.RegisterWeaponView(_entityId, this);
-            _bound = true;
         }
 
         /// <summary>由权威 Shot 广播调用；与预测/快照里的 ShotSequence 使用同一去重键。</summary>
@@ -52,9 +47,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         private void HandleWeaponStateChanged(WeaponRuntimeState state)
         {
-            if (!_bound)
-                return;
-
             if (state.ShotSequence != _lastObservedShotSequence)
             {
                 _lastObservedShotSequence = state.ShotSequence;
@@ -71,7 +63,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         private void PlayShotOnce(uint shotSequence)
         {
-            if (!_bound || shotSequence == _lastPlayedShotSequence)
+            if (_weaponView == null || shotSequence == _lastPlayedShotSequence)
                 return;
 
             _lastPlayedShotSequence = shotSequence;
@@ -93,7 +85,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
             _lastObservedShotSequence = 0;
             _lastPlayedShotSequence = 0;
             _wasReloading = false;
-            _bound = false;
         }
 
         public void OnRentFromPool() => Unbind();

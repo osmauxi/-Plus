@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Player.Movement
@@ -56,10 +55,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// <summary>创建对指定角色 Transform 与 CharacterController 的轻量包装 </summary>
         public CharacterControllerPlayerBody(Transform transform, CharacterController characterController)
         {
-            _transform = transform != null ? transform : throw new ArgumentNullException(nameof(transform));
-            _characterController = characterController != null
-                ? characterController
-                : throw new ArgumentNullException(nameof(characterController));
+            _transform = transform;
+            _characterController = characterController;
         }
 
         /// <inheritdoc />

@@ -16,15 +16,15 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
 
         [Tooltip("实际速度追赶目标速度的加速度 增大：起步和变向更灵敏；减小：提速更缓、惯性感更强 ")]
         [InspectorName("移动加速度")]
-        [SerializeField, Min(0f)] private float _acceleration = 18f;
+        [SerializeField, Min(0.01f)] private float _acceleration = 18f;
 
         [Tooltip("松开输入或目标速度降低时使用的减速度 增大：更快停下、滑行更短；减小：减速更慢、滑行更长 ")]
         [InspectorName("移动减速度")]
-        [SerializeField, Min(0f)] private float _deceleration = 22f;
+        [SerializeField, Min(0.01f)] private float _deceleration = 22f;
 
         [Tooltip("高速强反向触发急转时的制动加速度 增大：更快刹停折返；减小：前冲和重量感更明显 ")]
         [InspectorName("急转制动加速度")]
-        [SerializeField, Min(0f)] private float _pivotBrakeAcceleration = 30f;
+        [SerializeField, Min(0.01f)] private float _pivotBrakeAcceleration = 30f;
 
         [Header("Pivot 瞬时急停")]
         [Tooltip("进入 Pivot 的单个模拟 Tick 立刻从当前平面速度扣除的米/秒；只减到 0，不会用这次急停直接把速度翻到新方向。增大：反向前的顿挫更明显；0 表示关闭瞬时急停。")]
@@ -51,11 +51,11 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
 
         [Tooltip("角速度追赶目标角速度的加速度 增大：转身启动更快；减小：转身启动更柔和 ")]
         [InspectorName("旋转加速度")]
-        [SerializeField, Min(0f)] private float _rotationAcceleration = 1800f;
+        [SerializeField, Min(0.01f)] private float _rotationAcceleration = 1800f;
 
         [Tooltip("接近目标朝向时角速度的衰减速度 增大：更快停止、过冲更少；减小：收尾更柔和、惯性更明显 ")]
         [InspectorName("旋转减速度")]
-        [SerializeField, Min(0f)] private float _rotationDeceleration = 2200f;
+        [SerializeField, Min(0.01f)] private float _rotationDeceleration = 2200f;
 
         [Header("背向移动惩罚")]
         [Tooltip("移动方向与当前朝向夹角达到该值时视为背向移动 增大：更难触发背向减速；减小：侧后方移动也更早减速 ")]
@@ -79,21 +79,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         public float RotationDeceleration => _rotationDeceleration;
         public float BackwardAngleThreshold => _backwardAngleThreshold;
         public float BackwardSpeedMultiplier => _backwardSpeedMultiplier;
-
-        public void Validate(string profileName)
-        {
-            if (_maxSpeed < 0f) throw new InvalidOperationException($"{profileName}.最大移动速度不能小于 0 ");
-            if (_acceleration <= 0f) throw new InvalidOperationException($"{profileName}.移动加速度必须大于 0 ");
-            if (_deceleration <= 0f) throw new InvalidOperationException($"{profileName}.移动减速度必须大于 0 ");
-            if (_pivotBrakeAcceleration <= 0f) throw new InvalidOperationException($"{profileName}.急转制动加速度必须大于 0 ");
-            if (_pivotEntryBrakeSpeed < 0f) throw new InvalidOperationException($"{profileName}.Pivot 进入瞬时扣速不能小于 0 ");
-            if (_pivotBoostDuration < 0f) throw new InvalidOperationException($"{profileName}.Pivot 爆发持续时间不能小于 0 ");
-            if (_pivotSpeedBonus < 0f) throw new InvalidOperationException($"{profileName}.Pivot 速度加成不能小于 0 ");
-            if (_directionChangeAccelerationMultiplier < 1f) throw new InvalidOperationException($"{profileName}.方向改变响应倍率不能小于 1 ");
-            if (_maxRotationSpeed < 0f) throw new InvalidOperationException($"{profileName}.最大旋转速度不能小于 0 ");
-            if (_rotationAcceleration <= 0f) throw new InvalidOperationException($"{profileName}.旋转加速度必须大于 0 ");
-            if (_rotationDeceleration <= 0f) throw new InvalidOperationException($"{profileName}.旋转减速度必须大于 0 ");
-        }
     }
 
     [Serializable]
@@ -179,31 +164,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         public float StationaryMaxRotationSpeedMultiplier => _stationaryMaxRotationSpeedMultiplier;
         public float AimBodyTurnStartAngle => _aimBodyTurnStartAngle;
         public float AimBodyTurnStopAngle => _aimBodyTurnStopAngle;
-
-        public void Validate()
-        {
-            if (_free == null || _aim == null || _sprint == null)
-                throw new InvalidOperationException("玩家移动配置存在空的移动模式参数 ");
-
-            _free.Validate(nameof(Free));
-            _aim.Validate(nameof(Aim));
-            _sprint.Validate(nameof(Sprint));
-
-            if (_aimBodyTurnStartAngle <= 0f || _aimBodyTurnStartAngle > 180f)
-                throw new InvalidOperationException("身体转向开始角度必须大于 0 且不超过 180 ");
-
-            if (_lowSpeedRotationBoostThreshold <= 0f)
-                throw new InvalidOperationException("低速转向加速阈值必须大于 0 ");
-
-            if (_stationaryRotationResponseMultiplier < 1f)
-                throw new InvalidOperationException("静止转向响应倍率不能小于 1 ");
-
-            if (_stationaryMaxRotationSpeedMultiplier < 1f)
-                throw new InvalidOperationException("静止最大转速倍率不能小于 1 ");
-
-            if (_aimBodyTurnStopAngle < 0f || _aimBodyTurnStopAngle >= _aimBodyTurnStartAngle)
-                throw new InvalidOperationException("身体转向停止角度必须大于等于 0 且小于开始角度 ");
-        }
     }
 }
 
@@ -240,12 +200,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Stamina
         public float RecoveryPerSecond => _recoveryPerSecond;
         public float RecoveryDelay => _recoveryDelay;
         public float ExhaustedRecoveryRatio => _exhaustedRecoveryRatio;
-
-        public void Validate()
-        {
-            if (_maxStamina <= 0f)
-                throw new InvalidOperationException("最大体力必须大于 0 ");
-        }
     }
 }
 
@@ -281,17 +235,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
         /// <summary>一次换弹从开始到重新进入 Ready 的固定占用秒数 </summary>
         public float ReloadDuration => _reloadDuration;
 
-        /// <summary>启动模拟前校验配置，避免无效时长形成零 Tick 状态或每 Tick 连发 </summary>
-        public void Validate()
-        {
-            if (_hitReactionDuration <= 0f)
-                throw new InvalidOperationException("受击持续时间必须大于 0 ");
-            if (_fireInterval <= 0f)
-                throw new InvalidOperationException("射击间隔必须大于 0 ");
-            if (_reloadDuration <= 0f)
-                throw new InvalidOperationException("换弹时间必须大于 0 ");
-        }
-
         /// <summary>按当前固定步长计算受击需要占用的 Tick 数 </summary>
         public ushort ResolveHitTicks(float tickDeltaTime) =>
             SecondsToTicks(_hitReactionDuration, tickDeltaTime);
@@ -312,9 +255,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
         /// </summary>
         private static ushort SecondsToTicks(float seconds, float tickDeltaTime)
         {
-            if (tickDeltaTime <= 0f)
-                throw new ArgumentOutOfRangeException(nameof(tickDeltaTime));
-
             return (ushort)Mathf.Clamp(
                 Mathf.CeilToInt(seconds / tickDeltaTime),
                 1,

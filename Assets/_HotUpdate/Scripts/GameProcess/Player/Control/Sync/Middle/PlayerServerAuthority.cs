@@ -22,9 +22,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             Neutral = 3,
         }
 
-        /// <summary>包含 NaN/Infinity 等无法净化数值而被拒绝的输入总数 </summary>
-        public int InvalidInputCount { get; private set; }
-
         // 执行权威玩家模拟、捕获和恢复状态的统一入口 
         private readonly PlayerSimulation _simulation;
         // 由 PlayerSyncController 创建并注入的纯 C# 固定步时钟；是权威 Tick 编号和单步时长的唯一来源 
@@ -89,13 +86,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             PlayerSimulationClock clock,
             PlayerSyncConfig config)
         {
-            _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
-            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-            _config = config ?? throw new ArgumentNullException(nameof(config));
-            _config.Validate();
-
-            if (_clock.TickRate != _config.SimulationTickRate)
-                throw new InvalidOperationException("服务器权威时钟 TickRate 必须与同步配置一致 ");
+            _simulation = simulation;
+            _clock = clock;
+            _config = config;
 
             _inputBuffer = new TickRingBuffer<PlayerInputCommand>(_config.HistoryCapacity);
         }
@@ -116,51 +109,45 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public bool PushInput(in PlayerInputCommand input)
         {
-            if (!input.TrySanitize(out PlayerInputCommand sanitized))
-            {
-                InvalidInputCount++;
-                return false;
-            }
-
             // 原始 Tick 已处理完：只允许“窗口内且比所有已观察 Client Tick 更新”的最新意图进入 Pending Late 
-            if (!TickMath.IsNewer(sanitized.Tick, _lastProcessedTick))
+            if (!TickMath.IsNewer(input.Tick, _lastProcessedTick))
             {
                 OutdatedInputCount++;
 
                 // lateByTicks 是该输入比 Server 已处理 Tick 落后的年龄 
-                uint lateByTicks = TickMath.Distance(_lastProcessedTick, sanitized.Tick);
+                uint lateByTicks = TickMath.Distance(_lastProcessedTick, input.Tick);
                 // 包内旧冗余和乱序旧包不能覆盖更新的 Pending Late 
-                bool isNewestClientInput = !_hasLatestObservedClientTick || TickMath.IsNewer(sanitized.Tick, _latestObservedClientTick);
+                bool isNewestClientInput = !_hasLatestObservedClientTick || TickMath.IsNewer(input.Tick, _latestObservedClientTick);
                 if (_config.MaxLateInputRetimingTicks <= 0 || lateByTicks > _config.MaxLateInputRetimingTicks || !isNewestClientInput)
                     return false;
 
-                _pendingLateInput = sanitized;
-                _pendingLateSourceTick = sanitized.Tick;
+                _pendingLateInput = input;
+                _pendingLateSourceTick = input.Tick;
                 _hasPendingLateInput = true;
-                _latestObservedClientTick = sanitized.Tick;
+                _latestObservedClientTick = input.Tick;
                 _hasLatestObservedClientTick = true;
                 AcceptedInputCount++;
                 RetimedLateAcceptedInputCount++;
                 return true;
             }
             // 合法未来输入必须落在有限窗口内，避免异常 Tick 挤占固定容量历史 
-            if (TickMath.Distance(sanitized.Tick, _lastProcessedTick) > _config.MaxFutureInputTicks)
+            if (TickMath.Distance(input.Tick, _lastProcessedTick) > _config.MaxFutureInputTicks)
             {
                 InvalidFutureInputCount++;
                 return false;
             }
             // 相同 Tick 已缓存，或该 Tick 不比最近观察到的 Client Tick 更新时，视为重复/旧冗余 
-            if (_inputBuffer.Contains(sanitized.Tick) ||
-                (_hasLatestObservedClientTick && !TickMath.IsNewer(sanitized.Tick, _latestObservedClientTick)))
+            if (_inputBuffer.Contains(input.Tick) ||
+                (_hasLatestObservedClientTick && !TickMath.IsNewer(input.Tick, _latestObservedClientTick)))
             {
                 DuplicateInputCount++;
                 return false;
             }
 
-            _inputBuffer.Store(sanitized.Tick, sanitized);
-            if (TickMath.IsNewer(sanitized.Tick, _highestReceivedTick))
-                _highestReceivedTick = sanitized.Tick;
-            _latestObservedClientTick = sanitized.Tick;
+            _inputBuffer.Store(input.Tick, input);
+            if (TickMath.IsNewer(input.Tick, _highestReceivedTick))
+                _highestReceivedTick = input.Tick;
+            _latestObservedClientTick = input.Tick;
             _hasLatestObservedClientTick = true;
             AcceptedInputCount++;
             return true;
@@ -171,10 +158,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public PlayerSimulationState SimulateNextTick(uint tick)
         {
-            uint expectedTick = unchecked(_lastProcessedTick + 1u);
-            if (tick != expectedTick || tick != _clock.CurrentTick)
-                throw new InvalidOperationException("权威模拟 Tick 必须是时钟当前派发的下一个连续 Tick ");
-
             PlayerInputCommand input = ResolveNextInput(tick, out ResolveResult result);
             LastInputResolveResult = result;
             switch (result)
@@ -256,7 +239,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>清空全部输入时间轴状态和调试计数，并把已处理 Tick 设置为指定起点 </summary>
         private void ResetInputBuffer(uint tick)
         {
-            InvalidInputCount = 0;
             _inputBuffer.Clear();
             _clock.Reset(tick);
             _lastProcessedTick = tick;

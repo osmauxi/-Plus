@@ -143,15 +143,5 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         public int SnapshotSendIntervalTicks => Mathf.Max(1, Mathf.RoundToInt((float)_simulationTickRate / _snapshotSendRate));
         /// <summary>两个 Full Snapshot（完整快照）之间最多发送的 Delta Snapshot（差量快照）数量 </summary>
         public int MaxDeltaSnapshotsBetweenKeyframes => _maxDeltaSnapshotsBetweenKeyframes;
-
-        /// <summary>验证会破坏时间轴或环形历史安全边界的配置组合 </summary>
-        public void Validate()
-        {
-            if (_simulationTickRate <= 0) throw new InvalidOperationException("模拟 Tick 率必须大于 0 ");
-            if (_historyCapacity < 64) throw new InvalidOperationException("历史容量不应小于 64 ");
-            if (_maxFutureInputTicks >= _historyCapacity) throw new InvalidOperationException("最大未来输入 Tick 必须小于历史容量 ");
-            if (_maxLateInputRetimingTicks >= _historyCapacity) throw new InvalidOperationException("迟到输入重定时 Tick 必须小于历史容量 ");
-            if (_remoteSnapshotBufferCapacity < 4) throw new InvalidOperationException("远端快照容量不应小于 4 ");
-        }
     }
 }

@@ -1,4 +1,3 @@
-using System;
 using ProjectGame.HotFix.Gameplay.Player.Stamina;
 using ProjectGame.HotFix.Gameplay.Player.State;
 using UnityEngine;
@@ -53,12 +52,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             PlayerStaminaConfig staminaConfig,
             PlayerActionConfig actionConfig)
         {
-            _motor = motor ?? throw new ArgumentNullException(nameof(motor));
-            _staminaConfig = staminaConfig ?? throw new ArgumentNullException(nameof(staminaConfig));
-            _stateMachine = new PlayerStateMachine(
-                actionConfig ?? throw new ArgumentNullException(nameof(actionConfig)));
+            _motor = motor;
+            _staminaConfig = staminaConfig;
+            _stateMachine = new PlayerStateMachine(actionConfig);
 
-            _staminaConfig.Validate();
             ResetRuntimeState();
         }
 
@@ -89,9 +86,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// </summary>
         public void Simulate(in PlayerLocomotionInput input, float deltaTime)
         {
-            if (deltaTime <= 0f)
-                return;
-
             // 使用平方长度比较，避免每 Tick 求平方根；阈值也必须平方后再比较 
             bool hasMoveInput = input.WorldMove.sqrMagnitude >
                                 _motor.Config.MoveInputDeadZone * _motor.Config.MoveInputDeadZone;
@@ -188,8 +182,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
 
         public void ConfigureWeaponStats(in Weapon.WeaponStatSnapshot stats)
         {
-            if (_stateMachine.WeaponDefinition == null)
-                throw new InvalidOperationException("必须先配置 WeaponDefinition。");
             _stateMachine.WeaponStats = stats;
         }
 
@@ -198,8 +190,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             ushort effectSetId,
             ushort snapshotVersion)
         {
-            if (_stateMachine.WeaponDefinition == null)
-                throw new InvalidOperationException("必须先配置 WeaponDefinition。");
             _stateMachine.WeaponStats = stats;
             //修改当前状态
             Weapon.WeaponSystem.Reconfigure(
@@ -272,10 +262,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         {
             return mode switch
             {
-                PlayerLocomotionMode.Free => _motor.Config.Free,
                 PlayerLocomotionMode.Aim => _motor.Config.Aim,
                 PlayerLocomotionMode.Sprint => _motor.Config.Sprint,
-                _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
+                _ => _motor.Config.Free,
             };
         }
 
@@ -303,7 +292,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// </summary>
         private Vector3 ResolveAimBodyFacing(Vector3 aimDirection)
         {
-            aimDirection.y = 0f;
             float deadZone = _motor.Config.FacingDirectionDeadZone;
 
             if (aimDirection.sqrMagnitude <= deadZone * deadZone)
@@ -312,23 +300,12 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 return Vector3.zero;
             }
 
-            Vector3 bodyFacing = _motor.MotionState.FacingDirection;
-            bodyFacing.y = 0f;
-
-            if (bodyFacing.sqrMagnitude <= deadZone * deadZone)
-            {
-                _isAimBodyTurning = false;
-                return Vector3.zero;
-            }
-
-            aimDirection.Normalize();
-            bodyFacing.Normalize();
             // Vector3.Angle 返回 0~180 的无符号最小夹角；这里只决定是否跟随，不需要左右符号 
-            float angle = Vector3.Angle(bodyFacing, aimDirection);
+            float angle = Vector3.Angle(_motor.MotionState.FacingDirection, aimDirection);
 
             if (_isAimBodyTurning)
             {
-                if (angle <= _motor.Config.AimBodyTurnStopAngle)                                       
+                if (angle <= _motor.Config.AimBodyTurnStopAngle)
                     _isAimBodyTurning = false;
             }
             else if (angle > _motor.Config.AimBodyTurnStartAngle)

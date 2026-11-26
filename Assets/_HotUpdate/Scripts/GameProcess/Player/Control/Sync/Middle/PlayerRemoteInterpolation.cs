@@ -21,8 +21,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         private double _renderOffset;
         // 最近接受的权威 Snapshot Tick；用于拒绝重复/乱序快照和计算新快照跨度 
         private uint _latestTick;
-        // 标记是否已收到第一份快照并建立表现时间轴 
-        private bool _initialized;
 
         /// <summary>当前插值缓冲内有效快照数量 </summary>
         public int BufferedSnapshotCount => _count;
@@ -30,7 +28,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>创建 Observer 插值器并按配置一次性分配快照缓冲 </summary>
         public PlayerRemoteInterpolation(PlayerSyncConfig config)
         {
-            _config = config ?? throw new ArgumentNullException(nameof(config));
+            _config = config;
             _buffer = new PlayerSimulationState[config.RemoteSnapshotBufferCapacity];
         }
 
@@ -56,8 +54,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
             // latest 向前推进多少 Tick，renderOffset 就相对新的 latest 再向后移动多少 
             // 因此“表现对应的绝对权威 Tick”保持不变，新 Snapshot 到达不会直接拉动视觉位置 
-            if (_initialized)
+            if (_count > 0)
                 _renderOffset -= TickMath.Distance(state.Tick, _latestTick);
+            else
+                _renderOffset = -_config.RemoteInterpolationDelayTicks;
 
             if (_count < _buffer.Length)
             {
@@ -73,13 +73,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             }
 
             _latestTick = state.Tick;
-
-            if (!_initialized)
-            {
-                // 第一份快照建立表现时间轴，目标是固定落后最新权威时间 RemoteInterpolationDelayTicks 
-                _renderOffset = -_config.RemoteInterpolationDelayTicks;
-                _initialized = true;
-            }
         }
 
         /// <summary>
@@ -88,7 +81,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public bool TrySample(float deltaTime, out PlayerSimulationState state)
         {
-            if (!_initialized || _count == 0)
+            if (_count == 0)
             {
                 state = default;
                 return false;
@@ -144,7 +137,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             _count = 0;
             _renderOffset = 0d;
             _latestTick = 0;
-            _initialized = false;
         }
 
         /// <summary>按从旧到新的逻辑下标读取快照 </summary>
@@ -185,7 +177,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
             // Aim 开始/结束属于离散语义，不在零向量和有效方向之间制造假方向 
             if (!hasFrom || !hasTo)
-                return t < 0.5f ? (hasFrom ? from.normalized : Vector2.zero) : (hasTo ? to.normalized : Vector2.zero);
+                return t < 0.5f ? (hasFrom ? from : Vector2.zero) : (hasTo ? to : Vector2.zero);
 
             float fromYaw = Mathf.Atan2(from.x, from.y) * Mathf.Rad2Deg;
             float toYaw = Mathf.Atan2(to.x, to.y) * Mathf.Rad2Deg;

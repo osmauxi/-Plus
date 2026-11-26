@@ -16,13 +16,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-
-            if (PlayerManager.Instance == null || !PlayerManager.Instance.IsInitialized)
-            {
-                Debug.LogError($"[{nameof(PlayerRuntime)}] PlayerManager 尚未初始化，无法注册玩家：{OwnerClientId}");
-                return;
-            }
-
             PlayerManager.Instance.RegisterPlayer(this);
         }
 

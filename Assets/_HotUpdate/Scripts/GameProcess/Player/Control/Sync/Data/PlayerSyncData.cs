@@ -28,20 +28,15 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
     {
         // 该输入所属的 Client 模拟 Tick；PlayerSimulationClock 由 Owner Controller 推进并分配，Server 用于时序分类 
         public uint Tick;
-        // XZ 世界平面移动意图压缩为 Vector2(x,z)，长度范围由 TrySanitize 限制到 0~1 
+        // XZ 世界平面移动意图压缩为 Vector2(x,z)，长度范围由本地输入层限制到 0~1
         public Vector2 WorldMove;
-        // XZ 世界平面瞄准方向压缩为 Vector2(x,z)；非零值由 TrySanitize 归一化 
+        // XZ 世界平面瞄准方向压缩为 Vector2(x,z)；非零值由本地输入层归一化
         public Vector2 AimDirection;
         // 本 Tick 持续按住的输入按钮位 
         public PlayerInputButtons Buttons;
         // 本地每次按下 Reload 时递增；持续携带最新值，避免渲染帧边沿在网络 Tick 之间丢失 
         // 允许 ushort 自然回绕；服务端/状态机通过“不等于已消费值”检测新请求，不能在中立输入中擅自清零 
         public ushort ReloadRequestSequence;
-        // 当前网络协议允许出现的全部按钮位；用于清除未知/保留位 
-        private const PlayerInputButtons ValidButtons =
-            PlayerInputButtons.AimHeld |
-            PlayerInputButtons.SprintHeld |
-            PlayerInputButtons.FireHeld;
         // 是否持续按住瞄准 
         public bool AimHeld => (Buttons & PlayerInputButtons.AimHeld) != 0;
         // 是否持续按住冲刺 
@@ -99,40 +94,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             PlayerInputCommand copy = this;
             copy.Tick = tick;
             return copy;
-        }
-        /// <summary>
-        /// 把不可信 Client 输入转换为权威模拟可使用的安全副本 
-        /// NaN/Infinity 无法修复，返回 false；过长 Move 会 Clamp，非零 Aim 会归一化，未知 Button 位会清除 
-        /// 因此“长度大于 1/非单位方向/未知按钮位”是可修正数据，不会导致方法返回 false 
-        /// </summary>
-        public bool TrySanitize(out PlayerInputCommand sanitized)
-        {
-            sanitized = this;
-
-            if (!IsFinite(WorldMove) || !IsFinite(AimDirection))
-                return false;
-
-            //世界移动输入最大只能为1 
-            sanitized.WorldMove = Vector2.ClampMagnitude(WorldMove, 1f);
-
-            //Aim表达的是方向，不允许Client通过长度携带其它信息 
-            sanitized.AimDirection = AimDirection.sqrMagnitude > 0.000001f
-                ? AimDirection.normalized
-                : Vector2.zero;
-
-            //清掉当前协议未定义的Button位 
-            sanitized.Buttons &= ValidButtons;
-
-            return true;
-        }
-
-        /// <summary>检查 Vector2 两个分量都不是 NaN 或正负 Infinity </summary>
-        private static bool IsFinite(Vector2 value)
-        {
-            return !float.IsNaN(value.x) &&
-                   !float.IsInfinity(value.x) &&
-                   !float.IsNaN(value.y) &&
-                   !float.IsInfinity(value.y);
         }
     }
 
@@ -365,25 +326,18 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         }
 
         /// <summary>
-        /// Full 直接返回自身 State；Delta 要求传入 Tick 与 BaselineTick 完全一致的基准状态，
-        /// 再把 DirtyMask 指定字段覆盖到基准上，得到一份完整 PlayerSimulationState 
+        /// Full 直接返回自身 State；Delta 由调用方确保传入匹配的 baseline，再按 DirtyMask 覆写变化字段
         /// </summary>
-        public bool TryResolve(in PlayerSimulationState baseline, out PlayerSimulationState resolved)
+        public PlayerSimulationState Resolve(in PlayerSimulationState baseline)
         {
             if (IsFull)
             {
-                resolved = State;
-                resolved.Tick = Tick;
-                return true;
+                PlayerSimulationState full = State;
+                full.Tick = Tick;
+                return full;
             }
 
-            if (baseline.Tick != BaselineTick)
-            {
-                resolved = default;
-                return false;
-            }
-
-            resolved = baseline;
+            PlayerSimulationState resolved = baseline;
             resolved.Tick = Tick;
 
             if ((DirtyMask & PlayerStateDirtyMask.Position) != 0)
@@ -422,7 +376,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             if ((DirtyMask & PlayerStateDirtyMask.ActionState) != 0)
                 resolved.ActionState = State.ActionState;
 
-            return true;
+            return resolved;
         }
         /// <summary>
         /// 逐字段比较当前状态与 Baseline，返回需要进入 Delta 的位掩码 
@@ -500,9 +454,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>按固定容量一次性分配 Tick、Value 和 Occupied 三组数组 </summary>
         public TickRingBuffer(int capacity)
         {
-            if (capacity <= 1)
-                throw new ArgumentOutOfRangeException(nameof(capacity), "Tick 缓存容量必须大于 1 ");
-
             Capacity = capacity;
             _ticks = new uint[capacity];
             _values = new T[capacity];

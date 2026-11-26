@@ -85,7 +85,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// <summary>在通用 Gameplay Transport 上创建玩家同步协议适配层。</summary>
         public PlayerSyncTransport(NetworkMessageTransport transport)
         {
-            _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+            _transport = transport;
         }
 
         /// <summary>
@@ -95,9 +95,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         {
             if (_initialized)
                 return;
-
-            if (!_transport.IsInitialized)
-                throw new InvalidOperationException("Gameplay 通用 Transport 尚未初始化。");
 
             if (_transport.IsServer)
             {
@@ -145,9 +142,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void RegisterEndpoint(ulong networkObjectId, ulong ownerClientId, IPlayerSyncEndpoint endpoint)
         {
-            if (endpoint == null)
-                throw new ArgumentNullException(nameof(endpoint));
-
             _endpoints[networkObjectId] = new EndpointEntry(ownerClientId, endpoint);
         }
 
@@ -169,11 +163,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
             PlayerInputCommand? previous1 = null,
             PlayerInputCommand? previous2 = null)
         {
-            EnsureInitialized();
-
-            if (!_transport.IsClient)
-                return;
-
             byte count = 1;
 
             if (previous1.HasValue)
@@ -213,11 +202,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         public void SendSnapshot(ulong targetClientId, ulong networkObjectId, in PlayerSnapshotPacket snapshot)
         {
-            EnsureInitialized();
-
-            if (!_transport.IsServer)
-                return;
-
             if (targetClientId == NetworkManager.ServerClientId)
                 return;
 
@@ -248,9 +232,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         private void OnInputMessageReceived(ulong senderClientId, FastBufferReader reader)
         {
-            if (!_transport.IsServer)
-                return;
-
             try
             {
                 reader.ReadValueSafe(out ulong networkObjectId);
@@ -283,9 +264,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
         /// </summary>
         private void OnSnapshotMessageReceived(ulong senderClientId, FastBufferReader reader)
         {
-            if (!_transport.IsClient)
-                return;
-
             if (senderClientId != NetworkManager.ServerClientId)
                 return;
 
@@ -300,8 +278,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
 
                 if (packet.IsFull)
                 {
-                    if (!packet.TryResolve(default, out PlayerSimulationState fullState))
-                        return;
+                    PlayerSimulationState fullState = packet.Resolve(default);
 
                     // Full Snapshot（完整快照）成为新的固定 Baseline（基准完整状态） 
                     // 在下一个完整快照到达前，后续差量都必须声明引用这个 Tick 
@@ -322,25 +299,13 @@ namespace ProjectGame.HotFix.Gameplay.Player.Sync
                     return;
                 }
 
-                if (!packet.TryResolve(baseline, out PlayerSimulationState resolvedState))
-                {
-                    DroppedDeltaWithoutBaselineCount++;
-                    return;
-                }
-
+                PlayerSimulationState resolvedState = packet.Resolve(baseline);
                 entry.Endpoint.ReceiveServerSnapshot(resolvedState);
             }
             catch (Exception exception)
             {
                 Debug.LogWarning($"[{nameof(PlayerSyncTransport)}] Snapshot消息解析失败：{exception.Message}");
             }
-        }
-
-        /// <summary>保护所有公开收发方法，避免在消息处理器注册前静默丢失数据 </summary>
-        private void EnsureInitialized()
-        {
-            if (!_initialized)
-                throw new InvalidOperationException($"{nameof(PlayerSyncTransport)} 尚未初始化 ");
         }
 
         /// <summary>路由表条目，同时保存玩家拥有者编号和接收消息的同步端点 </summary>

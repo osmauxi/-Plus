@@ -71,8 +71,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.ControlTests
         {
             DisableRuntimeFlowForTest();
             BuildTestSceneIfNeeded();
-            _movementConfig.Validate();
-            _staminaConfig.Validate();
 
             CharacterControllerPlayerBody body =
                 new(_player, _playerController);

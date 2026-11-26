@@ -1,6 +1,4 @@
-using System;
 using ProjectGame.HotFix.Gameplay.Weapon;
-using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Player.State
 {
@@ -18,11 +16,10 @@ namespace ProjectGame.HotFix.Gameplay.Player.State
         /// </summary>
         public WeaponStatSnapshot? WeaponStats { get; set; }
 
-        /// <summary>注入动作时间规则并立即校验，避免模拟开始后出现零时长状态 </summary>
+        /// <summary>注入动作时间规则 </summary>
         public PlayerStateMachine(PlayerActionConfig config)
         {
-            _config = config ?? throw new ArgumentNullException(nameof(config));
-            _config.Validate();
+            _config = config;
         }
 
         /// <summary>

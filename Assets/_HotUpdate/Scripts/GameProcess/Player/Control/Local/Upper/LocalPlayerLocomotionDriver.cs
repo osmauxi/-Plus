@@ -88,10 +88,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// </summary>
         private void Update()
         {
-            if (!_canDrive)
-                return;
-
-            if (_runtimeInitializer == null || !_runtimeInitializer.IsInitialized)
+            if (!_canDrive || !_runtimeInitializer.IsInitialized)
                 return;
 
             InputManager inputManager = InputManager.Instance;
@@ -106,6 +103,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 if (_worldCamera == null)
                     return;
             }
+
+            if (_aimReferenceCamera == null)
+                _aimReferenceCamera = _worldCamera;
 
             if (inputManager.ReloadPressedThisFrame)
             {
@@ -124,11 +124,13 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         public void BindCamera(Camera worldCamera)
         {
             _worldCamera = worldCamera;
+            if (_aimReferenceCamera == null)
+                _aimReferenceCamera = worldCamera;
         }
 
         public void BindAimReferenceCamera(Camera aimReferenceCamera)
         {
-            _aimReferenceCamera = aimReferenceCamera;
+            _aimReferenceCamera = aimReferenceCamera != null ? aimReferenceCamera : _worldCamera;
         }
 
         /// <summary>
@@ -162,14 +164,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         {
             Vector2 moveInput = inputManager.Move;
 
-            Vector3 cameraForward = Flatten(_worldCamera.transform.forward);
-            Vector3 cameraRight = Flatten(_worldCamera.transform.right);
-
-            if (cameraForward.sqrMagnitude > 0.000001f)
-                cameraForward.Normalize();
-
-            if (cameraRight.sqrMagnitude > 0.000001f)
-                cameraRight.Normalize();
+            Vector3 cameraForward = Flatten(_worldCamera.transform.forward).normalized;
+            Vector3 cameraRight = Flatten(_worldCamera.transform.right).normalized;
 
             Vector3 worldMove =
                 cameraForward * moveInput.y +
@@ -209,18 +205,12 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             Vector2 pointerPosition,
             out Vector3 aimWorldPosition)
         {
-            Camera aimCamera = _aimReferenceCamera != null
-                ? _aimReferenceCamera
-                : _worldCamera;
-
-            Ray ray = aimCamera.ScreenPointToRay(pointerPosition);
-            Vector3 fallbackDirection = Flatten(transform.forward).normalized;
-
-            // 游戏完全位于同一水平面，所以直接用玩家当前 Y 建 AimPlane 
+            Ray ray = _aimReferenceCamera.ScreenPointToRay(pointerPosition);
             Plane aimPlane = new Plane(Vector3.up, transform.position);
 
             if (!aimPlane.Raycast(ray, out float distance))
             {
+                Vector3 fallbackDirection = Flatten(transform.forward).normalized;
                 aimWorldPosition = transform.position + fallbackDirection * 10f;
                 return fallbackDirection;
             }
@@ -230,6 +220,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
 
             if (aimDirection.sqrMagnitude <= 0.000001f)
             {
+                Vector3 fallbackDirection = Flatten(transform.forward).normalized;
                 aimWorldPosition = transform.position + fallbackDirection * 10f;
                 return fallbackDirection;
             }

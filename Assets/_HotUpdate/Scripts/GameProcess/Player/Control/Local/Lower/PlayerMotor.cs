@@ -1,5 +1,4 @@
-﻿using System;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace ProjectGame.HotFix.Gameplay.Player.Movement
 {
@@ -36,13 +35,12 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         // 最近一次 Simulate 或 Restore 后生成的只读运动表现事实 
         public PlayerMotionState MotionState { get; private set; }
 
-        /// <summary>注入角色实体和移动参数，校验配置并建立静止运动状态 </summary>
+        /// <summary>注入角色实体和移动参数，建立静止运动状态 </summary>
         public PlayerMotor(IPlayerCharacterBody body, PlayerMovementConfig config)
         {
-            _body = body ?? throw new ArgumentNullException(nameof(body));
-            _config = config ?? throw new ArgumentNullException(nameof(config));
+            _body = body;
+            _config = config;
 
-            _config.Validate();
             ResetMotion();
         }
 
@@ -122,12 +120,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// </summary>
         public void Simulate(in PlayerMotionCommand command, in PlayerMovementProfile profile, float deltaTime)
         {
-            if (profile == null)
-                throw new ArgumentNullException(nameof(profile));
-
-            if (deltaTime <= 0f)
-                return;
-
             Vector3 worldMove = Flatten(command.WorldMove);
             float inputMagnitude = Mathf.Clamp01(worldMove.magnitude);
             bool hasMoveInput = inputMagnitude > _config.MoveInputDeadZone;
@@ -234,12 +226,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             if (worldMove.sqrMagnitude <= 0.000001f)
                 return 1f;
 
-            Vector3 facing = Flatten(_body.Forward);
-
-            if (facing.sqrMagnitude <= 0.000001f)
-                return 1f;
-
-            float directionDot = Vector3.Dot(facing.normalized, worldMove.normalized);
+            float directionDot = Vector3.Dot(_body.Forward, worldMove.normalized);
             float backwardDotThreshold = Mathf.Cos(profile.BackwardAngleThreshold * Mathf.Deg2Rad);
 
             return directionDot <= backwardDotThreshold
@@ -359,9 +346,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
             Vector3 currentVelocity,
             PlayerMovementProfile profile)
         {
-            if (profile.PivotEntryBrakeSpeed <= 0f || currentVelocity.sqrMagnitude <= 0.000001f)
-                return currentVelocity;
-
             return Vector3.MoveTowards(
                 currentVelocity,
                 Vector3.zero,
@@ -370,15 +354,8 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
 
         private void TryStartPivotBoost(PlayerMovementProfile profile)
         {
-            // 一次爆发未结束前不允许连续方向抖动刷新计时，防止通过快速反复输入无限续杯 
-            if (_pivotBoostTimeRemaining > PivotBoostTimeEpsilon)
-                return;
-
             if (profile.PivotBoostDuration <= 0f || profile.PivotSpeedBonus <= 0f)
-            {
-                ClearPivotBoost();
                 return;
-            }
 
             _pivotBoostTimeRemaining = profile.PivotBoostDuration;
             _pivotBoostSpeedBonus = profile.PivotSpeedBonus;
@@ -431,9 +408,6 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
         /// </summary>
         private PlayerPivotDirection ResolvePivotDirection(Vector3 desiredVelocity)
         {
-            if (desiredVelocity.sqrMagnitude <= 0.000001f)
-                return PlayerPivotDirection.None;
-
             Vector3 localDirection = _body.InverseTransformDirection(desiredVelocity.normalized);
             if (Mathf.Abs(localDirection.x) > Mathf.Abs(localDirection.z))
                 return localDirection.x >= 0f
@@ -495,11 +469,9 @@ namespace ProjectGame.HotFix.Gameplay.Player.Movement
                 return;
             }
 
-            float deceleration = Mathf.Max(rotationDeceleration, 0.001f);
-
             // 以当前角速度继续制动所需的角距离 
             // 进入这段距离后提前减速，避免 RotateTowards 那种恒定角速度突然停住 
-            float stoppingAngle = (_angularSpeed * _angularSpeed) / (2f * deceleration);
+            float stoppingAngle = (_angularSpeed * _angularSpeed) / (2f * rotationDeceleration);
 
             float targetAngularSpeed = Mathf.Abs(angleDelta) <= stoppingAngle
                 ? 0f

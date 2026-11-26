@@ -78,12 +78,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
             _networkManager = NetworkManager.Singleton;
 
-            if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动，无法初始化 PlayerManager ");
-
-            if (!GameSessionContext.IsConfigured)
-                throw new InvalidOperationException("GameSessionContext 尚未配置，无法建立 Gameplay 玩家数据 ");
-
             _playersByClientId.Clear();
             _orderedPlayers.Clear();
             LocalPlayer = null;
@@ -102,11 +96,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         public void RegisterPlayer(PlayerRuntime player)
         {
-            if (player == null)
-                return;
-
-            EnsureInitialized();
-
             ulong clientId = player.ClientId;
 
             if (_playersByClientId.TryGetValue(clientId, out PlayerRuntime existingPlayer))
@@ -148,7 +137,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         public void UnregisterPlayer(PlayerRuntime player)
         {
-            if (player == null || !IsInitialized)
+            if (!IsInitialized)
                 return;
 
             ulong clientId = player.ClientId;
@@ -210,12 +199,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
                 for (int i = 0; i < _orderedPlayers.Count; i++)
                 {
                     PlayerRuntime player = _orderedPlayers[i];
-
-                    if (player == null || !player.TryGetComponent(out PlayerRuntimeInitializer initializer))
-                    {
-                        throw new InvalidOperationException(
-                            $"玩家缺少 {nameof(PlayerRuntimeInitializer)}：Index={i}");
-                    }
+                    PlayerRuntimeInitializer initializer = player.GetComponent<PlayerRuntimeInitializer>();
 
                     if (initializer.HasInitializationFailed)
                     {
@@ -248,7 +232,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             {
                 PlayerRuntime player = _orderedPlayers[i];
 
-                if (player == null || !player.isActiveAndEnabled || !player.IsSpawned)
+                if (!player.isActiveAndEnabled || !player.IsSpawned)
                     continue;
 
                 float sqrDistance = (player.transform.position - searchPosition).sqrMagnitude;
@@ -291,21 +275,13 @@ namespace ProjectGame.HotFix.Gameplay.Player
             return UniTask.CompletedTask;
         }
 
-        private void EnsureInitialized()
-        {
-            if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(PlayerManager)} 尚未初始化，请确认它已加入 GameRuntimeBootstrap ");
-        }
-
         /// <summary>
         /// PlayerManager 只发布“本地玩家成为默认观察目标”这一事实 
         /// 它不知道由 Cinemachine、调试相机还是其他表现系统消费 
         /// </summary>
         private static void PublishLocalPlayerCameraRequest(PlayerRuntime player)
         {
-            Transform cameraTarget = player.TryGetComponent(out PlayerPresentationDriver presentation)
-                ? presentation.PresentationRoot
-                : player.transform;
+            Transform cameraTarget = player.GetComponent<PlayerPresentationDriver>().PresentationRoot;
 
             LocalEvents.Publish(new GameplayCameraTargetRequestedEvent(
                 player,

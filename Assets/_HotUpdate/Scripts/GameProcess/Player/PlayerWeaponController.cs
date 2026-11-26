@@ -50,12 +50,14 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public event Action<EffectRollOffer> EffectRollOffered;
         public event Action<uint, ushort, EffectRollSelectionResult> EffectRollResolved;
 
+        private void Awake()
+        {
+            _sync = GetComponent<PlayerSyncController>();
+        }
+
         public void Bind(int weaponId, Transform muzzle, WeaponRuntimeService service)
         {
             Unbind();
-            _sync = GetComponent<PlayerSyncController>();
-            if (service == null || !service.IsInitialized || muzzle == null)
-                throw new InvalidOperationException("Weapon 服务或 WeaponView.Muzzle 缺失，不能完成玩家 Ready。");
             _service = service;
             _muzzle = muzzle;
             Definition = service.Catalog.Get(weaponId);
@@ -73,7 +75,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         public EffectAcquireResult TryGrantEffect(ushort effectId)
         {
-            if (_sync == null || !_sync.IsServer || !IsSpawned || _effects == null)
+            if (!_sync.IsServer || !IsSpawned || _effects == null)
                 return EffectAcquireResult.UnknownEffect;
             EffectAcquireResult result = _effects.CanAcquire(effectId);
             if (result == EffectAcquireResult.Success)
@@ -91,9 +93,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         public EffectRollOffer CreateEffectRollOfferOnServer(WeaponEffectRollPool pool, int amount,
             int seed, bool chaos = false, bool fallbackToChaos = true)
         {
-            if (_sync == null || !_sync.IsServer || !IsSpawned || _effectRollAuthority == null)
-                throw new InvalidOperationException("只有已 Spawn 且完成武器绑定的服务端玩家可以生成 Effect Roll。");
-
             EffectRollOffer offer = _effectRollAuthority.Create(
                 pool, amount, seed, chaos, fallbackToChaos);
             DeliverEffectRollOffer(offer);
@@ -124,8 +123,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         public bool RequestEffectRollBroadcast(WeaponEffectRollPool pool)
         {
-            if (_sync == null || !_sync.IsServer || !IsSpawned ||
-                !Enum.IsDefined(typeof(WeaponEffectRollPool), pool))
+            if (!_sync.IsServer || !IsSpawned)
                 return false;
 
             PlayerManager manager = PlayerManager.Instance;
@@ -135,10 +133,8 @@ namespace ProjectGame.HotFix.Gameplay.Player
             System.Collections.Generic.IReadOnlyList<PlayerRuntime> players = manager.RuntimePlayers;
             for (int i = 0; i < players.Count; i++)
             {
-                PlayerRuntime player = players[i];
-                if (player == null ||
-                    !player.TryGetComponent(out PlayerWeaponController target) ||
-                    target.Definition == null || target._effectRollAuthority == null)
+                PlayerWeaponController target = players[i].GetComponent<PlayerWeaponController>();
+                if (target.Definition == null)
                     continue;
 
                 int seed = target.CreateBroadcastSeed(pool, target.OwnerClientId);
@@ -154,7 +150,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
         private int CreateBroadcastSeed(WeaponEffectRollPool pool, ulong clientId)
         {
             uint sequence = unchecked(++_effectRollBroadcastSequence);
-            if (sequence == 0) sequence = unchecked(++_effectRollBroadcastSequence);
             return unchecked(Environment.TickCount ^ (int)(sequence * 397u) ^
                              (int)clientId ^ (int)(clientId >> 32) ^ ((int)pool << 24));
         }
@@ -262,8 +257,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
         public void ClearEffectsOnServer()
         {
-            if (_sync == null || !_sync.IsServer || !IsSpawned)
-                throw new InvalidOperationException("只有已 Spawn 的服务端玩家可以清空 Effect。");
             _effectRollAuthority?.ClearPending();
             CancelEffectRollOnServer();
             _effectAcquisitionOrder.Clear();
@@ -307,28 +300,20 @@ namespace ProjectGame.HotFix.Gameplay.Player
         //注意单Client所有WeaponController都会走一遍此方法
         private void ApplyReplicatedEffects()
         {
-            if (Definition == null || _service == null || _effects == null) 
+            if (Definition == null)
                 return;
             //NetworkList不实现IEnumerable<T>接口，直接按索引重建，避免先复制成托管数组。
             _effects.Clear();
             for (int i = 0; i < _effectAcquisitionOrder.Count; i++)
-            {
-                ushort effectId = _effectAcquisitionOrder[i];
-                EffectAcquireResult result = _effects.TryAcquire(effectId);
-                if (result != EffectAcquireResult.Success)
-                {
-                    _effects.Clear();
-                    throw new InvalidOperationException($"Effect 获取序列非法：EffectID={effectId}，原因={result}。");
-                }
-            }
-            
+                _effects.TryAcquire(_effectAcquisitionOrder[i]);
+
             if (_sync.IsServer)
             {
                 //在Server端，每个Client都重算，创建Snapshot，注册权威快照，会触发特殊Effect的效果
                 WeaponEffectApplication application = _service.RegisterPlayerEffectState(
                     _sync.NetworkObjectId, Definition, _effects);
                 ushort version = unchecked((ushort)(CurrentWeaponState.SnapshotVersion + 1));
-                if (version == 0) 
+                if (version == 0)
                     version = 1;
                 //把新的Effect快照数据等正式装到玩家身上
                 _sync.ConfigureWeaponRuntime(application.Calculation.WeaponStats,
@@ -357,21 +342,19 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         private void CommitAuthoritativeShot(PlayerSimulationState state)
         {
-            if (Definition == null || !_sync.IsServer || !state.ActionState.Weapon.IsEquipped) 
-                return;
             uint sequence = state.ActionState.Weapon.ShotSequence;
-            if (sequence == _committedSequence) 
+            if (sequence == _committedSequence)
                 return;
             _committedSequence = sequence;
             Vector3 aim = new Vector3(state.AimDirection.x, 0, state.AimDirection.y);
-            if (aim.sqrMagnitude < 0.0001f) 
+            if (aim.sqrMagnitude < 0.0001f)
                 aim = state.Rotation * Vector3.forward;
             _service.CommitShot(_sync.NetworkObjectId, state.ActionState.Weapon, state.Tick, _muzzle.position, aim);
         }
 
         private void LateUpdate()
         {
-            if (Definition != null && !_lastPublished.Equals(CurrentWeaponState)) 
+            if (Definition != null && !_lastPublished.Equals(CurrentWeaponState))
                 PublishState();
         }
         private void PublishState()
@@ -381,21 +364,27 @@ namespace ProjectGame.HotFix.Gameplay.Player
         }
         public void Unbind()
         {
-            if (_sync != null && _sync.IsServer)
-                _service?.RemovePlayerEffectState(_sync.NetworkObjectId);
-            if (_sync != null) _sync.ServerTickCompleted -= CommitAuthoritativeShot;
+            if (_sync != null)
+            {
+                if (_sync.IsServer)
+                    _service?.RemovePlayerEffectState(_sync.NetworkObjectId);
+                _sync.ServerTickCompleted -= CommitAuthoritativeShot;
+            }
             bool wasBound = Definition != null;
             Definition = null; _service = null; _muzzle = null; _effects = null;
             _effectRollAuthority = null; _currentEffectRollOffer = null;
             _currentEffectSet = EffectSet.Empty; _ownerEffectStats = default;
             _committedSequence = 0;
             _effectRollBroadcastSequence = 0;
-            if (wasBound) PublishState();
-            // 回池后不能把上一名玩家的 UI 引用留给下一次 Spawn。
-            if (wasBound) WeaponStateChanged = null;
-            if (wasBound) EffectsChanged = null;
-            if (wasBound) EffectRollOffered = null;
-            if (wasBound) EffectRollResolved = null;
+            if (wasBound)
+            {
+                PublishState();
+                // 回池后不能把上一名玩家的 UI 引用留给下一次 Spawn。
+                WeaponStateChanged = null;
+                EffectsChanged = null;
+                EffectRollOffered = null;
+                EffectRollResolved = null;
+            }
         }
         private void OnDestroy() => Unbind();
     }

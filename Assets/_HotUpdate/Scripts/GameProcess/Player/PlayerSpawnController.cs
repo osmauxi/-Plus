@@ -1,9 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectGame.HotFix.Core.Session;
-using ProjectGame.HotFix.Gameplay.Pooling;
 using ProjectGame.HotFix.Gameplay.Player.Sync;
 using ProjectGame.HotFix.Gameplay.Runtime;
 using ProjectGame.HotFix.Gameplay.Spawning;
@@ -40,21 +38,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
 
             _networkManager = NetworkManager.Singleton;
 
-            if (_networkManager == null || !_networkManager.IsListening)
-                throw new InvalidOperationException("NGO 尚未启动，无法初始化 PlayerSpawnController ");
-
-            if (!GameSessionContext.IsConfigured)
-                throw new InvalidOperationException("GameSessionContext 尚未配置 ");
-
-            if (PlayerManager.Instance == null || !PlayerManager.Instance.IsInitialized)
-                throw new InvalidOperationException("PlayerManager 尚未初始化 ");
-
-            if (Pooling.SyncObjectPool.Instance == null || !Pooling.SyncObjectPool.Instance.IsInitialized)
-                throw new InvalidOperationException("SyncObjectPool 尚未初始化 ");
-
-            if (!Pooling.SyncObjectPool.Instance.ContainsPool(_playerPoolId))
-                throw new InvalidOperationException($"不存在玩家网络对象池：{_playerPoolId}");
-
             // 不是只有 Server Prepare 
             // 每个 Peer 都必须认识这个动态 NetworkPrefab，
             // 否则 Server Spawn 后 Client 无法通过 PrefabHandler 创建对应实例 
@@ -71,39 +54,20 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         public async UniTask SpawnInitialPlayersAsync(IReadOnlyList<SpawnPose> spawnPoints, CancellationToken cancellationToken)
         {
-            EnsureInitialized();
-            EnsureServer();
-
-            if (spawnPoints == null)
-                throw new ArgumentNullException(nameof(spawnPoints));
-
             IReadOnlyList<PlayerSessionData> sessionPlayers = GameSessionContext.Players;
-
-            if (spawnPoints.Count < sessionPlayers.Count)
-                throw new InvalidOperationException($"出生点不足：SpawnPoints={spawnPoints.Count}，Players={sessionPlayers.Count}");
-
-            if (PlayerManager.Instance.SpawnedPlayerCount > 0)
-                throw new InvalidOperationException("当前已经存在玩家，不能重复执行首次 Spawn ");
 
             for (int i = 0; i < sessionPlayers.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 PlayerSessionData sessionData = sessionPlayers[i];
-
-                if (!IsClientConnected(sessionData.ClientId))
-                    throw new InvalidOperationException($"玩家已经不在连接列表中：ClientId={sessionData.ClientId}");
-
                 SpawnPose spawnPoint = spawnPoints[i];
 
-                NetworkObject playerObject = Pooling.SyncObjectPool.Instance.SpawnWithOwnership(
+                Pooling.SyncObjectPool.Instance.SpawnWithOwnership(
                     _playerPoolId,
                     sessionData.ClientId,
                     spawnPoint.Position,
                     spawnPoint.Rotation);
-
-                if (playerObject == null)
-                    throw new InvalidOperationException($"玩家 NetworkObject 生成失败：ClientId={sessionData.ClientId}");
             }
 
             // Server 本机确认所有 PlayerRuntime 已完成 OnNetworkSpawn 注册 
@@ -118,30 +82,16 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// </summary>
         public void RepositionPlayers(IReadOnlyList<SpawnPose> spawnPoints)
         {
-            EnsureInitialized();
-            EnsureServer();
-
-            if (spawnPoints == null)
-                throw new ArgumentNullException(nameof(spawnPoints));
-
             IReadOnlyList<PlayerSessionData> sessionPlayers = GameSessionContext.Players;
-
-            if (spawnPoints.Count < sessionPlayers.Count)
-                throw new InvalidOperationException($"出生点不足：SpawnPoints={spawnPoints.Count}，Players={sessionPlayers.Count}");
 
             for (int i = 0; i < sessionPlayers.Count; i++)
             {
                 PlayerSessionData sessionData = sessionPlayers[i];
-
                 if (!PlayerManager.Instance.TryGetRuntimePlayer(sessionData.ClientId, out PlayerRuntime player))
-                    throw new InvalidOperationException($"找不到玩家运行时对象：ClientId={sessionData.ClientId}");
+                    continue;
 
                 SpawnPose spawnPoint = spawnPoints[i];
-
-                if (player.TryGetComponent(out PlayerSyncController syncController))
-                    syncController.ResetAfterWarp(spawnPoint.Position, spawnPoint.Rotation);
-                else
-                    player.transform.SetPositionAndRotation(spawnPoint.Position, spawnPoint.Rotation);
+                player.GetComponent<PlayerSyncController>().ResetAfterWarp(spawnPoint.Position, spawnPoint.Rotation);
             }
 
             Debug.Log($"[{nameof(PlayerSpawnController)}] 已重新布置玩家：Count={sessionPlayers.Count}");
@@ -150,16 +100,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
         /// <summary>服务端移动单个现有玩家，并重置该玩家的预测、插值和输入基线。</summary>
         public void WarpPlayer(PlayerRuntime player, in SpawnPose destination)
         {
-            EnsureInitialized();
-            EnsureServer();
-
-            if (player == null || !player.IsSpawned)
-                throw new ArgumentException("Warp 目标必须是已生成的 PlayerRuntime。", nameof(player));
-
-            if (player.TryGetComponent(out PlayerSyncController syncController))
-                syncController.ResetAfterWarp(destination.Position, destination.Rotation);
-            else
-                player.transform.SetPositionAndRotation(destination.Position, destination.Rotation);
+            player.GetComponent<PlayerSyncController>().ResetAfterWarp(destination.Position, destination.Rotation);
         }
 
         /// <summary>
@@ -181,7 +122,7 @@ namespace ProjectGame.HotFix.Gameplay.Player
             {
                 PlayerRuntime player = players[i];
 
-                if (player != null && player.IsSpawned)
+                if (player.IsSpawned)
                     _despawnBuffer.Add(player.NetworkObject);
             }
 
@@ -206,31 +147,6 @@ namespace ProjectGame.HotFix.Gameplay.Player
             Debug.Log($"[{nameof(PlayerSpawnController)}] 已关闭 ");
 
             return UniTask.CompletedTask;
-        }
-
-        private bool IsClientConnected(ulong clientId)
-        {
-            IReadOnlyList<ulong> connectedClientIds = _networkManager.ConnectedClientsIds;
-
-            for (int i = 0; i < connectedClientIds.Count; i++)
-            {
-                if (connectedClientIds[i] == clientId)
-                    return true;
-            }
-
-            return false;
-        }
-
-        private void EnsureInitialized()
-        {
-            if (!IsInitialized)
-                throw new InvalidOperationException($"{nameof(PlayerSpawnController)} 尚未初始化 ");
-        }
-
-        private void EnsureServer()
-        {
-            if (_networkManager == null || !_networkManager.IsServer)
-                throw new InvalidOperationException("只有 Server 可以生成玩家 ");
         }
     }
 }

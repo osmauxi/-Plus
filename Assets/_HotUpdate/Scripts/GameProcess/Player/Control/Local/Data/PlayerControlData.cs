@@ -286,10 +286,7 @@ namespace ProjectGame.HotFix.Gameplay.Player.Stamina
         public float RecoveryDelayRemaining;
         public bool IsExhausted;
 
-        public float Normalized(float maxStamina)
-        {
-            return maxStamina <= 0f ? 0f : Mathf.Clamp01(Current / maxStamina);
-        }
+        public float Normalized(float maxStamina) => Mathf.Clamp01(Current / maxStamina);
 
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
